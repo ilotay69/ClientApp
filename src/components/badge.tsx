@@ -16,6 +16,14 @@ const COLORS: Record<string, string> = {
   // touchpoints
   personal_checkin: "bg-purple-100 text-purple-700",
   quarterly_review: "bg-indigo-100 text-indigo-700",
+  // linked emails
+  general: "bg-slate-100 text-slate-700",
+  // suggestion kinds
+  follow_up: "bg-amber-100 text-amber-800",
+  opportunity: "bg-emerald-100 text-emerald-700",
+  stale_contact: "bg-red-100 text-red-700",
+  qbr_prep: "bg-indigo-100 text-indigo-700",
+  other: "bg-slate-100 text-slate-700",
   // roles
   admin: "bg-slate-900 text-white",
   sales: "bg-blue-100 text-blue-700",

@@ -67,9 +67,14 @@ export function TouchpointForm({
 
       <div>
         <label className="block text-sm font-medium text-slate-700">Notes</label>
+        <p className="mt-0.5 text-xs text-slate-500">
+          For quarterly reviews, paste meeting notes here directly (e.g. from
+          Granola or another notetaker) — related emails around this date are
+          shown below for context once this is saved.
+        </p>
         <textarea
           name="notes"
-          rows={4}
+          rows={8}
           defaultValue={touchpoint?.notes ?? ""}
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         />

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue } from "@/lib/format";
+import { RefreshInsightsButton } from "@/components/refresh-insights-button";
+import { SuggestionCard } from "@/components/suggestion-card";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,7 @@ export default async function DashboardPage() {
     { data: openQuotes },
     { data: dueTouchpoints },
     { data: activeProjects },
+    { data: suggestions },
   ] = await Promise.all([
     supabase
       .from("quotes")
@@ -29,6 +32,12 @@ export default async function DashboardPage() {
       .select("id, name, status, target_end_date, clients(name)")
       .in("status", ["planning", "active", "on_hold"])
       .order("target_end_date", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("suggestions")
+      .select("id, client_id, kind, summary, detail, clients(name)")
+      .eq("status", "open")
+      .order("created_at", { ascending: false })
+      .limit(15),
   ]);
 
   const overdueQuotes = (openQuotes ?? []).filter((q) =>
@@ -46,6 +55,20 @@ export default async function DashboardPage() {
           What needs attention today, {today}.
         </p>
       </div>
+
+      <Section title="Insights" emptyText="No open insights right now." action={<RefreshInsightsButton />}>
+        {(suggestions ?? []).map((s) => (
+          <SuggestionCard
+            key={s.id}
+            id={s.id}
+            clientId={s.client_id}
+            clientName={(s.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
+            kind={s.kind}
+            summary={s.summary}
+            detail={s.detail}
+          />
+        ))}
+      </Section>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
@@ -136,18 +159,21 @@ function Section({
   title,
   emptyText,
   children,
+  action,
 }: {
   title: string;
   emptyText: string;
   children: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   const hasChildren = Array.isArray(children)
     ? children.length > 0
     : Boolean(children);
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-3">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        {action}
       </div>
       <div className="divide-y divide-slate-100">
         {hasChildren ? (

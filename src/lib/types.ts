@@ -81,6 +81,52 @@ export interface ReminderLogEntry {
   recipient_email: string;
 }
 
+export type EmailLinkType = "quote" | "project" | "general";
+
+export interface MailConnection {
+  user_id: string;
+  mailbox_email: string;
+  access_token: string;
+  refresh_token: string;
+  expires_at: string;
+  connected_at: string;
+  last_synced_at: string | null;
+}
+
+export interface EmailLink {
+  id: string;
+  client_id: string;
+  type: EmailLinkType;
+  subject: string;
+  from_name: string | null;
+  from_email: string;
+  received_at: string;
+  web_link: string | null;
+  body_preview: string | null;
+  graph_message_id: string;
+  connection_user_id: string | null;
+  created_at: string;
+}
+
+export type SuggestionKind =
+  | "follow_up"
+  | "opportunity"
+  | "stale_contact"
+  | "qbr_prep"
+  | "other";
+export type SuggestionStatus = "open" | "dismissed" | "done";
+
+export interface Suggestion {
+  id: string;
+  client_id: string;
+  kind: SuggestionKind;
+  summary: string;
+  detail: string | null;
+  related_email_ids: string[] | null;
+  status: SuggestionStatus;
+  created_at: string;
+}
+
 // Minimal Database type so the Supabase client stays typed without needing
 // the full generated schema. Extend with `Row`/`Insert`/`Update` per table
 // if you generate real types later.

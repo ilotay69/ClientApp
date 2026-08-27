@@ -49,6 +49,12 @@ export default async function DashboardLayout({
                   {link.label}
                 </Link>
               ))}
+              <Link
+                href="/settings/mail"
+                className="text-sm text-slate-600 hover:text-slate-900"
+              >
+                Mailbox
+              </Link>
               {profile?.role === "admin" && (
                 <Link
                   href="/team"

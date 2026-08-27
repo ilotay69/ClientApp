@@ -17,7 +17,7 @@ export default async function ClientDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: client }, { data: quotes }, { data: projects }, { data: touchpoints }] =
+  const [{ data: client }, { data: quotes }, { data: projects }, { data: touchpoints }, { data: emails }] =
     await Promise.all([
       supabase.from("clients").select("*").eq("id", id).single(),
       supabase
@@ -35,6 +35,12 @@ export default async function ClientDetailPage({
         .select("id, type, due_date, completed_at")
         .eq("client_id", id)
         .order("due_date", { ascending: false }),
+      supabase
+        .from("email_links")
+        .select("id, type, subject, from_name, from_email, received_at, web_link")
+        .eq("client_id", id)
+        .order("received_at", { ascending: false })
+        .limit(20),
     ]);
 
   if (!client) notFound();
@@ -140,6 +146,26 @@ export default async function ClientDetailPage({
               </Link>
             ))}
           </RelatedSection>
+
+          <RelatedSection title="Linked emails" emptyText="No matching emails yet.">
+            {(emails ?? []).map((e) => (
+              <a
+                key={e.id}
+                href={e.web_link ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{e.subject}</p>
+                  <p className="text-xs text-slate-500">
+                    {e.from_name ?? e.from_email} · {formatDate(e.received_at)}
+                  </p>
+                </div>
+                <Badge value={e.type} />
+              </a>
+            ))}
+          </RelatedSection>
         </div>
       </div>
     </div>
@@ -153,7 +179,7 @@ function RelatedSection({
   children,
 }: {
   title: string;
-  newHref: string;
+  newHref?: string;
   emptyText: string;
   children: React.ReactNode;
 }) {
@@ -164,9 +190,11 @@ function RelatedSection({
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-        <Link href={newHref} className="text-sm text-slate-600 hover:underline">
-          + Add
-        </Link>
+        {newHref && (
+          <Link href={newHref} className="text-sm text-slate-600 hover:underline">
+            + Add
+          </Link>
+        )}
       </div>
       <div className="divide-y divide-slate-100">
         {hasChildren ? children : (
