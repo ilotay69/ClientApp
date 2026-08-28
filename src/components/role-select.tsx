@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import type { UserRole } from "@/lib/types";
 
-const ROLES: UserRole[] = ["admin", "sales", "account_manager"];
+const ROLES: UserRole[] = ["director", "manager", "tech"];
 
 export function RoleSelect({
   memberId,

@@ -9,12 +9,14 @@ const initialState: FormState = { error: null };
 export function TouchpointForm({
   touchpoint,
   clients,
+  members,
   defaultClientId,
   action,
   submitLabel,
 }: {
   touchpoint?: Touchpoint;
   clients: { id: string; name: string }[];
+  members: { id: string; full_name: string }[];
   defaultClientId?: string;
   action: (prevState: FormState, formData: FormData) => Promise<FormState>;
   submitLabel: string;
@@ -46,11 +48,27 @@ export function TouchpointForm({
         <label className="block text-sm font-medium text-slate-700">Type</label>
         <select
           name="type"
-          defaultValue={touchpoint?.type ?? "personal_checkin"}
+          defaultValue={touchpoint?.type ?? "monthly_visit"}
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         >
-          <option value="personal_checkin">Personal check-in</option>
+          <option value="monthly_visit">Monthly visit</option>
           <option value="quarterly_review">Quarterly review (QBR)</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700">Assigned to</label>
+        <select
+          name="owner_id"
+          defaultValue={touchpoint?.owner_id ?? ""}
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+        >
+          <option value="">Unassigned</option>
+          {members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.full_name}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -68,14 +86,29 @@ export function TouchpointForm({
       <div>
         <label className="block text-sm font-medium text-slate-700">Notes</label>
         <p className="mt-0.5 text-xs text-slate-500">
-          For quarterly reviews, paste meeting notes here directly (e.g. from
-          Granola or another notetaker) — related emails around this date are
-          shown below for context once this is saved.
+          What was covered on the visit or review. For quarterly reviews,
+          paste meeting notes here directly (e.g. from Granola or another
+          notetaker) — related emails around this date are shown below for
+          context once this is saved.
         </p>
         <textarea
           name="notes"
-          rows={8}
+          rows={6}
           defaultValue={touchpoint?.notes ?? ""}
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700">Next action</label>
+        <p className="mt-0.5 text-xs text-slate-500">
+          What needs to happen from this visit. If set, it&apos;s tracked as
+          an open task assigned to the same person as this touchpoint.
+        </p>
+        <textarea
+          name="next_action"
+          rows={2}
+          defaultValue={touchpoint?.next_action ?? ""}
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         />
       </div>

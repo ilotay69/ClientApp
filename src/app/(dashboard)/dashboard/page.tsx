@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
-import { formatDate, isOverdue } from "@/lib/format";
+import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
 import { RefreshInsightsButton } from "@/components/refresh-insights-button";
 import { SuggestionCard } from "@/components/suggestion-card";
 
@@ -10,21 +10,39 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", user?.id ?? "")
+    .single();
+  const canSeeTeamWide = me?.role === "director" || me?.role === "manager";
 
   const [
-    { data: openQuotes },
+    { data: myTasks },
+    { data: allOpenTasks },
     { data: dueTouchpoints },
     { data: activeProjects },
     { data: suggestions },
+    { data: serviceChecks },
+    { data: members },
   ] = await Promise.all([
     supabase
-      .from("quotes")
-      .select("id, title, follow_up_due_date, status, clients(name)")
-      .in("status", ["sent", "follow_up_needed"])
-      .order("follow_up_due_date", { ascending: true, nullsFirst: false }),
+      .from("tasks")
+      .select("id, kind, title, due_date, clients(name)")
+      .eq("assigned_to", user?.id ?? "")
+      .in("status", ["open", "in_progress"])
+      .order("due_date", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("tasks")
+      .select("id, assigned_to, profiles:assigned_to(full_name)")
+      .in("status", ["open", "in_progress"]),
     supabase
       .from("touchpoints")
-      .select("id, type, due_date, clients(name)")
+      .select("id, type, due_date, owner_id, clients(name)")
       .is("completed_at", null)
       .order("due_date", { ascending: true }),
     supabase
@@ -34,25 +52,40 @@ export default async function DashboardPage() {
       .order("target_end_date", { ascending: true, nullsFirst: false }),
     supabase
       .from("suggestions")
-      .select("id, client_id, kind, summary, detail, clients(name)")
+      .select("id, client_id, kind, summary, detail, priority, clients(name)")
       .eq("status", "open")
+      .order("priority", { ascending: true })
       .order("created_at", { ascending: false })
       .limit(15),
+    supabase
+      .from("client_service_checks")
+      .select("id, cadence_days, last_checked_at, clients(name), service_catalog(name, default_cadence_days)"),
+    supabase.from("profiles").select("id, full_name"),
   ]);
 
-  const overdueQuotes = (openQuotes ?? []).filter((q) =>
-    isOverdue(q.follow_up_due_date)
-  );
-  const overdueTouchpoints = (dueTouchpoints ?? []).filter((t) =>
-    isOverdue(t.due_date)
-  );
+  const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
+  const overdueTouchpoints = (dueTouchpoints ?? []).filter((t) => isOverdue(t.due_date));
+  const overdueServiceChecks = (serviceChecks ?? []).filter((sc) => {
+    const catalog = sc.service_catalog as unknown as { default_cadence_days: number } | null;
+    const cadence = sc.cadence_days ?? catalog?.default_cadence_days ?? 90;
+    return isServiceCheckOverdue(sc.last_checked_at, cadence);
+  });
+
+  const workloadByPerson = new Map<string, number>();
+  for (const t of allOpenTasks ?? []) {
+    const name =
+      (t.profiles as unknown as { full_name: string } | null)?.full_name ??
+      (t.assigned_to ? "Unknown" : "Unassigned");
+    workloadByPerson.set(name, (workloadByPerson.get(name) ?? 0) + 1);
+  }
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Overview</h1>
         <p className="mt-1 text-sm text-slate-500">
-          What needs attention today, {today}.
+          What needs attention today, {today}
+          {me?.full_name ? ` — hey ${me.full_name.split(" ")[0]}` : ""}.
         </p>
       </div>
 
@@ -66,20 +99,23 @@ export default async function DashboardPage() {
             kind={s.kind}
             summary={s.summary}
             detail={s.detail}
+            priority={s.priority}
+            members={members ?? []}
           />
         ))}
       </Section>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Quotes needing follow-up"
-          value={overdueQuotes.length}
-          href="/quotes"
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <StatCard label="My open tasks" value={myTasks?.length ?? 0} href="/tasks?mine=1" />
         <StatCard
           label="Touchpoints past due"
           value={overdueTouchpoints.length}
           href="/touchpoints"
+        />
+        <StatCard
+          label="Service checks overdue"
+          value={overdueServiceChecks.length}
+          href="/clients"
         />
         <StatCard
           label="Active projects"
@@ -88,37 +124,83 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <Section title="Quotes to follow up on" emptyText="Nothing outstanding.">
-        {(openQuotes ?? []).slice(0, 8).map((q) => (
-          <Row key={q.id} href={`/quotes/${q.id}`}>
+      <Section title="My tasks" emptyText="Nothing assigned to you right now." action={
+        <Link href="/tasks?mine=1" className="text-sm text-slate-600 hover:underline">
+          View all
+        </Link>
+      }>
+        {(myTasks ?? []).slice(0, 8).map((t) => (
+          <Row key={t.id} href="/tasks">
             <div>
-              <p className="text-sm font-medium text-slate-900">{q.title}</p>
+              <p className="text-sm font-medium text-slate-900">{t.title}</p>
               <p className="text-xs text-slate-500">
-                {(q.clients as unknown as { name: string } | null)?.name ??
-                  "Unknown client"}
+                {(t.clients as unknown as { name: string } | null)?.name ?? "No client"}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {isOverdue(q.follow_up_due_date) && <OverdueBadge />}
-              <span className="text-xs text-slate-500">
-                Due {formatDate(q.follow_up_due_date)}
-              </span>
-              <Badge value={q.status} />
+              {isOverdue(t.due_date) && <OverdueBadge />}
+              <span className="text-xs text-slate-500">Due {formatDate(t.due_date)}</span>
+              <Badge value={t.kind} />
             </div>
           </Row>
         ))}
       </Section>
 
+      {canSeeTeamWide && workloadByPerson.size > 0 && (
+        <Section title="Team workload (open tasks)" emptyText="Nothing assigned across the team.">
+          <div className="flex flex-wrap gap-3 px-5 py-4">
+            {[...workloadByPerson.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, count]) => (
+                <Link
+                  key={name}
+                  href="/tasks?view=all"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm hover:border-slate-300"
+                >
+                  <span className="font-medium text-slate-900">{name}</span>{" "}
+                  <span className="text-slate-500">
+                    {count} open task{count === 1 ? "" : "s"}
+                  </span>
+                </Link>
+              ))}
+          </div>
+        </Section>
+      )}
+
       <Section
-        title="Touchpoints coming up"
+        title={canSeeTeamWide ? "Overdue service checks" : "Your overdue service checks"}
+        emptyText="Everything's within cadence."
+      >
+        {overdueServiceChecks.slice(0, 8).map((sc) => {
+          const catalog = sc.service_catalog as unknown as { name: string } | null;
+          return (
+            <Row key={sc.id} href="/clients">
+              <div>
+                <p className="text-sm font-medium text-slate-900">{catalog?.name ?? "Service"}</p>
+                <p className="text-xs text-slate-500">
+                  {(sc.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <OverdueBadge />
+                <span className="text-xs text-slate-500">
+                  Last checked {formatDate(sc.last_checked_at)}
+                </span>
+              </div>
+            </Row>
+          );
+        })}
+      </Section>
+
+      <Section
+        title={canSeeTeamWide ? "Touchpoints coming up" : "Your touchpoints coming up"}
         emptyText="No touchpoints scheduled."
       >
-        {(dueTouchpoints ?? []).slice(0, 8).map((t) => (
+        {(canSeeTeamWide ? dueTouchpoints ?? [] : myOpenTouchpoints).slice(0, 8).map((t) => (
           <Row key={t.id} href={`/touchpoints/${t.id}`}>
             <div>
               <p className="text-sm font-medium text-slate-900">
-                {(t.clients as unknown as { name: string } | null)?.name ??
-                  "Unknown client"}
+                {(t.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
               </p>
               <p className="text-xs text-slate-500">
                 Due {formatDate(t.due_date)}

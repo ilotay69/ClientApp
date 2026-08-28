@@ -19,7 +19,7 @@ export default async function TeamPage() {
     .eq("id", user?.id ?? "")
     .single();
 
-  if (me?.role !== "admin") {
+  if (me?.role !== "director") {
     redirect("/dashboard");
   }
 
@@ -34,7 +34,7 @@ export default async function TeamPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Team</h1>
         <p className="mt-1 text-sm text-slate-500">
           Manage who has access and what role they hold. New sign-ups default
-          to &quot;sales&quot;.
+          to &quot;tech&quot;.
         </p>
       </div>
 

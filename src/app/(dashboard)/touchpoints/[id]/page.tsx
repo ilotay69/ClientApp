@@ -23,9 +23,10 @@ export default async function TouchpointDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: touchpoint }, { data: clients }] = await Promise.all([
+  const [{ data: touchpoint }, { data: clients }, { data: members }] = await Promise.all([
     supabase.from("touchpoints").select("*, clients(name)").eq("id", id).single(),
     supabase.from("clients").select("id, name").order("name"),
+    supabase.from("profiles").select("id, full_name").order("full_name"),
   ]);
 
   if (!touchpoint) notFound();
@@ -89,6 +90,7 @@ export default async function TouchpointDetailPage({
         <TouchpointForm
           touchpoint={touchpoint}
           clients={clients ?? []}
+          members={members ?? []}
           action={updateAction}
           submitLabel="Save changes"
         />

@@ -20,7 +20,7 @@ export async function updateMemberRole(memberId: string, role: UserRole) {
     .select("role")
     .eq("id", user.id)
     .single();
-  if (me?.role !== "admin") return;
+  if (me?.role !== "director") return;
 
   await supabase.from("profiles").update({ role }).eq("id", memberId);
   revalidatePath("/team");

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CG Client Tracker",
-  description: "Internal quote, project, and client relationship tracker for CG Technologies.",
+  description: "Internal operations tracker for CG Technologies — client mailboxes, projects, touchpoints, and team task assignment.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

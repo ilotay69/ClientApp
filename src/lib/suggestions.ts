@@ -6,10 +6,10 @@ const DEDUPE_WINDOW_DAYS = 7;
 
 /**
  * Generates and stores AI suggestions for clients with recent email
- * activity. Nothing here writes to clients/quotes/projects/touchpoints —
- * only to the `suggestions` table, which people review and act on
- * themselves. Returns how many clients were considered and how many
- * suggestions were created.
+ * activity. Nothing here writes to clients/projects/touchpoints/tasks on
+ * its own — only to the `suggestions` table, which people review and act
+ * on themselves (or promote into an assigned task). Returns how many
+ * clients were considered and how many suggestions were created.
  */
 export async function generateSuggestions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,7 +31,7 @@ export async function generateSuggestions(
   let created = 0;
 
   for (const clientId of clientIds) {
-    const [{ data: client }, { data: emails }, { data: quotes }, { data: projects }, { data: touchpoints }] =
+    const [{ data: client }, { data: emails }, { data: projects }, { data: touchpoints }] =
       await Promise.all([
         admin.from("clients").select("id, name").eq("id", clientId).single(),
         admin
@@ -41,11 +41,6 @@ export async function generateSuggestions(
           .gte("received_at", since)
           .order("received_at", { ascending: false })
           .limit(MAX_EMAILS_PER_CLIENT),
-        admin
-          .from("quotes")
-          .select("title, status, amount, follow_up_due_date")
-          .eq("client_id", clientId)
-          .in("status", ["draft", "sent", "follow_up_needed"]),
         admin
           .from("projects")
           .select("name, status, target_end_date")
@@ -61,7 +56,7 @@ export async function generateSuggestions(
 
     if (!client || !emails || emails.length === 0) continue;
 
-    const prompt = buildPrompt(client.name, emails, quotes ?? [], projects ?? [], touchpoints ?? []);
+    const prompt = buildPrompt(client.name, emails, projects ?? [], touchpoints ?? []);
 
     let generated;
     try {
@@ -80,6 +75,7 @@ export async function generateSuggestions(
         kind: suggestion.kind,
         summary: suggestion.summary,
         detail: suggestion.detail,
+        priority: suggestion.priority ?? "normal",
       });
       if (!error) created += 1;
     }
@@ -110,27 +106,21 @@ type EmailRow = {
   body_preview: string | null;
   type: string;
 };
-type QuoteRow = { title: string; status: string; amount: number | null; follow_up_due_date: string | null };
 type ProjectRow = { name: string; status: string; target_end_date: string | null };
 type TouchpointRow = { type: string; due_date: string; completed_at: string | null };
 
 function buildPrompt(
   clientName: string,
   emails: EmailRow[],
-  quotes: QuoteRow[],
   projects: ProjectRow[],
   touchpoints: TouchpointRow[]
 ) {
   const emailList = emails
     .map(
       (e) =>
-        `- [${e.received_at.slice(0, 10)}] From ${e.from_name ?? e.from_email}: "${e.subject}" — ${e.body_preview ?? "(no preview)"}`
+        `- [${e.received_at.slice(0, 10)}] From ${e.from_name ?? e.from_email} (tagged "${e.type}"): "${e.subject}" — ${e.body_preview ?? "(no preview)"}`
     )
     .join("\n");
-
-  const quoteList = quotes.length
-    ? quotes.map((q) => `- "${q.title}" (${q.status}, follow-up due ${q.follow_up_due_date ?? "not set"})`).join("\n")
-    : "None currently tracked.";
 
   const projectList = projects.length
     ? projects.map((p) => `- "${p.name}" (${p.status}, target end ${p.target_end_date ?? "not set"})`).join("\n")
@@ -142,15 +132,12 @@ function buildPrompt(
         .join("\n")
     : "None on record.";
 
-  return `You are helping an account manager at an MSP (managed IT services provider) stay on top of a client relationship. You will see recent emails with/about this client, plus what's already being tracked in their CRM. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions.
+  return `You are helping an MSP (managed IT services provider) director and their team of managers and techs stay on top of a client relationship. You will see recent emails with/about this client, plus what's already being tracked in their ops system. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions. Nobody here creates formal price quotes in this system (that's handled by sales elsewhere), so never include or ask for a dollar amount.
 
 Client: ${clientName}
 
 Recent emails (last ${LOOKBACK_DAYS} days):
 ${emailList || "None."}
-
-Currently tracked open quotes:
-${quoteList}
 
 Currently tracked active projects:
 ${projectList}
@@ -158,5 +145,14 @@ ${projectList}
 Recent touchpoints on record:
 ${touchpointList}
 
-Look for: quote follow-ups that seem to need attention and aren't already logged with a near-term follow-up date, signs of a new project or service opportunity mentioned in email, signs the client hasn't been proactively contacted in a while relative to their email activity, or anything worth preparing for their next quarterly review. Use the report_suggestions tool.`;
+Look for, in order of importance:
+1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, anything that shouldn't wait.
+2. quote_follow_up — a customer asked for pricing/a quote and nobody's replied yet, OR pricing was sent and the customer's gone quiet with no reply. No dollar amount needed, just flag that a follow-up is owed.
+3. new_project — an email suggests a new project, engagement, or piece of work that isn't already in the tracked project list above.
+4. stale_contact — the client's been emailing but hasn't had a proactive check-in in a while relative to that activity.
+5. review_prep — something worth bringing up at their next monthly visit or quarterly review.
+6. opportunity — a possible upsell or new-service signal that isn't urgent.
+7. follow_up / other — anything else that looks unhandled.
+
+Mark priority "high" only for something genuinely time-sensitive or important — most suggestions should be "normal". Use the report_suggestions tool.`;
 }

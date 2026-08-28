@@ -1,17 +1,16 @@
-// Hand-written types mirroring supabase/schema.sql. If the schema changes,
-// update these to match (or generate them with `supabase gen types typescript`
-// once the Supabase CLI is linked to the project).
+// Hand-written types mirroring supabase/schema.sql (+ 002/003/004 migrations).
+// If the schema changes, update these to match (or generate them with
+// `supabase gen types typescript` once the Supabase CLI is linked to the project).
 
-export type UserRole = "admin" | "sales" | "account_manager";
-export type QuoteStatus = "draft" | "sent" | "follow_up_needed" | "won" | "lost";
+export type UserRole = "director" | "manager" | "tech";
 export type ProjectStatus =
   | "planning"
   | "active"
   | "on_hold"
   | "completed"
   | "cancelled";
-export type TouchpointType = "personal_checkin" | "quarterly_review";
-export type ReminderKind = "quote" | "touchpoint" | "project";
+export type TouchpointType = "monthly_visit" | "quarterly_review";
+export type ReminderKind = "touchpoint" | "project" | "task" | "service_check";
 
 export interface Profile {
   id: string;
@@ -29,21 +28,6 @@ export interface Client {
   primary_contact_phone: string | null;
   notes: string | null;
   owner_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Quote {
-  id: string;
-  client_id: string;
-  title: string;
-  amount: number | null;
-  status: QuoteStatus;
-  sent_date: string | null;
-  follow_up_due_date: string | null;
-  last_followed_up_at: string | null;
-  owner_id: string | null;
-  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,6 +52,7 @@ export interface Touchpoint {
   due_date: string;
   completed_at: string | null;
   notes: string | null;
+  next_action: string | null;
   owner_id: string | null;
   created_at: string;
   updated_at: string;
@@ -110,11 +95,15 @@ export interface EmailLink {
 
 export type SuggestionKind =
   | "follow_up"
+  | "quote_follow_up"
+  | "urgent_alert"
+  | "new_project"
   | "opportunity"
   | "stale_contact"
-  | "qbr_prep"
+  | "review_prep"
   | "other";
 export type SuggestionStatus = "open" | "dismissed" | "done";
+export type SuggestionPriority = "normal" | "high";
 
 export interface Suggestion {
   id: string;
@@ -122,9 +111,60 @@ export interface Suggestion {
   kind: SuggestionKind;
   summary: string;
   detail: string | null;
+  priority: SuggestionPriority;
   related_email_ids: string[] | null;
   status: SuggestionStatus;
+  task_id: string | null;
   created_at: string;
+}
+
+export type TaskKind =
+  | "email_follow_up"
+  | "quote_follow_up"
+  | "urgent_alert"
+  | "new_project"
+  | "service_check"
+  | "touchpoint_action"
+  | "general";
+export type TaskStatus = "open" | "in_progress" | "done" | "dismissed";
+
+export interface Task {
+  id: string;
+  client_id: string | null;
+  kind: TaskKind;
+  title: string;
+  detail: string | null;
+  status: TaskStatus;
+  assigned_to: string | null;
+  due_date: string | null;
+  source_suggestion_id: string | null;
+  source_touchpoint_id: string | null;
+  source_service_check_id: string | null;
+  created_by: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceCatalogItem {
+  id: string;
+  name: string;
+  description: string | null;
+  default_cadence_days: number;
+  created_at: string;
+}
+
+export interface ClientServiceCheck {
+  id: string;
+  client_id: string;
+  service_id: string;
+  cadence_days: number | null;
+  last_checked_at: string | null;
+  last_checked_by: string | null;
+  assigned_to: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Minimal Database type so the Supabase client stays typed without needing

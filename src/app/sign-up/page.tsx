@@ -16,8 +16,8 @@ export default function SignUpPage() {
           Create your account
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          New accounts default to the &quot;sales&quot; role — an admin can
-          change this later from the Team page.
+          New accounts default to the &quot;tech&quot; role — the director
+          can change this later from the Team page.
         </p>
 
         <form action={formAction} className="mt-6 space-y-4">

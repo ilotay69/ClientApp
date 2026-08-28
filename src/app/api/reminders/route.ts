@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getResendClient, buildDigestEmail, type DigestItem } from "@/lib/resend";
-import { formatDate } from "@/lib/format";
+import { formatDate, isServiceCheckOverdue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -9,14 +9,15 @@ type OwnerBucket = {
   email: string;
   name: string;
   items: DigestItem[];
-  logEntries: { kind: "quote" | "touchpoint" | "project"; entity_id: string }[];
+  logEntries: { kind: "touchpoint" | "project" | "task" | "service_check"; entity_id: string }[];
 };
 
 /**
  * Daily reminder digest. Call this once a day (e.g. from a Railway cron
  * service) with header `X-Cron-Secret: <CRON_SECRET>`. It emails each team
- * member a summary of their quotes, projects, and touchpoints that are due
- * or overdue, skipping anything already reminded about today.
+ * member a summary of their assigned tasks, touchpoints, projects, and
+ * service checks that are due, overdue, or past their cadence, skipping
+ * anything already reminded about today.
  */
 export async function GET(request: NextRequest) {
   const secret = request.headers.get("x-cron-secret");
@@ -28,28 +29,39 @@ export async function GET(request: NextRequest) {
   const today = new Date().toISOString().slice(0, 10);
   const todayStart = `${today}T00:00:00.000Z`;
 
-  const [{ data: quotes }, { data: touchpoints }, { data: projects }, { data: alreadySent }] =
-    await Promise.all([
-      supabase
-        .from("quotes")
-        .select("id, title, follow_up_due_date, owner_id, clients(name), profiles:owner_id(email, full_name)")
-        .in("status", ["sent", "follow_up_needed"])
-        .lte("follow_up_due_date", today)
-        .not("owner_id", "is", null),
-      supabase
-        .from("touchpoints")
-        .select("id, type, due_date, owner_id, clients(name), profiles:owner_id(email, full_name)")
-        .is("completed_at", null)
-        .lte("due_date", today)
-        .not("owner_id", "is", null),
-      supabase
-        .from("projects")
-        .select("id, name, target_end_date, owner_id, clients(name), profiles:owner_id(email, full_name)")
-        .in("status", ["planning", "active", "on_hold"])
-        .lte("target_end_date", today)
-        .not("owner_id", "is", null),
-      supabase.from("reminder_log").select("kind, entity_id").gte("sent_at", todayStart),
-    ]);
+  const [
+    { data: tasks },
+    { data: touchpoints },
+    { data: projects },
+    { data: serviceChecks },
+    { data: alreadySent },
+  ] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("id, title, due_date, assigned_to, clients(name), profiles:assigned_to(email, full_name)")
+      .in("status", ["open", "in_progress"])
+      .lte("due_date", today)
+      .not("assigned_to", "is", null),
+    supabase
+      .from("touchpoints")
+      .select("id, type, due_date, owner_id, clients(name), profiles:owner_id(email, full_name)")
+      .is("completed_at", null)
+      .lte("due_date", today)
+      .not("owner_id", "is", null),
+    supabase
+      .from("projects")
+      .select("id, name, target_end_date, owner_id, clients(name), profiles:owner_id(email, full_name)")
+      .in("status", ["planning", "active", "on_hold"])
+      .lte("target_end_date", today)
+      .not("owner_id", "is", null),
+    supabase
+      .from("client_service_checks")
+      .select(
+        "id, cadence_days, last_checked_at, assigned_to, clients(name), service_catalog(name, default_cadence_days), profiles:assigned_to(email, full_name)"
+      )
+      .not("assigned_to", "is", null),
+    supabase.from("reminder_log").select("kind, entity_id").gte("sent_at", todayStart),
+  ]);
 
   const sentToday = new Set(
     (alreadySent ?? []).map((r: { kind: string; entity_id: string }) => `${r.kind}:${r.entity_id}`)
@@ -60,7 +72,7 @@ export async function GET(request: NextRequest) {
   function addItem(
     ownerId: string | null,
     profile: { email: string; full_name: string } | null,
-    kind: "quote" | "touchpoint" | "project",
+    kind: "touchpoint" | "project" | "task" | "service_check",
     entityId: string,
     item: DigestItem
   ) {
@@ -78,24 +90,24 @@ export async function GET(request: NextRequest) {
     buckets.set(ownerId, bucket);
   }
 
-  for (const q of quotes ?? []) {
-    const clientName = (q.clients as unknown as { name: string } | null)?.name ?? "a client";
+  for (const task of tasks ?? []) {
+    const clientName = (task.clients as unknown as { name: string } | null)?.name ?? "a client";
     addItem(
-      q.owner_id,
-      q.profiles as unknown as { email: string; full_name: string } | null,
-      "quote",
-      q.id,
+      task.assigned_to,
+      task.profiles as unknown as { email: string; full_name: string } | null,
+      "task",
+      task.id,
       {
-        label: `Quote follow-up: ${q.title}`,
-        detail: `${clientName} · due ${formatDate(q.follow_up_due_date)}`,
-        href: `/quotes/${q.id}`,
+        label: task.title,
+        detail: `${clientName}${task.due_date ? ` · due ${formatDate(task.due_date)}` : ""}`,
+        href: "/tasks",
       }
     );
   }
 
   for (const t of touchpoints ?? []) {
     const clientName = (t.clients as unknown as { name: string } | null)?.name ?? "a client";
-    const label = t.type === "quarterly_review" ? "Quarterly review" : "Personal check-in";
+    const label = t.type === "quarterly_review" ? "Quarterly review" : "Monthly visit";
     addItem(
       t.owner_id,
       t.profiles as unknown as { email: string; full_name: string } | null,
@@ -120,6 +132,27 @@ export async function GET(request: NextRequest) {
         label: `Project target date: ${p.name}`,
         detail: `${clientName} · target ${formatDate(p.target_end_date)}`,
         href: `/projects/${p.id}`,
+      }
+    );
+  }
+
+  for (const sc of serviceChecks ?? []) {
+    const clientName = (sc.clients as unknown as { name: string } | null)?.name ?? "a client";
+    const catalog = sc.service_catalog as unknown as {
+      name: string;
+      default_cadence_days: number;
+    } | null;
+    const cadence = sc.cadence_days ?? catalog?.default_cadence_days ?? 90;
+    if (!isServiceCheckOverdue(sc.last_checked_at, cadence)) continue;
+    addItem(
+      sc.assigned_to,
+      sc.profiles as unknown as { email: string; full_name: string } | null,
+      "service_check",
+      sc.id,
+      {
+        label: `${catalog?.name ?? "Service check"} overdue`,
+        detail: `${clientName} · last checked ${formatDate(sc.last_checked_at)}`,
+        href: "/settings/services",
       }
     );
   }

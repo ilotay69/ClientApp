@@ -35,3 +35,44 @@ export async function updateSuggestionStatus(id: string, status: SuggestionStatu
   await admin.from("suggestions").update({ status }).eq("id", id);
   revalidatePath("/dashboard");
 }
+
+/** Turns an AI suggestion into an assigned, trackable task, and marks the
+ * suggestion itself done so it drops off the Insights feed. */
+export async function promoteSuggestionToTask(
+  suggestionId: string,
+  clientId: string,
+  kind: string,
+  summary: string,
+  detail: string | null,
+  assignedTo: string
+) {
+  if (!assignedTo) return;
+  const admin = createAdminClient();
+
+  const taskKind = ["quote_follow_up", "urgent_alert", "new_project"].includes(kind)
+    ? kind
+    : "email_follow_up";
+
+  const { data: task, error } = await admin
+    .from("tasks")
+    .insert({
+      client_id: clientId,
+      kind: taskKind,
+      title: summary,
+      detail,
+      assigned_to: assignedTo,
+      source_suggestion_id: suggestionId,
+    })
+    .select("id")
+    .single();
+
+  if (error || !task) return;
+
+  await admin
+    .from("suggestions")
+    .update({ status: "done", task_id: task.id })
+    .eq("id", suggestionId);
+
+  revalidatePath("/dashboard");
+  revalidatePath("/tasks");
+}

@@ -1,11 +1,17 @@
 # CG Client Tracker
 
-An internal tool for CG Technologies to track client quotes and follow-ups,
-projects, and relationship touchpoints (personal check-ins and quarterly
-business reviews), with daily email reminders for anything due. Optionally,
-it can connect a Microsoft 365 mailbox read-only and use AI to surface
-insights on the dashboard — quotes that seem to need follow-up, possible new
-opportunities, clients gone quiet — without ever auto-editing your records.
+An internal operations tool for CG Technologies: a director, managers, and
+techs track client projects, relationship touchpoints (monthly visits and
+quarterly business reviews), and recurring service checks (backups,
+firmware, license reviews, and the like, each on its own cadence), with
+everything assignable to a specific person and a daily email reminder for
+anything due. Optionally, it can connect each team member's Microsoft 365
+mailbox read-only and use AI to surface insights on the dashboard — an
+urgent-looking email, a customer asking for pricing nobody's answered yet
+(or a quote gone quiet with no dollar amounts tracked, that's sales' job
+elsewhere), a new project mentioned in a thread, a client gone quiet — which
+anyone can assign straight to a person's task list. Nothing here creates
+formal price quotes; sales handles that in their own system.
 
 Built with Next.js (App Router), Supabase (Postgres + Auth), Tailwind CSS,
 Resend for email, Anthropic's API for AI insights, and deployed on Railway.
@@ -20,7 +26,7 @@ npm run dev
 
 Open http://localhost:3000 — you'll be redirected to `/login`. Use the
 "Create an account" link once to make your first user, then see step 3 below
-to make that user an admin.
+to make that user the director.
 
 ## 2. Set up Supabase
 
@@ -30,7 +36,11 @@ to make that user an admin.
    `profiles` auto-sync trigger, and row-level security policies. If you're
    using Microsoft 365 login and mailbox sync (step 4 below), also run
    `supabase/002_email_integration.sql` afterward, and if you're using AI
-   insights (step 5), also run `supabase/003_ai_suggestions.sql`.
+   insights (step 5), also run `supabase/003_ai_suggestions.sql`. Then run
+   `supabase/004_ops_restructure.sql`, which renames roles to
+   director/manager/tech, drops the formal quotes workflow, adds monthly
+   visits and the recurring service-check catalog, and adds the `tasks`
+   table that everything gets assigned through.
 3. Go to **Project Settings → API** and copy:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -40,15 +50,20 @@ to make that user an admin.
    can sign in immediately after creating an account, instead of waiting on
    a confirmation email.
 
-### Making the first admin
+### Making the first director
 
-Everyone who signs up defaults to the `sales` role. To promote your first
-user to `admin` (so you can manage roles from the Team page), run this once
-in the Supabase SQL Editor after that user has signed up:
+Everyone who signs up defaults to the `tech` role. To promote your first
+user to `director` (so you can manage roles and the service catalog from the
+Team and Service catalog pages), run this once in the Supabase SQL Editor
+after that user has signed up:
 
 ```sql
-update public.profiles set role = 'admin' where email = 'you@cgtechnologies.com';
+update public.profiles set role = 'director' where email = 'you@cgtechnologies.com';
 ```
+
+Roles: `director` sees and can assign everything across the team;
+`manager` runs their team's clients and can assign work to techs; `tech`
+works their assigned queue and can browse any client's history for context.
 
 ## 3. Set up Resend (email reminders)
 
@@ -115,7 +130,7 @@ Add `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and `AZURE_TENANT_ID` to your
 
 - The login page now has a "Sign in with Microsoft" button — anyone in the
   CG Technologies tenant can use it, and it creates their account
-  automatically on first sign-in (defaulting to the `sales` role, same as
+  automatically on first sign-in (defaulting to the `tech` role, same as
   email sign-up).
 - Each team member can separately connect their own mailbox from the
   **Mailbox** page in the app (`/settings/mail`) — this is a distinct
@@ -171,10 +186,10 @@ your real Railway domain, since it can't be added until the domain exists.
 ### Daily reminder job
 
 The app exposes `GET /api/reminders`, which emails each team member a digest
-of their quotes, projects, and touchpoints that are due or overdue, and is
-safe to call more than once a day (it won't re-remind about the same item on
-the same day). Wire it up as a Railway **Cron Job** service in the same
-project:
+of their assigned tasks, touchpoints, and projects that are due or overdue,
+plus any service check that's past its cadence, and is safe to call more
+than once a day (it won't re-remind about the same item on the same day).
+Wire it up as a Railway **Cron Job** service in the same project:
 
 1. **New → Cron Job**, pointing at this same repo (or set it to run a plain
    `curl` image — either works).
@@ -226,12 +241,15 @@ active clients per click so it doesn't time out.
 ## How access works
 
 This is built for a small, trusted internal team: any signed-in team member
-can see and edit every client, quote, project, and touchpoint — nobody is
-locked out of a record just because a teammate owns it. The one exception is
-the **Team** page (`/team`), which only `admin` role users can see, and which
-is where roles get assigned. If you'd rather restrict quotes/projects/
-touchpoints to only be editable by their owner, tighten the row-level
-security policies in `supabase/schema.sql` (see the comment above the RLS
+can see and edit every client, project, touchpoint, task, and service check
+— nobody is locked out of a record just because a teammate owns it (techs
+can browse any client's history for context, even work that isn't assigned
+to them). The one exception is the **Team** page (`/team`) and the
+**Service catalog** page (`/settings/services`), which only `director` role
+users can see — that's where roles get assigned and the shared service
+checklist gets managed. If you'd rather restrict editing to just a record's
+assignee, tighten the row-level security policies in `supabase/schema.sql`
+and `supabase/004_ops_restructure.sql` (see the comment above each RLS
 section).
 
 ## Project structure
@@ -243,8 +261,14 @@ section).
 - `supabase/003_ai_suggestions.sql` — adds the `suggestions` table and widens
   email matching beyond just quote/project-prefixed subjects; run this only
   if you're using AI insights (step 5, requires step 4 too).
-- `src/app/(dashboard)/` — the authenticated app: dashboard overview,
-  clients, quotes, projects, touchpoints, mailbox settings, and team pages.
+- `supabase/004_ops_restructure.sql` — renames roles to director/manager/tech,
+  drops the formal quotes workflow, adds the monthly-visit touchpoint type
+  and a next-action field, adds the shared service catalog and per-client
+  service checks, adds the `tasks` table, and widens what suggestions can
+  flag. Run this after the three migrations above.
+- `src/app/(dashboard)/` — the authenticated app: dashboard overview, tasks,
+  clients, projects, touchpoints, mailbox settings, service catalog, and
+  team pages.
 - `src/app/login/`, `src/app/sign-up/` — auth pages.
 - `src/app/auth/callback/` — Supabase's OAuth callback for "Sign in with
   Microsoft" (login only, no mailbox access).
@@ -285,12 +309,41 @@ Once mailbox sync and Anthropic are both set up, the suggestions job looks
 at every client with email activity in the last 30 days, and for each one
 sends the model: their recent emails (subject, sender, date, and a short
 preview snippet — not the full email body, which is never stored), plus
-what's already tracked for them (open quotes, active projects, recent
-touchpoints). It's explicitly told to flag only things that seem genuinely
-new or actionable, and it's fine — expected, even — for it to return nothing
-for a client where nothing's changed. Results land as cards in the
-dashboard's Insights section, each with **Done** and **Dismiss** buttons; it
-never writes to a client, quote, project, or touchpoint record directly. The
-same client/kind combination won't be suggested again for 7 days once
-there's an open suggestion for it, so a recurring situation doesn't spam the
-dashboard with duplicates on every sync.
+what's already tracked for them (active projects, recent touchpoints). It's
+explicitly told to flag only things that seem genuinely new or actionable,
+and it's fine — expected, even — for it to return nothing for a client where
+nothing's changed. It looks for, roughly in priority order: an urgent or
+time-sensitive email, a quote-style follow-up owed in either direction (a
+customer asked for pricing and nobody's answered, or pricing went out and
+they've gone quiet — never with a dollar amount, that's tracked in sales'
+own system), a new project mentioned in a thread that isn't logged yet, a
+client that's gone quiet relative to their email activity, and anything
+worth prepping for the next monthly visit or quarterly review.
+
+Results land as cards in the dashboard's Insights section, high-priority
+ones first, each with **Done** and **Dismiss** buttons plus an **Assign**
+control that turns the suggestion into a task on a specific person's queue
+(and marks the suggestion done). The AI itself never writes to a client,
+project, touchpoint, or task record directly — someone always has to review
+a card and either act on it or assign it. The same client/kind combination
+won't be suggested again for 7 days once there's an open suggestion for it,
+so a recurring situation doesn't spam the dashboard with duplicates on every
+sync.
+
+## How tasks and service checks work
+
+The `tasks` table is the one place work gets assigned to a specific person —
+a quote-style follow-up promoted from an insight, an overdue service check,
+a touchpoint's next action, or something typed in directly on the **Tasks**
+page. Each task has a kind, an optional client and due date, an assignee,
+and a status (open/in progress/done/dismissed); the dashboard's "My tasks"
+and "Team workload" sections, and the daily reminder email, all read from
+this one table.
+
+Service checks are a shared catalog (**Service catalog**, director-only) of
+things you check on a schedule — backups, firewall firmware, license
+reviews, and so on, each with a default cadence in days. From a client's
+page, track one of those services for that client, optionally overriding
+the cadence and assigning it to someone; "Checked today" resets the clock,
+and anything past its cadence (or never checked) shows up as overdue on the
+dashboard, on that client's page, and in the daily reminder.

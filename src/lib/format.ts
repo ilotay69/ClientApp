@@ -23,6 +23,18 @@ export function isOverdue(dateStr: string | null | undefined) {
   return isPast(parseISO(dateStr));
 }
 
+/** A service check with no last-checked date is treated as overdue — it's
+ * never been done, so there's nothing to wait out a cadence from. */
+export function isServiceCheckOverdue(
+  lastCheckedAt: string | null | undefined,
+  cadenceDays: number
+) {
+  if (!lastCheckedAt) return true;
+  const dueBy = new Date(parseISO(lastCheckedAt));
+  dueBy.setDate(dueBy.getDate() + cadenceDays);
+  return isPast(dueBy);
+}
+
 export function humanizeLabel(value: string) {
   return value
     .split("_")

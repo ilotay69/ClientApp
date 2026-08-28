@@ -5,8 +5,8 @@ import type { Profile } from "@/lib/types";
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Overview" },
+  { href: "/tasks", label: "Tasks" },
   { href: "/clients", label: "Clients" },
-  { href: "/quotes", label: "Quotes" },
   { href: "/projects", label: "Projects" },
   { href: "/touchpoints", label: "Touchpoints" },
 ];
@@ -55,7 +55,15 @@ export default async function DashboardLayout({
               >
                 Mailbox
               </Link>
-              {profile?.role === "admin" && (
+              {profile?.role === "director" && (
+                <Link
+                  href="/settings/services"
+                  className="text-sm text-slate-600 hover:text-slate-900"
+                >
+                  Service catalog
+                </Link>
+              )}
+              {profile?.role === "director" && (
                 <Link
                   href="/team"
                   className="text-sm text-slate-600 hover:text-slate-900"
