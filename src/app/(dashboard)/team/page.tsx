@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
 import { RoleSelect } from "@/components/role-select";
+import { AddTeamMemberForm } from "@/components/add-team-member-form";
 import { formatDate } from "@/lib/format";
-import { updateMemberRole } from "./actions";
+import { updateMemberRole, addTeamMember } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,8 @@ export default async function TeamPage() {
           to &quot;tech&quot;.
         </p>
       </div>
+
+      <AddTeamMemberForm action={addTeamMember} />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">

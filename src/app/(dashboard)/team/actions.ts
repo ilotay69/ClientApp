@@ -1,27 +1,78 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/types";
 
-export async function updateMemberRole(memberId: string, role: UserRole) {
+async function requireDirector() {
   const supabase = await createClient();
-
-  // Guard: only an admin may change roles. RLS also enforces this, but we
-  // check here too so a non-admin gets a clear no-op instead of a silent
-  // RLS-denied update.
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return null;
 
   const { data: me } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
-  if (me?.role !== "director") return;
+  return me?.role === "director" ? user : null;
+}
 
+export async function updateMemberRole(memberId: string, role: UserRole) {
+  // Guard: only a director may change roles. RLS also enforces this, but we
+  // check here too so a non-director gets a clear no-op instead of a silent
+  // RLS-denied update.
+  if (!(await requireDirector())) return;
+
+  const supabase = await createClient();
   await supabase.from("profiles").update({ role }).eq("id", memberId);
   revalidatePath("/team");
+}
+
+export type AddMemberState = {
+  error: string | null;
+  createdPassword: string | null;
+};
+
+export async function addTeamMember(
+  _prevState: AddMemberState,
+  formData: FormData
+): Promise<AddMemberState> {
+  if (!(await requireDirector())) {
+    return { error: "Only a director can add team members.", createdPassword: null };
+  }
+
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const role = String(formData.get("role") ?? "tech") as UserRole;
+
+  if (!fullName || !email) {
+    return { error: "Name and email are required.", createdPassword: null };
+  }
+
+  // 12 hex chars (~48 bits of entropy) — a temporary password the director
+  // hands to the new member out of band; not meant to be long-lived.
+  const tempPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+
+  const admin = createAdminClient();
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email,
+    password: tempPassword,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
+  });
+
+  if (createError || !created.user) {
+    return { error: createError?.message ?? "Could not create user.", createdPassword: null };
+  }
+
+  // The new-user trigger inserts the profile row with the default role
+  // ('tech'); update it if a different role was requested.
+  if (role !== "tech") {
+    await admin.from("profiles").update({ role }).eq("id", created.user.id);
+  }
+
+  revalidatePath("/team");
+  return { error: null, createdPassword: tempPassword };
 }
