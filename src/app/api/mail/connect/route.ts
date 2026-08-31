@@ -17,12 +17,18 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Built from NEXT_PUBLIC_APP_URL rather than request.url — behind
+  // Railway's proxy, request.url can resolve to the container's internal
+  // address (e.g. localhost:8080) instead of the public domain, which
+  // Microsoft then rejects as a redirect_uri mismatch.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
+
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", appUrl));
   }
 
   const state = crypto.randomUUID();
-  const redirectUri = new URL("/api/mail/callback", request.url).toString();
+  const redirectUri = new URL("/api/mail/callback", appUrl).toString();
   const authorizeUrl = buildAuthorizeUrl(redirectUri, state);
 
   const response = NextResponse.redirect(authorizeUrl);

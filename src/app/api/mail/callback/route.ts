@@ -7,7 +7,12 @@ export const dynamic = "force-dynamic";
 const STATE_COOKIE = "mail_connect_state";
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams, origin: requestOrigin } = new URL(request.url);
+  // Same fix as /api/mail/connect: use the public app URL, not
+  // request.url's origin (which can resolve to Railway's internal
+  // localhost:8080 behind the proxy) — this redirect_uri must match
+  // exactly what /api/mail/connect sent Microsoft.
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const expectedState = request.cookies.get(STATE_COOKIE)?.value;
@@ -28,7 +33,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const redirectUri = new URL("/api/mail/callback", request.url).toString();
+    const redirectUri = new URL("/api/mail/callback", origin).toString();
     const tokens = await exchangeCodeForTokens(code, redirectUri);
     const mailboxEmail = await fetchMailboxEmail(tokens.access_token);
 
