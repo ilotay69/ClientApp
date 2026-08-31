@@ -68,6 +68,8 @@ export async function promoteSuggestionToTask(
 
   if (error || !task) return;
 
+  await admin.from("task_assignees").insert({ task_id: task.id, profile_id: assignedTo });
+
   await admin
     .from("suggestions")
     .update({ status: "done", task_id: task.id })

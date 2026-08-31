@@ -1,18 +1,26 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 import type { FormState } from "@/app/(dashboard)/tasks/actions";
 
 const initialState: FormState = { error: null };
 
 const KIND_OPTIONS: { value: string; label: string }[] = [
   { value: "general", label: "General" },
+  { value: "internal", label: "Internal" },
+  { value: "improvement", label: "Improvement" },
   { value: "email_follow_up", label: "Email follow-up" },
   { value: "quote_follow_up", label: "Quote follow-up" },
   { value: "urgent_alert", label: "Urgent alert" },
   { value: "new_project", label: "New project" },
   { value: "service_check", label: "Service check" },
   { value: "touchpoint_action", label: "Touchpoint action" },
+];
+
+const PRIORITY_OPTIONS: { value: string; label: string }[] = [
+  { value: "low", label: "Low priority" },
+  { value: "medium", label: "Medium priority" },
+  { value: "high", label: "High priority" },
 ];
 
 export function TaskQuickAdd({
@@ -26,6 +34,7 @@ export function TaskQuickAdd({
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
   return (
     <form
@@ -33,8 +42,9 @@ export function TaskQuickAdd({
       action={async (formData: FormData) => {
         await formAction(formData);
         formRef.current?.reset();
+        setSelectedAssignees([]);
       }}
-      className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-6"
+      className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-4 lg:grid-cols-8"
     >
       <input
         name="title"
@@ -47,25 +57,44 @@ export function TaskQuickAdd({
         defaultValue=""
         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
       >
-        <option value="">No client</option>
+        <option value="">No client (internal)</option>
         {clients.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
           </option>
         ))}
       </select>
-      <select
-        name="assigned_to"
-        defaultValue=""
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-      >
-        <option value="">Unassigned</option>
-        {members.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.full_name}
-          </option>
-        ))}
-      </select>
+
+      <details className="relative rounded-md border border-slate-300 px-3 py-2 text-sm">
+        <summary className="cursor-pointer list-none">
+          {selectedAssignees.length === 0
+            ? "Unassigned"
+            : `${selectedAssignees.length} assigned`}
+        </summary>
+        <div className="absolute z-10 mt-2 w-56 -translate-x-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+          {members.map((m) => (
+            <label
+              key={m.id}
+              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50"
+            >
+              <input
+                type="checkbox"
+                name="assignee_ids"
+                value={m.id}
+                checked={selectedAssignees.includes(m.id)}
+                onChange={(e) =>
+                  setSelectedAssignees((prev) =>
+                    e.target.checked ? [...prev, m.id] : prev.filter((id) => id !== m.id)
+                  )
+                }
+                className="rounded border-slate-300"
+              />
+              {m.full_name}
+            </label>
+          ))}
+        </div>
+      </details>
+
       <select
         name="kind"
         defaultValue="general"
@@ -77,18 +106,41 @@ export function TaskQuickAdd({
           </option>
         ))}
       </select>
-      <input
-        type="date"
-        name="due_date"
+      <select
+        name="priority"
+        defaultValue="medium"
         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-      />
+      >
+        {PRIORITY_OPTIONS.map((p) => (
+          <option key={p.value} value={p.value}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      <label className="flex items-center gap-2 text-xs text-slate-500 sm:col-span-2 lg:col-span-1">
+        Start
+        <input
+          type="date"
+          name="start_date"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+        />
+      </label>
+      <label className="flex items-center gap-2 text-xs text-slate-500 sm:col-span-2 lg:col-span-1">
+        Due
+        <input
+          type="date"
+          name="due_date"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+        />
+      </label>
+
       {state.error && (
-        <p className="sm:col-span-6 text-sm text-red-600">{state.error}</p>
+        <p className="sm:col-span-4 lg:col-span-8 text-sm text-red-600">{state.error}</p>
       )}
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 sm:col-span-6 sm:w-fit"
+        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 sm:col-span-4 sm:w-fit lg:col-span-8"
       >
         {pending ? "Adding..." : "Add task"}
       </button>

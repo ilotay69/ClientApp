@@ -39,6 +39,11 @@ const COLORS: Record<string, string> = {
   // email_follow_up/quote_follow_up/urgent_alert/new_project already covered)
   service_check: "bg-amber-100 text-amber-800",
   touchpoint_action: "bg-purple-100 text-purple-700",
+  internal: "bg-slate-100 text-slate-700",
+  improvement: "bg-emerald-100 text-emerald-700",
+  // task priority
+  low: "bg-slate-100 text-slate-500",
+  medium: "bg-amber-100 text-amber-800",
 };
 
 export function Badge({ value }: { value: string }) {

@@ -56,6 +56,57 @@ export function buildDigestEmail(recipientName: string, items: DigestItem[]) {
   return { html, text };
 }
 
+export type TaskAssignedInfo = {
+  title: string;
+  detail: string | null;
+  clientName: string | null;
+  priority: string;
+  dueDate: string | null;
+  assignedByName: string | null;
+};
+
+export function buildTaskAssignedEmail(recipientName: string, task: TaskAssignedInfo) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const firstName = recipientName.split(" ")[0] || recipientName;
+
+  const meta = [
+    task.clientName ? `Client: ${task.clientName}` : "Internal task",
+    `Priority: ${task.priority}`,
+    task.dueDate ? `Due: ${task.dueDate}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Hi ${escapeHtml(firstName)}, you've been assigned a task</h2>
+      <p style="margin:16px 0 4px;">
+        <a href="${appUrl}/tasks" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:16px;">${escapeHtml(
+          task.title
+        )}</a>
+      </p>
+      ${task.detail ? `<p style="color:#334155;font-size:14px;margin:4px 0;">${escapeHtml(task.detail)}</p>` : ""}
+      <p style="color:#64748b;font-size:13px;margin-top:8px;">${escapeHtml(meta)}</p>
+      ${
+        task.assignedByName
+          ? `<p style="margin-top:16px;color:#64748b;font-size:13px;">Assigned by ${escapeHtml(
+              task.assignedByName
+            )}.</p>`
+          : ""
+      }
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">
+        Sent by the CG Client Tracker.
+      </p>
+    </div>
+  `;
+
+  const text = `You've been assigned: ${task.title}${task.detail ? `\n${task.detail}` : ""}\n${meta}${
+    appUrl ? `\n${appUrl}/tasks` : ""
+  }`;
+
+  return { html, text };
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")

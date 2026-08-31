@@ -125,8 +125,11 @@ export type TaskKind =
   | "new_project"
   | "service_check"
   | "touchpoint_action"
+  | "internal"
+  | "improvement"
   | "general";
 export type TaskStatus = "open" | "in_progress" | "done" | "dismissed";
+export type TaskPriority = "low" | "medium" | "high";
 
 export interface Task {
   id: string;
@@ -135,7 +138,9 @@ export interface Task {
   title: string;
   detail: string | null;
   status: TaskStatus;
+  priority: TaskPriority;
   assigned_to: string | null;
+  start_date: string | null;
   due_date: string | null;
   source_suggestion_id: string | null;
   source_touchpoint_id: string | null;
@@ -144,6 +149,12 @@ export interface Task {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TaskAssignee {
+  task_id: string;
+  profile_id: string;
+  created_at: string;
 }
 
 export interface ServiceCatalogItem {
