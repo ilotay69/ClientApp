@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/permissions";
 
 export type FormState = { error: string | null };
 
@@ -14,6 +15,10 @@ export async function createCatalogItem(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_service_catalog"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Name is required." };
@@ -37,6 +42,8 @@ export async function createCatalogItem(
 }
 
 export async function deleteCatalogItem(serviceId: string) {
+  if (!(await requirePermission("manage_service_catalog"))) return;
+
   const supabase = await createClient();
   await supabase.from("service_catalog").delete().eq("id", serviceId);
   revalidatePath("/settings/services");
@@ -47,6 +54,10 @@ export async function addClientServiceCheck(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_service_catalog"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
   const serviceId = String(formData.get("service_id") ?? "");
   if (!serviceId) return { error: "Select a service." };
@@ -67,6 +78,8 @@ export async function addClientServiceCheck(
 }
 
 export async function markServiceChecked(checkId: string, clientId: string) {
+  if (!(await requirePermission("manage_service_catalog"))) return;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -84,12 +97,16 @@ export async function markServiceChecked(checkId: string, clientId: string) {
 }
 
 export async function assignServiceCheck(checkId: string, assignedTo: string | null) {
+  if (!(await requirePermission("manage_service_catalog"))) return;
+
   const supabase = await createClient();
   await supabase.from("client_service_checks").update({ assigned_to: assignedTo }).eq("id", checkId);
   revalidatePath("/clients");
 }
 
 export async function removeClientServiceCheck(checkId: string, clientId: string) {
+  if (!(await requirePermission("manage_service_catalog"))) return;
+
   const supabase = await createClient();
   await supabase.from("client_service_checks").delete().eq("id", checkId);
   revalidatePath(`/clients/${clientId}`);

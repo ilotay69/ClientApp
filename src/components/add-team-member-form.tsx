@@ -6,7 +6,7 @@ import type { UserRole } from "@/lib/types";
 
 const initialState: AddMemberState = { error: null, createdPassword: null };
 
-const ROLES: UserRole[] = ["director", "manager", "tech"];
+const ROLES: UserRole[] = ["owner", "manager", "tech"];
 
 export function AddTeamMemberForm({
   action,

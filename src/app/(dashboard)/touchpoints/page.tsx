@@ -2,26 +2,32 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function TouchpointsPage() {
   const supabase = await createClient();
-  const { data: touchpoints } = await supabase
-    .from("touchpoints")
-    .select("id, type, due_date, completed_at, clients(name)")
-    .order("due_date", { ascending: true });
+  const [{ data: touchpoints }, canManageTouchpoints] = await Promise.all([
+    supabase
+      .from("touchpoints")
+      .select("id, type, due_date, completed_at, clients(name)")
+      .order("due_date", { ascending: true }),
+    hasPermission(supabase, "manage_touchpoints"),
+  ]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Touchpoints</h1>
-        <Link
-          href="/touchpoints/new"
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          New touchpoint
-        </Link>
+        {canManageTouchpoints && (
+          <Link
+            href="/touchpoints/new"
+            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            New touchpoint
+          </Link>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

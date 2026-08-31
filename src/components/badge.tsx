@@ -27,7 +27,7 @@ const COLORS: Record<string, string> = {
   high: "bg-red-100 text-red-700",
   normal: "bg-slate-100 text-slate-700",
   // roles
-  director: "bg-slate-900 text-white",
+  owner: "bg-slate-900 text-white",
   manager: "bg-blue-100 text-blue-700",
   tech: "bg-purple-100 text-purple-700",
   // task status (on_hold shares the projects entry above)

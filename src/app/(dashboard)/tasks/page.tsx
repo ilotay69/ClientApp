@@ -6,6 +6,7 @@ import { TaskAssigneesSelect } from "@/components/task-assignees-select";
 import { InlineTextEdit, InlineDateEdit, InlineSelectEdit } from "@/components/task-field-editor";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { isOverdue } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import { createTask, deleteTask, setTaskAssignees, updateTaskField } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -42,9 +43,10 @@ export default async function TasksPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: clients }, { data: members }] = await Promise.all([
+  const [{ data: clients }, { data: members }, canDeleteTasks] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
+    hasPermission(supabase, "delete_tasks"),
   ]);
   const clientOptions = [{ value: "", label: "No client (internal)" }].concat(
     (clients ?? []).map((c) => ({ value: c.id, label: c.name }))
@@ -204,13 +206,15 @@ export default async function TasksPage({
                     />
                   </td>
                   <td className="px-5 py-3 align-top">
-                    <div className="flex justify-end">
-                      <DeleteButton
-                        action={deleteTask.bind(null, t.id)}
-                        confirmText={`Delete "${t.title}"?`}
-                        label="Delete"
-                      />
-                    </div>
+                    {canDeleteTasks && (
+                      <div className="flex justify-end">
+                        <DeleteButton
+                          action={deleteTask.bind(null, t.id)}
+                          confirmText={`Delete "${t.title}"?`}
+                          label="Delete"
+                        />
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

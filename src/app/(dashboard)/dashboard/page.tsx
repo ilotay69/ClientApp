@@ -4,6 +4,7 @@ import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
 import { RefreshInsightsButton } from "@/components/refresh-insights-button";
 import { SuggestionCard } from "@/components/suggestion-card";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,10 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("role, full_name")
-    .eq("id", user?.id ?? "")
-    .single();
-  const canSeeTeamWide = me?.role === "director" || me?.role === "manager";
+  const [{ data: me }, canSeeTeamWide] = await Promise.all([
+    supabase.from("profiles").select("role, full_name").eq("id", user?.id ?? "").single(),
+    hasPermission(supabase, "view_team_wide"),
+  ]);
 
   const [
     { data: myTasks },

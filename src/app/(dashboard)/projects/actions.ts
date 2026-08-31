@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/permissions";
 import type { ProjectStatus } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -27,6 +28,10 @@ export async function createProject(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_projects"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -55,6 +60,10 @@ export async function updateProject(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_projects"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
   const fields = parseProjectFields(formData);
   if (!fields.name) return { error: "Project name is required." };
@@ -73,6 +82,8 @@ export async function updateProject(
 }
 
 export async function deleteProject(projectId: string, clientId: string) {
+  if (!(await requirePermission("manage_projects"))) return;
+
   const supabase = await createClient();
   await supabase.from("projects").delete().eq("id", projectId);
   revalidatePath("/projects");

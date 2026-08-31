@@ -2,23 +2,15 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
 import { CatalogQuickAdd } from "@/components/catalog-quick-add";
+import { hasPermission } from "@/lib/permissions";
 import { createCatalogItem, deleteCatalogItem } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ServiceCatalogPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user?.id ?? "")
-    .single();
-
-  if (me?.role !== "director") {
+  if (!(await hasPermission(supabase, "manage_service_catalog"))) {
     redirect("/dashboard");
   }
 

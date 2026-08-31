@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/permissions";
 import type { TouchpointType } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -71,6 +72,10 @@ export async function createTouchpoint(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_touchpoints"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -110,6 +115,10 @@ export async function updateTouchpoint(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_touchpoints"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -146,6 +155,8 @@ export async function toggleTouchpointComplete(
   clientId: string,
   isComplete: boolean
 ) {
+  if (!(await requirePermission("manage_touchpoints"))) return;
+
   const supabase = await createClient();
   await supabase
     .from("touchpoints")
@@ -158,6 +169,8 @@ export async function toggleTouchpointComplete(
 }
 
 export async function deleteTouchpoint(touchpointId: string, clientId: string) {
+  if (!(await requirePermission("manage_touchpoints"))) return;
+
   const supabase = await createClient();
   await supabase.from("touchpoints").delete().eq("id", touchpointId);
   revalidatePath("/touchpoints");

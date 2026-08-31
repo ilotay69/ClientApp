@@ -2,28 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 
-async function requireDirector() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  return me?.role === "director" ? user : null;
-}
-
 export async function updateMemberRole(memberId: string, role: UserRole) {
-  // Guard: only a director may change roles. RLS also enforces this, but we
-  // check here too so a non-director gets a clear no-op instead of a silent
-  // RLS-denied update.
-  if (!(await requireDirector())) return;
+  // Guard: only someone with manage_team may change roles. RLS also
+  // enforces the profiles-update side of this, but we check here too so a
+  // non-permitted user gets a clear no-op instead of a silent RLS-denied
+  // update.
+  if (!(await requirePermission("manage_team"))) return;
 
   const supabase = await createClient();
   await supabase.from("profiles").update({ role }).eq("id", memberId);
@@ -39,8 +26,8 @@ export async function addTeamMember(
   _prevState: AddMemberState,
   formData: FormData
 ): Promise<AddMemberState> {
-  if (!(await requireDirector())) {
-    return { error: "Only a director can add team members.", createdPassword: null };
+  if (!(await requirePermission("manage_team"))) {
+    return { error: "You don't have permission to add team members.", createdPassword: null };
   }
 
   const fullName = String(formData.get("full_name") ?? "").trim();
@@ -51,7 +38,7 @@ export async function addTeamMember(
     return { error: "Name and email are required.", createdPassword: null };
   }
 
-  // 12 hex chars (~48 bits of entropy) — a temporary password the director
+  // 12 hex chars (~48 bits of entropy) — a temporary password the owner
   // hands to the new member out of band; not meant to be long-lived.
   const tempPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
 

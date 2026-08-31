@@ -2,26 +2,32 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
 import { formatDate } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
   const supabase = await createClient();
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, name, status, target_end_date, clients(name)")
-    .order("target_end_date", { ascending: true, nullsFirst: false });
+  const [{ data: projects }, canManageProjects] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, name, status, target_end_date, clients(name)")
+      .order("target_end_date", { ascending: true, nullsFirst: false }),
+    hasPermission(supabase, "manage_projects"),
+  ]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Projects</h1>
-        <Link
-          href="/projects/new"
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          New project
-        </Link>
+        {canManageProjects && (
+          <Link
+            href="/projects/new"
+            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            New project
+          </Link>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

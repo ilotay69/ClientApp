@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/permissions";
 
 export type FormState = { error: string | null };
 
@@ -10,6 +11,10 @@ export async function createClientRecord(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -42,6 +47,10 @@ export async function updateClientRecord(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const supabase = await createClient();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -66,6 +75,8 @@ export async function updateClientRecord(
 }
 
 export async function deleteClientRecord(clientId: string) {
+  if (!(await requirePermission("manage_clients"))) return;
+
   const supabase = await createClient();
   await supabase.from("clients").delete().eq("id", clientId);
   revalidatePath("/clients");

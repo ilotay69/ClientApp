@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
 import { RoleSelect } from "@/components/role-select";
 import { AddTeamMemberForm } from "@/components/add-team-member-form";
 import { formatDate } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import { updateMemberRole, addTeamMember } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -14,15 +16,10 @@ export default async function TeamPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user?.id ?? "")
-    .single();
-
-  if (me?.role !== "director") {
+  if (!(await hasPermission(supabase, "manage_team"))) {
     redirect("/dashboard");
   }
+  const canManageRoles = await hasPermission(supabase, "manage_roles");
 
   const { data: members } = await supabase
     .from("profiles")
@@ -31,12 +28,22 @@ export default async function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Team</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Manage who has access and what role they hold. New sign-ups default
-          to &quot;tech&quot;.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Team</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Manage who has access and what role they hold. New sign-ups
+            default to &quot;tech&quot;.
+          </p>
+        </div>
+        {canManageRoles && (
+          <Link
+            href="/team/roles"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+          >
+            Manage permissions →
+          </Link>
+        )}
       </div>
 
       <AddTeamMemberForm action={addTeamMember} />

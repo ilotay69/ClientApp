@@ -1,25 +1,31 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
   const supabase = await createClient();
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("id, name, primary_contact_name, primary_contact_email")
-    .order("name");
+  const [{ data: clients }, canManageClients] = await Promise.all([
+    supabase
+      .from("clients")
+      .select("id, name, primary_contact_name, primary_contact_email")
+      .order("name"),
+    hasPermission(supabase, "manage_clients"),
+  ]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Clients</h1>
-        <Link
-          href="/clients/new"
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          New client
-        </Link>
+        {canManageClients && (
+          <Link
+            href="/clients/new"
+            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            New client
+          </Link>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

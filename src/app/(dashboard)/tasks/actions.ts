@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getResendClient, buildTaskAssignedEmail } from "@/lib/resend";
 import { formatDate } from "@/lib/format";
+import { requirePermission } from "@/lib/permissions";
 import type { TaskKind, TaskPriority } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -198,6 +199,8 @@ export async function updateTaskField(taskId: string, field: string, value: stri
 }
 
 export async function deleteTask(taskId: string) {
+  if (!(await requirePermission("delete_tasks"))) return;
+
   const supabase = await createClient();
   await supabase.from("tasks").delete().eq("id", taskId);
   revalidatePath("/tasks");

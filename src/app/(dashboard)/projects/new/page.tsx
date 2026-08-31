@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/permissions";
 import { ProjectForm } from "@/components/project-form";
 import { createProject } from "../actions";
 
@@ -9,6 +11,10 @@ export default async function NewProjectPage({
 }) {
   const { client_id } = await searchParams;
   const supabase = await createClient();
+  if (!(await hasPermission(supabase, "manage_projects"))) {
+    redirect("/projects");
+  }
+
   const { data: clients } = await supabase
     .from("clients")
     .select("id, name")

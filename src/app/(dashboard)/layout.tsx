@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/login/actions";
+import { getMyPermissions } from "@/lib/permissions";
 import type { Profile } from "@/lib/types";
 
 const NAV_LINKS = [
@@ -31,6 +32,10 @@ export default async function DashboardLayout({
     profile = data;
   }
 
+  const me = await getMyPermissions(supabase);
+  const canManageServiceCatalog = me?.permissions.has("manage_service_catalog") ?? false;
+  const canManageTeam = me?.permissions.has("manage_team") ?? false;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
@@ -55,7 +60,7 @@ export default async function DashboardLayout({
               >
                 Mailbox
               </Link>
-              {profile?.role === "director" && (
+              {canManageServiceCatalog && (
                 <Link
                   href="/settings/services"
                   className="text-sm text-slate-600 hover:text-slate-900"
@@ -63,7 +68,7 @@ export default async function DashboardLayout({
                   Service catalog
                 </Link>
               )}
-              {profile?.role === "director" && (
+              {canManageTeam && (
                 <Link
                   href="/team"
                   className="text-sm text-slate-600 hover:text-slate-900"
