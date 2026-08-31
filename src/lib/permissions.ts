@@ -14,7 +14,7 @@ export type PermissionKey =
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_team: "Add team members & change roles",
   manage_roles: "Edit this permission matrix",
-  manage_service_catalog: "Manage service catalog",
+  manage_service_catalog: "Manage recurring services",
   view_team_wide: "View team-wide dashboard data",
   manage_clients: "Create, edit & delete clients",
   manage_projects: "Create, edit & delete projects",

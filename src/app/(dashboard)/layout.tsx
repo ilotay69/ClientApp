@@ -65,7 +65,7 @@ export default async function DashboardLayout({
                   href="/settings/services"
                   className="text-sm text-slate-600 hover:text-slate-900"
                 >
-                  Service catalog
+                  Recurring Services
                 </Link>
               )}
               {canManageTeam && (

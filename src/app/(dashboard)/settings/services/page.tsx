@@ -22,7 +22,7 @@ export default async function ServiceCatalogPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Service catalog</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Recurring Services</h1>
         <p className="mt-1 text-sm text-slate-500">
           The shared list of services and applications your team checks on a
           schedule. Add clients to one of these from that client&apos;s page,
@@ -51,7 +51,7 @@ export default async function ServiceCatalogPage() {
                 <td className="px-5 py-3">
                   <DeleteButton
                     action={deleteCatalogItem.bind(null, c.id)}
-                    confirmText={`Remove "${c.name}" from the catalog? This also removes it from any client it's tracked on.`}
+                    confirmText={`Remove "${c.name}" from Recurring Services? This also removes it from any client it's tracked on.`}
                   />
                 </td>
               </tr>
@@ -59,7 +59,7 @@ export default async function ServiceCatalogPage() {
             {(catalog ?? []).length === 0 && (
               <tr>
                 <td colSpan={4} className="px-5 py-6 text-center text-slate-500">
-                  No services in the catalog yet.
+                  No recurring services yet.
                 </td>
               </tr>
             )}
