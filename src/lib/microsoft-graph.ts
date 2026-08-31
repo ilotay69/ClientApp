@@ -68,6 +68,7 @@ export type GraphMessage = {
   receivedDateTime: string;
   webLink: string;
   bodyPreview?: string;
+  categories?: string[];
   from?: { emailAddress?: { name?: string; address?: string } };
   toRecipients?: { emailAddress?: { name?: string; address?: string } }[];
 };
@@ -85,7 +86,7 @@ export async function fetchRecentMessages(
   const base = new URL("https://graph.microsoft.com/v1.0/me/messages");
   base.searchParams.set(
     "$select",
-    "id,subject,from,toRecipients,receivedDateTime,webLink,bodyPreview"
+    "id,subject,from,toRecipients,receivedDateTime,webLink,bodyPreview,categories"
   );
   base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso}`);
   base.searchParams.set("$orderby", "receivedDateTime asc");

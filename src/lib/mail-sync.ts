@@ -14,14 +14,17 @@ const COMMON_FREE_DOMAINS = new Set([
   "aol.com",
 ]);
 
-const SUBJECT_PREFIXES: { prefix: string; type: "quote" | "project" }[] = [
-  { prefix: "quote", type: "quote" },
-  { prefix: "project", type: "project" },
+const CATEGORY_TYPES: { category: string; type: "quote" | "project" }[] = [
+  { category: "quote", type: "quote" },
+  { category: "project", type: "project" },
 ];
 
-export function detectEmailType(subject: string) {
-  const normalized = subject.trim().toLowerCase();
-  return SUBJECT_PREFIXES.find((p) => normalized.startsWith(p.prefix))?.type ?? null;
+/** Sync scope: a message only counts if it's been tagged with the Outlook
+ * category "Quote" or "Project" (case-insensitive) — everything else is
+ * skipped regardless of who it's from/to. */
+export function detectEmailType(categories: string[] | undefined) {
+  const normalized = (categories ?? []).map((c) => c.trim().toLowerCase());
+  return CATEGORY_TYPES.find((c) => normalized.includes(c.category))?.type ?? null;
 }
 
 function domainOf(email: string) {
@@ -96,8 +99,10 @@ export async function getValidAccessToken(
 
 /**
  * Syncs one connected mailbox: pulls messages received since the last sync,
- * keeps the ones whose subject starts with "quote" or "project" and whose
- * sender/recipient matches a known client, and stores them as email_links.
+ * keeps the ones tagged with the Outlook category "Quote" or "Project" AND
+ * whose sender/recipient matches a known client, and stores them as
+ * email_links. Anything without one of those two categories is skipped,
+ * regardless of who it's from/to.
  */
 export async function syncMailConnection(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,13 +130,11 @@ export async function syncMailConnection(
       latestReceivedAt = message.receivedDateTime;
     }
 
+    const type = detectEmailType(message.categories);
+    if (!type) continue;
+
     const clientId = matchClientForMessage(clients ?? [], message);
     if (!clientId) continue;
-
-    // Every email matched to a known client is kept now (not just ones
-    // whose subject starts with "quote"/"project") so the AI suggestion job
-    // has real context. The subject prefix still drives the type badge.
-    const type = detectEmailType(message.subject ?? "") ?? "general";
 
     const { error } = await admin.from("email_links").upsert(
       {
