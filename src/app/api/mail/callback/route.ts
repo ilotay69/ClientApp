@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { exchangeCodeForTokens, fetchMailboxEmail } from "@/lib/microsoft-graph";
+import { resolveAppUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
 const STATE_COOKIE = "mail_connect_state";
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin: requestOrigin } = new URL(request.url);
-  // Same fix as /api/mail/connect: use the public app URL, not
-  // request.url's origin (which can resolve to Railway's internal
-  // localhost:8080 behind the proxy) — this redirect_uri must match
-  // exactly what /api/mail/connect sent Microsoft.
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
+  const { searchParams } = new URL(request.url);
+  const origin = resolveAppUrl(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const expectedState = request.cookies.get(STATE_COOKIE)?.value;
