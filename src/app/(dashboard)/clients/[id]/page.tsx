@@ -5,7 +5,9 @@ import { ClientForm } from "@/components/client-form";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AssigneeSelect } from "@/components/assignee-select";
 import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
+import { ClientServiceQuickAdd } from "@/components/client-service-quick-add";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import { updateClientRecord, deleteClientRecord } from "../actions";
 import {
   addClientServiceCheck,
@@ -13,6 +15,7 @@ import {
   markServiceChecked,
   removeClientServiceCheck,
 } from "../../settings/services/actions";
+import { attachClientService, detachClientService } from "../../settings/catalog/actions";
 import { DeleteButton } from "@/components/delete-button";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +37,9 @@ export default async function ClientDetailPage({
     { data: serviceChecks },
     { data: catalog },
     { data: members },
+    { data: clientServices },
+    { data: services },
+    canManageServices,
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -66,6 +72,9 @@ export default async function ClientDetailPage({
       .eq("client_id", id),
     supabase.from("service_catalog").select("id, name, default_cadence_days").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
+    supabase.from("client_services").select("service_id, services(id, name)").eq("client_id", id),
+    supabase.from("services").select("id, name").order("name"),
+    hasPermission(supabase, "manage_services"),
   ]);
 
   if (!client) notFound();
@@ -74,6 +83,10 @@ export default async function ClientDetailPage({
   const addServiceCheckAction = addClientServiceCheck.bind(null, id);
   const trackedServiceIds = new Set((serviceChecks ?? []).map((sc) => sc.service_id));
   const availableCatalog = (catalog ?? []).filter((c) => !trackedServiceIds.has(c.id));
+
+  const attachServiceAction = attachClientService.bind(null, id);
+  const attachedServiceIds = new Set((clientServices ?? []).map((cs) => cs.service_id));
+  const availableServices = (services ?? []).filter((s) => !attachedServiceIds.has(s.id));
 
   return (
     <div className="space-y-8">
@@ -122,6 +135,37 @@ export default async function ClientDetailPage({
               </Link>
             ))}
           </RelatedSection>
+
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-5 py-3">
+              <h2 className="text-sm font-semibold text-slate-900">Services</h2>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {(clientServices ?? []).map((cs) => {
+                const svc = cs.services as unknown as { id: string; name: string } | null;
+                return (
+                  <div key={cs.service_id} className="flex items-center justify-between gap-3 px-5 py-3">
+                    <p className="text-sm font-medium text-slate-900">{svc?.name ?? "Service"}</p>
+                    {canManageServices && (
+                      <DeleteButton
+                        action={detachClientService.bind(null, id, cs.service_id)}
+                        confirmText={`Remove "${svc?.name ?? "this service"}" from ${client.name}?`}
+                        label="Remove"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+              {(clientServices ?? []).length === 0 && (
+                <p className="px-5 py-4 text-sm text-slate-500">
+                  No services attached for this client yet.
+                </p>
+              )}
+            </div>
+            {canManageServices && availableServices.length > 0 && (
+              <ClientServiceQuickAdd available={availableServices} action={attachServiceAction} />
+            )}
+          </div>
 
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-5 py-3">

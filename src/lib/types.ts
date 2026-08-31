@@ -185,6 +185,19 @@ export interface ClientServiceCheck {
   updated_at: string;
 }
 
+export interface ServiceOffering {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface ClientService {
+  client_id: string;
+  service_id: string;
+  created_at: string;
+}
+
 // Minimal Database type so the Supabase client stays typed without needing
 // the full generated schema. Extend with `Row`/`Insert`/`Update` per table
 // if you generate real types later.

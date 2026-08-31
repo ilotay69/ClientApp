@@ -5,6 +5,7 @@ export type PermissionKey =
   | "manage_team"
   | "manage_roles"
   | "manage_service_catalog"
+  | "manage_services"
   | "view_team_wide"
   | "manage_clients"
   | "manage_projects"
@@ -15,6 +16,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_team: "Add team members & change roles",
   manage_roles: "Edit this permission matrix",
   manage_service_catalog: "Manage recurring services",
+  manage_services: "Manage service catalog & client services",
   view_team_wide: "View team-wide dashboard data",
   manage_clients: "Create, edit & delete clients",
   manage_projects: "Create, edit & delete projects",
