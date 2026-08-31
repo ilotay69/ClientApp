@@ -35,6 +35,7 @@ export default async function DashboardLayout({
   const me = await getMyPermissions(supabase);
   const canManageServiceCatalog = me?.permissions.has("manage_service_catalog") ?? false;
   const canManageServices = me?.permissions.has("manage_services") ?? false;
+  const canManageAiSettings = me?.permissions.has("manage_ai_settings") ?? false;
   const canManageTeam = me?.permissions.has("manage_team") ?? false;
 
   return (
@@ -75,6 +76,14 @@ export default async function DashboardLayout({
                   className="text-sm text-slate-600 hover:text-slate-900"
                 >
                   Service Catalog
+                </Link>
+              )}
+              {canManageAiSettings && (
+                <Link
+                  href="/settings/ai"
+                  className="text-sm text-slate-600 hover:text-slate-900"
+                >
+                  AI Settings
                 </Link>
               )}
               {canManageTeam && (

@@ -1,4 +1,5 @@
-import { generateClientSuggestions } from "@/lib/anthropic";
+import { generateClientSuggestions } from "@/lib/ai";
+import { getActiveAiSettings } from "@/lib/ai/settings";
 
 const LOOKBACK_DAYS = 30;
 const MAX_EMAILS_PER_CLIENT = 15;
@@ -16,6 +17,9 @@ export async function generateSuggestions(
   admin: any,
   { maxClients = 20 }: { maxClients?: number } = {}
 ): Promise<{ clientsConsidered: number; created: number }> {
+  const aiSettings = await getActiveAiSettings(admin);
+  if (!aiSettings) return { clientsConsidered: 0, created: 0 };
+
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: activeClientIdsRows } = await admin
@@ -60,7 +64,7 @@ export async function generateSuggestions(
 
     let generated;
     try {
-      generated = await generateClientSuggestions(prompt);
+      generated = await generateClientSuggestions(prompt, aiSettings);
     } catch (err) {
       console.error(`Suggestion generation failed for client ${client.name}`, err);
       continue;

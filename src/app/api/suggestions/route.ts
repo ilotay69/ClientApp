@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { generateSuggestions } from "@/lib/suggestions";
+import { getActiveAiSettings } from "@/lib/ai/settings";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -16,11 +17,16 @@ export async function GET(request: NextRequest) {
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY is not set" }, { status: 500 });
-  }
 
   const admin = createAdminClient();
+
+  if (!(await getActiveAiSettings(admin))) {
+    return NextResponse.json(
+      { error: "No active AI provider configured — set one up on the AI Settings page." },
+      { status: 500 }
+    );
+  }
+
   const result = await generateSuggestions(admin);
   return NextResponse.json(result);
 }

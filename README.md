@@ -139,25 +139,37 @@ Add `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and `AZURE_TENANT_ID` to your
   (see step 7) — matching emails show up under **Linked emails** on the
   relevant client's page.
 
-## 5. Set up Anthropic (optional — AI insights on the dashboard)
+## 5. Set up AI Insights (optional — AI insights on the dashboard)
 
 This powers the "Insights" section at the top of the dashboard. It only
 works if Microsoft 365 mailbox sync (step 4) is also set up, since insights
 are generated from synced emails. Skip this if you don't want AI involved —
 everything else in the app works fine without it.
 
-1. Create an account at [console.anthropic.com](https://console.anthropic.com)
-   (a separate, pay-as-you-go developer account — not the same as a regular
-   claude.ai login) and add a payment method under **Settings → Billing**.
-2. Go to **API Keys → Create Key** → `ANTHROPIC_API_KEY`.
-3. That's it — `ANTHROPIC_MODEL` is optional and defaults to a small, cheap
-   model well-suited to this kind of summarization; only set it if you want
-   a different one.
+Unlike the other integrations in this guide, there's no env var to set —
+the API key is configured **in the app itself**, from the **AI Settings**
+page (visible to whichever role has the `manage_ai_settings` permission;
+the Owner has it by default and can grant it to Manager from
+**Team → Manage permissions**). Pick a provider, paste in a key, mark it
+active:
+
+- **Anthropic** — create an account at
+  [console.anthropic.com](https://console.anthropic.com) (a separate,
+  pay-as-you-go developer account, not a regular claude.ai login), add a
+  payment method under **Settings → Billing**, then **API Keys → Create
+  Key**.
+- **OpenAI** — create an account at
+  [platform.openai.com](https://platform.openai.com), add a payment method,
+  then **API keys → Create new secret key**.
+
+Both providers work interchangeably — the app calls whichever one is
+marked active. An optional model override is available per provider on
+the same page if you don't want the built-in default.
 
 Costs scale with how many clients have recent email activity each time the
 job runs (see step 7) — for a modest client list checked once or twice a
 day, this should be inexpensive, but it is metered, so it's worth keeping an
-eye on usage in the Anthropic console for the first week.
+eye on usage in your chosen provider's console for the first week.
 
 ## 6. Push to GitHub
 
@@ -230,9 +242,9 @@ from:
    curl -sf -X GET "$NEXT_PUBLIC_APP_URL/api/suggestions" -H "X-Cron-Secret: $CRON_SECRET"
    ```
 4. Same `NEXT_PUBLIC_APP_URL` and `CRON_SECRET` variables as above, plus
-   make sure `ANTHROPIC_API_KEY` is set on the main app service (the cron
-   service just calls the endpoint; the key itself only needs to be where
-   the app runs).
+   make sure a provider is configured and marked active on the app's AI
+   Settings page (the cron service just calls the endpoint; the key itself
+   lives in the database, not an env var — see step 5).
 
 You don't strictly need this cron job — the **Refresh insights** button on
 the dashboard runs the same thing on demand, capped to the 10 most recently
@@ -281,8 +293,10 @@ section).
   active client's recent synced emails and tracked records.
 - `src/lib/microsoft-graph.ts`, `src/lib/mail-sync.ts` — Microsoft Graph
   token handling and the email-to-client matching logic.
-- `src/lib/anthropic.ts`, `src/lib/suggestions.ts` — the Anthropic API call
-  and the per-client prompt/dedupe logic behind AI insights.
+- `src/lib/ai/` (`anthropic.ts`, `openai.ts`, `index.ts`, `settings.ts`),
+  `src/lib/suggestions.ts` — the per-provider API calls, the
+  provider-agnostic dispatcher, the active-settings lookup, and the
+  per-client prompt/dedupe logic behind AI insights.
 - `src/lib/supabase/` — Supabase client helpers for browser, server, and
   admin (service-role) contexts.
 - `src/proxy.ts` — refreshes the auth session and redirects signed-out users

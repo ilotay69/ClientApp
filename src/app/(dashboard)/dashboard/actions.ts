@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { generateSuggestions } from "@/lib/suggestions";
+import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { SuggestionStatus } from "@/lib/types";
 
 export type RefreshState = { error: string | null; summary: string | null };
@@ -13,11 +14,15 @@ export async function refreshInsights(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's signature
   _formData: FormData
 ): Promise<RefreshState> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return { error: "AI insights aren't set up yet (no Anthropic API key configured).", summary: null };
+  const admin = createAdminClient();
+
+  if (!(await getActiveAiSettings(admin))) {
+    return {
+      error: "AI insights aren't set up yet — configure a provider and API key on the AI Settings page.",
+      summary: null,
+    };
   }
 
-  const admin = createAdminClient();
   try {
     const result = await generateSuggestions(admin, { maxClients: 10 });
     revalidatePath("/dashboard");
