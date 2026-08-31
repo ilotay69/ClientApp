@@ -28,8 +28,9 @@ export default async function RolesPage() {
     tech: new Set(),
   };
   for (const row of rows ?? []) {
-    if (row.enabled && (row.role === "manager" || row.role === "tech")) {
-      grants[row.role].add(row.permission as PermissionKey);
+    const role = row.role as "manager" | "tech" | "owner";
+    if (row.enabled && (role === "manager" || role === "tech")) {
+      grants[role].add(row.permission as PermissionKey);
     }
   }
 

@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import type { PermissionKey } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 
-const EDITABLE_ROLES: { role: UserRole; label: string }[] = [
+const EDITABLE_ROLES: { role: "manager" | "tech"; label: string }[] = [
   { role: "manager", label: "Manager" },
   { role: "tech", label: "Tech" },
 ];
