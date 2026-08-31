@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     supabase
       .from("tasks")
       .select("id, title, due_date, assigned_to, clients(name), profiles:assigned_to(email, full_name)")
-      .in("status", ["open", "in_progress"])
+      .not("status", "in", "(done,dismissed)")
       .lte("due_date", today)
       .not("assigned_to", "is", null),
     supabase

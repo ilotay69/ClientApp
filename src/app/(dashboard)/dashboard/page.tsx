@@ -34,12 +34,12 @@ export default async function DashboardPage() {
       .from("tasks")
       .select("id, kind, title, due_date, clients(name)")
       .eq("assigned_to", user?.id ?? "")
-      .in("status", ["open", "in_progress"])
+      .not("status", "in", "(done,dismissed)")
       .order("due_date", { ascending: true, nullsFirst: false }),
     supabase
       .from("tasks")
       .select("id, assigned_to, profiles:assigned_to(full_name)")
-      .in("status", ["open", "in_progress"]),
+      .not("status", "in", "(done,dismissed)"),
     supabase
       .from("touchpoints")
       .select("id, type, due_date, owner_id, clients(name)")

@@ -128,7 +128,13 @@ export type TaskKind =
   | "internal"
   | "improvement"
   | "general";
-export type TaskStatus = "open" | "in_progress" | "done" | "dismissed";
+export type TaskStatus =
+  | "open"
+  | "in_progress"
+  | "on_hold"
+  | "waiting_client"
+  | "done"
+  | "dismissed";
 export type TaskPriority = "low" | "medium" | "high";
 
 export interface Task {
@@ -137,6 +143,7 @@ export interface Task {
   kind: TaskKind;
   title: string;
   detail: string | null;
+  notes: string | null;
   status: TaskStatus;
   priority: TaskPriority;
   assigned_to: string | null;

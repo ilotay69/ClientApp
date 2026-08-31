@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
+import { DeleteButton } from "@/components/delete-button";
 import { TaskAssigneesSelect } from "@/components/task-assignees-select";
 import { InlineTextEdit, InlineDateEdit, InlineSelectEdit } from "@/components/task-field-editor";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { isOverdue } from "@/lib/format";
-import { createTask, setTaskAssignees, updateTaskField, updateTaskStatus } from "./actions";
+import { createTask, deleteTask, setTaskAssignees, updateTaskField } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,21 @@ const PRIORITY_OPTIONS = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ];
+
+const STATUS_OPTIONS = [
+  { value: "open", label: "Open" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "on_hold", label: "On Hold" },
+  { value: "waiting_client", label: "Waiting Client" },
+];
+
+// A task created before this status rework may still carry a legacy
+// 'done'/'dismissed' value — fall it into the picker so the select shows
+// the real current value instead of silently mismatching.
+function statusOptionsFor(current: string) {
+  if (STATUS_OPTIONS.some((o) => o.value === current)) return STATUS_OPTIONS;
+  return [...STATUS_OPTIONS, { value: current, label: current }];
+}
 
 export default async function TasksPage({
   searchParams,
@@ -40,12 +56,12 @@ export default async function TasksPage({
   let query = supabase
     .from("tasks")
     .select(
-      `id, kind, title, detail, status, priority, start_date, due_date, client_id, clients(name), ${assigneesRelation}`
+      `id, kind, title, detail, notes, status, priority, start_date, due_date, client_id, clients(name), ${assigneesRelation}`
     )
     .order("due_date", { ascending: true, nullsFirst: false });
 
   if (view !== "all") {
-    query = query.in("status", ["open", "in_progress"]);
+    query = query.not("status", "in", "(done,dismissed)");
   }
   if (mine === "1" && user) {
     query = query.eq("task_assignees.profile_id", user.id);
@@ -71,7 +87,7 @@ export default async function TasksPage({
             My tasks
           </FilterLink>
           <FilterLink href="/tasks?view=all" active={view === "all" && !mine}>
-            All (incl. done)
+            All
           </FilterLink>
         </div>
       </div>
@@ -89,6 +105,7 @@ export default async function TasksPage({
               <th className="px-5 py-3 text-left font-medium text-slate-500">Start</th>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Due</th>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Status</th>
+              <th className="px-5 py-3 text-left font-medium text-slate-500">Notes</th>
               <th className="px-5 py-3 text-left font-medium text-slate-500"></th>
             </tr>
           </thead>
@@ -168,45 +185,39 @@ export default async function TasksPage({
                     </div>
                   </td>
                   <td className="px-5 py-3 align-top">
-                    <Badge value={t.status} />
+                    <InlineSelectEdit
+                      taskId={t.id}
+                      field="status"
+                      value={t.status}
+                      action={updateTaskField}
+                      options={statusOptionsFor(t.status)}
+                    />
+                  </td>
+                  <td className="px-5 py-3 align-top text-slate-600">
+                    <InlineTextEdit
+                      taskId={t.id}
+                      field="notes"
+                      value={t.notes ?? ""}
+                      action={updateTaskField}
+                      placeholder="Add notes..."
+                      emptyLabel="Add notes"
+                    />
                   </td>
                   <td className="px-5 py-3 align-top">
-                    {t.status !== "done" && t.status !== "dismissed" ? (
-                      <div className="flex justify-end gap-2">
-                        <form action={updateTaskStatus.bind(null, t.id, "done")}>
-                          <button
-                            type="submit"
-                            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100"
-                          >
-                            Done
-                          </button>
-                        </form>
-                        <form action={updateTaskStatus.bind(null, t.id, "dismissed")}>
-                          <button
-                            type="submit"
-                            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100"
-                          >
-                            Dismiss
-                          </button>
-                        </form>
-                      </div>
-                    ) : (
-                      <form action={updateTaskStatus.bind(null, t.id, "open")} className="flex justify-end">
-                        <button
-                          type="submit"
-                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100"
-                        >
-                          Reopen
-                        </button>
-                      </form>
-                    )}
+                    <div className="flex justify-end">
+                      <DeleteButton
+                        action={deleteTask.bind(null, t.id)}
+                        confirmText={`Delete "${t.title}"?`}
+                        label="Delete"
+                      />
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {(tasks ?? []).length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-6 text-center text-slate-500">
+                <td colSpan={9} className="px-5 py-6 text-center text-slate-500">
                   Nothing here. Add a task above, or promote an insight from
                   the{" "}
                   <Link href="/dashboard" className="underline">

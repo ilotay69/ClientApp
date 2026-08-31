@@ -56,7 +56,7 @@ export default async function ClientDetailPage({
       .from("tasks")
       .select("id, kind, title, status, due_date, profiles:assigned_to(full_name)")
       .eq("client_id", id)
-      .in("status", ["open", "in_progress"])
+      .not("status", "in", "(done,dismissed)")
       .order("due_date", { ascending: true, nullsFirst: false }),
     supabase
       .from("client_service_checks")

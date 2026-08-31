@@ -4,13 +4,23 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getResendClient, buildTaskAssignedEmail } from "@/lib/resend";
 import { formatDate } from "@/lib/format";
-import type { TaskKind, TaskPriority, TaskStatus } from "@/lib/types";
+import type { TaskKind, TaskPriority } from "@/lib/types";
 
 export type FormState = { error: string | null };
 
 function emptyToNull(value: FormDataEntryValue | null) {
   const str = String(value ?? "").trim();
   return str.length > 0 ? str : null;
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDaysISO(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 /** Emails everyone newly assigned to a task. Best-effort: a missing API key
@@ -81,6 +91,12 @@ export async function createTask(
 
   const assigneeIds = formData.getAll("assignee_ids").map(String).filter(Boolean);
 
+  // The form pre-fills start = today and due = start + 30 days, editable
+  // before submit. This is a server-side fallback for the same default in
+  // case either field arrives empty.
+  const startDate = emptyToNull(formData.get("start_date")) ?? todayISO();
+  const dueDate = emptyToNull(formData.get("due_date")) ?? addDaysISO(startDate, 30);
+
   const { data: task, error } = await supabase
     .from("tasks")
     .insert({
@@ -89,9 +105,10 @@ export async function createTask(
       priority: String(formData.get("priority") ?? "medium") as TaskPriority,
       client_id: emptyToNull(formData.get("client_id")),
       assigned_to: assigneeIds[0] ?? null,
-      start_date: emptyToNull(formData.get("start_date")),
-      due_date: emptyToNull(formData.get("due_date")),
+      start_date: startDate,
+      due_date: dueDate,
       detail: emptyToNull(formData.get("detail")),
+      notes: emptyToNull(formData.get("notes")),
       created_by: user?.id ?? null,
     })
     .select("id")
@@ -143,14 +160,22 @@ export async function setTaskAssignees(taskId: string, assigneeIds: string[]) {
 const EDITABLE_TASK_FIELDS = [
   "title",
   "detail",
+  "notes",
   "client_id",
   "kind",
   "priority",
+  "status",
   "start_date",
   "due_date",
 ] as const satisfies readonly string[];
 
-const NULLABLE_TASK_FIELDS: readonly string[] = ["detail", "client_id", "start_date", "due_date"];
+const NULLABLE_TASK_FIELDS: readonly string[] = [
+  "detail",
+  "notes",
+  "client_id",
+  "start_date",
+  "due_date",
+];
 
 /** Inline-edit handler for the Tasks table — one column at a time. `field`
  * is typed as plain `string` (not the narrower union) so this matches the
@@ -168,19 +193,6 @@ export async function updateTaskField(taskId: string, field: string, value: stri
     .update({ [field]: nextValue })
     .eq("id", taskId);
 
-  revalidatePath("/tasks");
-  revalidatePath("/dashboard");
-}
-
-export async function updateTaskStatus(taskId: string, status: TaskStatus) {
-  const supabase = await createClient();
-  await supabase
-    .from("tasks")
-    .update({
-      status,
-      completed_at: status === "done" ? new Date().toISOString() : null,
-    })
-    .eq("id", taskId);
   revalidatePath("/tasks");
   revalidatePath("/dashboard");
 }
