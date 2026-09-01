@@ -7,6 +7,7 @@ import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline
 import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
 import { ClientAutotaskContractServices } from "@/components/client-autotask-contract-services";
 import { SyncAutotaskButton } from "@/components/sync-autotask-button";
+import { AutotaskMappingButton } from "@/components/autotask-mapping-button";
 import { SuggestionCard } from "@/components/suggestion-card";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
@@ -199,6 +200,12 @@ export default async function ClientDetailPage({
           </h1>
         </div>
         <div className="flex items-center gap-3">
+          <AutotaskMappingButton
+            companyId={client.autotask_company_id}
+            searchAction={searchAutotaskCompaniesAction}
+            linkAction={linkAutotaskAction}
+            unlinkAction={unlinkAutotaskAction}
+          />
           {client.autotask_company_id && <SyncAutotaskButton action={syncAutotaskAction} />}
           <DeleteButton
             action={deleteClientRecord.bind(null, id)}
@@ -472,9 +479,6 @@ export default async function ClientDetailPage({
                   <ClientAutotaskTickets
                     companyId={client.autotask_company_id}
                     tickets={autotaskTickets ?? []}
-                    searchAction={searchAutotaskCompaniesAction}
-                    linkAction={linkAutotaskAction}
-                    unlinkAction={unlinkAutotaskAction}
                     detailAction={ticketDetailAction}
                   />
                 ),
