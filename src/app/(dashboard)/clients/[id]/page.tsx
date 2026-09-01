@@ -13,7 +13,7 @@ import { Badge, OverdueBadge } from "@/components/badge";
 import { AssigneeSelect } from "@/components/assignee-select";
 import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
 import { ClientServiceQuickAdd } from "@/components/client-service-quick-add";
-import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
+import { formatDate, isOverdue, isServiceCheckOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import {
   updateClientRecord,
@@ -109,7 +109,7 @@ export default async function ClientDetailPage({
     supabase
       .from("autotask_tickets")
       .select(
-        "id, ticket_number, title, description, resolution, status, priority, queue_name, assigned_resource_name, due_date"
+        "id, ticket_number, title, description, resolution, status, priority, queue_name, assigned_resource_name, due_date, last_activity_at"
       )
       .eq("client_id", id)
       .order("due_date", { ascending: true, nullsFirst: false }),
@@ -132,6 +132,21 @@ export default async function ClientDetailPage({
   const syncAutotaskAction = syncClientAutotaskTickets.bind(null, id);
   const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
+
+  const stalestAutotaskTicket = (autotaskTickets ?? []).reduce<
+    { title: string; last_activity_at: string | null } | null
+  >((stalest, t) => {
+    if (!t.last_activity_at) return stalest;
+    if (!stalest || !stalest.last_activity_at || t.last_activity_at < stalest.last_activity_at) return t;
+    return stalest;
+  }, null);
+  const followupSummary = buildFollowupSummary({
+    taskCount: (tasks ?? []).length,
+    ticketCount: (autotaskTickets ?? []).length,
+    stalestTicketTitle: stalestAutotaskTicket?.title ?? null,
+    stalestTicketDays: daysAgo(stalestAutotaskTicket?.last_activity_at ?? null),
+    lastContactDays: daysAgo((interactions ?? [])[0]?.created_at ?? null),
+  });
 
   const timelineEntries: TimelineEntry[] = [
     ...(emails ?? []).map((e) => ({
@@ -224,8 +239,10 @@ export default async function ClientDetailPage({
                           />
                         ))}
                         {(suggestions ?? []).length === 0 && (
-                          <p className="px-5 py-4 text-sm text-slate-500">
-                            No open insights right now.
+                          <p className="px-5 py-4 text-sm text-slate-600">
+                            {followupSummary ?? (
+                              <span className="text-slate-500">No open insights right now.</span>
+                            )}
                           </p>
                         )}
                       </div>

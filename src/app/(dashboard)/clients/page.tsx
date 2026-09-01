@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { Badge } from "@/components/badge";
-import { daysAgo } from "@/lib/format";
+import { daysAgo, buildFollowupSummary } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -126,16 +126,13 @@ export default async function ClientsPage() {
               const ticketCount = ticketCounts.get(c.id) ?? 0;
               const contactDays = daysAgo(lastContact.get(c.id));
               const stale = stalestTicket.get(c.id);
-              const staleDays = daysAgo(stale?.last_activity_at ?? null);
-
-              const followupParts: string[] = [];
-              if (staleDays !== null && staleDays >= 3) {
-                followupParts.push(`"${stale!.title}" untouched ${staleDays}d`);
-              } else if (ticketCount > 0) {
-                followupParts.push(`${ticketCount} open ticket${ticketCount === 1 ? "" : "s"}`);
-              }
-              if (taskCount > 0) followupParts.push(`${taskCount} open task${taskCount === 1 ? "" : "s"}`);
-              if (contactDays !== null) followupParts.push(`last contact ${contactDays}d ago`);
+              const followupText = buildFollowupSummary({
+                taskCount,
+                ticketCount,
+                stalestTicketTitle: stale?.title ?? null,
+                stalestTicketDays: daysAgo(stale?.last_activity_at ?? null),
+                lastContactDays: contactDays,
+              });
 
               return (
                 <tr key={c.id} className="hover:bg-slate-50">
@@ -153,8 +150,8 @@ export default async function ClientsPage() {
                         {suggestion.priority === "high" && <Badge value="high" />}
                         <span className="text-slate-700">{suggestion.summary}</span>
                       </div>
-                    ) : followupParts.length > 0 ? (
-                      <span className="text-slate-600">{followupParts.join(" · ")}</span>
+                    ) : followupText ? (
+                      <span className="text-slate-600">{followupText}</span>
                     ) : (
                       <span className="text-slate-400">Nothing outstanding.</span>
                     )}
