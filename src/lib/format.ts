@@ -1,4 +1,4 @@
-import { format, isPast, parseISO } from "date-fns";
+import { differenceInCalendarDays, format, isPast, parseISO } from "date-fns";
 
 export function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -33,6 +33,11 @@ export function isServiceCheckOverdue(
   const dueBy = new Date(parseISO(lastCheckedAt));
   dueBy.setDate(dueBy.getDate() + cadenceDays);
   return isPast(dueBy);
+}
+
+export function daysAgo(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  return differenceInCalendarDays(new Date(), parseISO(dateStr));
 }
 
 export function humanizeLabel(value: string) {
