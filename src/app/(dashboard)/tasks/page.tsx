@@ -43,13 +43,26 @@ export default async function TasksPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: clients }, { data: members }, canDeleteTasks] = await Promise.all([
-    supabase.from("clients").select("id, name").order("name"),
-    supabase.from("profiles").select("id, full_name").order("full_name"),
-    hasPermission(supabase, "delete_tasks"),
-  ]);
+  const [{ data: clients }, { data: members }, canDeleteTasks, { data: projects }] =
+    await Promise.all([
+      supabase.from("clients").select("id, name").order("name"),
+      supabase.from("profiles").select("id, full_name").order("full_name"),
+      hasPermission(supabase, "delete_tasks"),
+      supabase.from("projects").select("id, name, clients(name)").order("name"),
+    ]);
   const clientOptions = [{ value: "", label: "No client (internal)" }].concat(
     (clients ?? []).map((c) => ({ value: c.id, label: c.name }))
+  );
+  const projectSummaries = (projects ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    clientName: (p.clients as unknown as { name: string } | null)?.name ?? null,
+  }));
+  const projectOptions = [{ value: "", label: "No project" }].concat(
+    projectSummaries.map((p) => ({
+      value: p.id,
+      label: p.clientName ? `${p.name} — ${p.clientName}` : p.name,
+    }))
   );
 
   const assigneesRelation =
@@ -58,7 +71,7 @@ export default async function TasksPage({
   let query = supabase
     .from("tasks")
     .select(
-      `id, kind, title, detail, notes, status, priority, start_date, due_date, client_id, clients(name), ${assigneesRelation}`
+      `id, kind, title, detail, notes, status, priority, start_date, due_date, client_id, project_id, clients(name), ${assigneesRelation}`
     )
     .order("due_date", { ascending: true, nullsFirst: false });
 
@@ -94,7 +107,12 @@ export default async function TasksPage({
         </div>
       </div>
 
-      <TaskQuickAdd clients={clients ?? []} members={members ?? []} action={createTask} />
+      <TaskQuickAdd
+        clients={clients ?? []}
+        projects={projectSummaries}
+        members={members ?? []}
+        action={createTask}
+      />
 
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -102,6 +120,7 @@ export default async function TasksPage({
             <tr>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Task</th>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Client</th>
+              <th className="px-5 py-3 text-left font-medium text-slate-500">Project</th>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Assigned to</th>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Priority</th>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Start</th>
@@ -146,6 +165,15 @@ export default async function TasksPage({
                       value={t.client_id ?? ""}
                       action={updateTaskField}
                       options={clientOptions}
+                    />
+                  </td>
+                  <td className="px-5 py-3 align-top text-slate-600">
+                    <InlineSelectEdit
+                      taskId={t.id}
+                      field="project_id"
+                      value={t.project_id ?? ""}
+                      action={updateTaskField}
+                      options={projectOptions}
                     />
                   </td>
                   <td className="px-5 py-3 align-top">
@@ -221,7 +249,7 @@ export default async function TasksPage({
             })}
             {(tasks ?? []).length === 0 && (
               <tr>
-                <td colSpan={9} className="px-5 py-6 text-center text-slate-500">
+                <td colSpan={10} className="px-5 py-6 text-center text-slate-500">
                   Nothing here. Add a task above, or promote an insight from
                   the{" "}
                   <Link href="/dashboard" className="underline">

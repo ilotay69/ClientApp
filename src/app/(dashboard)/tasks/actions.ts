@@ -105,6 +105,7 @@ export async function createTask(
       kind: String(formData.get("kind") ?? "general") as TaskKind,
       priority: String(formData.get("priority") ?? "medium") as TaskPriority,
       client_id: emptyToNull(formData.get("client_id")),
+      project_id: emptyToNull(formData.get("project_id")),
       assigned_to: assigneeIds[0] ?? null,
       start_date: startDate,
       due_date: dueDate,
@@ -163,6 +164,7 @@ const EDITABLE_TASK_FIELDS = [
   "detail",
   "notes",
   "client_id",
+  "project_id",
   "kind",
   "priority",
   "status",
@@ -174,6 +176,7 @@ const NULLABLE_TASK_FIELDS: readonly string[] = [
   "detail",
   "notes",
   "client_id",
+  "project_id",
   "start_date",
   "due_date",
 ];

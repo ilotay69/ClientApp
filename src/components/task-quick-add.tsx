@@ -36,10 +36,12 @@ function addDaysISO(dateStr: string, days: number) {
 
 export function TaskQuickAdd({
   clients,
+  projects,
   members,
   action,
 }: {
   clients: { id: string; name: string }[];
+  projects: { id: string; name: string; clientName: string | null }[];
   members: { id: string; full_name: string }[];
   action: (prevState: FormState, formData: FormData) => Promise<FormState>;
 }) {
@@ -81,6 +83,19 @@ export function TaskQuickAdd({
         {clients.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
+          </option>
+        ))}
+      </select>
+      <select
+        name="project_id"
+        defaultValue=""
+        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+      >
+        <option value="">No project</option>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+            {p.clientName ? ` — ${p.clientName}` : ""}
           </option>
         ))}
       </select>

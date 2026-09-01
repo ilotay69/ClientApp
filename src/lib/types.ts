@@ -161,6 +161,7 @@ export type TaskPriority = "low" | "medium" | "high";
 export interface Task {
   id: string;
   client_id: string | null;
+  project_id: string | null;
   kind: TaskKind;
   title: string;
   detail: string | null;
