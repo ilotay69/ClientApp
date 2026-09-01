@@ -50,6 +50,18 @@ export interface AutotaskTicket {
   last_synced_at: string;
 }
 
+export interface AutotaskContractService {
+  id: number;
+  client_id: string;
+  contract_id: number;
+  contract_name: string;
+  contract_status: string | null;
+  service_id: number;
+  service_name: string;
+  description: string | null;
+  last_synced_at: string;
+}
+
 export interface ClientContact {
   id: string;
   client_id: string;

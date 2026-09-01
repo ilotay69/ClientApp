@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { fetchOpenTicketsForCompany, fetchTicketPicklists } from "@/lib/autotask";
+import {
+  fetchOpenTicketsForCompany,
+  fetchTicketPicklists,
+  fetchContractServicesForCompany,
+} from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +53,20 @@ export async function GET(request: NextRequest) {
           tickets.map((t) => ({ ...t, client_id: client.id }))
         );
       }
-      results.push({ clientId: client.id, tickets: tickets.length });
+
+      const contractServices = await fetchContractServicesForCompany(
+        settings.credentials,
+        settings.zoneUrl,
+        client.autotask_company_id as number
+      );
+      await admin.from("autotask_contract_services").delete().eq("client_id", client.id);
+      if (contractServices.length > 0) {
+        await admin.from("autotask_contract_services").insert(
+          contractServices.map((cs) => ({ ...cs, client_id: client.id }))
+        );
+      }
+
+      results.push({ clientId: client.id, tickets: tickets.length, contractServices: contractServices.length });
     } catch (err) {
       results.push({
         clientId: client.id,

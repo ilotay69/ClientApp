@@ -5,6 +5,7 @@ import { ClientForm } from "@/components/client-form";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
 import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
+import { ClientAutotaskContractServices } from "@/components/client-autotask-contract-services";
 import { SuggestionCard } from "@/components/suggestion-card";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
@@ -24,7 +25,7 @@ import {
   searchAutotaskCompaniesAction,
   linkClientAutotaskCompany,
   unlinkClientAutotaskCompany,
-  syncClientAutotaskTickets,
+  syncClientAutotaskData,
   getAutotaskTicketDetailAction,
   refreshClientInsightsAction,
 } from "../actions";
@@ -64,6 +65,7 @@ export default async function ClientDetailPage({
     canManageClients,
     { data: autotaskTickets },
     { data: suggestions },
+    { data: autotaskContractServices },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -120,6 +122,11 @@ export default async function ClientDetailPage({
       .eq("status", "open")
       .order("priority", { ascending: true })
       .order("created_at", { ascending: false }),
+    supabase
+      .from("autotask_contract_services")
+      .select("id, contract_name, contract_status, service_name, description")
+      .eq("client_id", id)
+      .order("contract_name"),
   ]);
 
   if (!client) notFound();
@@ -129,7 +136,7 @@ export default async function ClientDetailPage({
   const logInteractionAction = logClientInteraction.bind(null, id);
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
-  const syncAutotaskAction = syncClientAutotaskTickets.bind(null, id);
+  const syncAutotaskAction = syncClientAutotaskData.bind(null, id);
   const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
 
@@ -369,6 +376,11 @@ export default async function ClientDetailPage({
                         />
                       )}
                     </div>
+
+                    <ClientAutotaskContractServices
+                      companyId={client.autotask_company_id}
+                      services={autotaskContractServices ?? []}
+                    />
 
                     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
                       <div className="border-b border-slate-200 px-5 py-3">

@@ -110,6 +110,24 @@ function picklistMap(fields: FieldInfo[], fieldName: string): Map<number, string
   return map;
 }
 
+/** Raw field metadata for one entity type — the source both entityInformation
+ * calls (Tickets, Contracts, ...) resolve their picklist labels from. */
+async function fetchEntityFields(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  entity: string
+): Promise<FieldInfo[]> {
+  const res = await fetch(`${zoneUrl}/${entity}/entityInformation/fields`, {
+    headers: autotaskHeaders(creds),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Autotask ${entity} field info failed (${res.status}): ${text}`);
+  }
+  const json = await res.json();
+  return json.fields ?? [];
+}
+
 /** Resolves the tenant's actual label text for the status/priority/queue
  * picklists on Tickets — these can be customized per tenant, so the labels
  * can't be hardcoded and must come from this call. Cheap to call once per
@@ -118,21 +136,23 @@ export async function fetchTicketPicklists(
   creds: AutotaskCredentials,
   zoneUrl: string
 ): Promise<PicklistLabelMaps> {
-  const res = await fetch(`${zoneUrl}/Tickets/entityInformation/fields`, {
-    headers: autotaskHeaders(creds),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Autotask Tickets field info failed (${res.status}): ${text}`);
-  }
-  const json = await res.json();
-  const fields: FieldInfo[] = json.fields ?? [];
-
+  const fields = await fetchEntityFields(creds, zoneUrl, "Tickets");
   return {
     status: picklistMap(fields, "status"),
     priority: picklistMap(fields, "priority"),
     queue: picklistMap(fields, "queueID"),
   };
+}
+
+/** Same idea as fetchTicketPicklists, for the Contracts entity's status
+ * picklist — needed to show a contract's real status text instead of a
+ * numeric code. */
+export async function fetchContractStatusLabels(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<Map<number, string>> {
+  const fields = await fetchEntityFields(creds, zoneUrl, "Contracts");
+  return picklistMap(fields, "status");
 }
 
 /** Batched name lookup for Resources (techs) referenced by id — e.g. a
@@ -332,4 +352,102 @@ export async function fetchTicketTimeEntries(
       resourceName: e.resourceID != null ? (resourceNames.get(e.resourceID) ?? null) : null,
     }))
     .sort((a, b) => (a.dateWorked < b.dateWorked ? 1 : -1));
+}
+
+/** Batched name lookup for Services (Autotask's own service catalog)
+ * referenced by id from ContractServices rows. Same resilience posture as
+ * resolveResourceNames — some API Users may lack read access to this
+ * entity too, so a failure here shouldn't take down the whole sync. */
+async function resolveServiceNames(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  serviceIds: number[]
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  const uniqueIds = [...new Set(serviceIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return map;
+
+  let items: unknown[];
+  try {
+    items = await autotaskQuery(creds, zoneUrl, "Services", {
+      filter: [{ op: "in", field: "id", value: uniqueIds }],
+      MaxRecords: uniqueIds.length,
+    });
+  } catch (err) {
+    console.error("Autotask Services lookup failed — falling back to raw ids", err);
+    return map;
+  }
+  for (const s of items as { id: number; name?: string }[]) {
+    map.set(s.id, s.name || `Service ${s.id}`);
+  }
+  return map;
+}
+
+export type AutotaskContractService = {
+  id: number;
+  contract_id: number;
+  contract_name: string;
+  contract_status: string | null;
+  service_id: number;
+  service_name: string;
+  description: string | null;
+};
+
+/** All of a company's contracted services across all of its contracts
+ * (active or not — status is shown, not filtered, since what counts as
+ * "active" is a tenant-configurable label rather than a fixed value).
+ * One Contracts query, then one ContractServices query per contract
+ * (typically very few per client), then a single batched Services lookup
+ * for the names. */
+export async function fetchContractServicesForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number
+): Promise<AutotaskContractService[]> {
+  const statusLabels = await fetchContractStatusLabels(creds, zoneUrl);
+
+  type RawContract = { id: number; contractName: string; status?: number };
+  const contracts: RawContract[] = await autotaskQuery(creds, zoneUrl, "Contracts", {
+    filter: [{ op: "eq", field: "companyID", value: companyId }],
+    MaxRecords: 50,
+  });
+  if (contracts.length === 0) return [];
+
+  type RawContractService = {
+    id: number;
+    contractID: number;
+    serviceID: number;
+    invoiceDescription?: string;
+    internalDescription?: string;
+  };
+  const perContract = await Promise.all(
+    contracts.map((c) =>
+      autotaskQuery(creds, zoneUrl, "ContractServices", {
+        filter: [{ op: "eq", field: "contractID", value: c.id }],
+        MaxRecords: 200,
+      }) as Promise<RawContractService[]>
+    )
+  );
+  const contractServices = perContract.flat();
+
+  const serviceNames = await resolveServiceNames(
+    creds,
+    zoneUrl,
+    contractServices.map((cs) => cs.serviceID)
+  );
+  const contractsById = new Map(contracts.map((c) => [c.id, c]));
+
+  return contractServices.map((cs) => {
+    const contract = contractsById.get(cs.contractID);
+    return {
+      id: cs.id,
+      contract_id: cs.contractID,
+      contract_name: contract?.contractName ?? `Contract ${cs.contractID}`,
+      contract_status:
+        contract?.status != null ? (statusLabels.get(contract.status) ?? String(contract.status)) : null,
+      service_id: cs.serviceID,
+      service_name: serviceNames.get(cs.serviceID) ?? `Service ${cs.serviceID}`,
+      description: cs.invoiceDescription || cs.internalDescription || null,
+    };
+  });
 }

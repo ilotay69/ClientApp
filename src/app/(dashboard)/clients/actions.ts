@@ -10,7 +10,7 @@ import {
   searchAutotaskCompanies,
   fetchOpenTicketsForCompany,
   fetchTicketPicklists,
-  resolveResourceNames,
+  fetchContractServicesForCompany,
   fetchTicketNotes,
   fetchTicketTimeEntries,
   type AutotaskCompany,
@@ -206,13 +206,15 @@ export async function unlinkClientAutotaskCompany(clientId: string): Promise<voi
   const supabase = await createClient();
   await supabase.from("clients").update({ autotask_company_id: null }).eq("id", clientId);
   await supabase.from("autotask_tickets").delete().eq("client_id", clientId);
+  await supabase.from("autotask_contract_services").delete().eq("client_id", clientId);
   revalidatePath(`/clients/${clientId}`);
 }
 
-/** On-demand ticket sync for a single mapped client — same replace-on-sync
- * logic as the /api/autotask-sync cron job, scoped to one client so it's
- * fast enough to run from a button without waiting on the cron job. */
-export async function syncClientAutotaskTickets(clientId: string): Promise<{ error: string | null }> {
+/** On-demand sync for a single mapped client — tickets and contracted
+ * services — same replace-on-sync logic as the /api/autotask-sync cron
+ * job, scoped to one client so it's fast enough to run from a button
+ * without waiting on the cron job. */
+export async function syncClientAutotaskData(clientId: string): Promise<{ error: string | null }> {
   if (!(await requirePermission("manage_clients"))) {
     return { error: "You don't have permission to do that." };
   }
@@ -245,6 +247,18 @@ export async function syncClientAutotaskTickets(clientId: string): Promise<{ err
       await admin
         .from("autotask_tickets")
         .insert(tickets.map((t) => ({ ...t, client_id: clientId })));
+    }
+
+    const contractServices = await fetchContractServicesForCompany(
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id
+    );
+    await admin.from("autotask_contract_services").delete().eq("client_id", clientId);
+    if (contractServices.length > 0) {
+      await admin
+        .from("autotask_contract_services")
+        .insert(contractServices.map((cs) => ({ ...cs, client_id: clientId })));
     }
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Sync failed." };
