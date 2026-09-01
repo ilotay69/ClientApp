@@ -45,6 +45,8 @@ export interface AutotaskTicket {
   queue_name: string | null;
   assigned_resource_name: string | null;
   due_date: string | null;
+  opened_at: string | null;
+  last_activity_at: string | null;
   last_synced_at: string;
 }
 

@@ -180,6 +180,8 @@ export type AutotaskTicketRow = {
   queue_name: string | null;
   assigned_resource_name: string | null;
   due_date: string | null;
+  opened_at: string | null;
+  last_activity_at: string | null;
 };
 
 type RawTicket = {
@@ -193,6 +195,8 @@ type RawTicket = {
   queueID?: number;
   assignedResourceID?: number;
   dueDateTime?: string;
+  createDate?: string;
+  lastActivityDate?: string;
 };
 
 /** Fetches this company's open tickets (completedDate is null — a real,
@@ -236,6 +240,8 @@ export async function fetchOpenTicketsForCompany(
         ? (resourceNames.get(t.assignedResourceID) ?? `Resource ${t.assignedResourceID}`)
         : null,
     due_date: t.dueDateTime ?? null,
+    opened_at: t.createDate ?? null,
+    last_activity_at: t.lastActivityDate ?? null,
   }));
 }
 

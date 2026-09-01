@@ -1,5 +1,8 @@
 import { generateClientSuggestions } from "@/lib/ai";
 import { getActiveAiSettings } from "@/lib/ai/settings";
+import { daysAgo } from "@/lib/format";
+
+const MAX_TICKET_DESCRIPTION_CHARS = 600;
 
 const LOOKBACK_DAYS = 30;
 const MAX_EMAILS_PER_CLIENT = 15;
@@ -61,7 +64,7 @@ export async function generateSuggestions(
           .limit(3),
         admin
           .from("autotask_tickets")
-          .select("title, status, priority, due_date")
+          .select("title, description, status, priority, due_date, opened_at, last_activity_at")
           .eq("client_id", clientId),
       ]);
 
@@ -122,9 +125,12 @@ type ProjectRow = { name: string; status: string; target_end_date: string | null
 type TouchpointRow = { type: string; due_date: string; completed_at: string | null };
 type TicketRow = {
   title: string;
+  description: string | null;
   status: string | null;
   priority: string | null;
   due_date: string | null;
+  opened_at: string | null;
+  last_activity_at: string | null;
 };
 
 function buildPrompt(
@@ -153,10 +159,14 @@ function buildPrompt(
 
   const ticketList = tickets.length
     ? tickets
-        .map(
-          (t) =>
-            `- "${t.title}" (status: ${t.status ?? "unknown"}, priority: ${t.priority ?? "unknown"}${t.due_date ? `, due ${t.due_date.slice(0, 10)}` : ""})`
-        )
+        .map((t) => {
+          const staleDays = daysAgo(t.last_activity_at);
+          const openDays = daysAgo(t.opened_at);
+          const description = t.description
+            ? t.description.slice(0, MAX_TICKET_DESCRIPTION_CHARS)
+            : "(no description on the ticket)";
+          return `- "${t.title}" (status: ${t.status ?? "unknown"}, priority: ${t.priority ?? "unknown"}${openDays !== null ? `, opened ${openDays}d ago` : ""}${staleDays !== null ? `, last activity ${staleDays}d ago` : ""}${t.due_date ? `, due ${t.due_date.slice(0, 10)}` : ""})\n  What it says: ${description}`;
+        })
         .join("\n")
     : "None open.";
 
@@ -178,7 +188,7 @@ ${ticketList}
 
 Look for, in order of importance:
 1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, a high-priority ticket that's been open a long time with no apparent resolution, anything that shouldn't wait.
-2. quote_follow_up — a customer asked for pricing/a quote and nobody's replied yet, OR pricing was sent and the customer's gone quiet with no reply. No dollar amount needed, just flag that a follow-up is owed.
+2. quote_follow_up — a customer asked for pricing/a quote and nobody's replied yet, OR pricing was sent and the customer's gone quiet with no reply. No dollar amount needed, just flag that a follow-up is owed. This applies to ticket descriptions too, not just emails: read what each ticket actually says the client is asking for — if the description reads like an open question or a request for information/status and "last activity" is stale relative to how long it's been open, that's a strong signal nobody has gotten back to them. Don't flag a ticket just for being open a while if its description doesn't read like it's waiting on a reply (e.g. it's a scheduled/ongoing project ticket).
 3. new_project — an email suggests a new project, engagement, or piece of work that isn't already in the tracked project list above.
 4. stale_contact — the client's been emailing but hasn't had a proactive check-in in a while relative to that activity.
 5. review_prep — something worth bringing up at their next monthly visit or quarterly review, including any notable open ticket.

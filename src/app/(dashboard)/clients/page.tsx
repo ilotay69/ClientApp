@@ -30,6 +30,27 @@ function countByClient(rows: { client_id: string | null }[]) {
   return map;
 }
 
+type TicketRow = { client_id: string; title: string; last_activity_at: string | null };
+
+/** The ticket that's gone quietest the longest, per client — a much more
+ * useful signal than a bare open-ticket count. Tickets with no activity
+ * timestamp sort last (nothing to flag as stale). */
+function stalestTicketByClient(rows: TicketRow[]) {
+  const map = new Map<string, TicketRow>();
+  for (const r of rows) {
+    const existing = map.get(r.client_id);
+    if (!existing) {
+      map.set(r.client_id, r);
+      continue;
+    }
+    if (!r.last_activity_at) continue;
+    if (!existing.last_activity_at || r.last_activity_at < existing.last_activity_at) {
+      map.set(r.client_id, r);
+    }
+  }
+  return map;
+}
+
 /** First occurrence wins — callers pass rows already ordered newest-first. */
 function latestByClient(rows: { client_id: string; created_at: string }[]) {
   const map = new Map<string, string>();
@@ -56,7 +77,7 @@ export default async function ClientsPage() {
       .select("client_id")
       .not("client_id", "is", null)
       .not("status", "in", "(done,dismissed)"),
-    supabase.from("autotask_tickets").select("client_id"),
+    supabase.from("autotask_tickets").select("client_id, title, last_activity_at"),
     supabase
       .from("suggestions")
       .select("client_id, summary, priority")
@@ -70,6 +91,7 @@ export default async function ClientsPage() {
 
   const taskCounts = countByClient(openTasks ?? []);
   const ticketCounts = countByClient(openTickets ?? []);
+  const stalestTicket = stalestTicketByClient(openTickets ?? []);
   const suggestions = topSuggestionByClient(openSuggestions ?? []);
   const lastContact = latestByClient(interactions ?? []);
 
@@ -103,10 +125,16 @@ export default async function ClientsPage() {
               const taskCount = taskCounts.get(c.id) ?? 0;
               const ticketCount = ticketCounts.get(c.id) ?? 0;
               const contactDays = daysAgo(lastContact.get(c.id));
+              const stale = stalestTicket.get(c.id);
+              const staleDays = daysAgo(stale?.last_activity_at ?? null);
 
               const followupParts: string[] = [];
+              if (staleDays !== null && staleDays >= 3) {
+                followupParts.push(`"${stale!.title}" untouched ${staleDays}d`);
+              } else if (ticketCount > 0) {
+                followupParts.push(`${ticketCount} open ticket${ticketCount === 1 ? "" : "s"}`);
+              }
               if (taskCount > 0) followupParts.push(`${taskCount} open task${taskCount === 1 ? "" : "s"}`);
-              if (ticketCount > 0) followupParts.push(`${ticketCount} open ticket${ticketCount === 1 ? "" : "s"}`);
               if (contactDays !== null) followupParts.push(`last contact ${contactDays}d ago`);
 
               return (
