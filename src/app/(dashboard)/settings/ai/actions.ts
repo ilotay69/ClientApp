@@ -42,6 +42,21 @@ export async function saveAiProviderSettings(
 
   if (error) return { error: error.message, success: null };
 
+  // First key ever saved — auto-activate it, so a fresh setup doesn't sit
+  // on "not configured" waiting for a separate "Make active" click that's
+  // easy to miss on first use. Only triggers when a new key was actually
+  // submitted and nothing else is already active.
+  if (apiKey) {
+    const { data: activeRows } = await admin
+      .from("ai_provider_settings")
+      .select("provider")
+      .eq("is_active", true)
+      .limit(1);
+    if (!activeRows?.length) {
+      await admin.from("ai_provider_settings").update({ is_active: true }).eq("provider", provider);
+    }
+  }
+
   revalidatePath("/settings/ai");
   return { error: null, success: "Saved." };
 }
