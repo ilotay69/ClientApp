@@ -32,6 +32,27 @@ export interface Client {
   updated_at: string;
 }
 
+export interface ClientContact {
+  id: string;
+  client_id: string;
+  name: string;
+  email: string | null;
+  created_at: string;
+}
+
+export type ClientInteractionType = "note" | "call" | "meeting";
+
+export interface ClientInteraction {
+  id: string;
+  client_id: string;
+  contact_id: string | null;
+  type: ClientInteractionType;
+  subject: string | null;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface Project {
   id: string;
   client_id: string;

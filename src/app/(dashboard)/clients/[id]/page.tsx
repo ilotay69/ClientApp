@@ -2,13 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ClientForm } from "@/components/client-form";
+import { ClientContactsPanel } from "@/components/client-contacts-panel";
+import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AssigneeSelect } from "@/components/assignee-select";
 import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
 import { ClientServiceQuickAdd } from "@/components/client-service-quick-add";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
-import { updateClientRecord, deleteClientRecord } from "../actions";
+import {
+  updateClientRecord,
+  deleteClientRecord,
+  addClientContact,
+  removeClientContact,
+  logClientInteraction,
+} from "../actions";
 import {
   addClientServiceCheck,
   assignServiceCheck,
@@ -40,6 +48,9 @@ export default async function ClientDetailPage({
     { data: clientServices },
     { data: services },
     canManageServices,
+    { data: contacts },
+    { data: interactions },
+    canManageClients,
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -75,9 +86,41 @@ export default async function ClientDetailPage({
     supabase.from("client_services").select("service_id, services(id, name)").eq("client_id", id),
     supabase.from("services").select("id, name").order("name"),
     hasPermission(supabase, "manage_services"),
+    supabase.from("client_contacts").select("id, name, email").eq("client_id", id).order("name"),
+    supabase
+      .from("client_interactions")
+      .select("id, type, subject, body, created_at, client_contacts(name), profiles(full_name)")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false }),
+    hasPermission(supabase, "manage_clients"),
   ]);
 
   if (!client) notFound();
+
+  const addContactAction = addClientContact.bind(null, id);
+  const removeContactAction = removeClientContact.bind(null, id);
+  const logInteractionAction = logClientInteraction.bind(null, id);
+
+  const timelineEntries: TimelineEntry[] = [
+    ...(emails ?? []).map((e) => ({
+      id: `email-${e.id}`,
+      type: "email" as const,
+      subject: e.subject,
+      body: null,
+      contactName: e.from_name ?? e.from_email,
+      date: e.received_at,
+      webLink: e.web_link,
+    })),
+    ...(interactions ?? []).map((i) => ({
+      id: `interaction-${i.id}`,
+      type: i.type as TimelineEntry["type"],
+      subject: i.subject,
+      body: i.body,
+      contactName: (i.client_contacts as unknown as { name: string } | null)?.name ?? null,
+      date: i.created_at,
+      loggedBy: (i.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
+    })),
+  ].sort((a, b) => (a.date < b.date ? 1 : -1));
 
   const updateAction = updateClientRecord.bind(null, id);
   const addServiceCheckAction = addClientServiceCheck.bind(null, id);
@@ -106,11 +149,20 @@ export default async function ClientDetailPage({
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-900">
-            Client details
-          </h2>
-          <ClientForm client={client} action={updateAction} submitLabel="Save changes" />
+        <div className="space-y-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-sm font-semibold text-slate-900">
+              Client details
+            </h2>
+            <ClientForm client={client} action={updateAction} submitLabel="Save changes" />
+          </div>
+
+          <ClientContactsPanel
+            contacts={contacts ?? []}
+            canManageClients={canManageClients}
+            addAction={addContactAction}
+            removeAction={removeContactAction}
+          />
         </div>
 
         <div className="space-y-6">
@@ -274,25 +326,11 @@ export default async function ClientDetailPage({
             ))}
           </RelatedSection>
 
-          <RelatedSection title="Linked emails" emptyText="No matching emails yet.">
-            {(emails ?? []).map((e) => (
-              <a
-                key={e.id}
-                href={e.web_link ?? "#"}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{e.subject}</p>
-                  <p className="text-xs text-slate-500">
-                    {e.from_name ?? e.from_email} · {formatDate(e.received_at)}
-                  </p>
-                </div>
-                <Badge value={e.type} />
-              </a>
-            ))}
-          </RelatedSection>
+          <ClientTimeline
+            entries={timelineEntries}
+            contacts={contacts ?? []}
+            logAction={logInteractionAction}
+          />
         </div>
       </div>
     </div>

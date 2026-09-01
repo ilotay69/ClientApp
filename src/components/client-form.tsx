@@ -36,15 +36,6 @@ export function ClientForm({
         name="primary_contact_phone"
         defaultValue={client?.primary_contact_phone ?? ""}
       />
-      <div>
-        <label className="block text-sm font-medium text-slate-700">Notes</label>
-        <textarea
-          name="notes"
-          rows={4}
-          defaultValue={client?.notes ?? ""}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
-      </div>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 

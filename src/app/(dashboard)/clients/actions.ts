@@ -30,7 +30,6 @@ export async function createClientRecord(
       primary_contact_name: emptyToNull(formData.get("primary_contact_name")),
       primary_contact_email: emptyToNull(formData.get("primary_contact_email")),
       primary_contact_phone: emptyToNull(formData.get("primary_contact_phone")),
-      notes: emptyToNull(formData.get("notes")),
       owner_id: user?.id ?? null,
     })
     .select("id")
@@ -63,7 +62,6 @@ export async function updateClientRecord(
       primary_contact_name: emptyToNull(formData.get("primary_contact_name")),
       primary_contact_email: emptyToNull(formData.get("primary_contact_email")),
       primary_contact_phone: emptyToNull(formData.get("primary_contact_phone")),
-      notes: emptyToNull(formData.get("notes")),
     })
     .eq("id", clientId);
 
@@ -86,4 +84,68 @@ export async function deleteClientRecord(clientId: string) {
 function emptyToNull(value: FormDataEntryValue | null) {
   const str = String(value ?? "").trim();
   return str.length > 0 ? str : null;
+}
+
+export async function addClientContact(
+  clientId: string,
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Contact name is required." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("client_contacts").insert({
+    client_id: clientId,
+    name,
+    email: emptyToNull(formData.get("email")),
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
+}
+
+export async function removeClientContact(clientId: string, contactId: string) {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("client_contacts").delete().eq("id", contactId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/** Logging a Note/Call/Meeting is open to any signed-in user — matches how
+ * touchpoints/tasks work today; only editing the client record itself and
+ * managing its contact list require manage_clients. */
+export async function logClientInteraction(
+  clientId: string,
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { error: "Enter a note or summary." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("client_interactions").insert({
+    client_id: clientId,
+    contact_id: emptyToNull(formData.get("contact_id")),
+    type: String(formData.get("type") ?? "note"),
+    subject: emptyToNull(formData.get("subject")),
+    body,
+    created_by: user?.id ?? null,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
 }
