@@ -18,14 +18,29 @@ function autotaskHeaders(creds: AutotaskCredentials) {
   };
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Autotask's per-account concurrent-thread cap (as low as 3) can trip even
+// when this app's own calls are serialized — other integrations/users on
+// the same account count against it too. A 429 here is usually transient
+// contention, not a real failure, so retry with backoff before giving up.
+const MAX_THREAD_LIMIT_RETRIES = 4;
+
 async function autotaskQuery(
   creds: AutotaskCredentials,
   zoneUrl: string,
   entity: string,
-  search: Record<string, unknown>
-) {
+  search: Record<string, unknown>,
+  attempt = 0
+): Promise<unknown[]> {
   const url = `${zoneUrl}/${entity}/query?search=${encodeURIComponent(JSON.stringify(search))}`;
   const res = await fetch(url, { headers: autotaskHeaders(creds) });
+
+  if (res.status === 429 && attempt < MAX_THREAD_LIMIT_RETRIES) {
+    await sleep(1000 * (attempt + 1));
+    return autotaskQuery(creds, zoneUrl, entity, search, attempt + 1);
+  }
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Autotask ${entity} query failed (${res.status}): ${text}`);
@@ -115,11 +130,18 @@ function picklistMap(fields: FieldInfo[], fieldName: string): Map<number, string
 async function fetchEntityFields(
   creds: AutotaskCredentials,
   zoneUrl: string,
-  entity: string
+  entity: string,
+  attempt = 0
 ): Promise<FieldInfo[]> {
   const res = await fetch(`${zoneUrl}/${entity}/entityInformation/fields`, {
     headers: autotaskHeaders(creds),
   });
+
+  if (res.status === 429 && attempt < MAX_THREAD_LIMIT_RETRIES) {
+    await sleep(1000 * (attempt + 1));
+    return fetchEntityFields(creds, zoneUrl, entity, attempt + 1);
+  }
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Autotask ${entity} field info failed (${res.status}): ${text}`);
