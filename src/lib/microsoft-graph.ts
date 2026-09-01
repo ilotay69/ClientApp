@@ -119,43 +119,59 @@ export type MailboxSnapshotMessage = GraphMessage & {
   sentDateTime?: string;
 };
 
-/**
- * Resolves the id of one of the mailbox's well-known folders (Graph lets
- * you address these by name directly, no search needed) — used to filter
- * out messages living in them without assuming what a flat /me/messages
- * query does or doesn't include by default.
- */
-async function getWellKnownFolderId(accessToken: string, folderName: string): Promise<string> {
-  const res = await fetch(`https://graph.microsoft.com/v1.0/me/mailFolders/${folderName}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+type MailFolderSummary = { id: string; displayName: string };
+
+async function listMailFolders(accessToken: string, url: string): Promise<MailFolderSummary[]> {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!res.ok) {
-    throw new Error(`Failed to resolve ${folderName} folder (${res.status})`);
+    throw new Error(`Failed to list mail folders (${res.status})`);
   }
   const json = await res.json();
-  return json.id;
-}
-
-export function getDeletedItemsFolderId(accessToken: string): Promise<string> {
-  return getWellKnownFolderId(accessToken, "deleteditems");
-}
-
-export function getJunkEmailFolderId(accessToken: string): Promise<string> {
-  return getWellKnownFolderId(accessToken, "junkemail");
+  return json.value ?? [];
 }
 
 /**
- * A separate, broader fetch than fetchRecentMessages — used only for the
- * live, non-persisted mailbox review. Pulls conversationId/parentFolderId
- * too, so the caller can group messages into threads and exclude Deleted
- * Items itself, without touching the persisted-sync code path above.
+ * Finds a folder by its exact display name (case-insensitive) — checks
+ * top-level folders first, then Inbox's child folders (the common place
+ * for a custom triage folder like "Active Inbox"). Returns null if not
+ * found rather than throwing, since this folder is optional.
  */
-export async function fetchMailboxSnapshot(
+export async function findFolderIdByDisplayName(
   accessToken: string,
+  displayName: string
+): Promise<string | null> {
+  const target = displayName.toLowerCase();
+
+  const topLevel = await listMailFolders(
+    accessToken,
+    "https://graph.microsoft.com/v1.0/me/mailFolders?$top=100"
+  );
+  const topMatch = topLevel.find((f) => f.displayName.toLowerCase() === target);
+  if (topMatch) return topMatch.id;
+
+  const inboxChildren = await listMailFolders(
+    accessToken,
+    "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/childFolders?$top=100"
+  );
+  return inboxChildren.find((f) => f.displayName.toLowerCase() === target)?.id ?? null;
+}
+
+/**
+ * Fetches messages from one specific folder only — used for the live,
+ * non-persisted mailbox review, which is scoped to a small, explicit set
+ * of folders (Inbox, Sent Items, a named custom folder) rather than the
+ * whole mailbox. `folder` is either a well-known name Graph accepts
+ * directly ("inbox", "sentitems") or a folder id from
+ * findFolderIdByDisplayName. Pulls conversationId/parentFolderId too, so
+ * the caller can group messages into threads.
+ */
+export async function fetchMessagesInFolder(
+  accessToken: string,
+  folder: string,
   sinceIso: string,
   maxPages = 5
 ): Promise<{ messages: MailboxSnapshotMessage[]; hitPageCap: boolean }> {
-  const base = new URL("https://graph.microsoft.com/v1.0/me/messages");
+  const base = new URL(`https://graph.microsoft.com/v1.0/me/mailFolders/${folder}/messages`);
   base.searchParams.set(
     "$select",
     "id,subject,from,toRecipients,receivedDateTime,sentDateTime,webLink,bodyPreview,conversationId,parentFolderId"

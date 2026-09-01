@@ -1,7 +1,6 @@
 import {
-  getDeletedItemsFolderId,
-  getJunkEmailFolderId,
-  fetchMailboxSnapshot,
+  findFolderIdByDisplayName,
+  fetchMessagesInFolder,
   type MailboxSnapshotMessage,
 } from "@/lib/microsoft-graph";
 import { getValidAccessToken } from "@/lib/mail-sync";
@@ -10,6 +9,10 @@ import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection } from "@/lib/types";
 
 const LOOKBACK_DAYS = 30;
+// Scope is intentionally narrow: Inbox, a custom "Active Inbox" triage
+// folder (if the user has one), and Sent Items — everything else
+// (subfolders, Deleted Items, Junk, etc.) is ignored entirely.
+const ACTIVE_INBOX_FOLDER_NAME = "Active Inbox";
 // Bounds the AI prompt size — the deterministic lists below still cover
 // every thread found; only the AI's quote/project pass is capped, and the
 // most-overdue threads (the ones that matter most) go in first.
@@ -55,15 +58,21 @@ export async function reviewMailbox(
   const accessToken = await getValidAccessToken(admin, connection);
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  const [deletedFolderId, junkFolderId, { messages, hitPageCap }] = await Promise.all([
-    getDeletedItemsFolderId(accessToken),
-    getJunkEmailFolderId(accessToken),
-    fetchMailboxSnapshot(accessToken, since),
-  ]);
+  const activeInboxId = await findFolderIdByDisplayName(accessToken, ACTIVE_INBOX_FOLDER_NAME);
 
-  const kept = messages.filter(
-    (m) => m.parentFolderId !== deletedFolderId && m.parentFolderId !== junkFolderId
-  );
+  const folderFetches = [
+    fetchMessagesInFolder(accessToken, "inbox", since),
+    fetchMessagesInFolder(accessToken, "sentitems", since),
+    ...(activeInboxId ? [fetchMessagesInFolder(accessToken, activeInboxId, since)] : []),
+  ];
+  const results = await Promise.all(folderFetches);
+
+  const hitPageCap = results.some((r) => r.hitPageCap);
+  const byId = new Map<string, MailboxSnapshotMessage>();
+  for (const r of results) {
+    for (const m of r.messages) byId.set(m.id, m);
+  }
+  const kept = [...byId.values()];
 
   // One entry per conversation — the latest message determines who's
   // waiting on whom right now.
