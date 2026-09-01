@@ -32,7 +32,10 @@ export async function resolveZoneUrl(username: string): Promise<string> {
   const json = await res.json();
   const zoneUrl = json.url as string | undefined;
   if (!zoneUrl) throw new Error("Autotask zone lookup did not return a URL.");
-  return zoneUrl.replace(/\/$/, "");
+  // zoneInformation returns the bare zone base (e.g.
+  // "https://webservices3.autotask.net/atservicesrest/") with no version
+  // segment — every other endpoint lives under /v1.0 on top of that.
+  return `${zoneUrl.replace(/\/$/, "")}/v1.0`;
 }
 
 /** Resolves the zone, then makes one trivial authenticated call to confirm
