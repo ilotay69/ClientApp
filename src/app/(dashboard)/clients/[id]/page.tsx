@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ClientForm } from "@/components/client-form";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
+import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
 import { Tabs } from "@/components/tabs";
 import { ComingSoonCard } from "@/components/coming-soon-card";
 import { Badge, OverdueBadge } from "@/components/badge";
@@ -18,6 +19,9 @@ import {
   addClientContact,
   removeClientContact,
   logClientInteraction,
+  searchAutotaskCompaniesAction,
+  linkClientAutotaskCompany,
+  unlinkClientAutotaskCompany,
 } from "../actions";
 import {
   addClientServiceCheck,
@@ -53,6 +57,7 @@ export default async function ClientDetailPage({
     { data: contacts },
     { data: interactions },
     canManageClients,
+    { data: autotaskTickets },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -95,6 +100,13 @@ export default async function ClientDetailPage({
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
     hasPermission(supabase, "manage_clients"),
+    supabase
+      .from("autotask_tickets")
+      .select(
+        "id, ticket_number, title, status, priority, queue_name, assigned_resource_name, due_date"
+      )
+      .eq("client_id", id)
+      .order("due_date", { ascending: true, nullsFirst: false }),
   ]);
 
   if (!client) notFound();
@@ -102,6 +114,8 @@ export default async function ClientDetailPage({
   const addContactAction = addClientContact.bind(null, id);
   const removeContactAction = removeClientContact.bind(null, id);
   const logInteractionAction = logClientInteraction.bind(null, id);
+  const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
+  const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
 
   const timelineEntries: TimelineEntry[] = [
     ...(emails ?? []).map((e) => ({
@@ -380,9 +394,12 @@ export default async function ClientDetailPage({
               {
                 label: "Tickets",
                 content: (
-                  <ComingSoonCard
-                    title="Tickets"
-                    description="Open Autotask tickets for this client — status, priority, assigned tech, and due date — will show up here once the Autotask integration is connected."
+                  <ClientAutotaskTickets
+                    companyId={client.autotask_company_id}
+                    tickets={autotaskTickets ?? []}
+                    searchAction={searchAutotaskCompaniesAction}
+                    linkAction={linkAutotaskAction}
+                    unlinkAction={unlinkAutotaskAction}
                   />
                 ),
               },

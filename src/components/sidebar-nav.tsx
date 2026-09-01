@@ -37,14 +37,14 @@ export function SidebarNav({
   userLabel,
   canManageServiceCatalog,
   canManageServices,
-  canManageAiSettings,
+  canManageIntegrations,
   canManageTeam,
   signOutAction,
 }: {
   userLabel: string;
   canManageServiceCatalog: boolean;
   canManageServices: boolean;
-  canManageAiSettings: boolean;
+  canManageIntegrations: boolean;
   canManageTeam: boolean;
   signOutAction: () => Promise<void>;
 }) {
@@ -59,8 +59,8 @@ export function SidebarNav({
     ...(canManageServices
       ? [{ href: "/settings/catalog", label: "Service Catalog", icon: IconList }]
       : []),
-    ...(canManageAiSettings
-      ? [{ href: "/settings/ai", label: "AI Settings", icon: IconSparkles }]
+    ...(canManageIntegrations
+      ? [{ href: "/settings/integrations", label: "Integrations", icon: IconSparkles }]
       : []),
   ];
 

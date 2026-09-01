@@ -2,8 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
+import { searchAutotaskCompanies, type AutotaskCompany } from "@/lib/autotask";
+import { getAutotaskSettings } from "@/lib/autotask-settings";
 
 export type FormState = { error: string | null };
 
@@ -148,4 +150,49 @@ export async function logClientInteraction(
 
   revalidatePath(`/clients/${clientId}`);
   return { error: null };
+}
+
+/** Name search against Autotask Companies, for the client-mapping UI on the
+ * Tickets tab. Returns an error string instead of throwing so the client
+ * component can render it inline. */
+export async function searchAutotaskCompaniesAction(
+  query: string
+): Promise<{ companies: AutotaskCompany[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!query.trim()) return { companies: [] };
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const companies = await searchAutotaskCompanies(settings.credentials, settings.zoneUrl, query);
+    return { companies };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Autotask search failed." };
+  }
+}
+
+export async function linkClientAutotaskCompany(
+  clientId: string,
+  companyId: number
+): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("clients").update({ autotask_company_id: companyId }).eq("id", clientId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function unlinkClientAutotaskCompany(clientId: string): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("clients").update({ autotask_company_id: null }).eq("id", clientId);
+  await supabase.from("autotask_tickets").delete().eq("client_id", clientId);
+  revalidatePath(`/clients/${clientId}`);
 }

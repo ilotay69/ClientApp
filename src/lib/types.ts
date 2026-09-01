@@ -28,8 +28,22 @@ export interface Client {
   primary_contact_phone: string | null;
   notes: string | null;
   owner_id: string | null;
+  autotask_company_id: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AutotaskTicket {
+  id: number;
+  client_id: string;
+  ticket_number: string | null;
+  title: string;
+  status: string | null;
+  priority: string | null;
+  queue_name: string | null;
+  assigned_resource_name: string | null;
+  due_date: string | null;
+  last_synced_at: string;
 }
 
 export interface ClientContact {

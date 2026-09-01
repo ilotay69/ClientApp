@@ -76,8 +76,8 @@ export function MailboxReviewPanel() {
           {!result.aiAvailable && (
             <p className="text-xs text-slate-500">
               Using plain phrasing — connect an AI provider on{" "}
-              <Link href="/settings/ai" className="underline">
-                AI Settings
+              <Link href="/settings/integrations" className="underline">
+                Integrations
               </Link>{" "}
               for topic-aware summaries and suggested actions.
             </p>

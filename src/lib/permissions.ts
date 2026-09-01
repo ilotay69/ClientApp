@@ -11,7 +11,7 @@ export type PermissionKey =
   | "manage_projects"
   | "manage_touchpoints"
   | "delete_tasks"
-  | "manage_ai_settings";
+  | "manage_integrations";
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_team: "Add team members & change roles",
@@ -23,7 +23,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_projects: "Create, edit & delete projects",
   manage_touchpoints: "Create, edit & delete touchpoints",
   delete_tasks: "Delete tasks",
-  manage_ai_settings: "Configure AI provider & API keys",
+  manage_integrations: "Configure AI providers & integrations",
 };
 
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];

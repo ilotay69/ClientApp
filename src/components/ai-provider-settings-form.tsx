@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { AiProvider } from "@/lib/ai";
-import type { FormState } from "@/app/(dashboard)/settings/ai/actions";
+import type { FormState } from "@/app/(dashboard)/settings/integrations/actions";
 
 const initialState: FormState = { error: null, success: null };
 
