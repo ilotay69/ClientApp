@@ -120,18 +120,28 @@ export type MailboxSnapshotMessage = GraphMessage & {
 };
 
 /**
- * Resolves the id of the mailbox's "Deleted Items" folder — Graph lets you
- * address well-known folders by name directly, no search needed.
+ * Resolves the id of one of the mailbox's well-known folders (Graph lets
+ * you address these by name directly, no search needed) — used to filter
+ * out messages living in them without assuming what a flat /me/messages
+ * query does or doesn't include by default.
  */
-export async function getDeletedItemsFolderId(accessToken: string): Promise<string> {
-  const res = await fetch("https://graph.microsoft.com/v1.0/me/mailFolders/deleteditems", {
+async function getWellKnownFolderId(accessToken: string, folderName: string): Promise<string> {
+  const res = await fetch(`https://graph.microsoft.com/v1.0/me/mailFolders/${folderName}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
-    throw new Error(`Failed to resolve Deleted Items folder (${res.status})`);
+    throw new Error(`Failed to resolve ${folderName} folder (${res.status})`);
   }
   const json = await res.json();
   return json.id;
+}
+
+export function getDeletedItemsFolderId(accessToken: string): Promise<string> {
+  return getWellKnownFolderId(accessToken, "deleteditems");
+}
+
+export function getJunkEmailFolderId(accessToken: string): Promise<string> {
+  return getWellKnownFolderId(accessToken, "junkemail");
 }
 
 /**

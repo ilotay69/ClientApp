@@ -1,5 +1,6 @@
 import {
   getDeletedItemsFolderId,
+  getJunkEmailFolderId,
   fetchMailboxSnapshot,
   type MailboxSnapshotMessage,
 } from "@/lib/microsoft-graph";
@@ -54,12 +55,15 @@ export async function reviewMailbox(
   const accessToken = await getValidAccessToken(admin, connection);
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  const [deletedFolderId, { messages, hitPageCap }] = await Promise.all([
+  const [deletedFolderId, junkFolderId, { messages, hitPageCap }] = await Promise.all([
     getDeletedItemsFolderId(accessToken),
+    getJunkEmailFolderId(accessToken),
     fetchMailboxSnapshot(accessToken, since),
   ]);
 
-  const kept = messages.filter((m) => m.parentFolderId !== deletedFolderId);
+  const kept = messages.filter(
+    (m) => m.parentFolderId !== deletedFolderId && m.parentFolderId !== junkFolderId
+  );
 
   // One entry per conversation — the latest message determines who's
   // waiting on whom right now.
