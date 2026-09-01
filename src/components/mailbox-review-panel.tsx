@@ -42,35 +42,22 @@ export function MailboxReviewPanel() {
       )}
 
       {result && (
-        <div className="space-y-6 px-5 py-4">
+        <div className="space-y-5 px-5 py-4">
           <p className="text-xs text-slate-500">{result.mailboxEmail}</p>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <ThreadList
-              title="Awaiting your reply"
-              emptyText="Nothing waiting on you."
-              items={result.awaitingYourReply}
-            />
-            <ThreadList
-              title="Awaiting their reply"
-              emptyText="Nothing waiting on anyone else."
-              items={result.awaitingTheirReply}
-            />
-          </div>
-
-          {result.aiAvailable ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <FlaggedList title="Quotes flagged" items={result.quotesFlagged} />
-              <FlaggedList title="Project mentions" items={result.projectMentions} />
-            </div>
+          {result.narrative.length === 0 ? (
+            <p className="text-sm text-slate-500">Nothing pending — you&apos;re all caught up.</p>
           ) : (
-            <p className="text-xs text-slate-500">
-              Configure an AI provider on the{" "}
-              <Link href="/settings/ai" className="underline">
-                AI Settings
-              </Link>{" "}
-              page to also see quote and project flags here.
-            </p>
+            <ul className="space-y-2">
+              {result.narrative.map((sentence, i) => (
+                <li
+                  key={i}
+                  className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+                >
+                  {sentence}
+                </li>
+              ))}
+            </ul>
           )}
 
           {result.suggestedActions.length > 0 && (
@@ -86,6 +73,16 @@ export function MailboxReviewPanel() {
             </div>
           )}
 
+          {!result.aiAvailable && (
+            <p className="text-xs text-slate-500">
+              Using plain phrasing — connect an AI provider on{" "}
+              <Link href="/settings/ai" className="underline">
+                AI Settings
+              </Link>{" "}
+              for topic-aware summaries and suggested actions.
+            </p>
+          )}
+
           {result.hitPageCap && (
             <p className="text-xs text-slate-400">
               Based on the most recent messages from the last 30 days — your mailbox has more
@@ -93,64 +90,6 @@ export function MailboxReviewPanel() {
             </p>
           )}
         </div>
-      )}
-    </div>
-  );
-}
-
-function ThreadList({
-  title,
-  emptyText,
-  items,
-}: {
-  title: string;
-  emptyText: string;
-  items: { subject: string; contact: string; daysPending: number; snippet: string }[];
-}) {
-  return (
-    <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</h3>
-      {items.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">{emptyText}</p>
-      ) : (
-        <ul className="mt-2 space-y-2">
-          {items.map((item, i) => (
-            <li key={i} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-sm font-medium text-slate-900">{item.subject}</p>
-                <span className="shrink-0 text-xs text-slate-500">{item.daysPending}d</span>
-              </div>
-              <p className="text-xs text-slate-500">{item.contact}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function FlaggedList({
-  title,
-  items,
-}: {
-  title: string;
-  items: { subject: string; contact: string; note: string }[];
-}) {
-  return (
-    <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</h3>
-      {items.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">None found.</p>
-      ) : (
-        <ul className="mt-2 space-y-2">
-          {items.map((item, i) => (
-            <li key={i} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-              <p className="text-sm font-medium text-slate-900">{item.subject}</p>
-              <p className="text-xs text-slate-500">{item.contact}</p>
-              <p className="mt-1 text-xs text-slate-600">{item.note}</p>
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );
