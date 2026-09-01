@@ -67,6 +67,10 @@ const COLORS: Record<string, string> = {
   owner: "bg-slate-900 text-white",
   manager: INFO,
   tech: CATEGORY_PURPLE,
+
+  // device online/offline (NinjaOne)
+  online: SUCCESS,
+  offline: ATTENTION,
 };
 
 export function Badge({ value }: { value: string }) {

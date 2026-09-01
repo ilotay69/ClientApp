@@ -8,10 +8,12 @@ import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
 import { ClientAutotaskContractServices } from "@/components/client-autotask-contract-services";
 import { SyncAutotaskButton } from "@/components/sync-autotask-button";
 import { AutotaskMappingButton } from "@/components/autotask-mapping-button";
+import { ClientNinjaOneDevices } from "@/components/client-ninjaone-devices";
+import { SyncNinjaOneButton } from "@/components/sync-ninjaone-button";
+import { NinjaOneMappingButton } from "@/components/ninjaone-mapping-button";
 import { SuggestionCard } from "@/components/suggestion-card";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
-import { ComingSoonCard } from "@/components/coming-soon-card";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AssigneeSelect } from "@/components/assignee-select";
 import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
@@ -30,6 +32,10 @@ import {
   syncClientAutotaskData,
   getAutotaskTicketDetailAction,
   refreshClientInsightsAction,
+  searchNinjaOneOrganizationsAction,
+  linkClientNinjaOneOrganization,
+  unlinkClientNinjaOneOrganization,
+  syncClientNinjaOneDevices,
 } from "../actions";
 import {
   addClientServiceCheck,
@@ -68,6 +74,7 @@ export default async function ClientDetailPage({
     { data: autotaskTickets },
     { data: suggestions },
     { data: autotaskContractServices },
+    { data: ninjaOneDevices },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -129,6 +136,11 @@ export default async function ClientDetailPage({
       .select("id, contract_name, contract_status, service_name, description, quantity")
       .eq("client_id", id)
       .order("contract_name"),
+    supabase
+      .from("ninjaone_devices")
+      .select("id, system_name, node_class, is_offline, last_contact")
+      .eq("client_id", id)
+      .order("system_name"),
   ]);
 
   if (!client) notFound();
@@ -140,6 +152,9 @@ export default async function ClientDetailPage({
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
   const syncAutotaskAction = syncClientAutotaskData.bind(null, id);
   const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
+  const linkNinjaOneAction = linkClientNinjaOneOrganization.bind(null, id);
+  const unlinkNinjaOneAction = unlinkClientNinjaOneOrganization.bind(null, id);
+  const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
 
   const stalestAutotaskTicket = (autotaskTickets ?? []).reduce<
@@ -207,6 +222,13 @@ export default async function ClientDetailPage({
             unlinkAction={unlinkAutotaskAction}
           />
           {client.autotask_company_id && <SyncAutotaskButton action={syncAutotaskAction} />}
+          <NinjaOneMappingButton
+            organizationId={client.ninjaone_organization_id}
+            searchAction={searchNinjaOneOrganizationsAction}
+            linkAction={linkNinjaOneAction}
+            unlinkAction={unlinkNinjaOneAction}
+          />
+          {client.ninjaone_organization_id && <SyncNinjaOneButton action={syncNinjaOneAction} />}
           <DeleteButton
             action={deleteClientRecord.bind(null, id)}
             confirmText={`Delete ${client.name}? This also removes their projects, touchpoints, tasks, and service checks.`}
@@ -456,9 +478,9 @@ export default async function ClientDetailPage({
                       )}
                     </div>
 
-                    <ComingSoonCard
-                      title="Devices"
-                      description="Device inventory and health (patch status, antivirus, last seen) pulled from NinjaOne will show up here once that integration is connected."
+                    <ClientNinjaOneDevices
+                      organizationId={client.ninjaone_organization_id}
+                      devices={ninjaOneDevices ?? []}
                     />
                   </>
                 ),

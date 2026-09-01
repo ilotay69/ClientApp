@@ -18,6 +18,12 @@ import {
   type AutotaskTimeEntry,
 } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
+import {
+  searchNinjaOneOrganizations,
+  fetchDevicesForOrganization,
+  type NinjaOneOrganization,
+} from "@/lib/ninjaone";
+import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
 
 export type FormState = { error: string | null };
 
@@ -333,4 +339,93 @@ export async function refreshClientInsightsAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Refresh failed.", summary: null };
   }
+}
+
+export async function searchNinjaOneOrganizationsAction(
+  query: string
+): Promise<{ organizations: NinjaOneOrganization[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!query.trim()) return { organizations: [] };
+
+  const admin = createAdminClient();
+  const settings = await getNinjaOneSettings(admin);
+  if (!settings) {
+    return { error: "NinjaOne isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const token = await getValidNinjaOneToken(admin, settings);
+    const organizations = await searchNinjaOneOrganizations(settings.credentials, token, query);
+    return { organizations };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "NinjaOne search failed." };
+  }
+}
+
+export async function linkClientNinjaOneOrganization(
+  clientId: string,
+  organizationId: number
+): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("clients")
+    .update({ ninjaone_organization_id: organizationId })
+    .eq("id", clientId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function unlinkClientNinjaOneOrganization(clientId: string): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("clients").update({ ninjaone_organization_id: null }).eq("id", clientId);
+  await supabase.from("ninjaone_devices").delete().eq("client_id", clientId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/** On-demand device sync for a single mapped client — same replace-on-
+ * sync logic as the /api/ninjaone-sync cron job, scoped to one client. */
+export async function syncClientNinjaOneDevices(clientId: string): Promise<{ error: string | null }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getNinjaOneSettings(admin);
+  if (!settings) {
+    return { error: "NinjaOne isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("ninjaone_organization_id")
+    .eq("id", clientId)
+    .single();
+  if (!client?.ninjaone_organization_id) {
+    return { error: "This client isn't linked to a NinjaOne organization yet." };
+  }
+
+  try {
+    const token = await getValidNinjaOneToken(admin, settings);
+    const devices = await fetchDevicesForOrganization(
+      settings.credentials,
+      token,
+      client.ninjaone_organization_id
+    );
+    await admin.from("ninjaone_devices").delete().eq("client_id", clientId);
+    if (devices.length > 0) {
+      await admin
+        .from("ninjaone_devices")
+        .insert(devices.map((d) => ({ ...d, client_id: clientId })));
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Sync failed." };
+  }
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
 }

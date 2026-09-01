@@ -29,6 +29,7 @@ export interface Client {
   notes: string | null;
   owner_id: string | null;
   autotask_company_id: number | null;
+  ninjaone_organization_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +61,17 @@ export interface AutotaskContractService {
   service_name: string;
   description: string | null;
   quantity: number | null;
+  last_synced_at: string;
+}
+
+export interface NinjaOneDevice {
+  id: number;
+  client_id: string;
+  system_name: string;
+  node_class: string | null;
+  is_offline: boolean | null;
+  last_contact: string | null;
+  raw: unknown;
   last_synced_at: string;
 }
 

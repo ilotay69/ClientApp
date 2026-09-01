@@ -6,6 +6,8 @@ import { requirePermission } from "@/lib/permissions";
 import type { AiProvider } from "@/lib/ai";
 import { resolveZoneUrl, testAutotaskConnection, type AutotaskCredentials } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { testNinjaOneConnection, type NinjaOneCredentials } from "@/lib/ninjaone";
+import { getNinjaOneSettings } from "@/lib/ninjaone-settings";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -159,5 +161,78 @@ export async function testAutotaskConnectionAction(): Promise<{ ok: boolean; mes
     await admin.from("autotask_settings").update({ zone_url: result.zoneUrl }).eq("id", true);
   }
 
+  return { ok: true, message: "Connected — credentials are working." };
+}
+
+/** Upserts the singleton NinjaOne credentials row. Secret is write-only,
+ * same pattern as Autotask/AI keys — leaving it blank keeps whatever is
+ * already saved. Doesn't pre-fetch a token here (unlike Autotask's zone
+ * resolution, there's nothing to resolve up front) — that happens lazily
+ * on first real use, or explicitly via "Test connection". */
+export async function saveNinjaOneSettings(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const region = String(formData.get("region") ?? "").trim();
+  const clientId = String(formData.get("client_id") ?? "").trim();
+  const secret = emptyToUndefined(formData.get("client_secret"));
+
+  if (!region || !clientId) {
+    return { error: "Region and Client ID are required.", success: null };
+  }
+
+  const admin = createAdminClient();
+  const existing = await getNinjaOneSettings(admin);
+  const effectiveSecret = secret ?? existing?.credentials.clientSecret;
+  if (!effectiveSecret) {
+    return { error: "A Client Secret is required for first-time setup.", success: null };
+  }
+
+  const payload: {
+    id: true;
+    region: string;
+    client_id: string;
+    updated_by: string;
+    client_secret?: string;
+    // Changing credentials invalidates any cached token.
+    cached_access_token: null;
+    token_expires_at: null;
+  } = {
+    id: true,
+    region,
+    client_id: clientId,
+    updated_by: user.id,
+    cached_access_token: null,
+    token_expires_at: null,
+  };
+  if (secret) payload.client_secret = secret;
+
+  const { error } = await admin.from("ninjaone_settings").upsert(payload, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}
+
+/** Tests the currently-saved NinjaOne credentials — doesn't persist
+ * anything, just reports whether they work. */
+export async function testNinjaOneConnectionAction(): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getNinjaOneSettings(admin);
+  if (!settings) {
+    return { ok: false, message: "Save your NinjaOne credentials first." };
+  }
+
+  const result = await testNinjaOneConnection(settings.credentials satisfies NinjaOneCredentials);
+  if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
 }

@@ -4,12 +4,15 @@ import { hasPermission } from "@/lib/permissions";
 import { AI_PROVIDER_LABELS, AI_PROVIDER_DEFAULT_MODELS, type AiProvider } from "@/lib/ai";
 import { AiProviderSettingsForm } from "@/components/ai-provider-settings-form";
 import { AutotaskSettingsForm } from "@/components/autotask-settings-form";
+import { NinjaOneSettingsForm } from "@/components/ninjaone-settings-form";
 import { Tabs } from "@/components/tabs";
 import {
   saveAiProviderSettings,
   setActiveAiProvider,
   saveAutotaskSettings,
   testAutotaskConnectionAction,
+  saveNinjaOneSettings,
+  testNinjaOneConnectionAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -26,11 +29,16 @@ export default async function IntegrationsSettingsPage() {
   // Admin client — these tables have no RLS policy for authenticated users
   // at all, so a request-scoped client would always get zero rows back.
   const admin = createAdminClient();
-  const [{ data: rows }, { data: autotaskRow }] = await Promise.all([
+  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
       .from("autotask_settings")
       .select("username, secret, integration_code, zone_url")
+      .eq("id", true)
+      .maybeSingle(),
+    admin
+      .from("ninjaone_settings")
+      .select("region, client_id, client_secret")
       .eq("id", true)
       .maybeSingle(),
   ]);
@@ -90,6 +98,18 @@ export default async function IntegrationsSettingsPage() {
                 currentIntegrationCode={autotaskRow?.integration_code ?? null}
                 saveAction={saveAutotaskSettings}
                 testAction={testAutotaskConnectionAction}
+              />
+            ),
+          },
+          {
+            label: "NinjaOne",
+            content: (
+              <NinjaOneSettingsForm
+                hasCredentials={Boolean(ninjaOneRow?.client_id && ninjaOneRow?.client_secret)}
+                currentRegion={ninjaOneRow?.region ?? null}
+                currentClientId={ninjaOneRow?.client_id ?? null}
+                saveAction={saveNinjaOneSettings}
+                testAction={testNinjaOneConnectionAction}
               />
             ),
           },
