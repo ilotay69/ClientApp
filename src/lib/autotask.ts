@@ -94,11 +94,11 @@ export async function searchAutotaskCompanies(
   zoneUrl: string,
   nameQuery: string
 ): Promise<AutotaskCompany[]> {
-  const items = await autotaskQuery(creds, zoneUrl, "Companies", {
+  const items = (await autotaskQuery(creds, zoneUrl, "Companies", {
     filter: [{ op: "contains", field: "companyName", value: nameQuery }],
     MaxRecords: 20,
-  });
-  return items.map((c: { id: number; companyName: string }) => ({
+  })) as { id: number; companyName: string }[];
+  return items.map((c) => ({
     id: c.id,
     companyName: c.companyName,
   }));
@@ -254,13 +254,13 @@ export async function fetchOpenTicketsForCompany(
   companyId: number,
   labels: PicklistLabelMaps
 ): Promise<AutotaskTicketRow[]> {
-  const items: RawTicket[] = await autotaskQuery(creds, zoneUrl, "Tickets", {
+  const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
     filter: [
       { op: "eq", field: "companyID", value: companyId },
       { op: "notExist", field: "completedDate" },
     ],
     MaxRecords: 200,
-  });
+  })) as RawTicket[];
 
   const resourceNames = await resolveResourceNames(
     creds,
@@ -472,10 +472,10 @@ export async function fetchContractServicesForCompany(
   const statusLabels = await fetchContractStatusLabels(creds, zoneUrl);
 
   type RawContract = { id: number; contractName: string; status?: number };
-  const allContracts: RawContract[] = await autotaskQuery(creds, zoneUrl, "Contracts", {
+  const allContracts = (await autotaskQuery(creds, zoneUrl, "Contracts", {
     filter: [{ op: "eq", field: "companyID", value: companyId }],
     MaxRecords: 50,
-  });
+  })) as RawContract[];
 
   const contracts = allContracts.filter((c) => {
     const label = c.status != null ? statusLabels.get(c.status) : null;
