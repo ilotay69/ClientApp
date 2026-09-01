@@ -420,15 +420,17 @@ export async function fetchContractServicesForCompany(
     invoiceDescription?: string;
     internalDescription?: string;
   };
-  const perContract = await Promise.all(
-    contracts.map((c) =>
-      autotaskQuery(creds, zoneUrl, "ContractServices", {
-        filter: [{ op: "eq", field: "contractID", value: c.id }],
-        MaxRecords: 200,
-      }) as Promise<RawContractService[]>
-    )
-  );
-  const contractServices = perContract.flat();
+  // Sequential, not Promise.all — Autotask enforces a low concurrent-thread
+  // cap per API user (as few as 3), shared across everything that account
+  // is doing at once. One contract at a time avoids tripping it.
+  const contractServices: RawContractService[] = [];
+  for (const c of contracts) {
+    const items = (await autotaskQuery(creds, zoneUrl, "ContractServices", {
+      filter: [{ op: "eq", field: "contractID", value: c.id }],
+      MaxRecords: 200,
+    })) as RawContractService[];
+    contractServices.push(...items);
+  }
 
   const serviceNames = await resolveServiceNames(
     creds,

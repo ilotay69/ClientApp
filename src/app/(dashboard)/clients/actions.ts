@@ -289,10 +289,11 @@ export async function getAutotaskTicketDetailAction(
   }
 
   try {
-    const [notes, timeEntries] = await Promise.all([
-      fetchTicketNotes(settings.credentials, settings.zoneUrl, ticketId),
-      fetchTicketTimeEntries(settings.credentials, settings.zoneUrl, ticketId),
-    ]);
+    // Sequential, not Promise.all — Autotask enforces a low concurrent-
+    // thread cap per API user (as few as 3), shared across everything that
+    // account is doing at once.
+    const notes = await fetchTicketNotes(settings.credentials, settings.zoneUrl, ticketId);
+    const timeEntries = await fetchTicketTimeEntries(settings.credentials, settings.zoneUrl, ticketId);
     return { notes, timeEntries };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load ticket detail." };
