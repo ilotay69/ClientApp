@@ -46,24 +46,31 @@ export function daysAgo(dateStr: string | null | undefined): number | null {
  * specific stale ticket over a bare count when one exists. */
 export function buildFollowupSummary({
   taskCount,
+  overdueTaskCount,
   ticketCount,
   stalestTicketTitle,
   stalestTicketDays,
   lastContactDays,
 }: {
   taskCount: number;
+  overdueTaskCount: number;
   ticketCount: number;
   stalestTicketTitle: string | null;
   stalestTicketDays: number | null;
   lastContactDays: number | null;
 }): string | null {
   const parts: string[] = [];
+  // Overdue tasks lead — the single most actionable signal here.
+  if (overdueTaskCount > 0) {
+    parts.push(`${overdueTaskCount} task${overdueTaskCount === 1 ? "" : "s"} overdue`);
+  } else if (taskCount > 0) {
+    parts.push(`${taskCount} open task${taskCount === 1 ? "" : "s"}`);
+  }
   if (stalestTicketDays !== null && stalestTicketDays >= 3 && stalestTicketTitle) {
     parts.push(`"${stalestTicketTitle}" untouched ${stalestTicketDays}d`);
   } else if (ticketCount > 0) {
     parts.push(`${ticketCount} open ticket${ticketCount === 1 ? "" : "s"}`);
   }
-  if (taskCount > 0) parts.push(`${taskCount} open task${taskCount === 1 ? "" : "s"}`);
   if (lastContactDays !== null) parts.push(`last contact ${lastContactDays}d ago`);
   return parts.length > 0 ? parts.join(" · ") : null;
 }

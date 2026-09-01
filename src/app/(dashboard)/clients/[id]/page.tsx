@@ -142,6 +142,7 @@ export default async function ClientDetailPage({
   }, null);
   const followupSummary = buildFollowupSummary({
     taskCount: (tasks ?? []).length,
+    overdueTaskCount: (tasks ?? []).filter((t) => isOverdue(t.due_date)).length,
     ticketCount: (autotaskTickets ?? []).length,
     stalestTicketTitle: stalestAutotaskTicket?.title ?? null,
     stalestTicketDays: daysAgo(stalestAutotaskTicket?.last_activity_at ?? null),

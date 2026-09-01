@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { Badge } from "@/components/badge";
-import { daysAgo, buildFollowupSummary } from "@/lib/format";
+import { daysAgo, buildFollowupSummary, isOverdue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,15 @@ function countByClient(rows: { client_id: string | null }[]) {
   const map = new Map<string, number>();
   for (const r of rows) {
     if (!r.client_id) continue;
+    map.set(r.client_id, (map.get(r.client_id) ?? 0) + 1);
+  }
+  return map;
+}
+
+function overdueCountByClient(rows: { client_id: string | null; due_date: string | null }[]) {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.client_id || !isOverdue(r.due_date)) continue;
     map.set(r.client_id, (map.get(r.client_id) ?? 0) + 1);
   }
   return map;
@@ -74,7 +83,7 @@ export default async function ClientsPage() {
     hasPermission(supabase, "manage_clients"),
     supabase
       .from("tasks")
-      .select("client_id")
+      .select("client_id, due_date")
       .not("client_id", "is", null)
       .not("status", "in", "(done,dismissed)"),
     supabase.from("autotask_tickets").select("client_id, title, last_activity_at"),
@@ -90,6 +99,7 @@ export default async function ClientsPage() {
   ]);
 
   const taskCounts = countByClient(openTasks ?? []);
+  const overdueTaskCounts = overdueCountByClient(openTasks ?? []);
   const ticketCounts = countByClient(openTickets ?? []);
   const stalestTicket = stalestTicketByClient(openTickets ?? []);
   const suggestions = topSuggestionByClient(openSuggestions ?? []);
@@ -128,6 +138,7 @@ export default async function ClientsPage() {
               const stale = stalestTicket.get(c.id);
               const followupText = buildFollowupSummary({
                 taskCount,
+                overdueTaskCount: overdueTaskCounts.get(c.id) ?? 0,
                 ticketCount,
                 stalestTicketTitle: stale?.title ?? null,
                 stalestTicketDays: daysAgo(stale?.last_activity_at ?? null),
