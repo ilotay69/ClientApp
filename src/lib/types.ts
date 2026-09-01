@@ -59,6 +59,7 @@ export interface AutotaskContractService {
   service_id: number;
   service_name: string;
   description: string | null;
+  quantity: number | null;
   last_synced_at: string;
 }
 

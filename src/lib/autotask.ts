@@ -413,14 +413,57 @@ export type AutotaskContractService = {
   service_id: number;
   service_name: string;
   description: string | null;
+  quantity: number | null;
 };
 
-/** All of a company's contracted services across all of its contracts
- * (active or not — status is shown, not filtered, since what counts as
- * "active" is a tenant-configurable label rather than a fixed value).
- * One Contracts query, then one ContractServices query per contract
- * (typically very few per client), then a single batched Services lookup
- * for the names. */
+/** Current unit count for a set of ContractServices rows, via
+ * ContractServiceUnits — a service can have several unit rows over time
+ * (one per billing period), so this picks whichever period covers today,
+ * falling back to the most recent period if none matches exactly. Same
+ * resilience posture as resolveResourceNames/resolveServiceNames: some API
+ * Users may lack read access to this entity, so a failure here shouldn't
+ * take down the whole sync. */
+async function resolveContractServiceQuantities(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  contractServiceIds: number[]
+): Promise<Map<number, number>> {
+  const map = new Map<number, number>();
+  const uniqueIds = [...new Set(contractServiceIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return map;
+
+  type RawUnit = { contractServiceID: number; units: number; startDate: string; endDate: string };
+  let items: RawUnit[];
+  try {
+    items = (await autotaskQuery(creds, zoneUrl, "ContractServiceUnits", {
+      filter: [{ op: "in", field: "contractServiceID", value: uniqueIds }],
+      MaxRecords: uniqueIds.length * 10,
+    })) as RawUnit[];
+  } catch (err) {
+    console.error("Autotask ContractServiceUnits lookup failed — omitting quantity", err);
+    return map;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const byContractService = new Map<number, RawUnit[]>();
+  for (const u of items) {
+    const list = byContractService.get(u.contractServiceID) ?? [];
+    list.push(u);
+    byContractService.set(u.contractServiceID, list);
+  }
+
+  for (const [contractServiceId, units] of byContractService) {
+    const current = units.find((u) => u.startDate.slice(0, 10) <= today && today <= u.endDate.slice(0, 10));
+    const chosen = current ?? units.sort((a, b) => (a.startDate < b.startDate ? 1 : -1))[0];
+    if (chosen) map.set(contractServiceId, chosen.units);
+  }
+  return map;
+}
+
+/** A company's contracted services for its ACTIVE contracts only. One
+ * Contracts query, then one ContractServices query per active contract
+ * (typically very few per client), then batched Services and
+ * ContractServiceUnits lookups. */
 export async function fetchContractServicesForCompany(
   creds: AutotaskCredentials,
   zoneUrl: string,
@@ -429,9 +472,14 @@ export async function fetchContractServicesForCompany(
   const statusLabels = await fetchContractStatusLabels(creds, zoneUrl);
 
   type RawContract = { id: number; contractName: string; status?: number };
-  const contracts: RawContract[] = await autotaskQuery(creds, zoneUrl, "Contracts", {
+  const allContracts: RawContract[] = await autotaskQuery(creds, zoneUrl, "Contracts", {
     filter: [{ op: "eq", field: "companyID", value: companyId }],
     MaxRecords: 50,
+  });
+
+  const contracts = allContracts.filter((c) => {
+    const label = c.status != null ? statusLabels.get(c.status) : null;
+    return label?.toLowerCase().includes("active");
   });
   if (contracts.length === 0) return [];
 
@@ -459,6 +507,11 @@ export async function fetchContractServicesForCompany(
     zoneUrl,
     contractServices.map((cs) => cs.serviceID)
   );
+  const quantities = await resolveContractServiceQuantities(
+    creds,
+    zoneUrl,
+    contractServices.map((cs) => cs.id)
+  );
   const contractsById = new Map(contracts.map((c) => [c.id, c]));
 
   return contractServices.map((cs) => {
@@ -472,6 +525,7 @@ export async function fetchContractServicesForCompany(
       service_id: cs.serviceID,
       service_name: serviceNames.get(cs.serviceID) ?? `Service ${cs.serviceID}`,
       description: cs.invoiceDescription || cs.internalDescription || null,
+      quantity: quantities.get(cs.id) ?? null,
     };
   });
 }

@@ -6,6 +6,7 @@ import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
 import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
 import { ClientAutotaskContractServices } from "@/components/client-autotask-contract-services";
+import { SyncAutotaskButton } from "@/components/sync-autotask-button";
 import { SuggestionCard } from "@/components/suggestion-card";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
@@ -124,7 +125,7 @@ export default async function ClientDetailPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("autotask_contract_services")
-      .select("id, contract_name, contract_status, service_name, description")
+      .select("id, contract_name, contract_status, service_name, description, quantity")
       .eq("client_id", id)
       .order("contract_name"),
   ]);
@@ -197,32 +198,33 @@ export default async function ClientDetailPage({
             {client.name}
           </h1>
         </div>
-        <DeleteButton
-          action={deleteClientRecord.bind(null, id)}
-          confirmText={`Delete ${client.name}? This also removes their projects, touchpoints, tasks, and service checks.`}
+        <div className="flex items-center gap-3">
+          {client.autotask_company_id && <SyncAutotaskButton action={syncAutotaskAction} />}
+          <DeleteButton
+            action={deleteClientRecord.bind(null, id)}
+            confirmText={`Delete ${client.name}? This also removes their projects, touchpoints, tasks, and service checks.`}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
+          <h2 className="mb-4 text-sm font-semibold text-slate-900">
+            Client details
+          </h2>
+          <ClientForm client={client} action={updateAction} submitLabel="Save changes" />
+        </div>
+
+        <ClientContactsPanel
+          contacts={contacts ?? []}
+          canManageClients={canManageClients}
+          addAction={addContactAction}
+          removeAction={removeContactAction}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold text-slate-900">
-              Client details
-            </h2>
-            <ClientForm client={client} action={updateAction} submitLabel="Save changes" />
-          </div>
-
-          <ClientContactsPanel
-            contacts={contacts ?? []}
-            canManageClients={canManageClients}
-            addAction={addContactAction}
-            removeAction={removeContactAction}
-          />
-        </div>
-
-        <div>
-          <Tabs
-            tabs={[
+      <Tabs
+        tabs={[
               {
                 label: "Overview",
                 content: (
@@ -473,15 +475,12 @@ export default async function ClientDetailPage({
                     searchAction={searchAutotaskCompaniesAction}
                     linkAction={linkAutotaskAction}
                     unlinkAction={unlinkAutotaskAction}
-                    syncAction={syncAutotaskAction}
                     detailAction={ticketDetailAction}
                   />
                 ),
               },
             ]}
           />
-        </div>
-      </div>
     </div>
   );
 }

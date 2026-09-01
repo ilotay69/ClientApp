@@ -18,24 +18,26 @@ export function ClientForm({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="max-w-xl space-y-4">
-      <Field label="Client name" name="name" defaultValue={client?.name} required />
-      <Field
-        label="Primary contact name"
-        name="primary_contact_name"
-        defaultValue={client?.primary_contact_name ?? ""}
-      />
-      <Field
-        label="Primary contact email"
-        name="primary_contact_email"
-        type="email"
-        defaultValue={client?.primary_contact_email ?? ""}
-      />
-      <Field
-        label="Primary contact phone"
-        name="primary_contact_phone"
-        defaultValue={client?.primary_contact_phone ?? ""}
-      />
+    <form action={formAction} className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Client name" name="name" defaultValue={client?.name} required />
+        <Field
+          label="Primary contact name"
+          name="primary_contact_name"
+          defaultValue={client?.primary_contact_name ?? ""}
+        />
+        <Field
+          label="Primary contact email"
+          name="primary_contact_email"
+          type="email"
+          defaultValue={client?.primary_contact_email ?? ""}
+        />
+        <Field
+          label="Primary contact phone"
+          name="primary_contact_phone"
+          defaultValue={client?.primary_contact_phone ?? ""}
+        />
+      </div>
 
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
 

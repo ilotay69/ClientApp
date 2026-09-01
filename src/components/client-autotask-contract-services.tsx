@@ -6,6 +6,7 @@ export type AutotaskContractServiceRow = {
   contract_status: string | null;
   service_name: string;
   description: string | null;
+  quantity: number | null;
 };
 
 export function ClientAutotaskContractServices({
@@ -34,7 +35,10 @@ export function ClientAutotaskContractServices({
           services.map((s) => (
             <div key={s.id} className="flex items-start justify-between gap-3 px-5 py-3">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-900">{s.service_name}</p>
+                <p className="text-sm font-medium text-slate-900">
+                  {s.service_name}
+                  {s.quantity !== null ? ` × ${s.quantity}` : ""}
+                </p>
                 <p className="text-xs text-slate-500">
                   {s.contract_name}
                   {s.description ? ` · ${s.description}` : ""}
