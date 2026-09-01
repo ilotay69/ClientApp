@@ -137,7 +137,12 @@ export async function fetchTicketPicklists(
 
 /** Batched name lookup for Resources (techs) referenced by id — e.g. a
  * ticket's assignedResourceID, or a note/time entry's resource id. One call
- * for the whole set of ids seen, not one call per reference. */
+ * for the whole set of ids seen, not one call per reference. Some Autotask
+ * API Users aren't granted read access to the Resources entity (a
+ * per-tenant security-level setting) — that failure shouldn't take down
+ * ticket sync/detail entirely, so this swallows the error and returns
+ * whatever it has (nothing, if the call never succeeded); callers already
+ * fall back to "Resource {id}" for any id missing from the map. */
 export async function resolveResourceNames(
   creds: AutotaskCredentials,
   zoneUrl: string,
@@ -147,10 +152,16 @@ export async function resolveResourceNames(
   const uniqueIds = [...new Set(resourceIds)].filter((id) => Number.isFinite(id));
   if (uniqueIds.length === 0) return map;
 
-  const items = await autotaskQuery(creds, zoneUrl, "Resources", {
-    filter: [{ op: "in", field: "id", value: uniqueIds }],
-    MaxRecords: uniqueIds.length,
-  });
+  let items: unknown[];
+  try {
+    items = await autotaskQuery(creds, zoneUrl, "Resources", {
+      filter: [{ op: "in", field: "id", value: uniqueIds }],
+      MaxRecords: uniqueIds.length,
+    });
+  } catch (err) {
+    console.error("Autotask Resources lookup failed — falling back to raw ids", err);
+    return map;
+  }
   for (const r of items as { id: number; firstName?: string; lastName?: string; userName?: string }[]) {
     const name = [r.firstName, r.lastName].filter(Boolean).join(" ") || r.userName || `Resource ${r.id}`;
     map.set(r.id, name);
