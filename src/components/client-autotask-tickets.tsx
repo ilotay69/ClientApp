@@ -22,28 +22,48 @@ export function ClientAutotaskTickets({
   searchAction,
   linkAction,
   unlinkAction,
+  syncAction,
 }: {
   companyId: number | null;
   tickets: AutotaskTicketRow[];
   searchAction: (query: string) => Promise<{ companies: AutotaskCompany[] } | { error: string }>;
   linkAction: (companyId: number) => Promise<void>;
   unlinkAction: () => Promise<void>;
+  syncAction: () => Promise<{ error: string | null }>;
 }) {
   const [showMapping, setShowMapping] = useState(companyId === null);
+  const [syncing, startSync] = useTransition();
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   if (!showMapping && companyId !== null) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
           <h2 className="text-sm font-semibold text-slate-900">Tickets</h2>
-          <button
-            type="button"
-            onClick={() => setShowMapping(true)}
-            className="text-xs text-slate-500 hover:underline"
-          >
-            Change mapping
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={syncing}
+              onClick={() =>
+                startSync(async () => {
+                  const result = await syncAction();
+                  setSyncError(result.error);
+                })
+              }
+              className="text-xs text-slate-500 hover:underline disabled:opacity-60"
+            >
+              {syncing ? "Syncing..." : "Sync now"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMapping(true)}
+              className="text-xs text-slate-500 hover:underline"
+            >
+              Change mapping
+            </button>
+          </div>
         </div>
+        {syncError && <p className="px-5 pt-3 text-sm text-red-600">{syncError}</p>}
         <div className="divide-y divide-slate-100">
           {tickets.map((t) => (
             <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3">

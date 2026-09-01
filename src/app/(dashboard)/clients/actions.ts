@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
-import { searchAutotaskCompanies, type AutotaskCompany } from "@/lib/autotask";
+import {
+  searchAutotaskCompanies,
+  fetchOpenTicketsForCompany,
+  type AutotaskCompany,
+} from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 
 export type FormState = { error: string | null };
@@ -195,4 +199,47 @@ export async function unlinkClientAutotaskCompany(clientId: string): Promise<voi
   await supabase.from("clients").update({ autotask_company_id: null }).eq("id", clientId);
   await supabase.from("autotask_tickets").delete().eq("client_id", clientId);
   revalidatePath(`/clients/${clientId}`);
+}
+
+/** On-demand ticket sync for a single mapped client — same replace-on-sync
+ * logic as the /api/autotask-sync cron job, scoped to one client so it's
+ * fast enough to run from a button without waiting on the cron job. */
+export async function syncClientAutotaskTickets(clientId: string): Promise<{ error: string | null }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("autotask_company_id")
+    .eq("id", clientId)
+    .single();
+  if (!client?.autotask_company_id) {
+    return { error: "This client isn't linked to an Autotask company yet." };
+  }
+
+  try {
+    const tickets = await fetchOpenTicketsForCompany(
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id
+    );
+    await admin.from("autotask_tickets").delete().eq("client_id", clientId);
+    if (tickets.length > 0) {
+      await admin
+        .from("autotask_tickets")
+        .insert(tickets.map((t) => ({ ...t, client_id: clientId })));
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Sync failed." };
+  }
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
 }

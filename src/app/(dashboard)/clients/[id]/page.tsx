@@ -22,6 +22,7 @@ import {
   searchAutotaskCompaniesAction,
   linkClientAutotaskCompany,
   unlinkClientAutotaskCompany,
+  syncClientAutotaskTickets,
 } from "../actions";
 import {
   addClientServiceCheck,
@@ -116,6 +117,7 @@ export default async function ClientDetailPage({
   const logInteractionAction = logClientInteraction.bind(null, id);
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
+  const syncAutotaskAction = syncClientAutotaskTickets.bind(null, id);
 
   const timelineEntries: TimelineEntry[] = [
     ...(emails ?? []).map((e) => ({
@@ -400,6 +402,7 @@ export default async function ClientDetailPage({
                     searchAction={searchAutotaskCompaniesAction}
                     linkAction={linkAutotaskAction}
                     unlinkAction={unlinkAutotaskAction}
+                    syncAction={syncAutotaskAction}
                   />
                 ),
               },
