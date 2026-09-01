@@ -5,6 +5,7 @@ import { ClientForm } from "@/components/client-form";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
 import { Tabs } from "@/components/tabs";
+import { ComingSoonCard } from "@/components/coming-soon-card";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AssigneeSelect } from "@/components/assignee-select";
 import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
@@ -252,7 +253,7 @@ export default async function ClientDetailPage({
                 ),
               },
               {
-                label: "Services",
+                label: "Services & Devices",
                 content: (
                   <>
                     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -358,6 +359,11 @@ export default async function ClientDetailPage({
                         />
                       )}
                     </div>
+
+                    <ComingSoonCard
+                      title="Devices"
+                      description="Device inventory and health (patch status, antivirus, last seen) pulled from NinjaOne will show up here once that integration is connected."
+                    />
                   </>
                 ),
               },
@@ -368,6 +374,15 @@ export default async function ClientDetailPage({
                     entries={timelineEntries}
                     contacts={contacts ?? []}
                     logAction={logInteractionAction}
+                  />
+                ),
+              },
+              {
+                label: "Tickets",
+                content: (
+                  <ComingSoonCard
+                    title="Tickets"
+                    description="Open Autotask tickets for this client — status, priority, assigned tech, and due date — will show up here once the Autotask integration is connected."
                   />
                 ),
               },
