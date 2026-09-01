@@ -479,7 +479,9 @@ export async function fetchContractServicesForCompany(
 
   const contracts = allContracts.filter((c) => {
     const label = c.status != null ? statusLabels.get(c.status) : null;
-    return label?.toLowerCase().includes("active");
+    // Exact match, not .includes — "Inactive" contains the substring
+    // "active" too, which silently let inactive contracts through.
+    return label?.toLowerCase() === "active";
   });
   if (contracts.length === 0) return [];
 
