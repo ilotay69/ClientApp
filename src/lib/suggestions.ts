@@ -230,6 +230,15 @@ function buildPrompt(
 
   return `You are helping an MSP (managed IT services provider) owner and their team of managers and techs stay on top of a client relationship. You will see recent emails with/about this client, plus what's already being tracked in their ops system, including any open Autotask support tickets. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions. Nobody here creates formal price quotes in this system (that's handled by sales elsewhere), so never include or ask for a dollar amount.
 
+Ignore automated, bulk, or boilerplate mail entirely — it is not a client
+signal even if forwarded into this inbox. This includes: vendor
+policy/terms/licensing-agreement notices (e.g. "Microsoft account will be
+subject to a new agreement..."), renewal or billing reminders sent to every
+customer, marketing/newsletter mail, automated system notifications, and
+out-of-office replies. None of these should ever produce a suggestion on
+their own, regardless of subject urgency-sounding language or a mentioned
+deadline — they aren't specific to this client's relationship or situation.
+
 Client: ${clientName}
 
 Recent emails (last ${LOOKBACK_DAYS} days):
