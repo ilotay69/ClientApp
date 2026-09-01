@@ -5,6 +5,8 @@ import { ClientForm } from "@/components/client-form";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
 import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
+import { SuggestionCard } from "@/components/suggestion-card";
+import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
 import { ComingSoonCard } from "@/components/coming-soon-card";
 import { Badge, OverdueBadge } from "@/components/badge";
@@ -24,6 +26,7 @@ import {
   unlinkClientAutotaskCompany,
   syncClientAutotaskTickets,
   getAutotaskTicketDetailAction,
+  refreshClientInsightsAction,
 } from "../actions";
 import {
   addClientServiceCheck,
@@ -60,6 +63,7 @@ export default async function ClientDetailPage({
     { data: interactions },
     canManageClients,
     { data: autotaskTickets },
+    { data: suggestions },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -109,6 +113,13 @@ export default async function ClientDetailPage({
       )
       .eq("client_id", id)
       .order("due_date", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("suggestions")
+      .select("id, kind, summary, detail, priority")
+      .eq("client_id", id)
+      .eq("status", "open")
+      .order("priority", { ascending: true })
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!client) notFound();
@@ -120,6 +131,7 @@ export default async function ClientDetailPage({
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
   const syncAutotaskAction = syncClientAutotaskTickets.bind(null, id);
   const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
+  const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
 
   const timelineEntries: TimelineEntry[] = [
     ...(emails ?? []).map((e) => ({
@@ -192,6 +204,33 @@ export default async function ClientDetailPage({
                 label: "Overview",
                 content: (
                   <>
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+                        <h2 className="text-sm font-semibold text-slate-900">Insights</h2>
+                        <RefreshClientInsightsButton action={refreshInsightsAction} />
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {(suggestions ?? []).map((s) => (
+                          <SuggestionCard
+                            key={s.id}
+                            id={s.id}
+                            clientId={id}
+                            clientName={client.name}
+                            kind={s.kind}
+                            summary={s.summary}
+                            detail={s.detail}
+                            priority={s.priority}
+                            members={members ?? []}
+                          />
+                        ))}
+                        {(suggestions ?? []).length === 0 && (
+                          <p className="px-5 py-4 text-sm text-slate-500">
+                            No open insights right now.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
                     <RelatedSection
                       title="Open tasks"
                       newHref="/tasks"

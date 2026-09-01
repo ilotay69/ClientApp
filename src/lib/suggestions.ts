@@ -18,25 +18,33 @@ const DEDUPE_WINDOW_DAYS = 7;
 export async function generateSuggestions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
-  { maxClients = 20 }: { maxClients?: number } = {}
+  { maxClients = 20, onlyClientId }: { maxClients?: number; onlyClientId?: string } = {}
 ): Promise<{ clientsConsidered: number; created: number }> {
   const aiSettings = await getActiveAiSettings(admin);
   if (!aiSettings) return { clientsConsidered: 0, created: 0 };
 
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: activeClientIdsRows }, { data: ticketedClientIdsRows }] = await Promise.all([
-    admin.from("email_links").select("client_id").gte("received_at", since),
-    // No lookback window needed here — "has an open ticket" is already the
-    // filter (autotask_tickets only ever holds open tickets, see sync).
-    admin.from("autotask_tickets").select("client_id"),
-  ]);
+  let clientIds: string[];
+  if (onlyClientId) {
+    // A single client, explicitly requested from its own page — always
+    // attempt it, regardless of the recent-activity gate the batch pool
+    // otherwise uses to keep runs cheap.
+    clientIds = [onlyClientId];
+  } else {
+    const [{ data: activeClientIdsRows }, { data: ticketedClientIdsRows }] = await Promise.all([
+      admin.from("email_links").select("client_id").gte("received_at", since),
+      // No lookback window needed here — "has an open ticket" is already
+      // the filter (autotask_tickets only ever holds open tickets).
+      admin.from("autotask_tickets").select("client_id"),
+    ]);
 
-  const allClientIds: string[] = [
-    ...(activeClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
-    ...(ticketedClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
-  ];
-  const clientIds: string[] = [...new Set(allClientIds)].slice(0, maxClients);
+    const allClientIds: string[] = [
+      ...(activeClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
+      ...(ticketedClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
+    ];
+    clientIds = [...new Set(allClientIds)].slice(0, maxClients);
+  }
 
   let created = 0;
 
@@ -69,7 +77,11 @@ export async function generateSuggestions(
       ]);
 
     // A client qualifies via emails OR open tickets — don't require both.
-    if (!client || ((!emails || emails.length === 0) && (!tickets || tickets.length === 0))) continue;
+    // A single explicitly-requested client (onlyClientId) always proceeds,
+    // even with neither, so a manual per-client refresh isn't silently
+    // skipped just because there's nothing to react to yet.
+    if (!client) continue;
+    if (!onlyClientId && (!emails || emails.length === 0) && (!tickets || tickets.length === 0)) continue;
 
     const prompt = buildPrompt(client.name, emails ?? [], projects ?? [], touchpoints ?? [], tickets ?? []);
 

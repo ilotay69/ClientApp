@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
+import { generateSuggestions } from "@/lib/suggestions";
+import { getActiveAiSettings } from "@/lib/ai/settings";
 import {
   searchAutotaskCompanies,
   fetchOpenTicketsForCompany,
@@ -280,5 +282,40 @@ export async function getAutotaskTicketDetailAction(
     return { notes, timeEntries };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load ticket detail." };
+  }
+}
+
+export type RefreshClientInsightsState = { error: string | null; summary: string | null };
+
+/** Per-client version of the dashboard's "Refresh insights" — scoped to just
+ * this client via generateSuggestions' onlyClientId, so it's fast enough to
+ * run from a single client's page and always attempts it (the batch job's
+ * recent-activity gate doesn't apply to an explicit, single-client ask). */
+export async function refreshClientInsightsAction(
+  clientId: string,
+  _prevState: RefreshClientInsightsState,
+  _formData: FormData
+): Promise<RefreshClientInsightsState> {
+  const admin = createAdminClient();
+
+  if (!(await getActiveAiSettings(admin))) {
+    return {
+      error: "AI insights aren't set up yet — configure a provider under Settings → Integrations.",
+      summary: null,
+    };
+  }
+
+  try {
+    const result = await generateSuggestions(admin, { onlyClientId: clientId });
+    revalidatePath(`/clients/${clientId}`);
+    return {
+      error: null,
+      summary:
+        result.created > 0
+          ? `Found ${result.created} new insight${result.created === 1 ? "" : "s"}.`
+          : "No new insights — nothing new or notable right now.",
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Refresh failed.", summary: null };
   }
 }
