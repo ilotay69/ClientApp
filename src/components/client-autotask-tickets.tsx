@@ -3,18 +3,22 @@
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/badge";
 import { formatDate } from "@/lib/format";
-import type { AutotaskCompany } from "@/lib/autotask";
+import type { AutotaskCompany, AutotaskTicketNote, AutotaskTimeEntry } from "@/lib/autotask";
 
 export type AutotaskTicketRow = {
   id: number;
   ticket_number: string | null;
   title: string;
+  description: string | null;
+  resolution: string | null;
   status: string | null;
   priority: string | null;
   queue_name: string | null;
   assigned_resource_name: string | null;
   due_date: string | null;
 };
+
+type TicketDetail = { notes: AutotaskTicketNote[]; timeEntries: AutotaskTimeEntry[] } | { error: string };
 
 export function ClientAutotaskTickets({
   companyId,
@@ -23,6 +27,7 @@ export function ClientAutotaskTickets({
   linkAction,
   unlinkAction,
   syncAction,
+  detailAction,
 }: {
   companyId: number | null;
   tickets: AutotaskTicketRow[];
@@ -30,6 +35,7 @@ export function ClientAutotaskTickets({
   linkAction: (companyId: number) => Promise<void>;
   unlinkAction: () => Promise<void>;
   syncAction: () => Promise<{ error: string | null }>;
+  detailAction: (ticketId: number) => Promise<TicketDetail>;
 }) {
   const [showMapping, setShowMapping] = useState(companyId === null);
   const [syncing, startSync] = useTransition();
@@ -66,22 +72,7 @@ export function ClientAutotaskTickets({
         {syncError && <p className="px-5 pt-3 text-sm text-red-600">{syncError}</p>}
         <div className="divide-y divide-slate-100">
           {tickets.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-900">
-                  {t.ticket_number ? `#${t.ticket_number} — ` : ""}
-                  {t.title}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {t.assigned_resource_name ? `Assigned to ${t.assigned_resource_name}` : "Unassigned"}
-                  {t.due_date ? ` · due ${formatDate(t.due_date)}` : ""}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {t.priority && <Badge value={t.priority} />}
-                {t.status && <Badge value={t.status} />}
-              </div>
-            </div>
+            <TicketRow key={t.id} ticket={t} detailAction={detailAction} />
           ))}
           {tickets.length === 0 && (
             <p className="px-5 py-4 text-sm text-slate-500">
@@ -106,6 +97,133 @@ export function ClientAutotaskTickets({
         await unlinkAction();
       }}
     />
+  );
+}
+
+function TicketRow({
+  ticket,
+  detailAction,
+}: {
+  ticket: AutotaskTicketRow;
+  detailAction: (ticketId: number) => Promise<TicketDetail>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [detail, setDetail] = useState<TicketDetail | null>(null);
+  const [loading, startLoad] = useTransition();
+
+  const toggle = () => {
+    setExpanded((prev) => !prev);
+    if (!detail) {
+      startLoad(async () => {
+        setDetail(await detailAction(ticket.id));
+      });
+    }
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={toggle}
+        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-900">
+            {ticket.ticket_number ? `#${ticket.ticket_number} — ` : ""}
+            {ticket.title}
+          </p>
+          <p className="text-xs text-slate-500">
+            {ticket.assigned_resource_name
+              ? `Assigned to ${ticket.assigned_resource_name}`
+              : "Unassigned"}
+            {ticket.due_date ? ` · due ${formatDate(ticket.due_date)}` : ""}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {ticket.priority && <Badge value={ticket.priority} />}
+          {ticket.status && <Badge value={ticket.status} />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
+          {ticket.description && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Description
+              </h3>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{ticket.description}</p>
+            </div>
+          )}
+          {ticket.resolution && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Resolution
+              </h3>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{ticket.resolution}</p>
+            </div>
+          )}
+
+          {loading && <p className="text-sm text-slate-500">Loading activity...</p>}
+
+          {detail && "error" in detail && <p className="text-sm text-red-600">{detail.error}</p>}
+
+          {detail && !("error" in detail) && (
+            <>
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Notes
+                </h3>
+                {detail.notes.length === 0 ? (
+                  <p className="mt-1 text-sm text-slate-500">No notes logged.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {detail.notes.map((n) => (
+                      <li key={n.id} className="rounded-md border border-slate-200 bg-white p-2.5">
+                        <p className="text-xs text-slate-500">
+                          {formatDate(n.createdAt)}
+                          {n.creatorName ? ` · ${n.creatorName}` : ""}
+                          {n.title ? ` · ${n.title}` : ""}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                          {n.description}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Charges (time entries)
+                </h3>
+                {detail.timeEntries.length === 0 ? (
+                  <p className="mt-1 text-sm text-slate-500">No time logged.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {detail.timeEntries.map((e) => (
+                      <li key={e.id} className="rounded-md border border-slate-200 bg-white p-2.5">
+                        <p className="text-xs text-slate-500">
+                          {formatDate(e.dateWorked)}
+                          {e.resourceName ? ` · ${e.resourceName}` : ""}
+                          {e.hoursWorked != null ? ` · ${e.hoursWorked}h` : ""}
+                        </p>
+                        {e.summaryNotes && (
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                            {e.summaryNotes}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

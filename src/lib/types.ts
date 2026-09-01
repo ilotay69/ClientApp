@@ -38,6 +38,8 @@ export interface AutotaskTicket {
   client_id: string;
   ticket_number: string | null;
   title: string;
+  description: string | null;
+  resolution: string | null;
   status: string | null;
   priority: string | null;
   queue_name: string | null;

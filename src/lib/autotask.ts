@@ -18,6 +18,22 @@ function autotaskHeaders(creds: AutotaskCredentials) {
   };
 }
 
+async function autotaskQuery(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  entity: string,
+  search: Record<string, unknown>
+) {
+  const url = `${zoneUrl}/${entity}/query?search=${encodeURIComponent(JSON.stringify(search))}`;
+  const res = await fetch(url, { headers: autotaskHeaders(creds) });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Autotask ${entity} query failed (${res.status}): ${text}`);
+  }
+  const json = await res.json();
+  return json.items ?? [];
+}
+
 /** Resolves the tenant's per-zone API base URL — required first call,
  * unauthenticated, before any other Autotask request can be made. */
 export async function resolveZoneUrl(username: string): Promise<string> {
@@ -45,14 +61,10 @@ export async function testAutotaskConnection(
 ): Promise<{ ok: boolean; zoneUrl?: string; error?: string }> {
   try {
     const zoneUrl = await resolveZoneUrl(creds.username);
-    const res = await fetch(`${zoneUrl}/Companies/query?search=${encodeURIComponent(
-      JSON.stringify({ filter: [{ op: "gte", field: "id", value: 0 }], MaxRecords: 1 })
-    )}`, { headers: autotaskHeaders(creds) });
-
-    if (!res.ok) {
-      const text = await res.text();
-      return { ok: false, error: `Autotask rejected the request (${res.status}): ${text}` };
-    }
+    await autotaskQuery(creds, zoneUrl, "Companies", {
+      filter: [{ op: "gte", field: "id", value: 0 }],
+      MaxRecords: 1,
+    });
     return { ok: true, zoneUrl };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
@@ -67,27 +79,91 @@ export async function searchAutotaskCompanies(
   zoneUrl: string,
   nameQuery: string
 ): Promise<AutotaskCompany[]> {
-  const search = {
+  const items = await autotaskQuery(creds, zoneUrl, "Companies", {
     filter: [{ op: "contains", field: "companyName", value: nameQuery }],
     MaxRecords: 20,
-  };
-  const url = `${zoneUrl}/Companies/query?search=${encodeURIComponent(JSON.stringify(search))}`;
-  const res = await fetch(url, { headers: autotaskHeaders(creds) });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Autotask company search failed (${res.status}): ${text}`);
-  }
-  const json = await res.json();
-  return (json.items ?? []).map((c: { id: number; companyName: string }) => ({
+  });
+  return items.map((c: { id: number; companyName: string }) => ({
     id: c.id,
     companyName: c.companyName,
   }));
+}
+
+export type PicklistLabelMaps = {
+  status: Map<number, string>;
+  priority: Map<number, string>;
+  queue: Map<number, string>;
+};
+
+type FieldInfo = {
+  name: string;
+  isPickList?: boolean;
+  picklistValues?: { value: string; label: string; isActive?: boolean }[];
+};
+
+function picklistMap(fields: FieldInfo[], fieldName: string): Map<number, string> {
+  const field = fields.find((f) => f.name === fieldName);
+  const map = new Map<number, string>();
+  for (const v of field?.picklistValues ?? []) {
+    map.set(Number(v.value), v.label);
+  }
+  return map;
+}
+
+/** Resolves the tenant's actual label text for the status/priority/queue
+ * picklists on Tickets — these can be customized per tenant, so the labels
+ * can't be hardcoded and must come from this call. Cheap to call once per
+ * sync run (not per ticket, not per client). */
+export async function fetchTicketPicklists(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<PicklistLabelMaps> {
+  const res = await fetch(`${zoneUrl}/Tickets/entityInformation/fields`, {
+    headers: autotaskHeaders(creds),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Autotask Tickets field info failed (${res.status}): ${text}`);
+  }
+  const json = await res.json();
+  const fields: FieldInfo[] = json.fields ?? [];
+
+  return {
+    status: picklistMap(fields, "status"),
+    priority: picklistMap(fields, "priority"),
+    queue: picklistMap(fields, "queueID"),
+  };
+}
+
+/** Batched name lookup for Resources (techs) referenced by id — e.g. a
+ * ticket's assignedResourceID, or a note/time entry's resource id. One call
+ * for the whole set of ids seen, not one call per reference. */
+export async function resolveResourceNames(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  resourceIds: number[]
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  const uniqueIds = [...new Set(resourceIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return map;
+
+  const items = await autotaskQuery(creds, zoneUrl, "Resources", {
+    filter: [{ op: "in", field: "id", value: uniqueIds }],
+    MaxRecords: uniqueIds.length,
+  });
+  for (const r of items as { id: number; firstName?: string; lastName?: string; userName?: string }[]) {
+    const name = [r.firstName, r.lastName].filter(Boolean).join(" ") || r.userName || `Resource ${r.id}`;
+    map.set(r.id, name);
+  }
+  return map;
 }
 
 export type AutotaskTicketRow = {
   id: number;
   ticket_number: string | null;
   title: string;
+  description: string | null;
+  resolution: string | null;
   status: string | null;
   priority: string | null;
   queue_name: string | null;
@@ -95,51 +171,148 @@ export type AutotaskTicketRow = {
   due_date: string | null;
 };
 
-// Autotask's built-in ticket status picklist — 5 = Complete. Anything else
-// counts as "open" for this list.
-const CLOSED_STATUS_VALUE = 5;
+type RawTicket = {
+  id: number;
+  ticketNumber?: string;
+  title: string;
+  description?: string;
+  resolution?: string;
+  status?: number;
+  priority?: number;
+  queueID?: number;
+  assignedResourceID?: number;
+  dueDateTime?: string;
+};
 
-/** Fetches this company's open tickets. Status/priority/queue/assignee come
- * back as raw picklist values from Autotask (numeric ids) — displayed as-is
- * since resolving them to labels needs a separate picklist-metadata call,
- * deferred until this proves useful. */
+/** Fetches this company's open tickets (completedDate is null — a real,
+ * unambiguous field, rather than guessing at a "Complete" status id that
+ * could differ per tenant). Status/priority/queue use the tenant-wide
+ * picklist labels the caller resolved once up front (they don't depend on
+ * which tickets come back); assignee names are resolved here, scoped to
+ * just the resource ids seen in this company's tickets — that can't be
+ * known ahead of the fetch, so it can't be pre-resolved by the caller. */
 export async function fetchOpenTicketsForCompany(
   creds: AutotaskCredentials,
   zoneUrl: string,
-  companyId: number
+  companyId: number,
+  labels: PicklistLabelMaps
 ): Promise<AutotaskTicketRow[]> {
-  const search = {
+  const items: RawTicket[] = await autotaskQuery(creds, zoneUrl, "Tickets", {
     filter: [
       { op: "eq", field: "companyID", value: companyId },
-      { op: "noteq", field: "status", value: CLOSED_STATUS_VALUE },
+      { op: "notExist", field: "completedDate" },
     ],
     MaxRecords: 200,
-  };
-  const url = `${zoneUrl}/Tickets/query?search=${encodeURIComponent(JSON.stringify(search))}`;
-  const res = await fetch(url, { headers: autotaskHeaders(creds) });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Autotask ticket fetch failed (${res.status}): ${text}`);
-  }
-  const json = await res.json();
-  type RawTicket = {
-    id: number;
-    ticketNumber?: string;
-    title: string;
-    status?: number | string;
-    priority?: number | string;
-    queueID?: number | string;
-    assignedResourceID?: number | string;
-    dueDateTime?: string;
-  };
-  return (json.items ?? []).map((t: RawTicket) => ({
+  });
+
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    items.map((t) => t.assignedResourceID).filter((id): id is number => id != null)
+  );
+
+  return items.map((t) => ({
     id: t.id,
     ticket_number: t.ticketNumber ?? null,
     title: t.title,
-    status: t.status != null ? String(t.status) : null,
-    priority: t.priority != null ? String(t.priority) : null,
-    queue_name: t.queueID != null ? String(t.queueID) : null,
-    assigned_resource_name: t.assignedResourceID != null ? String(t.assignedResourceID) : null,
+    description: t.description ?? null,
+    resolution: t.resolution ?? null,
+    status: t.status != null ? (labels.status.get(t.status) ?? String(t.status)) : null,
+    priority: t.priority != null ? (labels.priority.get(t.priority) ?? String(t.priority)) : null,
+    queue_name: t.queueID != null ? (labels.queue.get(t.queueID) ?? String(t.queueID)) : null,
+    assigned_resource_name:
+      t.assignedResourceID != null
+        ? (resourceNames.get(t.assignedResourceID) ?? `Resource ${t.assignedResourceID}`)
+        : null,
     due_date: t.dueDateTime ?? null,
   }));
+}
+
+export type AutotaskTicketNote = {
+  id: number;
+  title: string | null;
+  description: string;
+  createdAt: string;
+  creatorName: string | null;
+};
+
+/** Live-fetch only — never persisted. Notes for one ticket, newest first. */
+export async function fetchTicketNotes(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketId: number
+): Promise<AutotaskTicketNote[]> {
+  const items = await autotaskQuery(creds, zoneUrl, "TicketNotes", {
+    filter: [{ op: "eq", field: "ticketID", value: ticketId }],
+    MaxRecords: 100,
+  });
+
+  type RawNote = {
+    id: number;
+    title?: string;
+    description: string;
+    createDateTime: string;
+    creatorResourceID?: number;
+  };
+  const raw = items as RawNote[];
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    raw.map((n) => n.creatorResourceID).filter((id): id is number => id != null)
+  );
+
+  return raw
+    .map((n) => ({
+      id: n.id,
+      title: n.title ?? null,
+      description: n.description,
+      createdAt: n.createDateTime,
+      creatorName: n.creatorResourceID != null ? (resourceNames.get(n.creatorResourceID) ?? null) : null,
+    }))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export type AutotaskTimeEntry = {
+  id: number;
+  dateWorked: string;
+  hoursWorked: number | null;
+  summaryNotes: string | null;
+  resourceName: string | null;
+};
+
+/** Live-fetch only — never persisted. Billable work log ("charges") for one
+ * ticket, newest first. */
+export async function fetchTicketTimeEntries(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketId: number
+): Promise<AutotaskTimeEntry[]> {
+  const items = await autotaskQuery(creds, zoneUrl, "TimeEntries", {
+    filter: [{ op: "eq", field: "ticketID", value: ticketId }],
+    MaxRecords: 100,
+  });
+
+  type RawTimeEntry = {
+    id: number;
+    dateWorked: string;
+    hoursWorked?: number;
+    summaryNotes?: string;
+    resourceID?: number;
+  };
+  const raw = items as RawTimeEntry[];
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    raw.map((e) => e.resourceID).filter((id): id is number => id != null)
+  );
+
+  return raw
+    .map((e) => ({
+      id: e.id,
+      dateWorked: e.dateWorked,
+      hoursWorked: e.hoursWorked ?? null,
+      summaryNotes: e.summaryNotes ?? null,
+      resourceName: e.resourceID != null ? (resourceNames.get(e.resourceID) ?? null) : null,
+    }))
+    .sort((a, b) => (a.dateWorked < b.dateWorked ? 1 : -1));
 }

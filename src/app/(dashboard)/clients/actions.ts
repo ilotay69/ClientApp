@@ -7,7 +7,13 @@ import { requirePermission } from "@/lib/permissions";
 import {
   searchAutotaskCompanies,
   fetchOpenTicketsForCompany,
+  fetchTicketPicklists,
+  resolveResourceNames,
+  fetchTicketNotes,
+  fetchTicketTimeEntries,
   type AutotaskCompany,
+  type AutotaskTicketNote,
+  type AutotaskTimeEntry,
 } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 
@@ -225,10 +231,12 @@ export async function syncClientAutotaskTickets(clientId: string): Promise<{ err
   }
 
   try {
+    const labels = await fetchTicketPicklists(settings.credentials, settings.zoneUrl);
     const tickets = await fetchOpenTicketsForCompany(
       settings.credentials,
       settings.zoneUrl,
-      client.autotask_company_id
+      client.autotask_company_id,
+      labels
     );
     await admin.from("autotask_tickets").delete().eq("client_id", clientId);
     if (tickets.length > 0) {
@@ -242,4 +250,35 @@ export async function syncClientAutotaskTickets(clientId: string): Promise<{ err
 
   revalidatePath(`/clients/${clientId}`);
   return { error: null };
+}
+
+/** Live detail for one ticket — notes and time entries ("charges"), fetched
+ * only when a ticket row is expanded, never persisted. Bulk-fetching this
+ * for every open ticket on every sync would burn through Autotask's shared
+ * rate limit for data most tickets never need. */
+export async function getAutotaskTicketDetailAction(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for
+  // signature symmetry with other actions bound to a client id
+  _clientId: string,
+  ticketId: number
+): Promise<{ notes: AutotaskTicketNote[]; timeEntries: AutotaskTimeEntry[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const [notes, timeEntries] = await Promise.all([
+      fetchTicketNotes(settings.credentials, settings.zoneUrl, ticketId),
+      fetchTicketTimeEntries(settings.credentials, settings.zoneUrl, ticketId),
+    ]);
+    return { notes, timeEntries };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load ticket detail." };
+  }
 }

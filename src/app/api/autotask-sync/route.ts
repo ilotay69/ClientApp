@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { fetchOpenTicketsForCompany } from "@/lib/autotask";
+import { fetchOpenTicketsForCompany, fetchTicketPicklists } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 
 export const dynamic = "force-dynamic";
@@ -29,13 +29,18 @@ export async function GET(request: NextRequest) {
     .select("id, autotask_company_id")
     .not("autotask_company_id", "is", null);
 
+  // Status/priority/queue labels are tenant-wide, not per-company — resolve
+  // once for the whole run rather than once per client.
+  const labels = await fetchTicketPicklists(settings.credentials, settings.zoneUrl);
+
   const results = [];
   for (const client of clients ?? []) {
     try {
       const tickets = await fetchOpenTicketsForCompany(
         settings.credentials,
         settings.zoneUrl,
-        client.autotask_company_id as number
+        client.autotask_company_id as number,
+        labels
       );
 
       await admin.from("autotask_tickets").delete().eq("client_id", client.id);

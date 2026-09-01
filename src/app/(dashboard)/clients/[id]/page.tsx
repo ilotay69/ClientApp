@@ -23,6 +23,7 @@ import {
   linkClientAutotaskCompany,
   unlinkClientAutotaskCompany,
   syncClientAutotaskTickets,
+  getAutotaskTicketDetailAction,
 } from "../actions";
 import {
   addClientServiceCheck,
@@ -104,7 +105,7 @@ export default async function ClientDetailPage({
     supabase
       .from("autotask_tickets")
       .select(
-        "id, ticket_number, title, status, priority, queue_name, assigned_resource_name, due_date"
+        "id, ticket_number, title, description, resolution, status, priority, queue_name, assigned_resource_name, due_date"
       )
       .eq("client_id", id)
       .order("due_date", { ascending: true, nullsFirst: false }),
@@ -118,6 +119,7 @@ export default async function ClientDetailPage({
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
   const syncAutotaskAction = syncClientAutotaskTickets.bind(null, id);
+  const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
 
   const timelineEntries: TimelineEntry[] = [
     ...(emails ?? []).map((e) => ({
@@ -403,6 +405,7 @@ export default async function ClientDetailPage({
                     linkAction={linkAutotaskAction}
                     unlinkAction={unlinkAutotaskAction}
                     syncAction={syncAutotaskAction}
+                    detailAction={ticketDetailAction}
                   />
                 ),
               },

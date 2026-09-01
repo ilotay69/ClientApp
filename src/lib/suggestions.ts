@@ -22,20 +22,23 @@ export async function generateSuggestions(
 
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: activeClientIdsRows } = await admin
-    .from("email_links")
-    .select("client_id")
-    .gte("received_at", since);
+  const [{ data: activeClientIdsRows }, { data: ticketedClientIdsRows }] = await Promise.all([
+    admin.from("email_links").select("client_id").gte("received_at", since),
+    // No lookback window needed here — "has an open ticket" is already the
+    // filter (autotask_tickets only ever holds open tickets, see sync).
+    admin.from("autotask_tickets").select("client_id"),
+  ]);
 
-  const allClientIds: string[] = (activeClientIdsRows ?? []).map(
-    (r: { client_id: string }) => r.client_id
-  );
+  const allClientIds: string[] = [
+    ...(activeClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
+    ...(ticketedClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
+  ];
   const clientIds: string[] = [...new Set(allClientIds)].slice(0, maxClients);
 
   let created = 0;
 
   for (const clientId of clientIds) {
-    const [{ data: client }, { data: emails }, { data: projects }, { data: touchpoints }] =
+    const [{ data: client }, { data: emails }, { data: projects }, { data: touchpoints }, { data: tickets }] =
       await Promise.all([
         admin.from("clients").select("id, name").eq("id", clientId).single(),
         admin
@@ -56,11 +59,16 @@ export async function generateSuggestions(
           .eq("client_id", clientId)
           .order("due_date", { ascending: false })
           .limit(3),
+        admin
+          .from("autotask_tickets")
+          .select("title, status, priority, due_date")
+          .eq("client_id", clientId),
       ]);
 
-    if (!client || !emails || emails.length === 0) continue;
+    // A client qualifies via emails OR open tickets — don't require both.
+    if (!client || ((!emails || emails.length === 0) && (!tickets || tickets.length === 0))) continue;
 
-    const prompt = buildPrompt(client.name, emails, projects ?? [], touchpoints ?? []);
+    const prompt = buildPrompt(client.name, emails ?? [], projects ?? [], touchpoints ?? [], tickets ?? []);
 
     let generated;
     try {
@@ -112,12 +120,19 @@ type EmailRow = {
 };
 type ProjectRow = { name: string; status: string; target_end_date: string | null };
 type TouchpointRow = { type: string; due_date: string; completed_at: string | null };
+type TicketRow = {
+  title: string;
+  status: string | null;
+  priority: string | null;
+  due_date: string | null;
+};
 
 function buildPrompt(
   clientName: string,
   emails: EmailRow[],
   projects: ProjectRow[],
-  touchpoints: TouchpointRow[]
+  touchpoints: TouchpointRow[],
+  tickets: TicketRow[]
 ) {
   const emailList = emails
     .map(
@@ -136,7 +151,16 @@ function buildPrompt(
         .join("\n")
     : "None on record.";
 
-  return `You are helping an MSP (managed IT services provider) owner and their team of managers and techs stay on top of a client relationship. You will see recent emails with/about this client, plus what's already being tracked in their ops system. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions. Nobody here creates formal price quotes in this system (that's handled by sales elsewhere), so never include or ask for a dollar amount.
+  const ticketList = tickets.length
+    ? tickets
+        .map(
+          (t) =>
+            `- "${t.title}" (status: ${t.status ?? "unknown"}, priority: ${t.priority ?? "unknown"}${t.due_date ? `, due ${t.due_date.slice(0, 10)}` : ""})`
+        )
+        .join("\n")
+    : "None open.";
+
+  return `You are helping an MSP (managed IT services provider) owner and their team of managers and techs stay on top of a client relationship. You will see recent emails with/about this client, plus what's already being tracked in their ops system, including any open Autotask support tickets. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions. Nobody here creates formal price quotes in this system (that's handled by sales elsewhere), so never include or ask for a dollar amount.
 
 Client: ${clientName}
 
@@ -149,14 +173,17 @@ ${projectList}
 Recent touchpoints on record:
 ${touchpointList}
 
+Open Autotask tickets:
+${ticketList}
+
 Look for, in order of importance:
-1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, anything that shouldn't wait.
+1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, a high-priority ticket that's been open a long time with no apparent resolution, anything that shouldn't wait.
 2. quote_follow_up — a customer asked for pricing/a quote and nobody's replied yet, OR pricing was sent and the customer's gone quiet with no reply. No dollar amount needed, just flag that a follow-up is owed.
 3. new_project — an email suggests a new project, engagement, or piece of work that isn't already in the tracked project list above.
 4. stale_contact — the client's been emailing but hasn't had a proactive check-in in a while relative to that activity.
-5. review_prep — something worth bringing up at their next monthly visit or quarterly review.
+5. review_prep — something worth bringing up at their next monthly visit or quarterly review, including any notable open ticket.
 6. opportunity — a possible upsell or new-service signal that isn't urgent.
-7. follow_up / other — anything else that looks unhandled.
+7. follow_up / other — anything else that looks unhandled, including an open ticket that seems to have gone quiet.
 
 Mark priority "high" only for something genuinely time-sensitive or important — most suggestions should be "normal". Use the report_suggestions tool.`;
 }
