@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ClientForm } from "@/components/client-form";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
+import { Tabs } from "@/components/tabs";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AssigneeSelect } from "@/components/assignee-select";
 import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
@@ -165,171 +166,212 @@ export default async function ClientDetailPage({
           />
         </div>
 
-        <div className="space-y-6">
-          <RelatedSection title="Open tasks" newHref="/tasks" emptyText="Nothing assigned right now.">
-            {(tasks ?? []).map((t) => (
-              <Link
-                key={t.id}
-                href="/tasks"
-                className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{t.title}</p>
-                  <p className="text-xs text-slate-500">
-                    {(t.profiles as unknown as { full_name: string } | null)?.full_name ?? "Unassigned"}
-                    {t.due_date ? ` · due ${formatDate(t.due_date)}` : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isOverdue(t.due_date) && <OverdueBadge />}
-                  <Badge value={t.kind} />
-                </div>
-              </Link>
-            ))}
-          </RelatedSection>
-
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-3">
-              <h2 className="text-sm font-semibold text-slate-900">Services</h2>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {(clientServices ?? []).map((cs) => {
-                const svc = cs.services as unknown as { id: string; name: string } | null;
-                return (
-                  <div key={cs.service_id} className="flex items-center justify-between gap-3 px-5 py-3">
-                    <p className="text-sm font-medium text-slate-900">{svc?.name ?? "Service"}</p>
-                    {canManageServices && (
-                      <DeleteButton
-                        action={detachClientService.bind(null, id, cs.service_id)}
-                        confirmText={`Remove "${svc?.name ?? "this service"}" from ${client.name}?`}
-                        label="Remove"
-                      />
-                    )}
-                  </div>
-                );
-              })}
-              {(clientServices ?? []).length === 0 && (
-                <p className="px-5 py-4 text-sm text-slate-500">
-                  No services attached for this client yet.
-                </p>
-              )}
-            </div>
-            {canManageServices && availableServices.length > 0 && (
-              <ClientServiceQuickAdd available={availableServices} action={attachServiceAction} />
-            )}
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-3">
-              <h2 className="text-sm font-semibold text-slate-900">Service checks</h2>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {(serviceChecks ?? []).map((sc) => {
-                const svc = sc.service_catalog as unknown as {
-                  name: string;
-                  default_cadence_days: number;
-                } | null;
-                const cadence = sc.cadence_days ?? svc?.default_cadence_days ?? 90;
-                const overdue = isServiceCheckOverdue(sc.last_checked_at, cadence);
-                return (
-                  <div key={sc.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900">{svc?.name ?? "Service"}</p>
-                      <p className="text-xs text-slate-500">
-                        Last checked {formatDate(sc.last_checked_at)} · every {cadence} days
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {overdue && <OverdueBadge />}
-                      <AssigneeSelect
-                        id={sc.id}
-                        currentAssignee={sc.assigned_to}
-                        members={members ?? []}
-                        action={assignServiceCheck}
-                      />
-                      <form action={markServiceChecked.bind(null, sc.id, id)}>
-                        <button
-                          type="submit"
-                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100"
+        <div>
+          <Tabs
+            tabs={[
+              {
+                label: "Overview",
+                content: (
+                  <>
+                    <RelatedSection
+                      title="Open tasks"
+                      newHref="/tasks"
+                      emptyText="Nothing assigned right now."
+                    >
+                      {(tasks ?? []).map((t) => (
+                        <Link
+                          key={t.id}
+                          href="/tasks"
+                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
                         >
-                          Checked today
-                        </button>
-                      </form>
-                      <DeleteButton
-                        action={removeClientServiceCheck.bind(null, sc.id, id)}
-                        confirmText={`Stop tracking "${svc?.name ?? "this service"}" for ${client.name}?`}
-                        label="Remove"
-                      />
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{t.title}</p>
+                            <p className="text-xs text-slate-500">
+                              {(t.profiles as unknown as { full_name: string } | null)?.full_name ??
+                                "Unassigned"}
+                              {t.due_date ? ` · due ${formatDate(t.due_date)}` : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isOverdue(t.due_date) && <OverdueBadge />}
+                            <Badge value={t.kind} />
+                          </div>
+                        </Link>
+                      ))}
+                    </RelatedSection>
+
+                    <RelatedSection
+                      title="Projects"
+                      newHref={`/projects/new?client_id=${id}`}
+                      emptyText="No projects yet."
+                    >
+                      {(projects ?? []).map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/projects/${p.id}`}
+                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{p.name}</p>
+                            <p className="text-xs text-slate-500">
+                              Target {formatDate(p.target_end_date)}
+                            </p>
+                          </div>
+                          <Badge value={p.status} />
+                        </Link>
+                      ))}
+                    </RelatedSection>
+
+                    <RelatedSection
+                      title="Touchpoints"
+                      newHref={`/touchpoints/new?client_id=${id}`}
+                      emptyText="No touchpoints scheduled."
+                    >
+                      {(touchpoints ?? []).map((t) => (
+                        <Link
+                          key={t.id}
+                          href={`/touchpoints/${t.id}`}
+                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">
+                              {formatDate(t.due_date)}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {t.completed_at ? `Completed ${formatDate(t.completed_at)}` : "Not completed"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!t.completed_at && isOverdue(t.due_date) && <OverdueBadge />}
+                            <Badge value={t.type} />
+                          </div>
+                        </Link>
+                      ))}
+                    </RelatedSection>
+                  </>
+                ),
+              },
+              {
+                label: "Services",
+                content: (
+                  <>
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-200 px-5 py-3">
+                        <h2 className="text-sm font-semibold text-slate-900">Services</h2>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {(clientServices ?? []).map((cs) => {
+                          const svc = cs.services as unknown as { id: string; name: string } | null;
+                          return (
+                            <div
+                              key={cs.service_id}
+                              className="flex items-center justify-between gap-3 px-5 py-3"
+                            >
+                              <p className="text-sm font-medium text-slate-900">
+                                {svc?.name ?? "Service"}
+                              </p>
+                              {canManageServices && (
+                                <DeleteButton
+                                  action={detachClientService.bind(null, id, cs.service_id)}
+                                  confirmText={`Remove "${svc?.name ?? "this service"}" from ${client.name}?`}
+                                  label="Remove"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                        {(clientServices ?? []).length === 0 && (
+                          <p className="px-5 py-4 text-sm text-slate-500">
+                            No services attached for this client yet.
+                          </p>
+                        )}
+                      </div>
+                      {canManageServices && availableServices.length > 0 && (
+                        <ClientServiceQuickAdd
+                          available={availableServices}
+                          action={attachServiceAction}
+                        />
+                      )}
                     </div>
-                  </div>
-                );
-              })}
-              {(serviceChecks ?? []).length === 0 && (
-                <p className="px-5 py-4 text-sm text-slate-500">No services tracked for this client yet.</p>
-              )}
-            </div>
-            {availableCatalog.length > 0 && (
-              <ServiceCheckQuickAdd
-                catalog={availableCatalog}
-                members={members ?? []}
-                action={addServiceCheckAction}
-              />
-            )}
-          </div>
 
-          <RelatedSection
-            title="Projects"
-            newHref={`/projects/new?client_id=${id}`}
-            emptyText="No projects yet."
-          >
-            {(projects ?? []).map((p) => (
-              <Link
-                key={p.id}
-                href={`/projects/${p.id}`}
-                className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{p.name}</p>
-                  <p className="text-xs text-slate-500">
-                    Target {formatDate(p.target_end_date)}
-                  </p>
-                </div>
-                <Badge value={p.status} />
-              </Link>
-            ))}
-          </RelatedSection>
-
-          <RelatedSection
-            title="Touchpoints"
-            newHref={`/touchpoints/new?client_id=${id}`}
-            emptyText="No touchpoints scheduled."
-          >
-            {(touchpoints ?? []).map((t) => (
-              <Link
-                key={t.id}
-                href={`/touchpoints/${t.id}`}
-                className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900">
-                    {formatDate(t.due_date)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {t.completed_at ? `Completed ${formatDate(t.completed_at)}` : "Not completed"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!t.completed_at && isOverdue(t.due_date) && <OverdueBadge />}
-                  <Badge value={t.type} />
-                </div>
-              </Link>
-            ))}
-          </RelatedSection>
-
-          <ClientTimeline
-            entries={timelineEntries}
-            contacts={contacts ?? []}
-            logAction={logInteractionAction}
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-200 px-5 py-3">
+                        <h2 className="text-sm font-semibold text-slate-900">Service checks</h2>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {(serviceChecks ?? []).map((sc) => {
+                          const svc = sc.service_catalog as unknown as {
+                            name: string;
+                            default_cadence_days: number;
+                          } | null;
+                          const cadence = sc.cadence_days ?? svc?.default_cadence_days ?? 90;
+                          const overdue = isServiceCheckOverdue(sc.last_checked_at, cadence);
+                          return (
+                            <div
+                              key={sc.id}
+                              className="flex items-center justify-between gap-3 px-5 py-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-900">
+                                  {svc?.name ?? "Service"}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  Last checked {formatDate(sc.last_checked_at)} · every {cadence} days
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {overdue && <OverdueBadge />}
+                                <AssigneeSelect
+                                  id={sc.id}
+                                  currentAssignee={sc.assigned_to}
+                                  members={members ?? []}
+                                  action={assignServiceCheck}
+                                />
+                                <form action={markServiceChecked.bind(null, sc.id, id)}>
+                                  <button
+                                    type="submit"
+                                    className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Checked today
+                                  </button>
+                                </form>
+                                <DeleteButton
+                                  action={removeClientServiceCheck.bind(null, sc.id, id)}
+                                  confirmText={`Stop tracking "${svc?.name ?? "this service"}" for ${client.name}?`}
+                                  label="Remove"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {(serviceChecks ?? []).length === 0 && (
+                          <p className="px-5 py-4 text-sm text-slate-500">
+                            No services tracked for this client yet.
+                          </p>
+                        )}
+                      </div>
+                      {availableCatalog.length > 0 && (
+                        <ServiceCheckQuickAdd
+                          catalog={availableCatalog}
+                          members={members ?? []}
+                          action={addServiceCheckAction}
+                        />
+                      )}
+                    </div>
+                  </>
+                ),
+              },
+              {
+                label: "Timeline",
+                content: (
+                  <ClientTimeline
+                    entries={timelineEntries}
+                    contacts={contacts ?? []}
+                    logAction={logInteractionAction}
+                  />
+                ),
+              },
+            ]}
           />
         </div>
       </div>
