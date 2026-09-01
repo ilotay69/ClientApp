@@ -4,6 +4,7 @@ import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
 import { RefreshInsightsButton } from "@/components/refresh-insights-button";
 import { SuggestionCard } from "@/components/suggestion-card";
+import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +104,8 @@ export default async function DashboardPage() {
           />
         ))}
       </Section>
+
+      <MailboxReviewPanel />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="My open tasks" value={myTasks?.length ?? 0} href="/tasks?mine=1" />

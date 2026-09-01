@@ -113,6 +113,68 @@ export async function fetchRecentMessages(
   return messages;
 }
 
+export type MailboxSnapshotMessage = GraphMessage & {
+  conversationId: string;
+  parentFolderId: string;
+  sentDateTime?: string;
+};
+
+/**
+ * Resolves the id of the mailbox's "Deleted Items" folder — Graph lets you
+ * address well-known folders by name directly, no search needed.
+ */
+export async function getDeletedItemsFolderId(accessToken: string): Promise<string> {
+  const res = await fetch("https://graph.microsoft.com/v1.0/me/mailFolders/deleteditems", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to resolve Deleted Items folder (${res.status})`);
+  }
+  const json = await res.json();
+  return json.id;
+}
+
+/**
+ * A separate, broader fetch than fetchRecentMessages — used only for the
+ * live, non-persisted mailbox review. Pulls conversationId/parentFolderId
+ * too, so the caller can group messages into threads and exclude Deleted
+ * Items itself, without touching the persisted-sync code path above.
+ */
+export async function fetchMailboxSnapshot(
+  accessToken: string,
+  sinceIso: string,
+  maxPages = 5
+): Promise<{ messages: MailboxSnapshotMessage[]; hitPageCap: boolean }> {
+  const base = new URL("https://graph.microsoft.com/v1.0/me/messages");
+  base.searchParams.set(
+    "$select",
+    "id,subject,from,toRecipients,receivedDateTime,sentDateTime,webLink,bodyPreview,conversationId,parentFolderId"
+  );
+  base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso}`);
+  base.searchParams.set("$orderby", "receivedDateTime asc");
+  base.searchParams.set("$top", "50");
+
+  let url: string | null = base.toString();
+  const messages: MailboxSnapshotMessage[] = [];
+  let pages = 0;
+
+  while (url && pages < maxPages) {
+    const res: Response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Microsoft Graph request failed (${res.status}): ${text}`);
+    }
+    const json = await res.json();
+    messages.push(...(json.value ?? []));
+    url = json["@odata.nextLink"] ?? null;
+    pages += 1;
+  }
+
+  return { messages, hitPageCap: Boolean(url) };
+}
+
 export async function fetchMailboxEmail(accessToken: string): Promise<string> {
   const res = await fetch("https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName", {
     headers: { Authorization: `Bearer ${accessToken}` },
