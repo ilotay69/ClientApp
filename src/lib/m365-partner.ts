@@ -68,13 +68,15 @@ async function graphGet(accessToken: string, path: string) {
  * /organization — the latter needs Organization.Read.All, a permission
  * this integration never asks for, so it would 403 even on correctly
  * configured credentials. /subscribedSkus is covered by
- * LicenseAssignment.Read.All, which the sync itself already requires. */
+ * LicenseAssignment.Read.All, which the sync itself already requires.
+ * $select is used instead of $top — /subscribedSkus doesn't support
+ * custom page sizes and 400s on $top. */
 export async function testM365ClientConnection(
   creds: M365ClientCredentials
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const { accessToken } = await fetchAppOnlyToken(creds);
-    await graphGet(accessToken, "/subscribedSkus?$top=1");
+    await graphGet(accessToken, "/subscribedSkus?$select=skuId");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
