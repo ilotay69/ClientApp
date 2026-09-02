@@ -8,6 +8,7 @@ import { TaskQuickAdd } from "@/components/task-quick-add";
 import { isOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import { createTask, deleteTask, setTaskAssignees, updateTaskField } from "./actions";
+import { FilterLink } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
 
@@ -263,26 +264,5 @@ export default async function TasksPage({
         </table>
       </div>
     </div>
-  );
-}
-
-function FilterLink({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-md px-3 py-1.5 ${
-        active ? "bg-charcoal text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"
-      }`}
-    >
-      {children}
-    </Link>
   );
 }

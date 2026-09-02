@@ -3,16 +3,37 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
 import { formatDate } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
+import { FilterLink, filterHref } from "@/components/filter-link";
+import { SearchBox } from "@/components/search-box";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectsPage() {
+const STATUS_FILTERS = [
+  { value: "active", label: "Active" },
+  { value: "planning", label: "Planning" },
+  { value: "on_hold", label: "On hold" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; q?: string }>;
+}) {
+  const { status, q } = await searchParams;
   const supabase = await createClient();
+
+  let projectsQuery = supabase
+    .from("projects")
+    .select("id, name, status, target_end_date, clients(name)")
+    .order("target_end_date", { ascending: true, nullsFirst: false });
+
+  if (status) projectsQuery = projectsQuery.eq("status", status);
+  if (q) projectsQuery = projectsQuery.ilike("name", `%${q}%`);
+
   const [{ data: projects }, canManageProjects] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("id, name, status, target_end_date, clients(name)")
-      .order("target_end_date", { ascending: true, nullsFirst: false }),
+    projectsQuery,
     hasPermission(supabase, "manage_projects"),
   ]);
 
@@ -28,6 +49,29 @@ export default async function ProjectsPage() {
             New project
           </Link>
         )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <FilterLink href={filterHref("/projects", { q })} active={!status}>
+            All
+          </FilterLink>
+          {STATUS_FILTERS.map((f) => (
+            <FilterLink
+              key={f.value}
+              href={filterHref("/projects", { status: f.value, q })}
+              active={status === f.value}
+            >
+              {f.label}
+            </FilterLink>
+          ))}
+        </div>
+        <SearchBox
+          action="/projects"
+          placeholder="Search projects…"
+          defaultValue={q}
+          keep={{ status }}
+        />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -60,10 +104,21 @@ export default async function ProjectsPage() {
             {(projects ?? []).length === 0 && (
               <tr>
                 <td colSpan={4} className="px-5 py-6 text-center text-slate-500">
-                  No projects yet.{" "}
-                  <Link href="/projects/new" className="underline">
-                    Add your first one.
-                  </Link>
+                  {status || q ? (
+                    <>
+                      No projects match this filter.{" "}
+                      <Link href="/projects" className="underline">
+                        Clear filters
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      No projects yet.{" "}
+                      <Link href="/projects/new" className="underline">
+                        Add your first one.
+                      </Link>
+                    </>
+                  )}
                 </td>
               </tr>
             )}

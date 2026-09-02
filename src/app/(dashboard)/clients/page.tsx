@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { Badge } from "@/components/badge";
 import { daysAgo, buildFollowupSummary, isOverdue } from "@/lib/format";
+import { FilterLink, filterHref } from "@/components/filter-link";
+import { SearchBox } from "@/components/search-box";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +71,12 @@ function latestByClient(rows: { client_id: string; created_at: string }[]) {
   return map;
 }
 
-export default async function ClientsPage() {
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; q?: string }>;
+}) {
+  const { view, q } = await searchParams;
   const supabase = await createClient();
   const [
     { data: clients },
@@ -79,7 +86,9 @@ export default async function ClientsPage() {
     { data: openSuggestions },
     { data: interactions },
   ] = await Promise.all([
-    supabase.from("clients").select("id, name").order("name"),
+    (q
+      ? supabase.from("clients").select("id, name").ilike("name", `%${q}%`).order("name")
+      : supabase.from("clients").select("id, name").order("name")),
     hasPermission(supabase, "manage_clients"),
     supabase
       .from("tasks")
@@ -105,6 +114,13 @@ export default async function ClientsPage() {
   const suggestions = topSuggestionByClient(openSuggestions ?? []);
   const lastContact = latestByClient(interactions ?? []);
 
+  const visibleClients = (clients ?? []).filter((c) => {
+    if (view === "insights") return suggestions.has(c.id);
+    if (view === "overdue") return (overdueTaskCounts.get(c.id) ?? 0) > 0;
+    if (view === "tickets") return (ticketCounts.get(c.id) ?? 0) > 0;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -119,6 +135,38 @@ export default async function ClientsPage() {
         )}
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <FilterLink href={filterHref("/clients", { q })} active={!view}>
+            All
+          </FilterLink>
+          <FilterLink
+            href={filterHref("/clients", { view: "insights", q })}
+            active={view === "insights"}
+          >
+            Open insights
+          </FilterLink>
+          <FilterLink
+            href={filterHref("/clients", { view: "overdue", q })}
+            active={view === "overdue"}
+          >
+            Overdue tasks
+          </FilterLink>
+          <FilterLink
+            href={filterHref("/clients", { view: "tickets", q })}
+            active={view === "tickets"}
+          >
+            Open tickets
+          </FilterLink>
+        </div>
+        <SearchBox
+          action="/clients"
+          placeholder="Search clients…"
+          defaultValue={q}
+          keep={{ view }}
+        />
+      </div>
+
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
@@ -130,7 +178,7 @@ export default async function ClientsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {(clients ?? []).map((c) => {
+            {visibleClients.map((c) => {
               const suggestion = suggestions.get(c.id);
               const taskCount = taskCounts.get(c.id) ?? 0;
               const ticketCount = ticketCounts.get(c.id) ?? 0;
@@ -170,13 +218,24 @@ export default async function ClientsPage() {
                 </tr>
               );
             })}
-            {(clients ?? []).length === 0 && (
+            {visibleClients.length === 0 && (
               <tr>
                 <td colSpan={2} className="px-5 py-6 text-center text-slate-500">
-                  No clients yet.{" "}
-                  <Link href="/clients/new" className="underline">
-                    Add your first one.
-                  </Link>
+                  {view || q ? (
+                    <>
+                      No clients match this filter.{" "}
+                      <Link href="/clients" className="underline">
+                        Clear filters
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      No clients yet.{" "}
+                      <Link href="/clients/new" className="underline">
+                        Add your first one.
+                      </Link>
+                    </>
+                  )}
                 </td>
               </tr>
             )}
