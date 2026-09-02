@@ -11,6 +11,9 @@ import { AutotaskMappingButton } from "@/components/autotask-mapping-button";
 import { ClientNinjaOneDevices } from "@/components/client-ninjaone-devices";
 import { SyncNinjaOneButton } from "@/components/sync-ninjaone-button";
 import { NinjaOneMappingButton } from "@/components/ninjaone-mapping-button";
+import { ClientM365Licenses } from "@/components/client-m365-licenses";
+import { SyncM365Button } from "@/components/sync-m365-button";
+import { M365PartnerMappingButton } from "@/components/m365-partner-mapping-button";
 import { SuggestionCard } from "@/components/suggestion-card";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
@@ -36,6 +39,10 @@ import {
   linkClientNinjaOneOrganization,
   unlinkClientNinjaOneOrganization,
   syncClientNinjaOneDevices,
+  searchM365CustomersAction,
+  linkClientM365Tenant,
+  unlinkClientM365Tenant,
+  syncClientM365Licenses,
 } from "../actions";
 import {
   addClientServiceCheck,
@@ -75,6 +82,7 @@ export default async function ClientDetailPage({
     { data: suggestions },
     { data: autotaskContractServices },
     { data: ninjaOneDevices },
+    { data: m365Licenses },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -143,6 +151,11 @@ export default async function ClientDetailPage({
       )
       .eq("client_id", id)
       .order("system_name"),
+    supabase
+      .from("m365_license_summary")
+      .select("id, sku_part_number, consumed_units, enabled_units")
+      .eq("client_id", id)
+      .order("sku_part_number"),
   ]);
 
   if (!client) notFound();
@@ -157,6 +170,9 @@ export default async function ClientDetailPage({
   const linkNinjaOneAction = linkClientNinjaOneOrganization.bind(null, id);
   const unlinkNinjaOneAction = unlinkClientNinjaOneOrganization.bind(null, id);
   const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
+  const linkM365Action = linkClientM365Tenant.bind(null, id);
+  const unlinkM365Action = unlinkClientM365Tenant.bind(null, id);
+  const syncM365Action = syncClientM365Licenses.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
 
   const stalestAutotaskTicket = (autotaskTickets ?? []).reduce<
@@ -231,6 +247,13 @@ export default async function ClientDetailPage({
             unlinkAction={unlinkNinjaOneAction}
           />
           {client.ninjaone_organization_id && <SyncNinjaOneButton action={syncNinjaOneAction} />}
+          <M365PartnerMappingButton
+            tenantId={client.m365_tenant_id}
+            searchAction={searchM365CustomersAction}
+            linkAction={linkM365Action}
+            unlinkAction={unlinkM365Action}
+          />
+          {client.m365_tenant_id && <SyncM365Button action={syncM365Action} />}
           <DeleteButton
             action={deleteClientRecord.bind(null, id)}
             confirmText={`Delete ${client.name}? This also removes their projects, touchpoints, tasks, and service checks.`}
@@ -483,6 +506,11 @@ export default async function ClientDetailPage({
                     <ClientNinjaOneDevices
                       organizationId={client.ninjaone_organization_id}
                       devices={ninjaOneDevices ?? []}
+                    />
+
+                    <ClientM365Licenses
+                      tenantId={client.m365_tenant_id}
+                      licenses={m365Licenses ?? []}
                     />
                   </>
                 ),

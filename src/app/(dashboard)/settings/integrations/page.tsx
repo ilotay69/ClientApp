@@ -5,6 +5,7 @@ import { AI_PROVIDER_LABELS, AI_PROVIDER_DEFAULT_MODELS, type AiProvider } from 
 import { AiProviderSettingsForm } from "@/components/ai-provider-settings-form";
 import { AutotaskSettingsForm } from "@/components/autotask-settings-form";
 import { NinjaOneSettingsForm } from "@/components/ninjaone-settings-form";
+import { M365PartnerSettingsForm } from "@/components/m365-partner-settings-form";
 import { Tabs } from "@/components/tabs";
 import {
   saveAiProviderSettings,
@@ -13,6 +14,7 @@ import {
   testAutotaskConnectionAction,
   saveNinjaOneSettings,
   testNinjaOneConnectionAction,
+  saveM365PartnerSettings,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +31,7 @@ export default async function IntegrationsSettingsPage() {
   // Admin client — these tables have no RLS policy for authenticated users
   // at all, so a request-scoped client would always get zero rows back.
   const admin = createAdminClient();
-  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }] = await Promise.all([
+  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }, { data: m365Row }] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
       .from("autotask_settings")
@@ -39,6 +41,11 @@ export default async function IntegrationsSettingsPage() {
     admin
       .from("ninjaone_settings")
       .select("region, client_id, client_secret")
+      .eq("id", true)
+      .maybeSingle(),
+    admin
+      .from("m365_partner_settings")
+      .select("partner_tenant_id, client_id, client_secret, cached_refresh_token, obo_user_hint, connected_at")
       .eq("id", true)
       .maybeSingle(),
   ]);
@@ -110,6 +117,20 @@ export default async function IntegrationsSettingsPage() {
                 currentClientId={ninjaOneRow?.client_id ?? null}
                 saveAction={saveNinjaOneSettings}
                 testAction={testNinjaOneConnectionAction}
+              />
+            ),
+          },
+          {
+            label: "Microsoft 365 (Partner)",
+            content: (
+              <M365PartnerSettingsForm
+                hasCredentials={Boolean(m365Row?.client_id && m365Row?.client_secret)}
+                isConnected={Boolean(m365Row?.cached_refresh_token)}
+                oboUserHint={m365Row?.obo_user_hint ?? null}
+                connectedAt={m365Row?.connected_at ?? null}
+                currentPartnerTenantId={m365Row?.partner_tenant_id ?? null}
+                currentClientId={m365Row?.client_id ?? null}
+                saveAction={saveM365PartnerSettings}
               />
             ),
           },

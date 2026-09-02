@@ -24,6 +24,12 @@ import {
   type NinjaOneOrganization,
 } from "@/lib/ninjaone";
 import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
+import {
+  listDelegatedAdminCustomers,
+  fetchLicenseSummaryForTenant,
+  type M365Customer,
+} from "@/lib/m365-partner";
+import { getM365PartnerSettings, getCustomerScopedToken } from "@/lib/m365-partner-settings";
 
 export type FormState = { error: string | null };
 
@@ -421,6 +427,88 @@ export async function syncClientNinjaOneDevices(clientId: string): Promise<{ err
       await admin
         .from("ninjaone_devices")
         .insert(devices.map((d) => ({ ...d, client_id: clientId })));
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Sync failed." };
+  }
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
+}
+
+export async function searchM365CustomersAction(
+  query: string
+): Promise<{ customers: M365Customer[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!query.trim()) return { customers: [] };
+
+  const admin = createAdminClient();
+  const settings = await getM365PartnerSettings(admin);
+  if (!settings?.refreshToken) {
+    return { error: "Microsoft 365 isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    // Customer enumeration is a partner-tenant call, not a per-customer one.
+    const partnerToken = await getCustomerScopedToken(admin, settings, settings.credentials.partnerTenantId);
+    const customers = await listDelegatedAdminCustomers(partnerToken, query);
+    return { customers };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Microsoft 365 search failed." };
+  }
+}
+
+export async function linkClientM365Tenant(clientId: string, tenantId: string): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("clients").update({ m365_tenant_id: tenantId }).eq("id", clientId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function unlinkClientM365Tenant(clientId: string): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("clients").update({ m365_tenant_id: null }).eq("id", clientId);
+  await supabase.from("m365_license_summary").delete().eq("client_id", clientId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/** On-demand license sync for a single mapped client. Unlike the Autotask/
+ * NinjaOne sync actions, this exchanges a rotating refresh token — safe
+ * here since it's exactly one exchange for exactly one tenant, but the
+ * cron route (which loops many clients) must do these sequentially. */
+export async function syncClientM365Licenses(clientId: string): Promise<{ error: string | null }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getM365PartnerSettings(admin);
+  if (!settings?.refreshToken) {
+    return { error: "Microsoft 365 isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("m365_tenant_id")
+    .eq("id", clientId)
+    .single();
+  if (!client?.m365_tenant_id) {
+    return { error: "This client isn't linked to a Microsoft 365 tenant yet." };
+  }
+
+  try {
+    const customerToken = await getCustomerScopedToken(admin, settings, client.m365_tenant_id);
+    const licenses = await fetchLicenseSummaryForTenant(customerToken);
+    await admin.from("m365_license_summary").delete().eq("client_id", clientId);
+    if (licenses.length > 0) {
+      await admin
+        .from("m365_license_summary")
+        .insert(licenses.map((l) => ({ ...l, client_id: clientId })));
     }
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Sync failed." };

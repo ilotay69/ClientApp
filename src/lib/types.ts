@@ -30,6 +30,7 @@ export interface Client {
   owner_id: string | null;
   autotask_company_id: number | null;
   ninjaone_organization_id: number | null;
+  m365_tenant_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +62,17 @@ export interface AutotaskContractService {
   service_name: string;
   description: string | null;
   quantity: number | null;
+  last_synced_at: string;
+}
+
+export interface M365LicenseSummary {
+  id: number;
+  client_id: string;
+  sku_part_number: string;
+  consumed_units: number;
+  enabled_units: number;
+  suspended_units: number;
+  capability_status: string | null;
   last_synced_at: string;
 }
 

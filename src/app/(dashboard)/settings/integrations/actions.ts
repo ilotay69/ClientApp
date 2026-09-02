@@ -8,6 +8,7 @@ import { resolveZoneUrl, testAutotaskConnection, type AutotaskCredentials } from
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { testNinjaOneConnection, type NinjaOneCredentials } from "@/lib/ninjaone";
 import { getNinjaOneSettings } from "@/lib/ninjaone-settings";
+import { getM365PartnerSettings } from "@/lib/m365-partner-settings";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -235,4 +236,62 @@ export async function testNinjaOneConnectionAction(): Promise<{ ok: boolean; mes
   const result = await testNinjaOneConnection(settings.credentials satisfies NinjaOneCredentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
+}
+
+/** Upserts the singleton Microsoft 365 partner app registration details.
+ * Unlike Autotask/NinjaOne, saving here doesn't connect anything by
+ * itself — the actual OAuth handshake happens via /api/m365-partner/connect,
+ * a separate one-time interactive sign-in (MFA), since GDAP doesn't
+ * support app-only consent for third parties. Saving new credentials
+ * clears any existing connection, since a changed app registration
+ * invalidates the old refresh token's chain. */
+export async function saveM365PartnerSettings(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const partnerTenantId = String(formData.get("partner_tenant_id") ?? "").trim();
+  const clientId = String(formData.get("client_id") ?? "").trim();
+  const clientSecret = emptyToUndefined(formData.get("client_secret"));
+
+  if (!partnerTenantId || !clientId) {
+    return { error: "Tenant ID and Client ID are required.", success: null };
+  }
+
+  const admin = createAdminClient();
+  const existing = await getM365PartnerSettings(admin);
+  const effectiveSecret = clientSecret ?? existing?.credentials.clientSecret;
+  if (!effectiveSecret) {
+    return { error: "A Client Secret is required for first-time setup.", success: null };
+  }
+
+  const payload: {
+    id: true;
+    partner_tenant_id: string;
+    client_id: string;
+    updated_by: string;
+    client_secret?: string;
+    cached_refresh_token: null;
+    obo_user_hint: null;
+    connected_at: null;
+  } = {
+    id: true,
+    partner_tenant_id: partnerTenantId,
+    client_id: clientId,
+    updated_by: user.id,
+    cached_refresh_token: null,
+    obo_user_hint: null,
+    connected_at: null,
+  };
+  if (clientSecret) payload.client_secret = clientSecret;
+
+  const { error } = await admin.from("m365_partner_settings").upsert(payload, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved — click Connect below to complete setup." };
 }
