@@ -25,6 +25,15 @@ function authority(tenantId: string) {
   return `https://login.microsoftonline.com/${tenantId}`;
 }
 
+// A refresh token minted without this claim can fail later with
+// AADSTS50076 ("you must use multi-factor authentication") the first time
+// it's exchanged into a CUSTOMER tenant whose own Conditional Access
+// policy requires MFA for Graph access — even though the original sign-in
+// already completed MFA. Requesting this claim explicitly up front makes
+// the resulting refresh token carry a strong-enough MFA claim to satisfy
+// any such tenant later, instead of failing per-tenant.
+const MFA_CLAIMS = JSON.stringify({ access_token: { acr: { essential: true, value: "urn:microsoft:policies:mfa" } } });
+
 export function buildPartnerAuthorizeUrl(
   creds: M365PartnerCredentials,
   redirectUri: string,
@@ -38,6 +47,7 @@ export function buildPartnerAuthorizeUrl(
   url.searchParams.set("scope", SCOPES);
   url.searchParams.set("state", state);
   url.searchParams.set("prompt", "select_account");
+  url.searchParams.set("claims", MFA_CLAIMS);
   return url.toString();
 }
 
