@@ -5,6 +5,7 @@ import { Badge } from "@/components/badge";
 import { formatDate, humanizeLabel } from "@/lib/format";
 import { CollapsibleCard } from "@/components/collapsible-card";
 import { ListFilterBar, matchesQuery } from "@/components/list-filter-bar";
+import { buildDeviceInsights } from "@/lib/device-insights";
 
 /** Collapses NinjaOne's many nodeClass values down to the one distinction
  * that matters at a glance — Server vs. Workstation vs. Network device —
@@ -70,9 +71,51 @@ export function ClientNinjaOneDevices({
   });
 
   const showFilters = devices.length > FILTER_THRESHOLD;
+  const insights = buildDeviceInsights(devices);
+  const highCount = insights.filter((i) => i.severity === "high").length;
 
   return (
-    <CollapsibleCard title="Devices (NinjaOne)" count={visible.length}>
+    <CollapsibleCard
+      title="Devices (NinjaOne)"
+      count={visible.length}
+      headerRight={
+        insights.length > 0 && (
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              highCount > 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"
+            }`}
+          >
+            {insights.length} issue{insights.length === 1 ? "" : "s"}
+          </span>
+        )
+      }
+    >
+      {insights.length > 0 && (
+        <div className="space-y-2 border-b border-slate-100 bg-amber-50/40 px-5 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Needs attention
+          </p>
+          {insights.map((i, idx) => (
+            <div key={idx} className="flex items-start gap-2">
+              <span
+                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                  i.severity === "high" ? "bg-red-500" : "bg-amber-500"
+                }`}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-900">
+                  <span className="sr-only">
+                    {i.severity === "high" ? "High severity: " : "Medium severity: "}
+                  </span>
+                  {i.title}
+                </p>
+                <p className="text-xs text-slate-600">{i.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {showFilters && (
         <ListFilterBar
           query={query}

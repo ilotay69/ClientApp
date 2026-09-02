@@ -1,6 +1,7 @@
 import { generateClientSuggestions } from "@/lib/ai";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import { daysAgo, isOverdue } from "@/lib/format";
+import { buildDeviceInsights } from "@/lib/device-insights";
 
 const MAX_TICKET_DESCRIPTION_CHARS = 600;
 
@@ -269,6 +270,21 @@ function buildPrompt(
         .join("\n")
     : "None synced.";
 
+  // Computed from verified vendor lifecycle dates rather than left to the
+  // model's recall — an EOL date is a fact, and model knowledge of recent
+  // ones (Windows 10 ended 14 Oct 2025) can lag.
+  const deviceIssues = buildDeviceInsights(
+    devices.map((d) => ({
+      system_name: d.system_name,
+      is_offline: d.is_offline,
+      last_contact: d.last_contact,
+      os_name: d.os_name ?? null,
+    }))
+  );
+  const deviceIssueList = deviceIssues.length
+    ? deviceIssues.map((i) => `- [${i.severity.toUpperCase()}] ${i.title} — ${i.detail}`).join("\n")
+    : "None detected.";
+
   return `You are helping an MSP (managed IT services provider) owner and their team of managers and techs stay on top of a client relationship. You will see recent emails with/about this client, plus what's already being tracked in their ops system, including any open Autotask support tickets. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions. Nobody here creates formal price quotes in this system (that's handled by sales elsewhere), so never include or ask for a dollar amount.
 
 Ignore automated, bulk, or boilerplate mail entirely — it is not a client
@@ -300,8 +316,13 @@ ${taskList}
 Managed devices (NinjaOne):
 ${deviceList}
 
+Device issues already detected automatically (verified vendor end-of-life
+dates and offline durations — treat these as established fact, not guesses;
+do not contradict them or re-derive them yourself):
+${deviceIssueList}
+
 Look for, in order of importance:
-1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, a high-priority ticket that's been open a long time with no apparent resolution, a task marked OVERDUE above (especially high priority), a device that's OFFLINE with a last-contact gap of several days or more (could mean a dead machine, a network outage, or an unpatched security risk going unmonitored), anything that shouldn't wait. Also urgent_alert (not opportunity) for a SERVER running an OS that has reached end-of-life/end-of-support — use your own knowledge of real vendor support lifecycles (e.g. Windows Server 2008/2008 R2/2012 are past end of support, Windows 7/8/8.1 are past end of support for consumer/business use) to judge this, not just pattern-matching the version string. An EOL server is a live security exposure (no security patches), which is materially more urgent than an EOL workstation.
+1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, a high-priority ticket that's been open a long time with no apparent resolution, a task marked OVERDUE above (especially high priority), a device that's OFFLINE with a last-contact gap of several days or more (could mean a dead machine, a network outage, or an unpatched security risk going unmonitored), anything that shouldn't wait. Also urgent_alert (not opportunity) for a SERVER running an OS that has reached end-of-life/end-of-support — the "Device issues already detected automatically" list above is authoritative for which operating systems are end-of-life — prefer it over your own recollection of lifecycle dates. An EOL server is a live security exposure (no security patches), which is materially more urgent than an EOL workstation.
 2. quote_follow_up — a customer asked for pricing/a quote and nobody's replied yet, OR pricing was sent and the customer's gone quiet with no reply. No dollar amount needed, just flag that a follow-up is owed. This applies to ticket descriptions too, not just emails: read what each ticket actually says the client is asking for — if the description reads like an open question or a request for information/status and "last activity" is stale relative to how long it's been open, that's a strong signal nobody has gotten back to them. Don't flag a ticket just for being open a while if its description doesn't read like it's waiting on a reply (e.g. it's a scheduled/ongoing project ticket).
 3. new_project — an email suggests a new project, engagement, or piece of work that isn't already in the tracked project list above.
 4. stale_contact — the client's been emailing but hasn't had a proactive check-in in a while relative to that activity.
