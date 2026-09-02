@@ -1,5 +1,6 @@
 import { Badge } from "@/components/badge";
 import { friendlyM365SkuName } from "@/lib/m365-sku-names";
+import { CollapsibleCard } from "@/components/collapsible-card";
 
 export type M365LicenseRow = {
   id: number;
@@ -16,10 +17,7 @@ export function ClientM365Licenses({
   licenses: M365LicenseRow[];
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-3">
-        <h2 className="text-sm font-semibold text-slate-900">Microsoft 365 licenses</h2>
-      </div>
+    <CollapsibleCard title="Microsoft 365 licenses" count={licenses.length}>
       <div className="divide-y divide-slate-100">
         {tenantId === null ? (
           <p className="px-5 py-4 text-sm text-slate-500">
@@ -47,6 +45,6 @@ export function ClientM365Licenses({
           })
         )}
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }

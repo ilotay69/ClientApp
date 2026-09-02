@@ -1,4 +1,5 @@
 import { Badge } from "@/components/badge";
+import { CollapsibleCard } from "@/components/collapsible-card";
 
 export type M365SecureScoreSummaryRow = {
   current_score: number;
@@ -29,15 +30,17 @@ export function ClientM365SecureScore({
   const percent = summary ? Math.round((summary.current_score / summary.max_score) * 100) : null;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-        <h2 className="text-sm font-semibold text-slate-900">Microsoft Secure Score</h2>
-        {summary && (
+    <CollapsibleCard
+      title="Microsoft Secure Score"
+      count={gaps.length}
+      headerRight={
+        summary && (
           <span className="text-sm font-medium text-slate-700">
             {summary.current_score} / {summary.max_score} ({percent}%)
           </span>
-        )}
-      </div>
+        )
+      }
+    >
       <div className="divide-y divide-slate-100">
         {tenantId === null ? (
           <p className="px-5 py-4 text-sm text-slate-500">
@@ -83,6 +86,6 @@ export function ClientM365SecureScore({
           ))
         )}
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }

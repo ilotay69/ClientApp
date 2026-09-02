@@ -53,6 +53,7 @@ import {
 } from "../../settings/services/actions";
 import { attachClientService, detachClientService } from "../../settings/catalog/actions";
 import { DeleteButton } from "@/components/delete-button";
+import { CollapsibleCard } from "@/components/collapsible-card";
 
 export const dynamic = "force-dynamic";
 
@@ -418,10 +419,10 @@ export default async function ClientDetailPage({
                 label: "Services & Devices",
                 content: (
                   <>
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <div className="border-b border-slate-200 px-5 py-3">
-                        <h2 className="text-sm font-semibold text-slate-900">Services</h2>
-                      </div>
+                    <CollapsibleCard
+                      title="Services"
+                      count={(clientServices ?? []).length}
+                    >
                       <div className="divide-y divide-slate-100">
                         {(clientServices ?? []).map((cs) => {
                           const svc = cs.services as unknown as { id: string; name: string } | null;
@@ -455,17 +456,17 @@ export default async function ClientDetailPage({
                           action={attachServiceAction}
                         />
                       )}
-                    </div>
+                    </CollapsibleCard>
 
                     <ClientAutotaskContractServices
                       companyId={client.autotask_company_id}
                       services={autotaskContractServices ?? []}
                     />
 
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <div className="border-b border-slate-200 px-5 py-3">
-                        <h2 className="text-sm font-semibold text-slate-900">Service checks</h2>
-                      </div>
+                    <CollapsibleCard
+                      title="Service checks"
+                      count={(serviceChecks ?? []).length}
+                    >
                       <div className="divide-y divide-slate-100">
                         {(serviceChecks ?? []).map((sc) => {
                           const svc = sc.service_catalog as unknown as {
@@ -525,7 +526,7 @@ export default async function ClientDetailPage({
                           action={addServiceCheckAction}
                         />
                       )}
-                    </div>
+                    </CollapsibleCard>
 
                     <ClientNinjaOneDevices
                       organizationId={client.ninjaone_organization_id}

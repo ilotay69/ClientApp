@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/badge";
 import { formatDate, humanizeLabel } from "@/lib/format";
+import { CollapsibleCard } from "@/components/collapsible-card";
 
 /** Collapses NinjaOne's many nodeClass values down to the one distinction
  * that matters at a glance — Server vs. Workstation vs. Network device —
@@ -36,10 +37,7 @@ export function ClientNinjaOneDevices({
   devices: NinjaOneDeviceRow[];
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-3">
-        <h2 className="text-sm font-semibold text-slate-900">Devices (NinjaOne)</h2>
-      </div>
+    <CollapsibleCard title="Devices (NinjaOne)" count={devices.length}>
       <div className="divide-y divide-slate-100">
         {organizationId === null ? (
           <p className="px-5 py-4 text-sm text-slate-500">
@@ -54,7 +52,7 @@ export function ClientNinjaOneDevices({
           devices.map((d) => <DeviceRow key={d.id} device={d} />)
         )}
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }
 

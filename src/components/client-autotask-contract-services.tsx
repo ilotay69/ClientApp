@@ -1,4 +1,5 @@
 import { Badge } from "@/components/badge";
+import { CollapsibleCard } from "@/components/collapsible-card";
 
 export type AutotaskContractServiceRow = {
   id: number;
@@ -17,10 +18,7 @@ export function ClientAutotaskContractServices({
   services: AutotaskContractServiceRow[];
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-3">
-        <h2 className="text-sm font-semibold text-slate-900">Contracted services (Autotask)</h2>
-      </div>
+    <CollapsibleCard title="Contracted services (Autotask)" count={services.length}>
       <div className="divide-y divide-slate-100">
         {companyId === null ? (
           <p className="px-5 py-4 text-sm text-slate-500">
@@ -49,6 +47,6 @@ export function ClientAutotaskContractServices({
           ))
         )}
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }
