@@ -21,7 +21,12 @@ export const dynamic = "force-dynamic";
 
 const PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
-export default async function IntegrationsSettingsPage() {
+export default async function IntegrationsSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connected?: string; error?: string }>;
+}) {
+  const { connected, error } = await searchParams;
   const supabase = await createClient();
 
   if (!(await hasPermission(supabase, "manage_integrations"))) {
@@ -69,6 +74,17 @@ export default async function IntegrationsSettingsPage() {
           feed, and external tools like Autotask.
         </p>
       </div>
+
+      {connected && (
+        <div className="rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {connected === "m365" ? "Microsoft 365 connected successfully." : "Connected successfully."}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+          {decodeURIComponent(error)}
+        </div>
+      )}
 
       <Tabs
         tabs={[
