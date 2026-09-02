@@ -71,6 +71,11 @@ const COLORS: Record<string, string> = {
   // device online/offline (NinjaOne)
   online: SUCCESS,
   offline: ATTENTION,
+
+  // device type (NinjaOne) — a category, not a status
+  server: CATEGORY_INDIGO,
+  workstation: CATEGORY_PURPLE,
+  network_device: CATEGORY_PURPLE,
 };
 
 export function Badge({ value }: { value: string }) {

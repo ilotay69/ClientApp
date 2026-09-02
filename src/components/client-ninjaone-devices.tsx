@@ -4,6 +4,17 @@ import { useState } from "react";
 import { Badge } from "@/components/badge";
 import { formatDate, humanizeLabel } from "@/lib/format";
 
+/** Collapses NinjaOne's many nodeClass values down to the one distinction
+ * that matters at a glance — Server vs. Workstation vs. Network device —
+ * rather than the raw enum ("Windows Server" vs "Linux Server" etc). */
+function deviceTypeLabel(nodeClass: string | null): string {
+  if (!nodeClass) return "Unknown type";
+  if (nodeClass.includes("SERVER") || nodeClass === "VMWARE_VM_HOST") return "server";
+  if (nodeClass.includes("WORKSTATION") || nodeClass === "MAC") return "workstation";
+  if (nodeClass.startsWith("NMS_") || nodeClass.includes("VM_GUEST")) return "network_device";
+  return nodeClass;
+}
+
 export type NinjaOneDeviceRow = {
   id: number;
   system_name: string;
@@ -61,17 +72,23 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900">{d.system_name}</p>
           <p className="text-xs text-slate-500">
-            {d.node_class ? humanizeLabel(d.node_class.toLowerCase()) : "Unknown type"}
-            {d.os_name ? ` · ${d.os_name}` : ""}
+            {[d.os_name, d.os_version].filter(Boolean).join(" ") || "OS unknown"}
             {d.last_contact ? ` · last seen ${formatDate(d.last_contact)}` : ""}
           </p>
         </div>
-        {d.is_offline !== null && <Badge value={d.is_offline ? "offline" : "online"} />}
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge value={deviceTypeLabel(d.node_class)} />
+          {d.is_offline !== null && <Badge value={d.is_offline ? "offline" : "online"} />}
+        </div>
       </button>
 
       {expanded && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 bg-slate-50 px-5 py-4 text-sm sm:grid-cols-3">
           <Detail label="Operating system" value={[d.os_name, d.os_version].filter(Boolean).join(" ")} />
+          <Detail
+            label="Device class"
+            value={d.node_class ? humanizeLabel(d.node_class.toLowerCase()) : null}
+          />
           <Detail label="Manufacturer" value={d.manufacturer} />
           <Detail label="Model" value={d.model} />
           <Detail label="Last logged-on user" value={d.last_logged_on_user} />
