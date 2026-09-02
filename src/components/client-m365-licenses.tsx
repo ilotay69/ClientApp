@@ -1,4 +1,5 @@
 import { Badge } from "@/components/badge";
+import { friendlyM365SkuName } from "@/lib/m365-sku-names";
 
 export type M365LicenseRow = {
   id: number;
@@ -34,7 +35,7 @@ export function ClientM365Licenses({
             const noHeadroom = l.consumed_units >= l.enabled_units;
             return (
               <div key={l.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                <p className="text-sm font-medium text-slate-900">{l.sku_part_number}</p>
+                <p className="text-sm font-medium text-slate-900">{friendlyM365SkuName(l.sku_part_number)}</p>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-slate-600">
                     {l.consumed_units} / {l.enabled_units} used
