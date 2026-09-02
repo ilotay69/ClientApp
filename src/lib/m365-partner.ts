@@ -64,13 +64,17 @@ async function graphGet(accessToken: string, path: string) {
 }
 
 /** Confirms the credentials actually work via one trivial authenticated
- * call, not just that a token was issued. */
+ * call, not just that a token was issued. Uses /subscribedSkus rather than
+ * /organization — the latter needs Organization.Read.All, a permission
+ * this integration never asks for, so it would 403 even on correctly
+ * configured credentials. /subscribedSkus is covered by
+ * LicenseAssignment.Read.All, which the sync itself already requires. */
 export async function testM365ClientConnection(
   creds: M365ClientCredentials
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const { accessToken } = await fetchAppOnlyToken(creds);
-    await graphGet(accessToken, "/organization?$select=id");
+    await graphGet(accessToken, "/subscribedSkus?$top=1");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
