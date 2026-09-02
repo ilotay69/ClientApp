@@ -82,8 +82,8 @@ export function SidebarNav({
         aria-current={active ? "page" : undefined}
         className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
           active
-            ? "bg-blue-600 text-white"
-            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            ? "bg-brand text-white"
+            : "text-white/70 hover:bg-white/10 hover:text-white"
         }`}
       >
         <Icon className="h-5 w-5 shrink-0" />
@@ -93,15 +93,15 @@ export function SidebarNav({
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col bg-slate-900 text-slate-100">
+    <div className="flex h-full flex-col bg-charcoal text-white">
       <div className="flex items-center justify-between px-4 py-5">
         <span className="text-base font-semibold tracking-tight text-white">
-          CG Client Tracker
+          <span className="text-brand">CG</span> Client Tracker
         </span>
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
-          className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white md:hidden"
+          className="rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white md:hidden"
           aria-label="Close menu"
         >
           <IconX className="h-5 w-5" />
@@ -113,7 +113,7 @@ export function SidebarNav({
 
         {settingsLinks.length > 0 && (
           <div>
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
               Settings
             </p>
             <div className="space-y-1">{settingsLinks.map(renderLink)}</div>
@@ -122,7 +122,7 @@ export function SidebarNav({
 
         {adminLinks.length > 0 && (
           <div>
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
               Admin
             </p>
             <div className="space-y-1">{adminLinks.map(renderLink)}</div>
@@ -130,12 +130,12 @@ export function SidebarNav({
         )}
       </nav>
 
-      <div className="border-t border-slate-800 px-4 py-4">
-        <p className="truncate text-sm text-slate-300">{userLabel}</p>
+      <div className="border-t border-white/15 px-4 py-4">
+        <p className="truncate text-sm text-white/80">{userLabel}</p>
         <form action={signOutAction} className="mt-2">
           <button
             type="submit"
-            className="flex w-full items-center gap-2 rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white"
+            className="flex w-full items-center gap-2 rounded-md border border-white/25 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white"
           >
             <IconLogOut className="h-4 w-4" />
             Sign out
@@ -149,7 +149,9 @@ export function SidebarNav({
     <>
       {/* Mobile top bar */}
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-        <span className="text-sm font-semibold text-slate-900">CG Client Tracker</span>
+        <span className="text-sm font-semibold text-charcoal">
+          <span className="text-brand">CG</span> Client Tracker
+        </span>
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
@@ -164,7 +166,7 @@ export function SidebarNav({
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div
-            className="absolute inset-0 bg-slate-900/50"
+            className="absolute inset-0 bg-charcoal/60"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />

@@ -100,7 +100,7 @@ export function ClientTimeline({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
         >
           {pending ? "Logging..." : "Log interaction"}
         </button>
@@ -114,7 +114,7 @@ export function ClientTimeline({
             onClick={() => setFilter(f.value)}
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               filter === f.value
-                ? "bg-slate-900 text-white"
+                ? "bg-charcoal text-white"
                 : "border border-slate-300 text-slate-600 hover:bg-slate-100"
             }`}
           >

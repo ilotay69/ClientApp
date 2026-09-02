@@ -75,7 +75,7 @@ export default async function MailSettingsPage({
             <p className="text-sm text-slate-600">No mailbox connected yet.</p>
             <a
               href="/api/mail/connect"
-              className="inline-block rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              className="inline-block rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
             >
               Connect Microsoft 365 mailbox
             </a>

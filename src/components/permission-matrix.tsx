@@ -42,7 +42,7 @@ export function PermissionMatrix({
               <td className="px-5 py-3 text-center">
                 <span
                   title="Owner always has full access"
-                  className="inline-flex items-center rounded-full bg-slate-900 px-2.5 py-0.5 text-xs font-medium text-white"
+                  className="inline-flex items-center rounded-full bg-charcoal px-2.5 py-0.5 text-xs font-medium text-white"
                 >
                   Full access
                 </span>

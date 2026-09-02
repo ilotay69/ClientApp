@@ -279,7 +279,7 @@ function FilterLink({
     <Link
       href={href}
       className={`rounded-md px-3 py-1.5 ${
-        active ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"
+        active ? "bg-charcoal text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"
       }`}
     >
       {children}

@@ -64,7 +64,7 @@ const COLORS: Record<string, string> = {
   quarterly_review: CATEGORY_INDIGO,
 
   // roles — a hierarchy, not a status; Owner intentionally stands apart
-  owner: "bg-slate-900 text-white",
+  owner: "bg-charcoal text-white",
   manager: INFO,
   tech: CATEGORY_PURPLE,
 
