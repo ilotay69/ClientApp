@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { ClientForm } from "@/components/client-form";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
@@ -14,7 +14,7 @@ import { NinjaOneMappingButton } from "@/components/ninjaone-mapping-button";
 import { ClientM365Licenses } from "@/components/client-m365-licenses";
 import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
 import { SyncM365Button } from "@/components/sync-m365-button";
-import { M365PartnerMappingButton } from "@/components/m365-partner-mapping-button";
+import { M365ClientCredentialsButton } from "@/components/m365-client-credentials-button";
 import { SuggestionCard } from "@/components/suggestion-card";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
@@ -40,8 +40,8 @@ import {
   linkClientNinjaOneOrganization,
   unlinkClientNinjaOneOrganization,
   syncClientNinjaOneDevices,
-  searchM365CustomersAction,
-  linkClientM365Tenant,
+  saveM365ClientCredentialsAction,
+  testM365ClientConnectionAction,
   unlinkClientM365Tenant,
   syncClientM365Data,
 } from "../actions";
@@ -173,6 +173,14 @@ export default async function ClientDetailPage({
 
   if (!client) notFound();
 
+  // m365_client_credentials has no RLS policy for authenticated — service-
+  // role only, since it holds a secret — so this needs the admin client.
+  const { data: m365Credentials } = await createAdminClient()
+    .from("m365_client_credentials")
+    .select("app_client_id, app_client_secret")
+    .eq("client_id", id)
+    .maybeSingle();
+
   const addContactAction = addClientContact.bind(null, id);
   const removeContactAction = removeClientContact.bind(null, id);
   const logInteractionAction = logClientInteraction.bind(null, id);
@@ -183,7 +191,8 @@ export default async function ClientDetailPage({
   const linkNinjaOneAction = linkClientNinjaOneOrganization.bind(null, id);
   const unlinkNinjaOneAction = unlinkClientNinjaOneOrganization.bind(null, id);
   const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
-  const linkM365Action = linkClientM365Tenant.bind(null, id);
+  const saveM365Action = saveM365ClientCredentialsAction.bind(null, id);
+  const testM365Action = testM365ClientConnectionAction.bind(null, id);
   const unlinkM365Action = unlinkClientM365Tenant.bind(null, id);
   const syncM365Action = syncClientM365Data.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
@@ -260,10 +269,12 @@ export default async function ClientDetailPage({
             unlinkAction={unlinkNinjaOneAction}
           />
           {client.ninjaone_organization_id && <SyncNinjaOneButton action={syncNinjaOneAction} />}
-          <M365PartnerMappingButton
+          <M365ClientCredentialsButton
             tenantId={client.m365_tenant_id}
-            searchAction={searchM365CustomersAction}
-            linkAction={linkM365Action}
+            hasCredentials={Boolean(m365Credentials?.app_client_id && m365Credentials?.app_client_secret)}
+            currentAppClientId={m365Credentials?.app_client_id ?? null}
+            saveAction={saveM365Action}
+            testAction={testM365Action}
             unlinkAction={unlinkM365Action}
           />
           {client.m365_tenant_id && <SyncM365Button action={syncM365Action} />}

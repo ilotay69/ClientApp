@@ -25,12 +25,12 @@ import {
 } from "@/lib/ninjaone";
 import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
 import {
-  listDelegatedAdminCustomers,
   fetchLicenseSummaryForTenant,
   fetchSecureScoreGapsForTenant,
-  type M365Customer,
+  testM365ClientConnection,
+  type M365ClientCredentials,
 } from "@/lib/m365-partner";
-import { getM365PartnerSettings, getCustomerScopedToken } from "@/lib/m365-partner-settings";
+import { getM365ClientSettings, getValidM365Token } from "@/lib/m365-client-credentials";
 
 export type FormState = { error: string | null };
 
@@ -437,36 +437,84 @@ export async function syncClientNinjaOneDevices(clientId: string): Promise<{ err
   return { error: null };
 }
 
-export async function searchM365CustomersAction(
-  query: string
-): Promise<{ customers: M365Customer[] } | { error: string }> {
-  if (!(await requirePermission("manage_clients"))) {
-    return { error: "You don't have permission to do that." };
+export type M365FormState = { error: string | null; success: string | null };
+
+/** Saves this client's own Microsoft 365 app-registration credentials
+ * (Tenant ID/Client ID/Secret from an app registration their own admin
+ * created and consented in their tenant) — replaces the old GDAP-based
+ * "search and link" flow entirely, since there's no shared directory of
+ * customer tenants anymore. Secret is write-only, same pattern as
+ * Autotask/NinjaOne — leaving it blank keeps whatever is already saved. */
+export async function saveM365ClientCredentialsAction(
+  clientId: string,
+  _prevState: M365FormState,
+  formData: FormData
+): Promise<M365FormState> {
+  const user = await requirePermission("manage_clients");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
   }
-  if (!query.trim()) return { customers: [] };
+
+  const tenantId = String(formData.get("tenant_id") ?? "").trim();
+  const appClientId = String(formData.get("app_client_id") ?? "").trim();
+  const appClientSecret = emptyToNull(formData.get("app_client_secret"));
+
+  if (!tenantId || !appClientId) {
+    return { error: "Tenant ID and Client ID are required.", success: null };
+  }
 
   const admin = createAdminClient();
-  const settings = await getM365PartnerSettings(admin);
-  if (!settings?.refreshToken) {
-    return { error: "Microsoft 365 isn't connected yet — set it up under Settings → Integrations." };
+  const existing = await getM365ClientSettings(admin, clientId);
+  const effectiveSecret = appClientSecret ?? existing?.credentials.appClientSecret;
+  if (!effectiveSecret) {
+    return { error: "A Client Secret is required for first-time setup.", success: null };
   }
 
-  try {
-    // Customer enumeration is a partner-tenant call, not a per-customer one.
-    const partnerToken = await getCustomerScopedToken(admin, settings, settings.credentials.partnerTenantId);
-    const customers = await listDelegatedAdminCustomers(partnerToken, query);
-    return { customers };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Microsoft 365 search failed." };
-  }
+  await admin.from("clients").update({ m365_tenant_id: tenantId }).eq("id", clientId);
+
+  const payload: {
+    client_id: string;
+    app_client_id: string;
+    updated_by: string;
+    app_client_secret?: string;
+    cached_access_token: null;
+    token_expires_at: null;
+  } = {
+    client_id: clientId,
+    app_client_id: appClientId,
+    updated_by: user.id,
+    cached_access_token: null,
+    token_expires_at: null,
+  };
+  if (appClientSecret) payload.app_client_secret = appClientSecret;
+
+  const { error } = await admin
+    .from("m365_client_credentials")
+    .upsert(payload, { onConflict: "client_id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null, success: "Saved." };
 }
 
-export async function linkClientM365Tenant(clientId: string, tenantId: string): Promise<void> {
-  if (!(await requirePermission("manage_clients"))) return;
+/** Tests this client's saved credentials — doesn't persist anything, just
+ * reports whether they work. */
+export async function testM365ClientConnectionAction(
+  clientId: string
+): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
 
-  const supabase = await createClient();
-  await supabase.from("clients").update({ m365_tenant_id: tenantId }).eq("id", clientId);
-  revalidatePath(`/clients/${clientId}`);
+  const admin = createAdminClient();
+  const settings = await getM365ClientSettings(admin, clientId);
+  if (!settings) {
+    return { ok: false, message: "Save this client's Microsoft 365 credentials first." };
+  }
+
+  const result = await testM365ClientConnection(settings.credentials satisfies M365ClientCredentials);
+  if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
+  return { ok: true, message: "Connected — credentials are working." };
 }
 
 export async function unlinkClientM365Tenant(clientId: string): Promise<void> {
@@ -474,37 +522,30 @@ export async function unlinkClientM365Tenant(clientId: string): Promise<void> {
 
   const supabase = await createClient();
   await supabase.from("clients").update({ m365_tenant_id: null }).eq("id", clientId);
+  await supabase.from("m365_client_credentials").delete().eq("client_id", clientId);
   await supabase.from("m365_license_summary").delete().eq("client_id", clientId);
+  await supabase.from("m365_secure_score").delete().eq("client_id", clientId);
+  await supabase.from("m365_secure_score_gaps").delete().eq("client_id", clientId);
   revalidatePath(`/clients/${clientId}`);
 }
 
 /** On-demand sync for a single mapped client — licenses and Secure Score
- * gaps together, one click. Unlike the Autotask/NinjaOne sync actions,
- * this exchanges a rotating refresh token — safe here since it's exactly
- * one exchange for exactly one tenant, but the cron route (which loops
- * many clients) must do these sequentially. */
+ * gaps together, one click. Each client has its own independent
+ * credentials, so there's no shared-token rotation concern the way GDAP
+ * had — the cron route can even run these concurrently if it wants to. */
 export async function syncClientM365Data(clientId: string): Promise<{ error: string | null }> {
   if (!(await requirePermission("manage_clients"))) {
     return { error: "You don't have permission to do that." };
   }
 
   const admin = createAdminClient();
-  const settings = await getM365PartnerSettings(admin);
-  if (!settings?.refreshToken) {
-    return { error: "Microsoft 365 isn't connected yet — set it up under Settings → Integrations." };
-  }
-
-  const { data: client } = await admin
-    .from("clients")
-    .select("m365_tenant_id")
-    .eq("id", clientId)
-    .single();
-  if (!client?.m365_tenant_id) {
-    return { error: "This client isn't linked to a Microsoft 365 tenant yet." };
+  const settings = await getM365ClientSettings(admin, clientId);
+  if (!settings) {
+    return { error: "This client isn't linked to Microsoft 365 yet." };
   }
 
   try {
-    const customerToken = await getCustomerScopedToken(admin, settings, client.m365_tenant_id);
+    const customerToken = await getValidM365Token(admin, clientId, settings);
 
     const licenses = await fetchLicenseSummaryForTenant(customerToken);
     await admin.from("m365_license_summary").delete().eq("client_id", clientId);
