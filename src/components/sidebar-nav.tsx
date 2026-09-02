@@ -52,7 +52,6 @@ export function SidebarNav({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const settingsLinks: NavItem[] = [
-    { href: "/settings/mail", label: "Mailbox", icon: IconMail },
     ...(canManageServiceCatalog
       ? [{ href: "/settings/services", label: "Recurring Services", icon: IconRefresh }]
       : []),
@@ -62,6 +61,10 @@ export function SidebarNav({
     ...(canManageIntegrations
       ? [{ href: "/settings/integrations", label: "Integrations", icon: IconSparkles }]
       : []),
+    // Sits under Integrations since it's the same kind of setting, but stays
+    // its own link — the mailbox connection is per-user and ungated, unlike
+    // the Integrations page, which requires manage_integrations.
+    { href: "/settings/mail", label: "Mailbox", icon: IconMail },
   ];
 
   const adminLinks: NavItem[] = canManageTeam
