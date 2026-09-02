@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/badge";
 import { formatDate, humanizeLabel } from "@/lib/format";
 import { CollapsibleCard } from "@/components/collapsible-card";
+import { ListFilterBar, matchesQuery } from "@/components/list-filter-bar";
 
 /** Collapses NinjaOne's many nodeClass values down to the one distinction
  * that matters at a glance — Server vs. Workstation vs. Network device —
@@ -29,6 +30,8 @@ export type NinjaOneDeviceRow = {
   last_logged_on_user: string | null;
 };
 
+const FILTER_THRESHOLD = 5;
+
 export function ClientNinjaOneDevices({
   organizationId,
   devices,
@@ -36,8 +39,54 @@ export function ClientNinjaOneDevices({
   organizationId: number | null;
   devices: NinjaOneDeviceRow[];
 }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<string | null>(null);
+
+  // Type chips are limited to the types actually present, so a client with no
+  // servers doesn't get a chip that can only ever return nothing.
+  const presentTypes = Array.from(
+    new Set(devices.map((d) => deviceTypeLabel(d.node_class)))
+  ).filter((t) => ["server", "workstation", "network_device"].includes(t));
+
+  const visible = devices.filter((d) => {
+    if (filter === "offline" && !d.is_offline) return false;
+    if (filter === "online" && d.is_offline) return false;
+    if (
+      filter &&
+      filter !== "offline" &&
+      filter !== "online" &&
+      deviceTypeLabel(d.node_class) !== filter
+    ) {
+      return false;
+    }
+    return matchesQuery(
+      query,
+      d.system_name,
+      d.os_name,
+      d.manufacturer,
+      d.model,
+      d.last_logged_on_user
+    );
+  });
+
+  const showFilters = devices.length > FILTER_THRESHOLD;
+
   return (
-    <CollapsibleCard title="Devices (NinjaOne)" count={devices.length}>
+    <CollapsibleCard title="Devices (NinjaOne)" count={visible.length}>
+      {showFilters && (
+        <ListFilterBar
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search devices…"
+          toggles={[
+            { value: "offline", label: "Offline" },
+            { value: "online", label: "Online" },
+            ...presentTypes.map((t) => ({ value: t, label: humanizeLabel(t) })),
+          ]}
+          activeToggle={filter}
+          onToggle={setFilter}
+        />
+      )}
       <div className="divide-y divide-slate-100">
         {organizationId === null ? (
           <p className="px-5 py-4 text-sm text-slate-500">
@@ -48,8 +97,10 @@ export function ClientNinjaOneDevices({
           <p className="px-5 py-4 text-sm text-slate-500">
             No devices found — click &quot;Sync NinjaOne&quot; at the top of the page.
           </p>
+        ) : visible.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-slate-500">No devices match this filter.</p>
         ) : (
-          devices.map((d) => <DeviceRow key={d.id} device={d} />)
+          visible.map((d) => <DeviceRow key={d.id} device={d} />)
         )}
       </div>
     </CollapsibleCard>

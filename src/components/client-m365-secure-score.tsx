@@ -1,5 +1,12 @@
+"use client";
+
+import { useState } from "react";
 import { Badge } from "@/components/badge";
+import { humanizeLabel } from "@/lib/format";
 import { CollapsibleCard } from "@/components/collapsible-card";
+import { ListFilterBar, matchesQuery } from "@/components/list-filter-bar";
+
+const FILTER_THRESHOLD = 5;
 
 export type M365SecureScoreSummaryRow = {
   current_score: number;
@@ -29,10 +36,26 @@ export function ClientM365SecureScore({
 }) {
   const percent = summary ? Math.round((summary.current_score / summary.max_score) * 100) : null;
 
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
+
+  // Categories come from the data — Microsoft's control catalog changes over
+  // time, so a hardcoded list would drift.
+  const categories = Array.from(
+    new Set(gaps.map((g) => g.category).filter((c): c is string => Boolean(c)))
+  ).sort();
+
+  const visible = gaps.filter((g) => {
+    if (category && g.category !== category) return false;
+    return matchesQuery(query, g.title, g.control_name, g.remediation);
+  });
+
+  const showFilters = gaps.length > FILTER_THRESHOLD;
+
   return (
     <CollapsibleCard
       title="Microsoft Secure Score"
-      count={gaps.length}
+      count={visible.length}
       headerRight={
         summary && (
           <span className="text-sm font-medium text-slate-700">
@@ -41,6 +64,16 @@ export function ClientM365SecureScore({
         )
       }
     >
+      {showFilters && (
+        <ListFilterBar
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search gaps…"
+          toggles={categories.map((c) => ({ value: c, label: humanizeLabel(c.toLowerCase()) }))}
+          activeToggle={category}
+          onToggle={setCategory}
+        />
+      )}
       <div className="divide-y divide-slate-100">
         {tenantId === null ? (
           <p className="px-5 py-4 text-sm text-slate-500">
@@ -55,8 +88,10 @@ export function ClientM365SecureScore({
           <p className="px-5 py-4 text-sm text-slate-500">
             No outstanding gaps — every scored control is fully implemented.
           </p>
+        ) : visible.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-slate-500">No gaps match this filter.</p>
         ) : (
-          gaps.map((g) => (
+          visible.map((g) => (
             <div key={g.id} className="px-5 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
