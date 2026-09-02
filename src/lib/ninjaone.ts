@@ -93,14 +93,63 @@ export type NinjaOneDeviceRow = {
   node_class: string | null;
   is_offline: boolean | null;
   last_contact: string | null;
+  os_name: string | null;
+  os_version: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  last_logged_on_user: string | null;
+  detail: unknown;
   raw: unknown;
 };
 
+/** Confirmed (via a working third-party MCP server's actual source, not
+ * docs) — NinjaOne's "queries" family are org-wide bulk attribute reports,
+ * not per-device calls: /v2/queries/{report}?df=org=<id>. Each item is
+ * expected to carry a deviceId to correlate back to a device, though the
+ * exact field names on each report are unverified — this is best-effort,
+ * checking a few plausible key names and falling back to null (never
+ * throwing) so an unrecognized shape just means an empty field, not a
+ * failed sync. */
+async function fetchDeviceQuery(
+  creds: NinjaOneCredentials,
+  token: string,
+  orgId: number,
+  report: string
+): Promise<Record<string, unknown>[]> {
+  try {
+    const filter = encodeURIComponent(`org=${orgId}`);
+    const json = await ninjaOneGet(
+      creds.region,
+      token,
+      `/v2/queries/${report}?df=${filter}&pageSize=1000`
+    );
+    const items = json?.results ?? json ?? [];
+    return Array.isArray(items) ? items : [];
+  } catch (err) {
+    console.error(`NinjaOne ${report} query failed — omitting that detail`, err);
+    return [];
+  }
+}
+
+function firstString(obj: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+
+function deviceIdOf(row: Record<string, unknown>): number | null {
+  const id = row.deviceId ?? row.device_id ?? row.id;
+  return typeof id === "number" ? id : null;
+}
+
 /** Devices for one organization, via the confirmed df=org=<id> filter
- * syntax. Only maps fields confirmed to exist (id, systemName, nodeClass,
- * offline, lastContact) — the full raw object is kept too so nothing is
- * lost if other fields (antivirus/patch status) turn out to be present
- * under different names once real data is seen. */
+ * syntax, enriched with OS/hardware/last-user info from the bulk "queries"
+ * reports above — all org-wide calls, not one per device. Base device
+ * fields (id, systemName, nodeClass, offline, lastContact) are confirmed
+ * against this app's own live data; the enrichment fields are best-effort
+ * and degrade to null rather than fail if the guessed key names are off. */
 export async function fetchDevicesForOrganization(
   creds: NinjaOneCredentials,
   token: string,
@@ -117,15 +166,48 @@ export async function fetchDevicesForOrganization(
   };
   const devices = (json ?? []) as RawDevice[];
 
-  return devices.map((d) => ({
-    id: d.id,
-    system_name: d.systemName ?? `Device ${d.id}`,
-    node_class: d.nodeClass ?? null,
-    is_offline: d.offline ?? null,
-    // lastContact appears to be an epoch (seconds) timestamp based on
-    // secondary-source examples — stored as ISO, defensively guarding
-    // against it being absent.
-    last_contact: d.lastContact ? new Date(d.lastContact * 1000).toISOString() : null,
-    raw: d,
-  }));
+  const [computerSystems, operatingSystems, loggedOnUsers] = await Promise.all([
+    fetchDeviceQuery(creds, token, orgId, "computer-systems"),
+    fetchDeviceQuery(creds, token, orgId, "operating-systems"),
+    fetchDeviceQuery(creds, token, orgId, "logged-on-users"),
+  ]);
+
+  const computerSystemByDevice = new Map<number, Record<string, unknown>>();
+  for (const row of computerSystems) {
+    const id = deviceIdOf(row);
+    if (id !== null) computerSystemByDevice.set(id, row);
+  }
+  const osByDevice = new Map<number, Record<string, unknown>>();
+  for (const row of operatingSystems) {
+    const id = deviceIdOf(row);
+    if (id !== null) osByDevice.set(id, row);
+  }
+  const userByDevice = new Map<number, Record<string, unknown>>();
+  for (const row of loggedOnUsers) {
+    const id = deviceIdOf(row);
+    if (id !== null) userByDevice.set(id, row);
+  }
+
+  return devices.map((d) => {
+    const cs = computerSystemByDevice.get(d.id) ?? {};
+    const os = osByDevice.get(d.id) ?? {};
+    const user = userByDevice.get(d.id) ?? {};
+
+    return {
+      id: d.id,
+      system_name: d.systemName ?? `Device ${d.id}`,
+      node_class: d.nodeClass ?? null,
+      is_offline: d.offline ?? null,
+      // lastContact appears to be an epoch (seconds, with a fractional
+      // part) timestamp — confirmed against this app's own live data.
+      last_contact: d.lastContact ? new Date(d.lastContact * 1000).toISOString() : null,
+      os_name: firstString(os, ["name", "osName", "os", "releaseId", "caption"]),
+      os_version: firstString(os, ["version", "osVersion", "buildNumber", "build"]),
+      manufacturer: firstString(cs, ["manufacturer", "biosManufacturer", "systemManufacturer"]),
+      model: firstString(cs, ["model", "systemModel"]),
+      last_logged_on_user: firstString(user, ["username", "userName", "user", "lastLoggedOnUser"]),
+      detail: { computerSystem: cs, operatingSystem: os, loggedOnUser: user },
+      raw: d,
+    };
+  });
 }

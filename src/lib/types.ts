@@ -71,6 +71,12 @@ export interface NinjaOneDevice {
   node_class: string | null;
   is_offline: boolean | null;
   last_contact: string | null;
+  os_name: string | null;
+  os_version: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  last_logged_on_user: string | null;
+  detail: unknown;
   raw: unknown;
   last_synced_at: string;
 }

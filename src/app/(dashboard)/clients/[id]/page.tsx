@@ -138,7 +138,9 @@ export default async function ClientDetailPage({
       .order("contract_name"),
     supabase
       .from("ninjaone_devices")
-      .select("id, system_name, node_class, is_offline, last_contact")
+      .select(
+        "id, system_name, node_class, is_offline, last_contact, os_name, os_version, manufacturer, model, last_logged_on_user"
+      )
       .eq("client_id", id)
       .order("system_name"),
   ]);
