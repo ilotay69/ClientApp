@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { fetchLicenseSummaryForTenant } from "@/lib/m365-partner";
+import { fetchLicenseSummaryForTenant, fetchSecureScoreGapsForTenant } from "@/lib/m365-partner";
 import { getM365PartnerSettings, getCustomerScopedToken } from "@/lib/m365-partner-settings";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,16 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      results.push({ clientId: client.id, skus: licenses.length });
+      const { summary, gaps } = await fetchSecureScoreGapsForTenant(customerToken);
+      await admin.from("m365_secure_score").upsert({ ...summary, client_id: client.id });
+      await admin.from("m365_secure_score_gaps").delete().eq("client_id", client.id);
+      if (gaps.length > 0) {
+        await admin.from("m365_secure_score_gaps").insert(
+          gaps.map((g) => ({ ...g, client_id: client.id }))
+        );
+      }
+
+      results.push({ clientId: client.id, skus: licenses.length, secureScoreGaps: gaps.length });
     } catch (err) {
       results.push({
         clientId: client.id,

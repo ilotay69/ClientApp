@@ -27,6 +27,7 @@ import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-setti
 import {
   listDelegatedAdminCustomers,
   fetchLicenseSummaryForTenant,
+  fetchSecureScoreGapsForTenant,
   type M365Customer,
 } from "@/lib/m365-partner";
 import { getM365PartnerSettings, getCustomerScopedToken } from "@/lib/m365-partner-settings";
@@ -477,11 +478,12 @@ export async function unlinkClientM365Tenant(clientId: string): Promise<void> {
   revalidatePath(`/clients/${clientId}`);
 }
 
-/** On-demand license sync for a single mapped client. Unlike the Autotask/
- * NinjaOne sync actions, this exchanges a rotating refresh token — safe
- * here since it's exactly one exchange for exactly one tenant, but the
- * cron route (which loops many clients) must do these sequentially. */
-export async function syncClientM365Licenses(clientId: string): Promise<{ error: string | null }> {
+/** On-demand sync for a single mapped client — licenses and Secure Score
+ * gaps together, one click. Unlike the Autotask/NinjaOne sync actions,
+ * this exchanges a rotating refresh token — safe here since it's exactly
+ * one exchange for exactly one tenant, but the cron route (which loops
+ * many clients) must do these sequentially. */
+export async function syncClientM365Data(clientId: string): Promise<{ error: string | null }> {
   if (!(await requirePermission("manage_clients"))) {
     return { error: "You don't have permission to do that." };
   }
@@ -503,12 +505,22 @@ export async function syncClientM365Licenses(clientId: string): Promise<{ error:
 
   try {
     const customerToken = await getCustomerScopedToken(admin, settings, client.m365_tenant_id);
+
     const licenses = await fetchLicenseSummaryForTenant(customerToken);
     await admin.from("m365_license_summary").delete().eq("client_id", clientId);
     if (licenses.length > 0) {
       await admin
         .from("m365_license_summary")
         .insert(licenses.map((l) => ({ ...l, client_id: clientId })));
+    }
+
+    const { summary, gaps } = await fetchSecureScoreGapsForTenant(customerToken);
+    await admin.from("m365_secure_score").upsert({ ...summary, client_id: clientId });
+    await admin.from("m365_secure_score_gaps").delete().eq("client_id", clientId);
+    if (gaps.length > 0) {
+      await admin
+        .from("m365_secure_score_gaps")
+        .insert(gaps.map((g) => ({ ...g, client_id: clientId })));
     }
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Sync failed." };

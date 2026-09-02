@@ -12,6 +12,7 @@ import { ClientNinjaOneDevices } from "@/components/client-ninjaone-devices";
 import { SyncNinjaOneButton } from "@/components/sync-ninjaone-button";
 import { NinjaOneMappingButton } from "@/components/ninjaone-mapping-button";
 import { ClientM365Licenses } from "@/components/client-m365-licenses";
+import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
 import { SyncM365Button } from "@/components/sync-m365-button";
 import { M365PartnerMappingButton } from "@/components/m365-partner-mapping-button";
 import { SuggestionCard } from "@/components/suggestion-card";
@@ -42,7 +43,7 @@ import {
   searchM365CustomersAction,
   linkClientM365Tenant,
   unlinkClientM365Tenant,
-  syncClientM365Licenses,
+  syncClientM365Data,
 } from "../actions";
 import {
   addClientServiceCheck,
@@ -83,6 +84,8 @@ export default async function ClientDetailPage({
     { data: autotaskContractServices },
     { data: ninjaOneDevices },
     { data: m365Licenses },
+    { data: m365SecureScore },
+    { data: m365SecureScoreGaps },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -156,6 +159,16 @@ export default async function ClientDetailPage({
       .select("id, sku_part_number, consumed_units, enabled_units")
       .eq("client_id", id)
       .order("sku_part_number"),
+    supabase
+      .from("m365_secure_score")
+      .select("current_score, max_score")
+      .eq("client_id", id)
+      .maybeSingle(),
+    supabase
+      .from("m365_secure_score_gaps")
+      .select("id, control_name, title, category, current_score, max_score, remediation, action_url, implementation_cost")
+      .eq("client_id", id)
+      .order("current_score", { ascending: true }),
   ]);
 
   if (!client) notFound();
@@ -172,7 +185,7 @@ export default async function ClientDetailPage({
   const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
   const linkM365Action = linkClientM365Tenant.bind(null, id);
   const unlinkM365Action = unlinkClientM365Tenant.bind(null, id);
-  const syncM365Action = syncClientM365Licenses.bind(null, id);
+  const syncM365Action = syncClientM365Data.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
 
   const stalestAutotaskTicket = (autotaskTickets ?? []).reduce<
@@ -511,6 +524,12 @@ export default async function ClientDetailPage({
                     <ClientM365Licenses
                       tenantId={client.m365_tenant_id}
                       licenses={m365Licenses ?? []}
+                    />
+
+                    <ClientM365SecureScore
+                      tenantId={client.m365_tenant_id}
+                      summary={m365SecureScore ?? null}
+                      gaps={m365SecureScoreGaps ?? []}
                     />
                   </>
                 ),

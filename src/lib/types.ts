@@ -76,6 +76,30 @@ export interface M365LicenseSummary {
   last_synced_at: string;
 }
 
+export interface M365SecureScore {
+  client_id: string;
+  current_score: number;
+  max_score: number;
+  licensed_user_count: number | null;
+  score_created_date_time: string | null;
+  last_synced_at: string;
+}
+
+export interface M365SecureScoreGap {
+  id: number;
+  client_id: string;
+  control_name: string;
+  title: string | null;
+  category: string | null;
+  current_score: number;
+  max_score: number | null;
+  remediation: string | null;
+  action_url: string | null;
+  tier: string | null;
+  implementation_cost: string | null;
+  last_synced_at: string;
+}
+
 export interface NinjaOneDevice {
   id: number;
   client_id: string;

@@ -180,3 +180,91 @@ export async function fetchLicenseSummaryForTenant(customerAccessToken: string):
     capability_status: s.capabilityStatus ?? null,
   }));
 }
+
+export type M365SecureScoreSummary = {
+  current_score: number;
+  max_score: number;
+  licensed_user_count: number | null;
+  score_created_date_time: string | null;
+};
+
+export type M365SecureScoreGap = {
+  control_name: string;
+  title: string | null;
+  category: string | null;
+  current_score: number;
+  max_score: number | null;
+  remediation: string | null;
+  action_url: string | null;
+  tier: string | null;
+  implementation_cost: string | null;
+};
+
+/** Verified against Microsoft's own docs — /security/secureScores gives
+ * the tenant's current score plus a controlScores array (per-control
+ * score earned, keyed by controlName); /security/secureScoreControlProfiles
+ * gives the full catalog of controls (title, remediation, actionUrl, tier)
+ * keyed by id. The join key (controlName == profile id, e.g. both being
+ * "PWAgePolicyNew") is confirmed via Microsoft's own Q&A guidance, not
+ * guessed. Only controls with real headroom (current < max) are returned
+ * — a fully-implemented control isn't a "gap." */
+export async function fetchSecureScoreGapsForTenant(
+  customerAccessToken: string
+): Promise<{ summary: M365SecureScoreSummary; gaps: M365SecureScoreGap[] }> {
+  const [scoreJson, profilesJson] = await Promise.all([
+    graphGet(customerAccessToken, "/security/secureScores?$top=1"),
+    graphGet(customerAccessToken, "/security/secureScoreControlProfiles"),
+  ]);
+
+  type RawControlScore = { controlCategory: string; controlName: string; description: string; score: number };
+  type RawScore = {
+    currentScore: number;
+    maxScore: number;
+    licensedUserCount?: number;
+    createdDateTime?: string;
+    controlScores?: RawControlScore[];
+  };
+  const score = (scoreJson.value?.[0] ?? {}) as RawScore;
+
+  type RawProfile = {
+    id: string;
+    title?: string;
+    controlCategory?: string;
+    maxScore?: number;
+    remediation?: string;
+    actionUrl?: string;
+    tier?: string;
+    implementationCost?: string;
+  };
+  const profiles = (profilesJson.value ?? []) as RawProfile[];
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+
+  const gaps: M365SecureScoreGap[] = (score.controlScores ?? [])
+    .map((c) => {
+      const profile = profileById.get(c.controlName);
+      const maxScore = profile?.maxScore ?? null;
+      return {
+        control_name: c.controlName,
+        title: profile?.title ?? c.description ?? c.controlName,
+        category: profile?.controlCategory ?? c.controlCategory ?? null,
+        current_score: c.score,
+        max_score: maxScore,
+        remediation: profile?.remediation ?? null,
+        action_url: profile?.actionUrl ?? null,
+        tier: profile?.tier ?? null,
+        implementation_cost: profile?.implementationCost ?? null,
+      };
+    })
+    .filter((g) => g.max_score !== null && g.current_score < g.max_score)
+    .sort((a, b) => (b.max_score! - b.current_score) - (a.max_score! - a.current_score));
+
+  return {
+    summary: {
+      current_score: score.currentScore,
+      max_score: score.maxScore,
+      licensed_user_count: score.licensedUserCount ?? null,
+      score_created_date_time: score.createdDateTime ?? null,
+    },
+    gaps,
+  };
+}
