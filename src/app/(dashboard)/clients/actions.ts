@@ -303,6 +303,50 @@ export async function searchAutotaskCompaniesAction(
   }
 }
 
+/** Creates a client directly from an Autotask company — no separate "New
+ * client" form, then a separate "Link to Autotask" step afterward. If a
+ * client is already mapped to this Autotask company, returns its id
+ * instead of creating a duplicate. */
+export async function createClientFromAutotaskCompany(
+  company: AutotaskCompany
+): Promise<{ clientId: string } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: existing } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("autotask_company_id", company.id)
+    .maybeSingle();
+  if (existing) return { clientId: existing.id };
+
+  const { data, error } = await supabase
+    .from("clients")
+    .insert({
+      name: company.companyName,
+      autotask_company_id: company.id,
+      owner_id: user?.id ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  // Best-effort — the client is created either way; a sync hiccup here
+  // (e.g. a transient Autotask error) just means the first sync happens
+  // whenever "Sync Autotask" is next clicked instead of immediately.
+  await syncClientAutotaskData(data.id);
+
+  revalidatePath("/clients");
+  return { clientId: data.id };
+}
+
 export async function linkClientAutotaskCompany(
   clientId: string,
   companyId: number
