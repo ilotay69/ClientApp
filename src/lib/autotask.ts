@@ -456,6 +456,42 @@ export async function fetchTicketTimeEntries(
     .sort((a, b) => (a.dateWorked < b.dateWorked ? 1 : -1));
 }
 
+export type AutotaskTimeEntryRange = {
+  resourceID: number;
+  hoursWorked: number;
+  dateWorked: string;
+};
+
+/** Account-wide time entries in a date range, across every resource and
+ * ticket/task — not scoped to one ticket like fetchTicketTimeEntries.
+ * Confirmed against Autotask's own field reference that TimeEntries can be
+ * queried by dateWorked/resourceID without a ticketID filter. Capped at
+ * 500 rows — a resource-hours report spanning a full month for a busy
+ * account could exceed that; if totals look short, that cap is why. */
+export async function fetchTimeEntriesInRange(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  sinceISO: string,
+  untilISO: string
+): Promise<AutotaskTimeEntryRange[]> {
+  const items = await autotaskQuery(creds, zoneUrl, "TimeEntries", {
+    filter: [
+      { op: "gte", field: "dateWorked", value: sinceISO },
+      { op: "lte", field: "dateWorked", value: untilISO },
+    ],
+    MaxRecords: 500,
+  });
+
+  type RawTimeEntry = { resourceID: number; hoursWorked?: number; dateWorked: string };
+  return (items as RawTimeEntry[])
+    .filter((e) => e.hoursWorked != null)
+    .map((e) => ({
+      resourceID: e.resourceID,
+      hoursWorked: e.hoursWorked as number,
+      dateWorked: e.dateWorked,
+    }));
+}
+
 /** Batched name lookup for Services (Autotask's own service catalog)
  * referenced by id from ContractServices rows. Same resilience posture as
  * resolveResourceNames — some API Users may lack read access to this
