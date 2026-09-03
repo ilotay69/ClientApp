@@ -140,7 +140,7 @@ export default async function ClientDetailPage({
     supabase
       .from("autotask_tickets")
       .select(
-        "id, ticket_number, title, description, resolution, status, priority, queue_name, assigned_resource_name, due_date, last_activity_at"
+        "id, ticket_number, title, description, resolution, status, priority, queue_name, assigned_resource_name, due_date, opened_at, last_activity_at"
       )
       .eq("client_id", id)
       .order("due_date", { ascending: true, nullsFirst: false }),

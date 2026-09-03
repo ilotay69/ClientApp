@@ -5,6 +5,8 @@ import { formatDate } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 import { SearchBox } from "@/components/search-box";
+import { SyncAutotaskButton } from "@/components/sync-autotask-button";
+import { syncAllAutotaskProjectsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -42,12 +44,15 @@ export default async function ProjectsPage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Projects</h1>
         {canManageProjects && (
-          <Link
-            href="/projects/new"
-            className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark"
-          >
-            New project
-          </Link>
+          <div className="flex items-center gap-3">
+            <SyncAutotaskButton action={syncAllAutotaskProjectsAction} />
+            <Link
+              href="/projects/new"
+              className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+            >
+              New project
+            </Link>
+          </div>
         )}
       </div>
 

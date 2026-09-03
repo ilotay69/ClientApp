@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
+import { syncAllAutotaskClients } from "@/lib/autotask-sync";
 import type { ProjectStatus } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -83,6 +84,30 @@ export async function updateProject(
   revalidatePath("/projects");
   revalidatePath(`/clients/${clientId}`);
   return { error: null };
+}
+
+/** Runs the same tickets/contract-services/Project-SLA sync the nightly
+ * cron job does, on demand, for every Autotask-mapped client at once —
+ * so a freshly Project-SLA-tagged ticket shows up here without visiting
+ * each client's page individually. */
+export async function syncAllAutotaskProjectsAction(): Promise<{ error: string | null }> {
+  if (!(await requirePermission("manage_projects"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const result = await syncAllAutotaskClients(admin);
+  if ("error" in result) return { error: result.error };
+
+  const failed = result.results.filter((r): r is { clientId: string; error: string } => "error" in r);
+
+  revalidatePath("/projects");
+  return {
+    error:
+      failed.length > 0
+        ? `Synced ${result.synced - failed.length} of ${result.synced} clients — ${failed.length} failed.`
+        : null,
+  };
 }
 
 export async function deleteProject(projectId: string, clientId: string) {

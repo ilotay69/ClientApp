@@ -324,20 +324,22 @@ function resolveProjectSlaId(labels: PicklistLabelMaps): number | null {
 export type AutotaskProjectTicketRow = {
   source_autotask_ticket_id: number;
   name: string;
-  status: "active" | "completed";
+  status: "active";
   start_date: string | null;
   target_end_date: string | null;
 };
 
-/** Tickets tagged with the "Project SLA" service level agreement, treated
- * as this app's Projects instead of requiring a project to be created by
- * hand in both Autotask and here — one ticket becomes one project.
- * Includes completed tickets too (unlike fetchOpenTicketsForCompany,
- * which only wants open ones) so a finished project shows as completed
- * rather than disappearing. Returns an empty list, not an error, if this
- * tenant's SLA picklist has no label matching PROJECT_SLA_LABEL — that's
- * a normal state (the SLA hasn't been applied to anything yet), not a
- * failure. */
+/** Open tickets tagged with the "Project SLA" service level agreement,
+ * treated as this app's Projects instead of requiring a project to be
+ * created by hand in both Autotask and here — one ticket becomes one
+ * project. Only open ones (completedDate is null), same as
+ * fetchOpenTicketsForCompany — once a project ticket is completed in
+ * Autotask, replace-on-sync just stops re-inserting it here, so it drops
+ * off this app's Projects list the same way a completed support ticket
+ * drops off the Tickets tab, rather than lingering marked "completed".
+ * Returns an empty list, not an error, if this tenant's SLA picklist has
+ * no label matching PROJECT_SLA_LABEL — that's a normal state (the SLA
+ * hasn't been applied to anything yet), not a failure. */
 export async function fetchProjectSlaTicketsForCompany(
   creds: AutotaskCredentials,
   zoneUrl: string,
@@ -351,6 +353,7 @@ export async function fetchProjectSlaTicketsForCompany(
     filter: [
       { op: "eq", field: "companyID", value: companyId },
       { op: "eq", field: "serviceLevelAgreementID", value: slaId },
+      { op: "notExist", field: "completedDate" },
     ],
     MaxRecords: 200,
   })) as RawTicket[];
@@ -358,7 +361,7 @@ export async function fetchProjectSlaTicketsForCompany(
   return items.map((t) => ({
     source_autotask_ticket_id: t.id,
     name: t.title,
-    status: t.completedDate ? "completed" : "active",
+    status: "active",
     start_date: t.createDate ?? null,
     target_end_date: t.dueDateTime ?? null,
   }));

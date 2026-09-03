@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/badge";
-import { formatDate } from "@/lib/format";
+import { daysAgo, formatDate } from "@/lib/format";
 import type { AutotaskTicketNote, AutotaskTimeEntry } from "@/lib/autotask";
 import type { TicketInsight } from "@/lib/ticket-insights";
 
@@ -17,6 +17,7 @@ export type AutotaskTicketRow = {
   queue_name: string | null;
   assigned_resource_name: string | null;
   due_date: string | null;
+  opened_at: string | null;
 };
 
 type TicketDetail = { notes: AutotaskTicketNote[]; timeEntries: AutotaskTimeEntry[] } | { error: string };
@@ -144,7 +145,8 @@ function TicketRow({
             {ticket.assigned_resource_name
               ? `Assigned to ${ticket.assigned_resource_name}`
               : "Unassigned"}
-            {ticket.due_date ? ` · due ${formatDate(ticket.due_date)}` : ""}
+            {ticket.opened_at &&
+              ` · created ${formatDate(ticket.opened_at)} (${daysAgo(ticket.opened_at)}d ago)`}
           </p>
           {insight?.keyPoint && (
             <p className="mt-1 text-xs text-slate-600">
