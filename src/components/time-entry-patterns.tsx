@@ -2,16 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/badge";
-import type { TimeEntryFinding } from "@/lib/time-entry-insights";
+import type { ClientPatternReport } from "@/lib/time-entry-insights";
 
-type AnalyzeResult = { findings: TimeEntryFinding[]; entryCount: number } | { error: string };
+type AnalyzeResult = { clients: ClientPatternReport[]; entryCount: number } | { error: string };
 
 export function TimeEntryPatterns({
   analyzeAction,
 }: {
   analyzeAction: () => Promise<AnalyzeResult>;
 }) {
-  const [findings, setFindings] = useState<TimeEntryFinding[] | null>(null);
+  const [clients, setClients] = useState<ClientPatternReport[] | null>(null);
   const [entryCount, setEntryCount] = useState<number | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [analyzing, startAnalyze] = useTransition();
@@ -22,9 +22,9 @@ export function TimeEntryPatterns({
       const result = await analyzeAction();
       if ("error" in result) {
         setAnalyzeError(result.error);
-        setFindings(null);
+        setClients(null);
       } else {
-        setFindings(result.findings);
+        setClients(result.clients);
         setEntryCount(result.entryCount);
       }
     });
@@ -36,8 +36,8 @@ export function TimeEntryPatterns({
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Ticket Pattern</h2>
           <p className="text-xs text-slate-500">
-            Live read of the past 90 days from Autotask — nothing stored. Recurring issues and
-            inconsistent effort across clients.
+            Live read of the past 90 days from Autotask — nothing stored. Per-client recurring
+            issues and inconsistent effort; clients with nothing notable are left out.
           </p>
         </div>
         <button
@@ -52,29 +52,32 @@ export function TimeEntryPatterns({
 
       {analyzeError && <p className="px-5 py-3 text-sm text-red-600">{analyzeError}</p>}
 
-      {findings && (
+      {clients && (
         <div className="divide-y divide-slate-100">
           {entryCount !== null && (
             <p className="px-5 py-2 text-xs text-slate-500">
               Read {entryCount} time entries from the past 90 days.
             </p>
           )}
-          {findings.map((f, i) => (
+          {clients.map((c, i) => (
             <div key={i} className="px-5 py-3">
-              <div className="flex items-center gap-2">
-                <Badge value={f.type} />
-                <p className="text-sm font-medium text-slate-900">{f.title}</p>
+              <p className="text-sm font-semibold text-slate-900">{c.clientName}</p>
+              <div className="mt-2 space-y-2">
+                {c.findings.map((f, j) => (
+                  <div key={j}>
+                    <div className="flex items-center gap-2">
+                      <Badge value={f.type} />
+                      <p className="text-sm font-medium text-slate-900">{f.title}</p>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">{f.detail}</p>
+                  </div>
+                ))}
               </div>
-              <p className="mt-1 text-sm text-slate-600">{f.detail}</p>
-              {f.clients.length > 0 && (
-                <p className="mt-1 text-xs text-slate-500">{f.clients.join(", ")}</p>
-              )}
             </div>
           ))}
-          {findings.length === 0 && (
+          {clients.length === 0 && (
             <p className="px-5 py-6 text-center text-sm text-slate-500">
-              Nothing genuinely notable found — no recurring issues or inconsistent effort stood
-              out over the past 90 days.
+              Nothing genuinely notable found for any client over the past 90 days.
             </p>
           )}
         </div>

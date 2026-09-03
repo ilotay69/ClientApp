@@ -36,7 +36,11 @@ export type TimeEntryFinding = {
   type: "recurring_issue" | "inconsistent_effort" | "other";
   title: string;
   detail: string;
-  clients: string[];
+};
+
+export type ClientPatternReport = {
+  clientName: string;
+  findings: TimeEntryFinding[];
 };
 
 /** Live fetch + resolution for the analysis below — no storage involved.
@@ -114,50 +118,60 @@ function buildEntryList(entries: TimeEntryForAnalysis[]): string {
 
 const TOOL_NAME = "report_time_entry_patterns";
 const TOOL_DESCRIPTION =
-  "Report recurring issues and inconsistent effort found across a set of logged time entries.";
+  "Report, per client, any real recurring issues or inconsistent effort found in their logged time entries. Skip clients with nothing notable.";
 const TOOL_SCHEMA = {
   type: "object",
   properties: {
-    findings: {
+    clients: {
       type: "array",
+      description:
+        "Only clients that have at least one genuine finding — do not include a client here if nothing stood out for them.",
       items: {
         type: "object",
         properties: {
-          type: {
+          client: {
             type: "string",
-            enum: ["recurring_issue", "inconsistent_effort", "other"],
-            description:
-              "recurring_issue: the same kind of problem keeps coming up for one client across multiple entries/days — suggests it needs a permanent fix rather than repeated patching. inconsistent_effort: similar-sounding work took meaningfully different amounts of time across different clients — worth understanding why, not necessarily a problem. other: any other real pattern worth a look.",
+            description: "The client's name, exactly as given.",
           },
-          title: {
-            type: "string",
-            description: "One short, specific sentence naming the pattern.",
-          },
-          detail: {
-            type: "string",
-            description:
-              "1-3 sentences of supporting evidence — which entries/dates/clients this is based on, and why it's worth attention.",
-          },
-          clients: {
+          findings: {
             type: "array",
-            items: { type: "string" },
-            description: "Client names this finding involves.",
+            items: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["recurring_issue", "inconsistent_effort", "other"],
+                  description:
+                    "recurring_issue: the same kind of problem keeps coming up for this client across multiple entries/days — suggests it needs a permanent fix rather than repeated patching. inconsistent_effort: work that reads as the same kind of task took meaningfully different amounts of time for this client compared to similar work elsewhere — worth understanding why, not necessarily a problem. other: any other real pattern worth a look, specific to this client.",
+                },
+                title: {
+                  type: "string",
+                  description: "One short, specific sentence naming the pattern.",
+                },
+                detail: {
+                  type: "string",
+                  description:
+                    "1-3 sentences of supporting evidence — which entries/dates this is based on, and why it's worth attention.",
+                },
+              },
+              required: ["type", "title", "detail"],
+            },
           },
         },
-        required: ["type", "title", "detail", "clients"],
+        required: ["client", "findings"],
       },
     },
   },
-  required: ["findings"],
+  required: ["clients"],
 } as const;
 
 function buildPrompt(entries: TimeEntryForAnalysis[]): string {
-  return `You're reviewing logged time entries (work an MSP's technicians did, by client) looking for two specific kinds of pattern — not a general summary of the work:
+  return `You're reviewing logged time entries (work an MSP's technicians did, by client), client by client, looking for two specific kinds of pattern — not a general summary of the work:
 
 1. recurring_issue — the same kind of problem shows up repeatedly for ONE client across multiple entries/days (read the notes for what the work actually was, not just that time was logged). That's a signal the underlying problem was never actually fixed, just patched again each time.
-2. inconsistent_effort — work that reads as the same kind of task took meaningfully different amounts of time across DIFFERENT clients. That's worth flagging so someone can look at why, not an accusation that something's wrong.
+2. inconsistent_effort — work that reads as the same kind of task took meaningfully different amounts of time for a client compared to similar work logged elsewhere. That's worth flagging so someone can look at why, not an accusation that something's wrong.
 
-Only report a real pattern backed by what the notes actually say — don't invent detail, and don't report something just because a client has a lot of entries. It's completely fine to return zero findings if nothing genuinely stands out.
+Only report a real pattern backed by what the notes actually say — don't invent detail, and don't report something just because a client has a lot of entries. Only include a client in your output if they have at least one genuine finding — skip every client whose logged work looks normal. It's completely fine to return zero clients if nothing genuinely stands out anywhere.
 
 Time entries (most recent ${Math.min(entries.length, MAX_ENTRIES)} of ${entries.length}):
 ${buildEntryList(entries)}
@@ -168,7 +182,7 @@ Use the ${TOOL_NAME} tool.`;
 export async function analyzeTimeEntryPatterns(
   entries: TimeEntryForAnalysis[],
   settings: ActiveAiSettings
-): Promise<TimeEntryFinding[]> {
+): Promise<ClientPatternReport[]> {
   if (entries.length === 0) return [];
 
   const prompt = buildPrompt(entries);
@@ -177,18 +191,28 @@ export async function analyzeTimeEntryPatterns(
       ? await callOpenAiTool(prompt, settings.apiKey, settings.model)
       : await callAnthropicTool(prompt, settings.apiKey, settings.model);
 
-  const raw = Array.isArray(parsed?.findings) ? parsed.findings : [];
+  const raw = Array.isArray(parsed?.clients) ? parsed.clients : [];
   return raw
     .map(
-      (f: { type?: unknown; title?: unknown; detail?: unknown; clients?: unknown }): TimeEntryFinding => ({
-        type:
-          f.type === "recurring_issue" || f.type === "inconsistent_effort" ? f.type : "other",
-        title: typeof f.title === "string" ? f.title : "",
-        detail: typeof f.detail === "string" ? f.detail : "",
-        clients: Array.isArray(f.clients) ? f.clients.filter((c): c is string => typeof c === "string") : [],
+      (c: { client?: unknown; findings?: unknown }): ClientPatternReport => ({
+        clientName: typeof c.client === "string" ? c.client : "",
+        findings: Array.isArray(c.findings)
+          ? c.findings
+              .map(
+                (f: { type?: unknown; title?: unknown; detail?: unknown }): TimeEntryFinding => ({
+                  type:
+                    f.type === "recurring_issue" || f.type === "inconsistent_effort"
+                      ? f.type
+                      : "other",
+                  title: typeof f.title === "string" ? f.title : "",
+                  detail: typeof f.detail === "string" ? f.detail : "",
+                })
+              )
+              .filter((f: TimeEntryFinding) => f.title)
+          : [],
       })
     )
-    .filter((f: TimeEntryFinding) => f.title);
+    .filter((c: ClientPatternReport) => c.clientName && c.findings.length > 0);
 }
 
 async function callAnthropicTool(

@@ -15,7 +15,7 @@ import {
 import {
   fetchTimeEntriesForAnalysis,
   analyzeTimeEntryPatterns,
-  type TimeEntryFinding,
+  type ClientPatternReport,
 } from "@/lib/time-entry-insights";
 
 export type FormState = { error: string | null };
@@ -180,7 +180,7 @@ const PATTERN_ANALYSIS_DAYS = 90;
  * app's own database beyond the existing client mappings needed to
  * attribute an entry to a client. */
 export async function analyzeTimeEntryPatternsAction(): Promise<
-  { findings: TimeEntryFinding[]; entryCount: number } | { error: string }
+  { clients: ClientPatternReport[]; entryCount: number } | { error: string }
 > {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
@@ -213,8 +213,8 @@ export async function analyzeTimeEntryPatternsAction(): Promise<
     if (entries.length === 0) {
       return { error: "No time entries found in Autotask for the past 90 days." };
     }
-    const findings = await analyzeTimeEntryPatterns(entries, aiSettings);
-    return { findings, entryCount: entries.length };
+    const clients = await analyzeTimeEntryPatterns(entries, aiSettings);
+    return { clients, entryCount: entries.length };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Analysis failed." };
   }
