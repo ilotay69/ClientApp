@@ -40,6 +40,8 @@ export function TaskQuickAdd({
   members,
   action,
   personal = false,
+  defaultProjectId = "",
+  defaultClientId = "",
 }: {
   clients: { id: string; name: string }[];
   projects: { id: string; name: string; clientName: string | null }[];
@@ -49,6 +51,11 @@ export function TaskQuickAdd({
    * visible to anyone but whoever creates it (enforced in the action, not
    * just here). */
   personal?: boolean;
+  /** Pre-selects the project (and its client) — for arriving here via a
+   * project's own "+ Add" link, so adding a task doesn't mean hunting it
+   * out of every project in the dropdown. */
+  defaultProjectId?: string;
+  defaultClientId?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -83,7 +90,7 @@ export function TaskQuickAdd({
       {!personal && (
         <select
           name="client_id"
-          defaultValue=""
+          defaultValue={defaultClientId}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">No client (internal)</option>
@@ -97,7 +104,7 @@ export function TaskQuickAdd({
       {!personal && (
         <select
           name="project_id"
-          defaultValue=""
+          defaultValue={defaultProjectId}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">No project</option>

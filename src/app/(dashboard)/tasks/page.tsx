@@ -41,9 +41,9 @@ const PERSONAL_STATUS_OPTIONS = [
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mine?: string; view?: string }>;
+  searchParams: Promise<{ mine?: string; view?: string; project_id?: string; client_id?: string }>;
 }) {
-  const { mine, view } = await searchParams;
+  const { mine, view, project_id: defaultProjectId, client_id: defaultClientId } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -134,6 +134,8 @@ export default async function TasksPage({
         projects={projectSummaries}
         members={members ?? []}
         action={createTask}
+        defaultProjectId={defaultProjectId ?? ""}
+        defaultClientId={defaultClientId ?? ""}
       />
 
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">

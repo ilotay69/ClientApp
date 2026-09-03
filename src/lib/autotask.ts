@@ -264,10 +264,19 @@ export async function fetchOpenTicketsForCompany(
   companyId: number,
   labels: PicklistLabelMaps
 ): Promise<AutotaskTicketRow[]> {
+  // A ticket tagged with the Project SLA already shows up as a Project
+  // (see fetchProjectSlaTicketsForCompany below) — excluded here so it
+  // doesn't also appear as a regular open ticket, which is exactly the
+  // double-entry this whole Project-SLA setup was meant to avoid.
+  const projectSlaId = resolveProjectSlaId(labels);
+
   const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
     filter: [
       { op: "eq", field: "companyID", value: companyId },
       { op: "notExist", field: "completedDate" },
+      ...(projectSlaId !== null
+        ? [{ op: "noteq", field: "serviceLevelAgreementID", value: projectSlaId }]
+        : []),
     ],
     MaxRecords: 200,
   })) as RawTicket[];
@@ -302,6 +311,16 @@ export async function fetchOpenTicketsForCompany(
 // case-insensitively against the tenant's actual SLA picklist labels.
 export const PROJECT_SLA_LABEL = "Project SLA";
 
+/** The numeric SLA id matching PROJECT_SLA_LABEL in this tenant's actual
+ * picklist, or null if no SLA is named that (a normal state, not an
+ * error — see fetchProjectSlaTicketsForCompany). */
+function resolveProjectSlaId(labels: PicklistLabelMaps): number | null {
+  const entry = [...labels.sla.entries()].find(
+    ([, label]) => label.trim().toLowerCase() === PROJECT_SLA_LABEL.toLowerCase()
+  );
+  return entry ? entry[0] : null;
+}
+
 export type AutotaskProjectTicketRow = {
   source_autotask_ticket_id: number;
   name: string;
@@ -325,10 +344,8 @@ export async function fetchProjectSlaTicketsForCompany(
   companyId: number,
   labels: PicklistLabelMaps
 ): Promise<AutotaskProjectTicketRow[]> {
-  const slaId = [...labels.sla.entries()].find(
-    ([, label]) => label.trim().toLowerCase() === PROJECT_SLA_LABEL.toLowerCase()
-  )?.[0];
-  if (slaId === undefined) return [];
+  const slaId = resolveProjectSlaId(labels);
+  if (slaId === null) return [];
 
   const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
     filter: [
