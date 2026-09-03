@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { ResourceHoursRow } from "@/lib/resource-hours";
+import type { ClientHoursRow } from "@/lib/resource-hours";
 
 function hrs(n: number): string {
   return n.toFixed(1);
@@ -10,9 +10,9 @@ function hrs(n: number): string {
 export function ResourceHoursReport({
   action,
 }: {
-  action: () => Promise<{ rows: ResourceHoursRow[] } | { error: string }>;
+  action: () => Promise<{ rows: ClientHoursRow[] } | { error: string }>;
 }) {
-  const [rows, setRows] = useState<ResourceHoursRow[] | null>(null);
+  const [rows, setRows] = useState<ClientHoursRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, startLoad] = useTransition();
 
@@ -56,7 +56,7 @@ export function ResourceHoursReport({
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-5 py-2 text-left font-medium text-slate-500">Resource</th>
+                <th className="px-5 py-2 text-left font-medium text-slate-500">Client</th>
                 <th className="px-5 py-2 text-right font-medium text-slate-500">Today</th>
                 <th className="px-5 py-2 text-right font-medium text-slate-500">Yesterday</th>
                 <th className="px-5 py-2 text-right font-medium text-slate-500">This week</th>
@@ -65,8 +65,8 @@ export function ResourceHoursReport({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((r) => (
-                <tr key={r.resourceId}>
-                  <td className="px-5 py-2 text-slate-900">{r.resourceName}</td>
+                <tr key={r.clientId ?? "unattributed"}>
+                  <td className="px-5 py-2 text-slate-900">{r.clientName}</td>
                   <td className="px-5 py-2 text-right text-slate-700">{hrs(r.today)}</td>
                   <td className="px-5 py-2 text-right text-slate-700">{hrs(r.yesterday)}</td>
                   <td className="px-5 py-2 text-right text-slate-700">{hrs(r.thisWeek)}</td>

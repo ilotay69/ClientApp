@@ -1,12 +1,12 @@
 import {
   fetchTimeEntriesInRange,
-  resolveResourceNames,
+  resolveTicketCompanyIds,
   type AutotaskCredentials,
 } from "@/lib/autotask";
 
-export type ResourceHoursRow = {
-  resourceId: number;
-  resourceName: string;
+export type ClientHoursRow = {
+  clientId: string | null;
+  clientName: string;
   today: number;
   yesterday: number;
   thisWeek: number;
@@ -35,11 +35,20 @@ export function lastBusinessDayBefore(date: Date): Date {
  * own date against these boundaries — cheaper than four separate range
  * queries. Boundaries are UTC calendar dates, same
  * "today = new Date().toISOString().slice(0,10)" convention already used
- * elsewhere in this app (e.g. task due-date defaults), not a new one. */
-export async function fetchResourceHoursSummary(
+ * elsewhere in this app (e.g. task due-date defaults), not a new one.
+ *
+ * Grouped by client rather than resource — a time entry carries no
+ * client/company reference of its own, so each one is attributed via its
+ * ticket's companyID (resolved directly from Autotask, batched) mapped to
+ * a client through this app's own clients.autotask_company_id. An entry
+ * with no ticket or an unmapped company is grouped under "Unattributed"
+ * rather than dropped. */
+export async function fetchClientHoursSummary(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
   creds: AutotaskCredentials,
   zoneUrl: string
-): Promise<ResourceHoursRow[]> {
+): Promise<ClientHoursRow[]> {
   const now = new Date();
   const todayStr = ymd(now);
 
@@ -59,12 +68,35 @@ export async function fetchResourceHoursSummary(
 
   const entries = await fetchTimeEntriesInRange(creds, zoneUrl, fetchSinceStr, todayStr);
 
-  const byResource = new Map<number, ResourceHoursRow>();
+  const ticketCompanyIds = await resolveTicketCompanyIds(
+    creds,
+    zoneUrl,
+    entries.map((e) => e.ticketID).filter((id): id is number => id != null)
+  );
+  const companyIds = [...new Set([...ticketCompanyIds.values()])];
+  const { data: clients } = await admin
+    .from("clients")
+    .select("id, name, autotask_company_id")
+    .in("autotask_company_id", companyIds.length > 0 ? companyIds : [-1]);
+  const clientByCompanyId = new Map<number, { id: string; name: string }>(
+    (clients ?? []).map(
+      (c: {
+        id: string;
+        name: string;
+        autotask_company_id: number;
+      }): [number, { id: string; name: string }] => [c.autotask_company_id, { id: c.id, name: c.name }]
+    )
+  );
+
+  const byClient = new Map<string, ClientHoursRow>();
   for (const e of entries) {
     const day = e.dateWorked.slice(0, 10);
-    const row = byResource.get(e.resourceID) ?? {
-      resourceId: e.resourceID,
-      resourceName: "",
+    const companyId = e.ticketID != null ? ticketCompanyIds.get(e.ticketID) : undefined;
+    const client = companyId != null ? clientByCompanyId.get(companyId) : undefined;
+    const key = client?.id ?? "unattributed";
+    const row = byClient.get(key) ?? {
+      clientId: client?.id ?? null,
+      clientName: client?.name ?? "Unattributed",
       today: 0,
       yesterday: 0,
       thisWeek: 0,
@@ -77,13 +109,8 @@ export async function fetchResourceHoursSummary(
     if (day >= weekStartStr) row.thisWeek += e.hoursWorked;
     if (day === todayStr) row.today += e.hoursWorked;
     if (day === yesterdayStr) row.yesterday += e.hoursWorked;
-    byResource.set(e.resourceID, row);
+    byClient.set(key, row);
   }
 
-  const names = await resolveResourceNames(creds, zoneUrl, [...byResource.keys()]);
-  for (const row of byResource.values()) {
-    row.resourceName = names.get(row.resourceId) ?? `Resource ${row.resourceId}`;
-  }
-
-  return [...byResource.values()].sort((a, b) => b.thisMonth - a.thisMonth);
+  return [...byClient.values()].sort((a, b) => b.thisMonth - a.thisMonth);
 }
