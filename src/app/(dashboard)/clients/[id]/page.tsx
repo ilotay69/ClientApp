@@ -272,12 +272,18 @@ export default async function ClientDetailPage({
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <AutotaskMappingButton
-            companyId={client.autotask_company_id}
-            searchAction={searchAutotaskCompaniesAction}
-            linkAction={linkAutotaskAction}
-            unlinkAction={unlinkAutotaskAction}
-          />
+          {/* A client is now linked to Autotask automatically at creation
+              (see clients/new) — this only ever needs to show for an older
+              client that predates that and has no link yet. Once linked,
+              there's nothing left to do here. */}
+          {!client.autotask_company_id && (
+            <AutotaskMappingButton
+              companyId={client.autotask_company_id}
+              searchAction={searchAutotaskCompaniesAction}
+              linkAction={linkAutotaskAction}
+              unlinkAction={unlinkAutotaskAction}
+            />
+          )}
           {client.autotask_company_id && <SyncAutotaskButton action={syncAutotaskAction} />}
           <NinjaOneMappingButton
             organizationId={client.ninjaone_organization_id}
