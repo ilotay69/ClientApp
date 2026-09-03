@@ -34,7 +34,7 @@ export function ServiceCoverageAnalysis({
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Coverage analysis</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Services Deployed</h2>
             <p className="text-xs text-slate-500">
               Reads every client&apos;s active Autotask contracted services — nothing to set up
               here — groups them into categories (MDR, backup, etc.), and flags clients missing one
