@@ -202,6 +202,13 @@ export async function generateSuggestions(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/** Blocks a duplicate regardless of status — an insight you already marked
+ * Done or Dismissed is exactly the one you don't want regenerated on the
+ * next refresh. Only checking `status = 'open'` here was backwards: acting
+ * on a suggestion made it invisible to this check instead of suppressing
+ * it, so clicking Done/Dismiss and then Refresh insights would bring the
+ * same thing right back for as long as the underlying ticket/situation
+ * hadn't changed. */
 async function hasRecentSimilarSuggestion(admin: any, clientId: string, kind: string) {
   const since = new Date(Date.now() - DEDUPE_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const { data } = await admin
@@ -209,7 +216,6 @@ async function hasRecentSimilarSuggestion(admin: any, clientId: string, kind: st
     .select("id")
     .eq("client_id", clientId)
     .eq("kind", kind)
-    .eq("status", "open")
     .gte("created_at", since)
     .limit(1);
   return (data?.length ?? 0) > 0;
