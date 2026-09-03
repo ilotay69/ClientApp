@@ -395,19 +395,34 @@ async function resolveServiceNames(
   const uniqueIds = [...new Set(serviceIds)].filter((id) => Number.isFinite(id));
   if (uniqueIds.length === 0) return map;
 
-  let items: unknown[];
-  try {
-    items = await autotaskQuery(creds, zoneUrl, "Services", {
-      filter: [{ op: "in", field: "id", value: uniqueIds }],
-      MaxRecords: uniqueIds.length,
-    });
-  } catch (err) {
-    console.error("Autotask Services lookup failed — falling back to raw ids", err);
-    return map;
+  // TEMPORARY: every service name lookup has been silently failing (every
+  // row falls back to "Service {id}"), and the failure was being swallowed
+  // here and only logged server-side — invisible without Railway log
+  // access. Let it throw for real so the actual Autotask error surfaces
+  // through the normal "Sync Autotask" error banner instead. Revert to
+  // catch-and-fall-back once the real cause is fixed.
+  const items = (await autotaskQuery(creds, zoneUrl, "Services", {
+    filter: [{ op: "in", field: "id", value: uniqueIds }],
+    MaxRecords: uniqueIds.length,
+  })) as { id: number; name?: string }[];
+
+  if (items.length === 0) {
+    throw new Error(
+      `Autotask Services query for ids [${uniqueIds.join(", ")}] returned 0 results — the query "succeeded" but matched nothing.`
+    );
   }
-  for (const s of items as { id: number; name?: string }[]) {
+
+  for (const s of items) {
     map.set(s.id, s.name || `Service ${s.id}`);
   }
+
+  const missing = uniqueIds.filter((id) => !map.has(id));
+  if (missing.length > 0) {
+    throw new Error(
+      `Autotask Services query returned ${items.length} of ${uniqueIds.length} requested ids — missing: [${missing.join(", ")}]. Sample returned row: ${JSON.stringify(items[0])}`
+    );
+  }
+
   return map;
 }
 
