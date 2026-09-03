@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { ResourceHoursReport } from "@/components/resource-hours-report";
-import { fetchResourceHoursAction } from "./actions";
+import { YesterdayTimeEntries } from "@/components/yesterday-time-entries";
+import { fetchResourceHoursAction, fetchYesterdayTimeEntriesAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,8 @@ export default async function HoursPage() {
       </div>
 
       <ResourceHoursReport action={fetchResourceHoursAction} />
+
+      <YesterdayTimeEntries action={fetchYesterdayTimeEntriesAction} />
     </div>
   );
 }
