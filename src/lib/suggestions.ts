@@ -7,6 +7,7 @@ const MAX_TICKET_DESCRIPTION_CHARS = 600;
 
 const LOOKBACK_DAYS = 30;
 const MAX_EMAILS_PER_CLIENT = 15;
+const MAX_TIMELINE_NOTES_PER_CLIENT = 8;
 const DEDUPE_WINDOW_DAYS = 7;
 
 /**
@@ -38,6 +39,7 @@ export async function generateSuggestions(
       { data: ticketedClientIdsRows },
       { data: overdueTaskClientIdsRows },
       { data: offlineDeviceClientIdsRows },
+      { data: loggedInteractionClientIdsRows },
     ] = await Promise.all([
       admin.from("email_links").select("client_id").gte("received_at", since),
       // No lookback window needed here — "has an open ticket" is already
@@ -54,6 +56,13 @@ export async function generateSuggestions(
       // Same reasoning — only an offline device is notable enough to
       // warrant a look; online devices are the expected default.
       admin.from("ninjaone_devices").select("client_id").eq("is_offline", true),
+      // A manually logged note/call/meeting is a real signal even with no
+      // matching email — someone talked to this client recently.
+      admin
+        .from("client_interactions")
+        .select("client_id")
+        .in("type", ["note", "call", "meeting"])
+        .gte("created_at", since),
     ]);
 
     const allClientIds: string[] = [
@@ -61,6 +70,7 @@ export async function generateSuggestions(
       ...(ticketedClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
       ...(overdueTaskClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
       ...(offlineDeviceClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
+      ...(loggedInteractionClientIdsRows ?? []).map((r: { client_id: string }) => r.client_id),
     ];
     clientIds = [...new Set(allClientIds)].slice(0, maxClients);
   }
@@ -77,6 +87,7 @@ export async function generateSuggestions(
       { data: tasks },
       { data: devices },
       { data: documents },
+      { data: timelineNotes },
     ] = await Promise.all([
       admin.from("clients").select("id, name").eq("id", clientId).single(),
       admin
@@ -117,13 +128,27 @@ export async function generateSuggestions(
         .in("type", ["quote", "review"])
         .order("created_at", { ascending: false })
         .limit(5),
+      // Manually logged notes/calls/meetings — not time-windowed like
+      // emails: a call logged 40 days ago with nothing since is still the
+      // most recent real context on this client, more useful than nothing.
+      admin
+        .from("client_interactions")
+        .select("type, subject, body, created_at")
+        .eq("client_id", clientId)
+        .in("type", ["note", "call", "meeting"])
+        .order("created_at", { ascending: false })
+        .limit(MAX_TIMELINE_NOTES_PER_CLIENT),
     ]);
 
-    // A client qualifies via emails, open tickets, an overdue task, or an
-    // offline device — don't require all of them. A single explicitly-
-    // requested client (onlyClientId) always proceeds, even with none of
-    // these, so a manual per-client refresh isn't silently skipped just
-    // because there's nothing to react to yet.
+    // A client qualifies via emails, open tickets, an overdue task, an
+    // offline device, an uploaded document, or a logged note/call/meeting
+    // — don't require all of them; this must stay in sync with whatever
+    // brings a client into the candidate pool above, or a client that
+    // qualified via (say) a logged call gets silently skipped here for
+    // having none of the other signals. A single explicitly-requested
+    // client (onlyClientId) always proceeds regardless, so a manual
+    // per-client refresh isn't silently skipped just because there's
+    // nothing to react to yet.
     const overdueTasks = (tasks ?? []).filter((t: { due_date: string | null }) => isOverdue(t.due_date));
     const offlineDevices = (devices ?? []).filter((d: { is_offline: boolean | null }) => d.is_offline);
     if (!client) continue;
@@ -132,7 +157,9 @@ export async function generateSuggestions(
       (!emails || emails.length === 0) &&
       (!tickets || tickets.length === 0) &&
       overdueTasks.length === 0 &&
-      offlineDevices.length === 0
+      offlineDevices.length === 0 &&
+      (!documents || documents.length === 0) &&
+      (!timelineNotes || timelineNotes.length === 0)
     )
       continue;
 
@@ -144,7 +171,8 @@ export async function generateSuggestions(
       tickets ?? [],
       tasks ?? [],
       devices ?? [],
-      documents ?? []
+      documents ?? [],
+      timelineNotes ?? []
     );
 
     let generated;
@@ -225,6 +253,14 @@ type DocumentRow = {
   subject: string | null;
   created_at: string;
 };
+type TimelineNoteRow = {
+  type: "note" | "call" | "meeting";
+  subject: string | null;
+  body: string | null;
+  created_at: string;
+};
+
+const MAX_TIMELINE_NOTE_CHARS = 500;
 
 function buildPrompt(
   clientName: string,
@@ -234,7 +270,8 @@ function buildPrompt(
   tickets: TicketRow[],
   tasks: TaskRow[],
   devices: DeviceRow[],
-  documents: DocumentRow[]
+  documents: DocumentRow[],
+  timelineNotes: TimelineNoteRow[]
 ) {
   const emailList = emails
     .map(
@@ -297,6 +334,19 @@ function buildPrompt(
         .join("\n")
     : "None on file.";
 
+  const timelineNoteList = timelineNotes.length
+    ? timelineNotes
+        .map((n) => {
+          const label = n.type === "note" ? "Note" : n.type === "call" ? "Call" : "Meeting";
+          const body = n.body
+            ? n.body.slice(0, MAX_TIMELINE_NOTE_CHARS) +
+              (n.body.length > MAX_TIMELINE_NOTE_CHARS ? "…" : "")
+            : "(no detail)";
+          return `- [${label}, ${n.created_at.slice(0, 10)}]${n.subject ? ` "${n.subject}":` : ""} ${body}`;
+        })
+        .join("\n")
+    : "None logged.";
+
   const deviceIssues = buildDeviceInsights(
     devices.map((d) => ({
       system_name: d.system_name,
@@ -309,7 +359,7 @@ function buildPrompt(
     ? deviceIssues.map((i) => `- [${i.severity.toUpperCase()}] ${i.title} — ${i.detail}`).join("\n")
     : "None detected.";
 
-  return `You are helping an MSP (managed IT services provider) owner and their team of managers and techs stay on top of a client relationship. You will see recent emails with/about this client, plus what's already being tracked in their ops system, including any open Autotask support tickets. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions. Nobody here creates formal price quotes in this system (that's handled by sales elsewhere), so never include or ask for a dollar amount.
+  return `You are helping an MSP (managed IT services provider) owner and their team of managers and techs stay on top of a client relationship. You will see recent emails with/about this client, manually logged notes/calls/meetings from their Timeline, and what's already being tracked in their ops system, including any open Autotask support tickets. Flag only things that are genuinely new, actionable, or notable — not things already obviously covered by what's tracked. It is completely fine to return zero suggestions. Nobody here creates formal price quotes in this system (that's handled by sales elsewhere), so never include or ask for a dollar amount.
 
 Ignore automated, bulk, or boilerplate mail entirely — it is not a client
 signal even if forwarded into this inbox. This includes: vendor
@@ -324,6 +374,11 @@ Client: ${clientName}
 
 Recent emails (last ${LOOKBACK_DAYS} days):
 ${emailList || "None."}
+
+Manually logged notes, calls, and meetings (from the client's Timeline —
+not time-windowed, so the most recent entry may be older than the emails
+above):
+${timelineNoteList}
 
 Currently tracked active projects:
 ${projectList}
@@ -352,7 +407,7 @@ Look for, in order of importance:
 1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, a high-priority ticket that's been open a long time with no apparent resolution, a task marked OVERDUE above (especially high priority), a device that's OFFLINE with a last-contact gap of several days or more (could mean a dead machine, a network outage, or an unpatched security risk going unmonitored), anything that shouldn't wait. Also urgent_alert (not opportunity) for a SERVER running an OS that has reached end-of-life/end-of-support — the "Device issues already detected automatically" list above is authoritative for which operating systems are end-of-life — prefer it over your own recollection of lifecycle dates. An EOL server is a live security exposure (no security patches), which is materially more urgent than an EOL workstation.
 2. quote_follow_up — a customer asked for pricing/a quote and nobody's replied yet, OR pricing was sent and the customer's gone quiet with no reply. No dollar amount needed, just flag that a follow-up is owed. This applies to ticket descriptions too, not just emails: read what each ticket actually says the client is asking for — if the description reads like an open question or a request for information/status and "last activity" is stale relative to how long it's been open, that's a strong signal nobody has gotten back to them. Don't flag a ticket just for being open a while if its description doesn't read like it's waiting on a reply (e.g. it's a scheduled/ongoing project ticket). Also check the "Uploaded documents" section above: a Signed quote on file with no matching project or ticket started for it is a strong signal the work hasn't been kicked off yet — flag that.
 3. new_project — an email suggests a new project, engagement, or piece of work that isn't already in the tracked project list above.
-4. stale_contact — the client's been emailing but hasn't had a proactive check-in in a while relative to that activity.
+4. stale_contact — the client's been emailing but hasn't had a proactive check-in in a while relative to that activity. A logged call or meeting in the Timeline counts as a real check-in same as a touchpoint does — don't flag stale_contact if one happened recently, and do weigh how long it's actually been since the last logged note/call/meeting/email together, not emails alone.
 5. review_prep — something worth bringing up at their next monthly visit or quarterly review, including any notable open ticket. Note: the "Uploaded documents" list only gives you a label and upload date, not the document's actual content — don't invent or guess at what a Quarterly review says, just note when the last one on file was and whether a fresh one looks due.
 6. opportunity — a possible upsell or new-service signal that isn't urgent, including a WORKSTATION running an end-of-life/soon-to-expire OS (again, judge this against real vendor support lifecycles you know, not just an old-sounding version number) worth a hardware or OS refresh conversation. A workstation is lower-severity than a server running the same EOL OS (see urgent_alert above) — same underlying fact, different priority.
 7. follow_up / other — anything else that looks unhandled, including an open ticket that seems to have gone quiet.
