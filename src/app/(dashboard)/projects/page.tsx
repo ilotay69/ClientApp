@@ -26,7 +26,7 @@ export default async function ProjectsPage({
 
   let projectsQuery = supabase
     .from("projects")
-    .select("id, name, status, target_end_date, clients(name)")
+    .select("id, name, status, target_end_date, source_autotask_ticket_id, clients(name)")
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
   if (status) projectsQuery = projectsQuery.eq("status", status);
@@ -88,9 +88,12 @@ export default async function ProjectsPage({
             {(projects ?? []).map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
                 <td className="px-5 py-3">
-                  <Link href={`/projects/${p.id}`} className="font-medium text-slate-900 hover:underline">
-                    {p.name}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/projects/${p.id}`} className="font-medium text-slate-900 hover:underline">
+                      {p.name}
+                    </Link>
+                    {p.source_autotask_ticket_id && <Badge value="autotask" />}
+                  </div>
                 </td>
                 <td className="px-5 py-3 text-slate-600">
                   {(p.clients as unknown as { name: string } | null)?.name ?? "—"}

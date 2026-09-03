@@ -11,6 +11,7 @@ import {
   fetchOpenTicketsForCompany,
   fetchTicketPicklists,
   fetchContractServicesForCompany,
+  fetchProjectSlaTicketsForCompany,
   fetchTicketNotes,
   fetchTicketTimeEntries,
   type AutotaskCompany,
@@ -372,6 +373,26 @@ export async function syncClientAutotaskData(clientId: string): Promise<{ error:
       await admin
         .from("autotask_contract_services")
         .insert(contractServices.map((cs) => ({ ...cs, client_id: clientId })));
+    }
+
+    // Tickets tagged with the Project SLA become this client's Projects —
+    // replace-on-sync, same as tickets/contract services above, so a
+    // project's status/dates always reflect Autotask, not a stale copy.
+    const projectTickets = await fetchProjectSlaTicketsForCompany(
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id,
+      labels
+    );
+    await admin
+      .from("projects")
+      .delete()
+      .eq("client_id", clientId)
+      .not("source_autotask_ticket_id", "is", null);
+    if (projectTickets.length > 0) {
+      await admin
+        .from("projects")
+        .insert(projectTickets.map((p) => ({ ...p, client_id: clientId })));
     }
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Sync failed." };

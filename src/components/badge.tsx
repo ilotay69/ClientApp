@@ -63,6 +63,9 @@ const COLORS: Record<string, string> = {
   monthly_visit: CATEGORY_PURPLE,
   quarterly_review: CATEGORY_INDIGO,
 
+  // project source — a category, not a status
+  autotask: CATEGORY_INDIGO,
+
   // roles — a hierarchy, not a status; Owner intentionally stands apart
   owner: "bg-charcoal text-white",
   manager: INFO,

@@ -32,6 +32,7 @@ export default async function ProjectDetailPage({
 
   const clientName = (project.clients as unknown as { name: string } | null)?.name;
   const updateAction = updateProject.bind(null, id, project.client_id);
+  const fromAutotask = project.source_autotask_ticket_id !== null;
 
   return (
     <div className="space-y-6">
@@ -40,7 +41,10 @@ export default async function ProjectDetailPage({
           <Link href="/projects" className="text-sm text-slate-500 hover:underline">
             ← All projects
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900">{project.name}</h1>
+          <div className="mt-1 flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
+            {fromAutotask && <Badge value="autotask" />}
+          </div>
           {clientName && (
             <p className="text-sm text-slate-500">
               <Link href={`/clients/${project.client_id}`} className="hover:underline">
@@ -49,20 +53,52 @@ export default async function ProjectDetailPage({
             </p>
           )}
         </div>
-        <DeleteButton
-          action={deleteProject.bind(null, id, project.client_id)}
-          confirmText={`Delete the project "${project.name}"?`}
-        />
+        {!fromAutotask && (
+          <DeleteButton
+            action={deleteProject.bind(null, id, project.client_id)}
+            confirmText={`Delete the project "${project.name}"?`}
+          />
+        )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <ProjectForm
-          project={project}
-          clients={clients ?? []}
-          action={updateAction}
-          submitLabel="Save changes"
-        />
-      </div>
+      {fromAutotask ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm text-slate-600">
+            This project is synced from an Autotask ticket tagged with the Project SLA — its
+            name, status, and dates come from that ticket and refresh on the next Autotask sync.
+            Edit the ticket in Autotask, not here; changes made on this page would just be
+            overwritten. It can&apos;t be deleted from here either, for the same reason — remove
+            the Project SLA tag (or the ticket) in Autotask instead.
+          </p>
+          <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</dt>
+              <dd className="mt-1">
+                <Badge value={project.status} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Start</dt>
+              <dd className="mt-1 text-slate-700">{formatDate(project.start_date)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Target end
+              </dt>
+              <dd className="mt-1 text-slate-700">{formatDate(project.target_end_date)}</dd>
+            </div>
+          </dl>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <ProjectForm
+            project={project}
+            clients={clients ?? []}
+            action={updateAction}
+            submitLabel="Save changes"
+          />
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">

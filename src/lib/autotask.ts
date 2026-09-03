@@ -114,6 +114,7 @@ export type PicklistLabelMaps = {
   status: Map<number, string>;
   priority: Map<number, string>;
   queue: Map<number, string>;
+  sla: Map<number, string>;
 };
 
 type FieldInfo = {
@@ -169,6 +170,7 @@ export async function fetchTicketPicklists(
     status: picklistMap(fields, "status"),
     priority: picklistMap(fields, "priority"),
     queue: picklistMap(fields, "queueID"),
+    sla: picklistMap(fields, "serviceLevelAgreementID"),
   };
 }
 
@@ -245,6 +247,8 @@ type RawTicket = {
   dueDateTime?: string;
   createDate?: string;
   lastActivityDate?: string;
+  completedDate?: string;
+  serviceLevelAgreementID?: number;
 };
 
 /** Fetches this company's open tickets (completedDate is null — a real,
@@ -290,6 +294,56 @@ export async function fetchOpenTicketsForCompany(
     due_date: t.dueDateTime ?? null,
     opened_at: t.createDate ?? null,
     last_activity_at: t.lastActivityDate ?? null,
+  }));
+}
+
+// The SLA name that marks a ticket as project work in this account's
+// Autotask — change here if it's ever renamed there. Matched
+// case-insensitively against the tenant's actual SLA picklist labels.
+export const PROJECT_SLA_LABEL = "Project SLA";
+
+export type AutotaskProjectTicketRow = {
+  source_autotask_ticket_id: number;
+  name: string;
+  status: "active" | "completed";
+  start_date: string | null;
+  target_end_date: string | null;
+};
+
+/** Tickets tagged with the "Project SLA" service level agreement, treated
+ * as this app's Projects instead of requiring a project to be created by
+ * hand in both Autotask and here — one ticket becomes one project.
+ * Includes completed tickets too (unlike fetchOpenTicketsForCompany,
+ * which only wants open ones) so a finished project shows as completed
+ * rather than disappearing. Returns an empty list, not an error, if this
+ * tenant's SLA picklist has no label matching PROJECT_SLA_LABEL — that's
+ * a normal state (the SLA hasn't been applied to anything yet), not a
+ * failure. */
+export async function fetchProjectSlaTicketsForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number,
+  labels: PicklistLabelMaps
+): Promise<AutotaskProjectTicketRow[]> {
+  const slaId = [...labels.sla.entries()].find(
+    ([, label]) => label.trim().toLowerCase() === PROJECT_SLA_LABEL.toLowerCase()
+  )?.[0];
+  if (slaId === undefined) return [];
+
+  const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "eq", field: "companyID", value: companyId },
+      { op: "eq", field: "serviceLevelAgreementID", value: slaId },
+    ],
+    MaxRecords: 200,
+  })) as RawTicket[];
+
+  return items.map((t) => ({
+    source_autotask_ticket_id: t.id,
+    name: t.title,
+    status: t.completedDate ? "completed" : "active",
+    start_date: t.createDate ?? null,
+    target_end_date: t.dueDateTime ?? null,
   }));
 }
 

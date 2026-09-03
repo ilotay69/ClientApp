@@ -71,7 +71,11 @@ export async function updateProject(
   const { error } = await supabase
     .from("projects")
     .update(fields)
-    .eq("id", projectId);
+    .eq("id", projectId)
+    // Autotask-sourced projects are edited in Autotask, not here — the
+    // page already hides this form for them, but this holds regardless of
+    // how the request got made.
+    .is("source_autotask_ticket_id", null);
 
   if (error) return { error: error.message };
 
@@ -85,7 +89,11 @@ export async function deleteProject(projectId: string, clientId: string) {
   if (!(await requirePermission("manage_projects"))) return;
 
   const supabase = await createClient();
-  await supabase.from("projects").delete().eq("id", projectId);
+  await supabase
+    .from("projects")
+    .delete()
+    .eq("id", projectId)
+    .is("source_autotask_ticket_id", null);
   revalidatePath("/projects");
   revalidatePath(`/clients/${clientId}`);
   redirect("/projects");

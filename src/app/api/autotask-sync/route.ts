@@ -4,6 +4,7 @@ import {
   fetchOpenTicketsForCompany,
   fetchTicketPicklists,
   fetchContractServicesForCompany,
+  fetchProjectSlaTicketsForCompany,
 } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 
@@ -66,7 +67,29 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      results.push({ clientId: client.id, tickets: tickets.length, contractServices: contractServices.length });
+      const projectTickets = await fetchProjectSlaTicketsForCompany(
+        settings.credentials,
+        settings.zoneUrl,
+        client.autotask_company_id as number,
+        labels
+      );
+      await admin
+        .from("projects")
+        .delete()
+        .eq("client_id", client.id)
+        .not("source_autotask_ticket_id", "is", null);
+      if (projectTickets.length > 0) {
+        await admin.from("projects").insert(
+          projectTickets.map((p) => ({ ...p, client_id: client.id }))
+        );
+      }
+
+      results.push({
+        clientId: client.id,
+        tickets: tickets.length,
+        contractServices: contractServices.length,
+        projectTickets: projectTickets.length,
+      });
     } catch (err) {
       results.push({
         clientId: client.id,
