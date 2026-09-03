@@ -34,7 +34,7 @@ export function TimeEntryPatterns({
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Pattern analysis</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Ticket Pattern</h2>
           <p className="text-xs text-slate-500">
             Live read of the past 90 days from Autotask — nothing stored. Recurring issues and
             inconsistent effort across clients.
