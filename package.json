@@ -13,7 +13,6 @@
     "@supabase/supabase-js": "^2.112.4",
     "date-fns": "^4.4.0",
     "next": "16.3.3",
-    "pdf-parse": "^1.1.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "resend": "^6.24.0"
@@ -21,7 +20,6 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

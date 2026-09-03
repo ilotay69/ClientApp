@@ -31,7 +31,6 @@ import {
   type M365ClientCredentials,
 } from "@/lib/m365-partner";
 import { getM365ClientSettings, getValidM365Token } from "@/lib/m365-client-credentials";
-import { extractPdfText } from "@/lib/pdf-text";
 
 export type FormState = { error: string | null };
 
@@ -180,11 +179,21 @@ export async function logClientInteraction(
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB
 
-/** A signed quote or a quarterly review PDF, logged as a Timeline entry the
- * same way a manually typed note is — the extracted text becomes the
- * entry's body, and the original file is attached for download. Open to any
- * signed-in user, matching logClientInteraction's posture: uploading a
- * document a tech received from a client isn't a "manage_clients" action. */
+// Text extraction was tried and dropped — pdf-parse's output was unreliable
+// enough on real quotes/reviews to not be worth trusting in AI Insights or
+// showing as the entry's body. This just stores and attaches the file now;
+// viewing/downloading it is how you read it.
+const ACCEPTED_TYPES: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "application/msword": ".doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+};
+
+/** A signed quote or a quarterly review document, logged as a Timeline
+ * entry the same way a manually typed note is — the original file is
+ * attached for viewing/download. Open to any signed-in user, matching
+ * logClientInteraction's posture: uploading a document a tech received
+ * from a client isn't a "manage_clients" action. */
 export async function uploadClientDocument(
   clientId: string,
   category: "quote" | "review",
@@ -192,8 +201,14 @@ export async function uploadClientDocument(
   formData: FormData
 ): Promise<FormState> {
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose a PDF to upload." };
-  if (file.type !== "application/pdf") return { error: "Only PDF files are supported." };
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
+  // Some browsers/OSes report older .doc files as application/octet-stream
+  // rather than application/msword — fall back to the file extension so a
+  // real Word doc isn't rejected on a mislabeled MIME type.
+  const extensionOk = /\.(pdf|docx?)$/i.test(file.name);
+  if (!ACCEPTED_TYPES[file.type] && !extensionOk) {
+    return { error: "Only PDF or Word documents (.pdf, .doc, .docx) are supported." };
+  }
   if (file.size > MAX_UPLOAD_BYTES) return { error: "That file is larger than 20MB." };
 
   const supabase = await createClient();
@@ -207,12 +222,8 @@ export async function uploadClientDocument(
   const bytes = new Uint8Array(await file.arrayBuffer());
   const { error: uploadError } = await supabase.storage
     .from("client-documents")
-    .upload(path, bytes, { contentType: "application/pdf" });
+    .upload(path, bytes, { contentType: file.type || "application/octet-stream" });
   if (uploadError) return { error: uploadError.message };
-
-  const extractedText = await extractPdfText(Buffer.from(bytes), {
-    trimTermsAndConditions: category === "quote",
-  });
 
   const subject = emptyToNull(formData.get("subject")) ?? file.name;
   const { error } = await supabase.from("client_interactions").insert({
@@ -220,7 +231,7 @@ export async function uploadClientDocument(
     contact_id: emptyToNull(formData.get("contact_id")),
     type: category,
     subject,
-    body: extractedText ?? "No text could be extracted from this PDF — it may be a scanned image.",
+    body: "Document uploaded — view or download it below.",
     attachment_path: path,
     attachment_filename: file.name,
     created_by: user?.id ?? null,

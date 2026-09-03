@@ -142,10 +142,8 @@ export function ClientTimeline({
               {entry.contactName ? ` · ${entry.contactName}` : ""}
               {entry.loggedBy ? ` · logged by ${entry.loggedBy}` : ""}
             </p>
-            {entry.body && (
-              <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
-                {entry.documentId ? truncate(entry.body, 400) : entry.body}
-              </p>
+            {entry.body && !entry.documentId && (
+              <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{entry.body}</p>
             )}
             {entry.webLink && (
               <a
@@ -158,12 +156,22 @@ export function ClientTimeline({
               </a>
             )}
             {entry.documentId && (
-              <a
-                href={`/api/documents/${entry.documentId}`}
-                className="mt-1 inline-block text-xs font-medium text-brand underline"
-              >
-                Download {entry.attachmentFilename ?? "PDF"}
-              </a>
+              <div className="mt-1 flex items-center gap-3">
+                <a
+                  href={`/api/documents/${entry.documentId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-medium text-brand underline"
+                >
+                  View {entry.attachmentFilename ?? "document"}
+                </a>
+                <a
+                  href={`/api/documents/${entry.documentId}?download=1`}
+                  className="text-xs font-medium text-slate-600 underline"
+                >
+                  Download
+                </a>
+              </div>
             )}
           </div>
           );
@@ -171,10 +179,6 @@ export function ClientTimeline({
       </div>
     </div>
   );
-}
-
-function truncate(text: string, max: number) {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 function ModeTab({
@@ -327,13 +331,14 @@ function UploadForm({
       <input
         name="file"
         type="file"
-        accept="application/pdf"
+        accept="application/pdf,.doc,.docx"
         required
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs"
       />
       <p className="text-xs text-slate-500">
-        PDF only, up to 20MB. Text is extracted automatically so it shows up in the timeline and
-        in AI Insights.
+        PDF or Word document, up to 20MB. A PDF opens right in the browser from &quot;View&quot; —
+        a Word doc will download or open in your Office app instead, since browsers can&apos;t
+        render .doc/.docx inline.
       </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button

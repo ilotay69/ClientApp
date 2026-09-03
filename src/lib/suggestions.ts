@@ -112,7 +112,7 @@ export async function generateSuggestions(
         .eq("client_id", clientId),
       admin
         .from("client_interactions")
-        .select("type, subject, body, created_at")
+        .select("type, subject, created_at")
         .eq("client_id", clientId)
         .in("type", ["quote", "review"])
         .order("created_at", { ascending: false })
@@ -223,11 +223,8 @@ type DeviceRow = {
 type DocumentRow = {
   type: "quote" | "review";
   subject: string | null;
-  body: string | null;
   created_at: string;
 };
-
-const MAX_DOCUMENT_EXCERPT_CHARS = 800;
 
 function buildPrompt(
   clientName: string,
@@ -288,18 +285,14 @@ function buildPrompt(
         .join("\n")
     : "None synced.";
 
-  // Computed from verified vendor lifecycle dates rather than left to the
-  // model's recall — an EOL date is a fact, and model knowledge of recent
-  // ones (Windows 10 ended 14 Oct 2025) can lag.
+  // No text extraction — the file itself isn't readable here, just its
+  // presence and label. Still enough to flag "a quote is on file with
+  // nothing else tracking that work yet."
   const documentList = documents.length
     ? documents
         .map((d) => {
           const label = d.type === "quote" ? "Signed quote" : "Quarterly review";
-          const excerpt = d.body
-            ? d.body.slice(0, MAX_DOCUMENT_EXCERPT_CHARS) +
-              (d.body.length > MAX_DOCUMENT_EXCERPT_CHARS ? "…" : "")
-            : "(no text extracted)";
-          return `- [${label}] "${d.subject ?? "Untitled"}" (uploaded ${d.created_at.slice(0, 10)}): ${excerpt}`;
+          return `- [${label}] "${d.subject ?? "Untitled"}" (uploaded ${d.created_at.slice(0, 10)})`;
         })
         .join("\n")
     : "None on file.";
@@ -358,9 +351,9 @@ ${deviceIssueList}
 Look for, in order of importance:
 1. urgent_alert — anything time-sensitive: an outage, a security or compliance notice, an angry or urgent-sounding customer, a high-priority ticket that's been open a long time with no apparent resolution, a task marked OVERDUE above (especially high priority), a device that's OFFLINE with a last-contact gap of several days or more (could mean a dead machine, a network outage, or an unpatched security risk going unmonitored), anything that shouldn't wait. Also urgent_alert (not opportunity) for a SERVER running an OS that has reached end-of-life/end-of-support — the "Device issues already detected automatically" list above is authoritative for which operating systems are end-of-life — prefer it over your own recollection of lifecycle dates. An EOL server is a live security exposure (no security patches), which is materially more urgent than an EOL workstation.
 2. quote_follow_up — a customer asked for pricing/a quote and nobody's replied yet, OR pricing was sent and the customer's gone quiet with no reply. No dollar amount needed, just flag that a follow-up is owed. This applies to ticket descriptions too, not just emails: read what each ticket actually says the client is asking for — if the description reads like an open question or a request for information/status and "last activity" is stale relative to how long it's been open, that's a strong signal nobody has gotten back to them. Don't flag a ticket just for being open a while if its description doesn't read like it's waiting on a reply (e.g. it's a scheduled/ongoing project ticket). Also check the "Uploaded documents" section above: a Signed quote on file with no matching project or ticket started for it is a strong signal the work hasn't been kicked off yet — flag that.
-3. new_project — an email suggests a new project, engagement, or piece of work that isn't already in the tracked project list above. A Signed quote in the uploaded documents section that clearly describes new work also counts, even with no accompanying email.
+3. new_project — an email suggests a new project, engagement, or piece of work that isn't already in the tracked project list above.
 4. stale_contact — the client's been emailing but hasn't had a proactive check-in in a while relative to that activity.
-5. review_prep — something worth bringing up at their next monthly visit or quarterly review, including any notable open ticket. If a Quarterly review document is on file, read its content for anything it flagged (a risk, a recommendation, an action item) that doesn't look resolved by what else is tracked here — surface that specifically rather than a generic "review is due" reminder.
+5. review_prep — something worth bringing up at their next monthly visit or quarterly review, including any notable open ticket. Note: the "Uploaded documents" list only gives you a label and upload date, not the document's actual content — don't invent or guess at what a Quarterly review says, just note when the last one on file was and whether a fresh one looks due.
 6. opportunity — a possible upsell or new-service signal that isn't urgent, including a WORKSTATION running an end-of-life/soon-to-expire OS (again, judge this against real vendor support lifecycles you know, not just an old-sounding version number) worth a hardware or OS refresh conversation. A workstation is lower-severity than a server running the same EOL OS (see urgent_alert above) — same underlying fact, different priority.
 7. follow_up / other — anything else that looks unhandled, including an open ticket that seems to have gone quiet.
 
