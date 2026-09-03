@@ -395,14 +395,6 @@ async function resolveServiceNames(
   const uniqueIds = [...new Set(serviceIds)].filter((id) => Number.isFinite(id));
   if (uniqueIds.length === 0) return map;
 
-  // Confirmed cause of a prior "every service shows a meaningless title"
-  // bug: this API user's Autotask security level didn't have query
-  // permission on the Services entity ("The logged in Resource does not
-  // have the adequate permissions to query this entity type."). That's an
-  // Autotask-side permission grant, not something this app can work around
-  // — so this degrades gracefully rather than failing the whole sync, same
-  // as before. The caller falls back to a description-derived title
-  // instead of a bare "Service {id}" when this comes back empty.
   try {
     const items = (await autotaskQuery(creds, zoneUrl, "Services", {
       filter: [{ op: "in", field: "id", value: uniqueIds }],
@@ -419,11 +411,10 @@ async function resolveServiceNames(
 }
 
 /** A short, single-line stand-in for a service's real name, used only when
- * resolveServiceNames couldn't resolve it (e.g. the permission issue
- * above) — the invoice/internal description usually reads like a title
- * anyway (Autotask returns the "standard invoice description" from Admin
- * when a contract service is configured to use it), so this beats a bare
- * "Service {id}". */
+ * resolveServiceNames couldn't resolve it — the invoice/internal
+ * description usually reads like a title anyway (Autotask returns the
+ * "standard invoice description" from Admin when a contract service is
+ * configured to use it), so this beats a bare "Service {id}". */
 function titleFromDescription(description: string): string {
   const firstLine = description.split("\n")[0].trim();
   const MAX = 80;
