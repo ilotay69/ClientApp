@@ -13,14 +13,14 @@ export type ResourceHoursRow = {
   thisMonth: number;
 };
 
-function ymd(d: Date): string {
+export function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
 /** "Yesterday" means the last business day, not the last calendar day — on
  * a Monday that's Friday, not Sunday, since nobody's logging time on a
  * weekend. Steps back one day at a time until it lands on a weekday. */
-function lastBusinessDayBefore(date: Date): Date {
+export function lastBusinessDayBefore(date: Date): Date {
   const d = new Date(date);
   do {
     d.setUTCDate(d.getUTCDate() - 1);

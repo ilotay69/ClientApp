@@ -457,9 +457,13 @@ export async function fetchTicketTimeEntries(
 }
 
 export type AutotaskTimeEntryRange = {
+  id: number;
   resourceID: number;
   hoursWorked: number;
   dateWorked: string;
+  ticketID: number | null;
+  taskID: number | null;
+  summaryNotes: string | null;
 };
 
 /** Account-wide time entries in a date range, across every resource and
@@ -482,14 +486,56 @@ export async function fetchTimeEntriesInRange(
     MaxRecords: 500,
   });
 
-  type RawTimeEntry = { resourceID: number; hoursWorked?: number; dateWorked: string };
+  type RawTimeEntry = {
+    id: number;
+    resourceID: number;
+    hoursWorked?: number;
+    dateWorked: string;
+    ticketID?: number;
+    taskID?: number;
+    summaryNotes?: string;
+  };
   return (items as RawTimeEntry[])
     .filter((e) => e.hoursWorked != null)
     .map((e) => ({
+      id: e.id,
       resourceID: e.resourceID,
       hoursWorked: e.hoursWorked as number,
       dateWorked: e.dateWorked,
+      ticketID: e.ticketID ?? null,
+      taskID: e.taskID ?? null,
+      summaryNotes: e.summaryNotes ?? null,
     }));
+}
+
+/** Batched companyID lookup for Tickets referenced by id from time entries
+ * — used to attribute a time entry to a client via the ticket's company,
+ * since TimeEntries itself carries no client/company reference. Same
+ * resilience posture as resolveResourceNames/resolveServiceNames: some
+ * API Users may lack read access, so a failure here degrades to "unknown
+ * client" for those entries rather than failing the whole sync. */
+export async function resolveTicketCompanyIds(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketIds: number[]
+): Promise<Map<number, number>> {
+  const map = new Map<number, number>();
+  const uniqueIds = [...new Set(ticketIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return map;
+
+  try {
+    const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
+      filter: [{ op: "in", field: "id", value: uniqueIds }],
+      MaxRecords: uniqueIds.length,
+    })) as { id: number; companyID?: number }[];
+    for (const t of items) {
+      if (t.companyID != null) map.set(t.id, t.companyID);
+    }
+  } catch (err) {
+    console.error("Autotask Tickets company lookup failed — entries will show no client", err);
+  }
+
+  return map;
 }
 
 /** Batched name lookup for Services (Autotask's own service catalog)
