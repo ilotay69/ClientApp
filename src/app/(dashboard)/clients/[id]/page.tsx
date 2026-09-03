@@ -30,6 +30,7 @@ import {
   addClientContact,
   removeClientContact,
   logClientInteraction,
+  uploadClientDocument,
   searchAutotaskCompaniesAction,
   linkClientAutotaskCompany,
   unlinkClientAutotaskCompany,
@@ -125,7 +126,9 @@ export default async function ClientDetailPage({
     supabase.from("client_contacts").select("id, name, email").eq("client_id", id).order("name"),
     supabase
       .from("client_interactions")
-      .select("id, type, subject, body, created_at, client_contacts(name), profiles(full_name)")
+      .select(
+        "id, type, subject, body, created_at, attachment_path, attachment_filename, client_contacts(name), profiles(full_name)"
+      )
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
     hasPermission(supabase, "manage_clients"),
@@ -185,6 +188,8 @@ export default async function ClientDetailPage({
   const addContactAction = addClientContact.bind(null, id);
   const removeContactAction = removeClientContact.bind(null, id);
   const logInteractionAction = logClientInteraction.bind(null, id);
+  const uploadQuoteAction = uploadClientDocument.bind(null, id, "quote");
+  const uploadReviewAction = uploadClientDocument.bind(null, id, "review");
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
   const syncAutotaskAction = syncClientAutotaskData.bind(null, id);
@@ -232,6 +237,8 @@ export default async function ClientDetailPage({
       contactName: (i.client_contacts as unknown as { name: string } | null)?.name ?? null,
       date: i.created_at,
       loggedBy: (i.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
+      documentId: i.attachment_path ? i.id : null,
+      attachmentFilename: i.attachment_filename,
     })),
   ].sort((a, b) => (a.date < b.date ? 1 : -1));
 
@@ -553,6 +560,8 @@ export default async function ClientDetailPage({
                     entries={timelineEntries}
                     contacts={contacts ?? []}
                     logAction={logInteractionAction}
+                    uploadQuoteAction={uploadQuoteAction}
+                    uploadReviewAction={uploadReviewAction}
                   />
                 ),
               },

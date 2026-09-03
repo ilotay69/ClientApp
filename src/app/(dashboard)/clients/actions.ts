@@ -31,6 +31,7 @@ import {
   type M365ClientCredentials,
 } from "@/lib/m365-partner";
 import { getM365ClientSettings, getValidM365Token } from "@/lib/m365-client-credentials";
+import { extractPdfText } from "@/lib/pdf-text";
 
 export type FormState = { error: string | null };
 
@@ -172,6 +173,63 @@ export async function logClientInteraction(
   });
 
   if (error) return { error: error.message };
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
+}
+
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB
+
+/** A signed quote or a quarterly review PDF, logged as a Timeline entry the
+ * same way a manually typed note is — the extracted text becomes the
+ * entry's body, and the original file is attached for download. Open to any
+ * signed-in user, matching logClientInteraction's posture: uploading a
+ * document a tech received from a client isn't a "manage_clients" action. */
+export async function uploadClientDocument(
+  clientId: string,
+  category: "quote" | "review",
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a PDF to upload." };
+  if (file.type !== "application/pdf") return { error: "Only PDF files are supported." };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: "That file is larger than 20MB." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${clientId}/${crypto.randomUUID()}-${safeName}`;
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { error: uploadError } = await supabase.storage
+    .from("client-documents")
+    .upload(path, bytes, { contentType: "application/pdf" });
+  if (uploadError) return { error: uploadError.message };
+
+  const extractedText = await extractPdfText(Buffer.from(bytes));
+
+  const subject = emptyToNull(formData.get("subject")) ?? file.name;
+  const { error } = await supabase.from("client_interactions").insert({
+    client_id: clientId,
+    contact_id: emptyToNull(formData.get("contact_id")),
+    type: category,
+    subject,
+    body: extractedText ?? "No text could be extracted from this PDF — it may be a scanned image.",
+    attachment_path: path,
+    attachment_filename: file.name,
+    created_by: user?.id ?? null,
+  });
+
+  if (error) {
+    // Don't leave an orphaned file in storage if the row it belongs to
+    // failed to insert.
+    await supabase.storage.from("client-documents").remove([path]);
+    return { error: error.message };
+  }
 
   revalidatePath(`/clients/${clientId}`);
   return { error: null };

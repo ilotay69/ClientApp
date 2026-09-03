@@ -125,7 +125,7 @@ export interface ClientContact {
   created_at: string;
 }
 
-export type ClientInteractionType = "note" | "call" | "meeting";
+export type ClientInteractionType = "note" | "call" | "meeting" | "quote" | "review";
 
 export interface ClientInteraction {
   id: string;
@@ -134,6 +134,8 @@ export interface ClientInteraction {
   type: ClientInteractionType;
   subject: string | null;
   body: string;
+  attachment_path: string | null;
+  attachment_filename: string | null;
   created_by: string | null;
   created_at: string;
 }
