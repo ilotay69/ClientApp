@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Badge } from "@/components/badge";
 import { formatDate } from "@/lib/format";
 import type { AutotaskTicketNote, AutotaskTimeEntry } from "@/lib/autotask";
+import type { TicketInsight } from "@/lib/ticket-insights";
 
 export type AutotaskTicketRow = {
   id: number;
@@ -19,21 +20,64 @@ export type AutotaskTicketRow = {
 };
 
 type TicketDetail = { notes: AutotaskTicketNote[]; timeEntries: AutotaskTimeEntry[] } | { error: string };
+type AnalyzeResult = { insights: TicketInsight[] } | { error: string };
 
 export function ClientAutotaskTickets({
   companyId,
   tickets,
   detailAction,
+  analyzeAction,
 }: {
   companyId: number | null;
   tickets: AutotaskTicketRow[];
   detailAction: (ticketId: number) => Promise<TicketDetail>;
+  analyzeAction: () => Promise<AnalyzeResult>;
 }) {
+  const [insights, setInsights] = useState<Map<number, TicketInsight> | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [analyzing, startAnalyze] = useTransition();
+
+  const runAnalysis = () => {
+    setAnalyzeError(null);
+    startAnalyze(async () => {
+      const result = await analyzeAction();
+      if ("error" in result) {
+        setAnalyzeError(result.error);
+        return;
+      }
+      setInsights(new Map(result.insights.map((i) => [i.ticketId, i])));
+    });
+  };
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
         <h2 className="text-sm font-semibold text-slate-900">Tickets</h2>
+        {companyId !== null && tickets.length > 0 && (
+          <div className="flex items-center gap-2">
+            {insights && (
+              <span className="text-xs text-slate-500">
+                {insights.size > 0
+                  ? `${insights.size} ticket${insights.size === 1 ? "" : "s"} flagged`
+                  : "Nothing notable found"}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={runAnalysis}
+              disabled={analyzing}
+              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            >
+              {analyzing ? "Analyzing…" : "Analyze tickets"}
+            </button>
+          </div>
+        )}
       </div>
+      {analyzeError && (
+        <p className="border-b border-slate-100 bg-red-50 px-5 py-2 text-xs text-red-600">
+          {analyzeError}
+        </p>
+      )}
       <div className="divide-y divide-slate-100">
         {companyId === null ? (
           <p className="px-5 py-4 text-sm text-slate-500">
@@ -43,7 +87,12 @@ export function ClientAutotaskTickets({
         ) : (
           <>
             {tickets.map((t) => (
-              <TicketRow key={t.id} ticket={t} detailAction={detailAction} />
+              <TicketRow
+                key={t.id}
+                ticket={t}
+                detailAction={detailAction}
+                insight={insights?.get(t.id) ?? null}
+              />
             ))}
             {tickets.length === 0 && (
               <p className="px-5 py-4 text-sm text-slate-500">
@@ -60,9 +109,11 @@ export function ClientAutotaskTickets({
 function TicketRow({
   ticket,
   detailAction,
+  insight,
 }: {
   ticket: AutotaskTicketRow;
   detailAction: (ticketId: number) => Promise<TicketDetail>;
+  insight: TicketInsight | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<TicketDetail | null>(null);
@@ -95,6 +146,16 @@ function TicketRow({
               : "Unassigned"}
             {ticket.due_date ? ` · due ${formatDate(ticket.due_date)}` : ""}
           </p>
+          {insight?.keyPoint && (
+            <p className="mt-1 text-xs text-slate-600">
+              <span className="font-medium text-slate-700">Key point:</span> {insight.keyPoint}
+            </p>
+          )}
+          {insight?.pendingAction && (
+            <p className="mt-1 text-xs text-amber-700">
+              <span className="font-medium">Pending:</span> {insight.pendingAction}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {ticket.priority && <Badge value={ticket.priority} />}

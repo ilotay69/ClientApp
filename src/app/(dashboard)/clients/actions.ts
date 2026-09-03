@@ -31,6 +31,7 @@ import {
   type M365ClientCredentials,
 } from "@/lib/m365-partner";
 import { getM365ClientSettings, getValidM365Token } from "@/lib/m365-client-credentials";
+import { generateTicketInsights, type TicketInsight } from "@/lib/ticket-insights";
 
 export type FormState = { error: string | null };
 
@@ -409,6 +410,52 @@ export async function getAutotaskTicketDetailAction(
     return { notes, timeEntries };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load ticket detail." };
+  }
+}
+
+/** On-demand AI read of every open ticket for this client — description,
+ * resolution, and notes — flagging what's actually important and what's
+ * still pending on our side. Notes carry the same content class as
+ * getAutotaskTicketDetailAction pulls, so this is gated the same way. */
+export async function analyzeTicketsAction(
+  clientId: string
+): Promise<{ insights: TicketInsight[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+
+  const aiSettings = await getActiveAiSettings(admin);
+  if (!aiSettings) {
+    return { error: "AI insights aren't set up yet — configure a provider under Settings → Integrations." };
+  }
+
+  const autotaskSettings = await getAutotaskSettings(admin);
+  if (!autotaskSettings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+  const zoneUrl = autotaskSettings.zoneUrl;
+
+  const { data: tickets } = await admin
+    .from("autotask_tickets")
+    .select("id, ticket_number, title, description, resolution, status")
+    .eq("client_id", clientId);
+
+  if (!tickets || tickets.length === 0) return { insights: [] };
+
+  try {
+    // Sequential — same Autotask concurrent-thread-cap reasoning as
+    // getAutotaskTicketDetailAction above.
+    const notesByTicket = new Map<number, AutotaskTicketNote[]>();
+    for (const t of tickets) {
+      notesByTicket.set(t.id, await fetchTicketNotes(autotaskSettings.credentials, zoneUrl, t.id));
+    }
+
+    const insights = await generateTicketInsights(tickets, notesByTicket, aiSettings);
+    return { insights };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to analyze tickets." };
   }
 }
 

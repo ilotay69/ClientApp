@@ -37,6 +37,7 @@ import {
   unlinkClientAutotaskCompany,
   syncClientAutotaskData,
   getAutotaskTicketDetailAction,
+  analyzeTicketsAction,
   refreshClientInsightsAction,
   searchNinjaOneOrganizationsAction,
   linkClientNinjaOneOrganization,
@@ -199,6 +200,7 @@ export default async function ClientDetailPage({
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
   const syncAutotaskAction = syncClientAutotaskData.bind(null, id);
   const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
+  const analyzeTicketsForClientAction = analyzeTicketsAction.bind(null, id);
   const linkNinjaOneAction = linkClientNinjaOneOrganization.bind(null, id);
   const unlinkNinjaOneAction = unlinkClientNinjaOneOrganization.bind(null, id);
   const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
@@ -582,6 +584,7 @@ export default async function ClientDetailPage({
                     companyId={client.autotask_company_id}
                     tickets={autotaskTickets ?? []}
                     detailAction={ticketDetailAction}
+                    analyzeAction={analyzeTicketsForClientAction}
                   />
                 ),
               },
