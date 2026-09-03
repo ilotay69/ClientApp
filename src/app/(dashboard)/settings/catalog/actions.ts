@@ -6,7 +6,7 @@ import { requirePermission } from "@/lib/permissions";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import {
   analyzeServiceCoverage,
-  type ServiceCoverageGap,
+  type ServiceCoverageCategory,
   type ClientForCoverage,
   type CatalogServiceForCoverage,
 } from "@/lib/service-coverage-insights";
@@ -95,7 +95,7 @@ export async function detachClientService(clientId: string, serviceId: string) {
  * every client's own contracted services. Nothing stored; fetched and
  * analyzed fresh each time. */
 export async function analyzeServiceCoverageAction(): Promise<
-  { gaps: ServiceCoverageGap[] } | { error: string }
+  { categories: ServiceCoverageCategory[] } | { error: string }
 > {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
@@ -158,8 +158,8 @@ export async function analyzeServiceCoverageAction(): Promise<
   );
 
   try {
-    const gaps = await analyzeServiceCoverage(services, clientsForCoverage, aiSettings);
-    return { gaps };
+    const categories = await analyzeServiceCoverage(services, clientsForCoverage, aiSettings);
+    return { categories };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Analysis failed." };
   }
