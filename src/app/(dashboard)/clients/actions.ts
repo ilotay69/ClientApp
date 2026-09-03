@@ -210,7 +210,9 @@ export async function uploadClientDocument(
     .upload(path, bytes, { contentType: "application/pdf" });
   if (uploadError) return { error: uploadError.message };
 
-  const extractedText = await extractPdfText(Buffer.from(bytes));
+  const extractedText = await extractPdfText(Buffer.from(bytes), {
+    trimTermsAndConditions: category === "quote",
+  });
 
   const subject = emptyToNull(formData.get("subject")) ?? file.name;
   const { error } = await supabase.from("client_interactions").insert({
