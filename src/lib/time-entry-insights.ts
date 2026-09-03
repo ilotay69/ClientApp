@@ -75,11 +75,13 @@ export async function fetchTimeEntriesForAnalysis(
     .from("clients")
     .select("id, name, autotask_company_id")
     .in("autotask_company_id", companyIds.length > 0 ? companyIds : [-1]);
-  const clientNameByCompanyId = new Map(
-    (clients ?? []).map((c: { name: string; autotask_company_id: number }) => [
-      c.autotask_company_id,
-      c.name,
-    ])
+  const clientNameByCompanyId = new Map<number, string>(
+    (clients ?? []).map(
+      (c: { name: string; autotask_company_id: number }): [number, string] => [
+        c.autotask_company_id,
+        c.name,
+      ]
+    )
   );
 
   return entries.map((e) => {
