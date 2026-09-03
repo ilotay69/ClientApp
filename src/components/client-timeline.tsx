@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState, useTransition } from "react";
 import { formatDate } from "@/lib/format";
+import { DeleteButton } from "@/components/delete-button";
 import type { FormState } from "@/app/(dashboard)/clients/actions";
 
 const initialState: FormState = { error: null };
@@ -19,6 +20,10 @@ export type TimelineEntry = {
    * with, not the storage path itself (the route mints a fresh signed URL). */
   documentId?: string | null;
   attachmentFilename?: string | null;
+  /** null for an email entry — those come from email_links, not
+   * client_interactions, and can't be deleted from here. */
+  interactionId?: string | null;
+  createdByUserId?: string | null;
 };
 
 const FILTERS: { value: "all" | TimelineEntry["type"]; label: string }[] = [
@@ -46,12 +51,18 @@ export function ClientTimeline({
   logAction,
   uploadQuoteAction,
   uploadReviewAction,
+  deleteAction,
+  currentUserId,
+  canManageAllEntries,
 }: {
   entries: TimelineEntry[];
   contacts: { id: string; name: string }[];
   logAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
   uploadQuoteAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
   uploadReviewAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
+  deleteAction: (interactionId: string) => Promise<void>;
+  currentUserId: string | null;
+  canManageAllEntries: boolean;
 }) {
   const [filter, setFilter] = useState<"all" | TimelineEntry["type"]>("all");
   const [mode, setMode] = useState<"log" | "upload">("log");
@@ -104,13 +115,27 @@ export function ClientTimeline({
         {visible.length === 0 && (
           <p className="px-5 py-4 text-sm text-slate-500">Nothing here yet.</p>
         )}
-        {visible.map((entry) => (
+        {visible.map((entry) => {
+          const canDelete =
+            Boolean(entry.interactionId) &&
+            (canManageAllEntries || (currentUserId && entry.createdByUserId === currentUserId));
+
+          return (
           <div key={entry.id} className="px-5 py-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-slate-900">
                 {entry.subject || TYPE_LABELS[entry.type]}
               </p>
-              <span className="shrink-0 text-xs text-slate-500">{formatDate(entry.date)}</span>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-xs text-slate-500">{formatDate(entry.date)}</span>
+                {canDelete && (
+                  <DeleteButton
+                    action={() => deleteAction(entry.interactionId!)}
+                    confirmText={`Remove this ${TYPE_LABELS[entry.type].toLowerCase()} from the timeline?`}
+                    label="Remove"
+                  />
+                )}
+              </div>
             </div>
             <p className="text-xs text-slate-500">
               {TYPE_LABELS[entry.type]}
@@ -141,7 +166,8 @@ export function ClientTimeline({
               </a>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

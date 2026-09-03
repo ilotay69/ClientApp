@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, hasPermission } from "@/lib/permissions";
 import { generateSuggestions } from "@/lib/suggestions";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import {
@@ -235,6 +235,34 @@ export async function uploadClientDocument(
 
   revalidatePath(`/clients/${clientId}`);
   return { error: null };
+}
+
+/** Removes a Timeline entry — a wrong upload, a mistaken note, etc — and
+ * its attached file, if any. Anyone can remove their own entry (undoing
+ * your own mistake shouldn't need elevated permission), but removing
+ * someone else's requires manage_clients, same as the contact list. */
+export async function deleteClientInteraction(clientId: string, interactionId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: interaction } = await supabase
+    .from("client_interactions")
+    .select("created_by, attachment_path")
+    .eq("id", interactionId)
+    .maybeSingle();
+  if (!interaction) return;
+
+  const isOwnEntry = Boolean(user) && interaction.created_by === user!.id;
+  if (!isOwnEntry && !(await hasPermission(supabase, "manage_clients"))) return;
+
+  await supabase.from("client_interactions").delete().eq("id", interactionId);
+  if (interaction.attachment_path) {
+    await supabase.storage.from("client-documents").remove([interaction.attachment_path]);
+  }
+
+  revalidatePath(`/clients/${clientId}`);
 }
 
 /** Name search against Autotask Companies, for the client-mapping UI on the

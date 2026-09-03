@@ -31,6 +31,7 @@ import {
   removeClientContact,
   logClientInteraction,
   uploadClientDocument,
+  deleteClientInteraction,
   searchAutotaskCompaniesAction,
   linkClientAutotaskCompany,
   unlinkClientAutotaskCompany,
@@ -65,6 +66,9 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser();
 
   const [
     { data: client },
@@ -127,7 +131,7 @@ export default async function ClientDetailPage({
     supabase
       .from("client_interactions")
       .select(
-        "id, type, subject, body, created_at, attachment_path, attachment_filename, client_contacts(name), profiles(full_name)"
+        "id, type, subject, body, created_at, attachment_path, attachment_filename, created_by, client_contacts(name), profiles(full_name)"
       )
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
@@ -190,6 +194,7 @@ export default async function ClientDetailPage({
   const logInteractionAction = logClientInteraction.bind(null, id);
   const uploadQuoteAction = uploadClientDocument.bind(null, id, "quote");
   const uploadReviewAction = uploadClientDocument.bind(null, id, "review");
+  const deleteInteractionAction = deleteClientInteraction.bind(null, id);
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
   const syncAutotaskAction = syncClientAutotaskData.bind(null, id);
@@ -239,6 +244,8 @@ export default async function ClientDetailPage({
       loggedBy: (i.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
       documentId: i.attachment_path ? i.id : null,
       attachmentFilename: i.attachment_filename,
+      interactionId: i.id,
+      createdByUserId: i.created_by,
     })),
   ].sort((a, b) => (a.date < b.date ? 1 : -1));
 
@@ -562,6 +569,9 @@ export default async function ClientDetailPage({
                     logAction={logInteractionAction}
                     uploadQuoteAction={uploadQuoteAction}
                     uploadReviewAction={uploadReviewAction}
+                    deleteAction={deleteInteractionAction}
+                    currentUserId={currentUser?.id ?? null}
+                    canManageAllEntries={canManageClients}
                   />
                 ),
               },
