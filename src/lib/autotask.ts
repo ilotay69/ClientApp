@@ -395,35 +395,39 @@ async function resolveServiceNames(
   const uniqueIds = [...new Set(serviceIds)].filter((id) => Number.isFinite(id));
   if (uniqueIds.length === 0) return map;
 
-  // TEMPORARY: every service name lookup has been silently failing (every
-  // row falls back to "Service {id}"), and the failure was being swallowed
-  // here and only logged server-side — invisible without Railway log
-  // access. Let it throw for real so the actual Autotask error surfaces
-  // through the normal "Sync Autotask" error banner instead. Revert to
-  // catch-and-fall-back once the real cause is fixed.
-  const items = (await autotaskQuery(creds, zoneUrl, "Services", {
-    filter: [{ op: "in", field: "id", value: uniqueIds }],
-    MaxRecords: uniqueIds.length,
-  })) as { id: number; name?: string }[];
-
-  if (items.length === 0) {
-    throw new Error(
-      `Autotask Services query for ids [${uniqueIds.join(", ")}] returned 0 results — the query "succeeded" but matched nothing.`
-    );
-  }
-
-  for (const s of items) {
-    map.set(s.id, s.name || `Service ${s.id}`);
-  }
-
-  const missing = uniqueIds.filter((id) => !map.has(id));
-  if (missing.length > 0) {
-    throw new Error(
-      `Autotask Services query returned ${items.length} of ${uniqueIds.length} requested ids — missing: [${missing.join(", ")}]. Sample returned row: ${JSON.stringify(items[0])}`
-    );
+  // Confirmed cause of a prior "every service shows a meaningless title"
+  // bug: this API user's Autotask security level didn't have query
+  // permission on the Services entity ("The logged in Resource does not
+  // have the adequate permissions to query this entity type."). That's an
+  // Autotask-side permission grant, not something this app can work around
+  // — so this degrades gracefully rather than failing the whole sync, same
+  // as before. The caller falls back to a description-derived title
+  // instead of a bare "Service {id}" when this comes back empty.
+  try {
+    const items = (await autotaskQuery(creds, zoneUrl, "Services", {
+      filter: [{ op: "in", field: "id", value: uniqueIds }],
+      MaxRecords: uniqueIds.length,
+    })) as { id: number; name?: string }[];
+    for (const s of items) {
+      map.set(s.id, s.name || `Service ${s.id}`);
+    }
+  } catch (err) {
+    console.error("Autotask Services lookup failed — falling back to description-derived titles", err);
   }
 
   return map;
+}
+
+/** A short, single-line stand-in for a service's real name, used only when
+ * resolveServiceNames couldn't resolve it (e.g. the permission issue
+ * above) — the invoice/internal description usually reads like a title
+ * anyway (Autotask returns the "standard invoice description" from Admin
+ * when a contract service is configured to use it), so this beats a bare
+ * "Service {id}". */
+function titleFromDescription(description: string): string {
+  const firstLine = description.split("\n")[0].trim();
+  const MAX = 80;
+  return firstLine.length > MAX ? `${firstLine.slice(0, MAX)}…` : firstLine;
 }
 
 export type AutotaskContractService = {
@@ -539,6 +543,8 @@ export async function fetchContractServicesForCompany(
 
   return contractServices.map((cs) => {
     const contract = contractsById.get(cs.contractID);
+    const description = cs.invoiceDescription || cs.internalDescription || null;
+    const resolvedName = serviceNames.get(cs.serviceID);
     return {
       id: cs.id,
       contract_id: cs.contractID,
@@ -546,8 +552,9 @@ export async function fetchContractServicesForCompany(
       contract_status:
         contract?.status != null ? (statusLabels.get(contract.status) ?? String(contract.status)) : null,
       service_id: cs.serviceID,
-      service_name: serviceNames.get(cs.serviceID) ?? `Service ${cs.serviceID}`,
-      description: cs.invoiceDescription || cs.internalDescription || null,
+      service_name:
+        resolvedName ?? (description ? titleFromDescription(description) : `Service ${cs.serviceID}`),
+      description,
       quantity: quantities.get(cs.id) ?? null,
     };
   });
