@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
 import { ServiceOfferingQuickAdd } from "@/components/service-offering-quick-add";
+import { ServiceCoverageAnalysis } from "@/components/service-coverage-analysis";
 import { hasPermission } from "@/lib/permissions";
-import { createServiceOffering, deleteServiceOffering } from "./actions";
+import { createServiceOffering, deleteServiceOffering, analyzeServiceCoverageAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,8 @@ export default async function ServiceCatalogPage() {
           </tbody>
         </table>
       </div>
+
+      <ServiceCoverageAnalysis action={analyzeServiceCoverageAction} />
     </div>
   );
 }
