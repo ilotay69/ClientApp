@@ -150,6 +150,15 @@ export function IconSearch({ className }: IconProps) {
   );
 }
 
+export function IconClock({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 16 14" />
+    </svg>
+  );
+}
+
 export function IconChevronDown({ className }: IconProps) {
   return (
     <svg className={className} {...base}>

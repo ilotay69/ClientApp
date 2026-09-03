@@ -14,6 +14,7 @@ import {
   IconList,
   IconSparkles,
   IconUsers,
+  IconClock,
   IconLogOut,
   IconMenu,
   IconX,
@@ -68,7 +69,10 @@ export function SidebarNav({
   ];
 
   const adminLinks: NavItem[] = canManageTeam
-    ? [{ href: "/team", label: "Team", icon: IconUsers }]
+    ? [
+        { href: "/team", label: "Team", icon: IconUsers },
+        { href: "/hours", label: "Hours", icon: IconClock },
+      ]
     : [];
 
   const isActive = (href: string) =>

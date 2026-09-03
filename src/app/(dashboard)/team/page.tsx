@@ -4,10 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
 import { RoleSelect } from "@/components/role-select";
 import { AddTeamMemberForm } from "@/components/add-team-member-form";
-import { ResourceHoursReport } from "@/components/resource-hours-report";
 import { formatDate } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
-import { updateMemberRole, addTeamMember, fetchResourceHoursAction } from "./actions";
+import { updateMemberRole, addTeamMember } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -81,8 +80,6 @@ export default async function TeamPage() {
           </tbody>
         </table>
       </div>
-
-      <ResourceHoursReport action={fetchResourceHoursAction} />
     </div>
   );
 }
