@@ -76,7 +76,11 @@ export function TaskRow({
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            {!task.is_personal && <Badge value={task.kind} />}
+            {/* "general" is the default for every manually-added task — a
+                badge that just says "General" on nearly every row is noise,
+                not signal. A real category (e.g. from an AI insight
+                promoted to a task) is still worth showing. */}
+            {!task.is_personal && task.kind !== "general" && <Badge value={task.kind} />}
             <p className="truncate text-sm font-medium text-slate-900">{task.title}</p>
           </div>
           {metaParts.length > 0 && (

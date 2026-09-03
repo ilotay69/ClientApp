@@ -5,18 +5,6 @@ import type { FormState } from "@/app/(dashboard)/tasks/actions";
 
 const initialState: FormState = { error: null };
 
-const KIND_OPTIONS: { value: string; label: string }[] = [
-  { value: "general", label: "General" },
-  { value: "internal", label: "Internal" },
-  { value: "improvement", label: "Improvement" },
-  { value: "email_follow_up", label: "Email follow-up" },
-  { value: "quote_follow_up", label: "Quote follow-up" },
-  { value: "urgent_alert", label: "Urgent alert" },
-  { value: "new_project", label: "New project" },
-  { value: "service_check", label: "Service check" },
-  { value: "touchpoint_action", label: "Touchpoint action" },
-];
-
 const PRIORITY_OPTIONS: { value: string; label: string }[] = [
   { value: "low", label: "Low priority" },
   { value: "medium", label: "Medium priority" },
@@ -149,19 +137,6 @@ export function TaskQuickAdd({
         </details>
       )}
 
-      {!personal && (
-        <select
-          name="kind"
-          defaultValue="general"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-        >
-          {KIND_OPTIONS.map((k) => (
-            <option key={k.value} value={k.value}>
-              {k.label}
-            </option>
-          ))}
-        </select>
-      )}
       <select
         name="priority"
         defaultValue="medium"

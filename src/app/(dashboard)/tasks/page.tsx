@@ -2,10 +2,11 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
+import { TaskFilterBar } from "@/components/task-filter-bar";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
 import { createTask, deleteTask, setTaskAssignees, updateTaskField } from "./actions";
-import { FilterLink } from "@/components/filter-link";
+import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
 
@@ -20,30 +21,42 @@ const STATUS_OPTIONS = [
   { value: "in_progress", label: "In Progress" },
   { value: "on_hold", label: "On Hold" },
   { value: "waiting_client", label: "Waiting Client" },
+  { value: "done", label: "Done" },
+  { value: "dismissed", label: "Dismissed" },
 ];
 
-// A task created before this status rework may still carry a legacy
-// 'done'/'dismissed' value — fall it into the picker so the select shows
-// the real current value instead of silently mismatching.
+// A task created before this status list changed may still carry some
+// other legacy value — fall it into the picker so the select shows the
+// real current value instead of silently mismatching.
 function statusOptionsFor(current: string) {
   if (STATUS_OPTIONS.some((o) => o.value === current)) return STATUS_OPTIONS;
   return [...STATUS_OPTIONS, { value: current, label: current }];
 }
 
-// Personal to-dos don't carry "done"/"dismissed" legacy baggage — they're
-// a new field — so no fallback needed there.
-const PERSONAL_STATUS_OPTIONS = [
-  ...STATUS_OPTIONS,
-  { value: "done", label: "Done" },
-  { value: "dismissed", label: "Dismissed" },
-];
-
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mine?: string; view?: string; project_id?: string; client_id?: string }>;
+  searchParams: Promise<{
+    mine?: string;
+    view?: string;
+    project_id?: string;
+    client_id?: string;
+    client?: string;
+    priority?: string;
+    assignee?: string;
+    status?: string;
+  }>;
 }) {
-  const { mine, view, project_id: defaultProjectId, client_id: defaultClientId } = await searchParams;
+  const {
+    mine,
+    view,
+    project_id: defaultProjectId,
+    client_id: defaultClientId,
+    client: filterClient,
+    priority: filterPriority,
+    assignee: filterAssignee,
+    status: filterStatus,
+  } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -74,8 +87,14 @@ export default async function TasksPage({
   );
   const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));
 
-  const assigneesRelation =
-    mine === "1" && user ? "task_assignees!inner(profile_id)" : "task_assignees(profile_id)";
+  // "My tasks" is really just the assignee filter defaulting to the
+  // current user — an explicit assignee filter takes precedence if both
+  // are somehow present at once.
+  const effectiveAssigneeId = filterAssignee || (mine === "1" && user ? user.id : "");
+
+  const assigneesRelation = effectiveAssigneeId
+    ? "task_assignees!inner(profile_id)"
+    : "task_assignees(profile_id)";
 
   let teamQuery = supabase
     .from("tasks")
@@ -85,11 +104,22 @@ export default async function TasksPage({
     .eq("is_personal", false)
     .order("due_date", { ascending: true, nullsFirst: false });
 
-  if (view !== "all") {
+  if (filterStatus) {
+    // An explicit status filter (e.g. "Done") overrides the default
+    // open-only view — picking "Done" should show done tasks regardless
+    // of the Open/All chip.
+    teamQuery = teamQuery.eq("status", filterStatus);
+  } else if (view !== "all") {
     teamQuery = teamQuery.not("status", "in", "(done,dismissed)");
   }
-  if (mine === "1" && user) {
-    teamQuery = teamQuery.eq("task_assignees.profile_id", user.id);
+  if (effectiveAssigneeId) {
+    teamQuery = teamQuery.eq("task_assignees.profile_id", effectiveAssigneeId);
+  }
+  if (filterClient) {
+    teamQuery = teamQuery.eq("client_id", filterClient);
+  }
+  if (filterPriority) {
+    teamQuery = teamQuery.eq("priority", filterPriority);
   }
 
   const [{ data: teamTasks }, { data: personalTasks }] = await Promise.all([
@@ -128,6 +158,21 @@ export default async function TasksPage({
           </FilterLink>
         </div>
       </div>
+
+      <TaskFilterBar
+        clients={clients ?? []}
+        members={members ?? []}
+        priorityOptions={PRIORITY_OPTIONS}
+        statusOptions={STATUS_OPTIONS}
+        values={{
+          client: filterClient ?? "",
+          priority: filterPriority ?? "",
+          assignee: filterAssignee ?? "",
+          status: filterStatus ?? "",
+        }}
+        preserve={{ mine, view }}
+        clearHref={filterHref("/tasks", { mine, view })}
+      />
 
       <TaskQuickAdd
         clients={clients ?? []}
@@ -213,7 +258,7 @@ export default async function TasksPage({
             projectOptions={projectOptions}
             members={members ?? []}
             canDelete
-            statusOptions={PERSONAL_STATUS_OPTIONS}
+            statusOptions={statusOptionsFor(t.status)}
             priorityOptions={PRIORITY_OPTIONS}
             updateFieldAction={updateFieldAction}
             setAssigneesAction={setAssigneesAction}
