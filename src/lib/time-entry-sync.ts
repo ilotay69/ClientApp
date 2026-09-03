@@ -5,12 +5,14 @@ import {
   type AutotaskCredentials,
 } from "@/lib/autotask";
 
-/** Upserts every Autotask time entry logged on `dateStr` (YYYY-MM-DD) into
- * autotask_time_entries — accumulating history, never replaced, unlike
- * every other Autotask sync in this app (which are read-only caches of
- * Autotask's current state). Upserted by Autotask's own time entry id, so
- * re-running for a date already synced (a daily cron overlapping a manual
- * "Sync now") just updates rows in place rather than duplicating them.
+/** Upserts every Autotask time entry logged in [sinceStr, untilStr]
+ * (inclusive, both YYYY-MM-DD) into autotask_time_entries — accumulating
+ * history, never replaced, unlike every other Autotask sync in this app
+ * (which are read-only caches of Autotask's current state). Upserted by
+ * Autotask's own time entry id, so re-running over a range already synced
+ * (a daily cron overlapping a manual backfill) just updates rows in place
+ * rather than duplicating them — safe to call with a single day or a full
+ * month.
  *
  * A time entry carries no client/company reference of its own — it's
  * attributed to a client via its ticket's companyID, resolved from
@@ -19,14 +21,15 @@ import {
  * moment a ticket closes). An entry with no ticketID (task-based time) or
  * whose ticket's company isn't mapped to a client here gets client_id =
  * null rather than being dropped — still real history, just unattributed. */
-export async function syncTimeEntriesForDate(
+export async function syncTimeEntriesInRange(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
   creds: AutotaskCredentials,
   zoneUrl: string,
-  dateStr: string
+  sinceStr: string,
+  untilStr: string
 ): Promise<{ synced: number }> {
-  const entries = await fetchTimeEntriesInRange(creds, zoneUrl, dateStr, dateStr);
+  const entries = await fetchTimeEntriesInRange(creds, zoneUrl, sinceStr, untilStr);
   if (entries.length === 0) return { synced: 0 };
 
   const [resourceNames, ticketCompanyIds] = await Promise.all([

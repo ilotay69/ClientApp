@@ -3,9 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { ResourceHoursReport } from "@/components/resource-hours-report";
 import { SyncTimeEntriesButton } from "@/components/sync-time-entries-button";
+import { TimeEntryPatterns } from "@/components/time-entry-patterns";
 import { lastBusinessDayBefore, ymd } from "@/lib/resource-hours";
 import { formatDate } from "@/lib/format";
-import { fetchResourceHoursAction, syncYesterdayTimeEntriesAction } from "./actions";
+import {
+  fetchResourceHoursAction,
+  syncYesterdayTimeEntriesAction,
+  backfillPastMonthTimeEntriesAction,
+  analyzeTimeEntryPatternsAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +79,11 @@ export default async function HoursPage() {
           )}
         </div>
       </div>
+
+      <TimeEntryPatterns
+        backfillAction={backfillPastMonthTimeEntriesAction}
+        analyzeAction={analyzeTimeEntryPatternsAction}
+      />
     </div>
   );
 }

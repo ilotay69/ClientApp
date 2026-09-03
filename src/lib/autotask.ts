@@ -55,6 +55,42 @@ async function autotaskQuery(
   return json.items ?? [];
 }
 
+/** Same as autotaskQuery, but follows pageDetails.nextPageUrl until
+ * exhausted (or maxPages, as a safety cap) instead of returning just the
+ * first page — confirmed against Autotask's own docs that a query response
+ * always carries this pointer (a full URL, or null when there's no more).
+ * Needed for a fetch that can genuinely exceed one page, like a month-wide
+ * time entries backfill; the rest of this file's queries stay single-page,
+ * since none of them expect enough rows to matter. */
+async function autotaskQueryAllPages(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  entity: string,
+  search: Record<string, unknown>,
+  maxPages = 20
+): Promise<unknown[]> {
+  const results: unknown[] = [];
+  let url: string | null = `${zoneUrl}/${entity}/query?search=${encodeURIComponent(JSON.stringify(search))}`;
+
+  for (let page = 0; url && page < maxPages; page++) {
+    const res: Response = await fetch(url, { headers: autotaskHeaders(creds) });
+    if (res.status === 429) {
+      await sleep(1000);
+      page--; // retry the same page rather than skipping it
+      continue;
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Autotask ${entity} query failed (${res.status}): ${text}`);
+    }
+    const json = await res.json();
+    results.push(...(json.items ?? []));
+    url = json.pageDetails?.nextPageUrl ?? null;
+  }
+
+  return results;
+}
+
 /** Resolves the tenant's per-zone API base URL — required first call,
  * unauthenticated, before any other Autotask request can be made. */
 export async function resolveZoneUrl(username: string): Promise<string> {
@@ -469,21 +505,24 @@ export type AutotaskTimeEntryRange = {
 /** Account-wide time entries in a date range, across every resource and
  * ticket/task — not scoped to one ticket like fetchTicketTimeEntries.
  * Confirmed against Autotask's own field reference that TimeEntries can be
- * queried by dateWorked/resourceID without a ticketID filter. Capped at
- * 500 rows — a resource-hours report spanning a full month for a busy
- * account could exceed that; if totals look short, that cap is why. */
+ * queried by dateWorked/resourceID without a ticketID filter. Paginated up
+ * to autotaskQueryAllPages' safety cap (20 pages) — plenty for a month-wide
+ * backfill for any team size this app is likely to see. */
 export async function fetchTimeEntriesInRange(
   creds: AutotaskCredentials,
   zoneUrl: string,
   sinceISO: string,
   untilISO: string
 ): Promise<AutotaskTimeEntryRange[]> {
-  const items = await autotaskQuery(creds, zoneUrl, "TimeEntries", {
+  // Paginated (not the plain single-page autotaskQuery) — a single day is
+  // never going to hit Autotask's page size, but a month-wide backfill
+  // easily can for a team of any real size, and silently truncating that
+  // would produce an undercounted, misleading result.
+  const items = await autotaskQueryAllPages(creds, zoneUrl, "TimeEntries", {
     filter: [
       { op: "gte", field: "dateWorked", value: sinceISO },
       { op: "lte", field: "dateWorked", value: untilISO },
     ],
-    MaxRecords: 500,
   });
 
   type RawTimeEntry = {
@@ -524,9 +563,12 @@ export async function resolveTicketCompanyIds(
   if (uniqueIds.length === 0) return map;
 
   try {
-    const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
+    // Paginated — a month's worth of time entries can easily reference
+    // more distinct tickets than fit on one page, and requesting
+    // MaxRecords: uniqueIds.length doesn't guarantee Autotask honors a
+    // page size above its own per-page ceiling.
+    const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
       filter: [{ op: "in", field: "id", value: uniqueIds }],
-      MaxRecords: uniqueIds.length,
     })) as { id: number; companyID?: number }[];
     for (const t of items) {
       if (t.companyID != null) map.set(t.id, t.companyID);

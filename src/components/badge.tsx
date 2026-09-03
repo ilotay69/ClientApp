@@ -66,6 +66,10 @@ const COLORS: Record<string, string> = {
   // project source — a category, not a status
   autotask: CATEGORY_INDIGO,
 
+  // time entry pattern finding
+  recurring_issue: URGENT,
+  inconsistent_effort: ATTENTION,
+
   // roles — a hierarchy, not a status; Owner intentionally stands apart
   owner: "bg-charcoal text-white",
   manager: INFO,
