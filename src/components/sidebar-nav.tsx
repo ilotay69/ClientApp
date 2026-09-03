@@ -57,7 +57,7 @@ export function SidebarNav({
       ? [{ href: "/settings/services", label: "Recurring Services", icon: IconRefresh }]
       : []),
     ...(canManageServices
-      ? [{ href: "/settings/catalog", label: "Service Catalog", icon: IconList }]
+      ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
       : []),
     ...(canManageIntegrations
       ? [{ href: "/settings/integrations", label: "Integrations", icon: IconSparkles }]
