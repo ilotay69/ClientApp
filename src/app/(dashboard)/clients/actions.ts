@@ -36,40 +36,6 @@ import { generateTicketInsights, type TicketInsight } from "@/lib/ticket-insight
 
 export type FormState = { error: string | null };
 
-export async function createClientRecord(
-  _prevState: FormState,
-  formData: FormData
-): Promise<FormState> {
-  if (!(await requirePermission("manage_clients"))) {
-    return { error: "You don't have permission to do that." };
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "Client name is required." };
-
-  const { data, error } = await supabase
-    .from("clients")
-    .insert({
-      name,
-      primary_contact_name: emptyToNull(formData.get("primary_contact_name")),
-      primary_contact_email: emptyToNull(formData.get("primary_contact_email")),
-      primary_contact_phone: emptyToNull(formData.get("primary_contact_phone")),
-      owner_id: user?.id ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/clients");
-  redirect(`/clients/${data.id}`);
-}
-
 export async function updateClientRecord(
   clientId: string,
   _prevState: FormState,
