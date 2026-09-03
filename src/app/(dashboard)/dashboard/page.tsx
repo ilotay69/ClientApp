@@ -39,6 +39,7 @@ export default async function DashboardPage() {
     supabase
       .from("tasks")
       .select("id, assigned_to, profiles:assigned_to(full_name)")
+      .eq("is_personal", false)
       .not("status", "in", "(done,dismissed)"),
     supabase
       .from("touchpoints")

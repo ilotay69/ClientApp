@@ -90,7 +90,13 @@ export async function createTask(
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: "Title is required." };
 
-  const assigneeIds = formData.getAll("assignee_ids").map(String).filter(Boolean);
+  const isPersonal = formData.get("is_personal") === "1";
+  // A personal task is only ever yours — no client/project/assignee, even
+  // if a stale form field somehow sent one. Enforced here, not just left
+  // to the UI omitting those fields.
+  const assigneeIds = isPersonal
+    ? []
+    : formData.getAll("assignee_ids").map(String).filter(Boolean);
 
   // The form pre-fills start = today and due = start + 30 days, editable
   // before submit. This is a server-side fallback for the same default in
@@ -102,11 +108,12 @@ export async function createTask(
     .from("tasks")
     .insert({
       title,
-      kind: String(formData.get("kind") ?? "general") as TaskKind,
+      is_personal: isPersonal,
+      kind: isPersonal ? "general" : (String(formData.get("kind") ?? "general") as TaskKind),
       priority: String(formData.get("priority") ?? "medium") as TaskPriority,
-      client_id: emptyToNull(formData.get("client_id")),
-      project_id: emptyToNull(formData.get("project_id")),
-      assigned_to: assigneeIds[0] ?? null,
+      client_id: isPersonal ? null : emptyToNull(formData.get("client_id")),
+      project_id: isPersonal ? null : emptyToNull(formData.get("project_id")),
+      assigned_to: isPersonal ? null : (assigneeIds[0] ?? null),
       start_date: startDate,
       due_date: dueDate,
       detail: emptyToNull(formData.get("detail")),
@@ -202,9 +209,25 @@ export async function updateTaskField(taskId: string, field: string, value: stri
 }
 
 export async function deleteTask(taskId: string) {
-  if (!(await requirePermission("delete_tasks"))) return;
-
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: task } = await supabase
+    .from("tasks")
+    .select("is_personal, created_by")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!task) return;
+
+  // Deleting your own personal to-do doesn't need delete_tasks — it was
+  // never a shared record for anyone else to lose. Anything else (a team
+  // task, or someone else's personal task — which RLS wouldn't even
+  // return, but the check stays explicit here) still needs the permission.
+  const isOwnPersonalTask = task.is_personal && task.created_by === user?.id;
+  if (!isOwnPersonalTask && !(await requirePermission("delete_tasks"))) return;
+
   await supabase.from("tasks").delete().eq("id", taskId);
   revalidatePath("/tasks");
   revalidatePath("/dashboard");
