@@ -12,6 +12,7 @@ export function TaskFilterBar({
   statusOptions,
   values,
   preserve,
+  clearHref,
 }: {
   clients: { id: string; name: string }[];
   members: { id: string; full_name: string }[];
