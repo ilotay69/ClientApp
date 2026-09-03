@@ -1,16 +1,25 @@
-// On-demand AI read of stored time entries (autotask_time_entries) looking
-// for two kinds of patterns a human wouldn't easily spot by scanning a
-// list: the same kind of issue recurring for one client over and over
-// (probably needs a permanent fix, not repeated patching), and similar
-// work taking meaningfully different amounts of time across different
-// clients (worth understanding why before assuming it's fine). This is
-// the piece that decides whether persisting time entries is worth
-// keeping at all — if it doesn't surface anything real, there's nothing
-// else this data is for yet.
+// On-demand AI read of a live 90-day fetch of Autotask time entries,
+// looking for two kinds of pattern a human wouldn't easily spot by
+// scanning a list: the same kind of issue recurring for one client over
+// and over (probably needs a permanent fix, not repeated patching), and
+// similar work taking meaningfully different amounts of time across
+// different clients (worth understanding why before assuming it's fine).
+//
+// Deliberately not persisted anywhere — fetched fresh from Autotask each
+// time "Analyze patterns" is clicked, analyzed in memory, nothing written
+// to this app's own database. An earlier version of this feature stored
+// time entries in their own table to build up history; that was reverted
+// (see migration 026) in favor of always reading live.
 //
 // Self-contained Anthropic/OpenAI calls, same reasoning as
 // ticket-insights.ts/mailbox-review.ts: a different output shape than the
 // suggestions schema, not worth generalizing that for.
+import {
+  fetchTimeEntriesInRange,
+  resolveResourceNames,
+  resolveTicketCompanyIds,
+  type AutotaskCredentials,
+} from "@/lib/autotask";
 import type { ActiveAiSettings } from "@/lib/ai";
 import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
@@ -29,6 +38,62 @@ export type TimeEntryFinding = {
   detail: string;
   clients: string[];
 };
+
+/** Live fetch + resolution for the analysis below — no storage involved.
+ * A time entry carries no client/company reference of its own, so each
+ * one is attributed via its ticket's companyID (resolved directly from
+ * Autotask, batched) mapped to a client through this app's own
+ * clients.autotask_company_id (a read of already-synced client mappings,
+ * not new persistence). An entry with no ticket or an unmapped company
+ * still gets included, just with clientName null. */
+export async function fetchTimeEntriesForAnalysis(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  sinceStr: string,
+  untilStr: string
+): Promise<TimeEntryForAnalysis[]> {
+  const entries = await fetchTimeEntriesInRange(creds, zoneUrl, sinceStr, untilStr);
+  if (entries.length === 0) return [];
+
+  const [resourceNames, ticketCompanyIds] = await Promise.all([
+    resolveResourceNames(
+      creds,
+      zoneUrl,
+      entries.map((e) => e.resourceID)
+    ),
+    resolveTicketCompanyIds(
+      creds,
+      zoneUrl,
+      entries.map((e) => e.ticketID).filter((id): id is number => id != null)
+    ),
+  ]);
+
+  const companyIds = [...new Set([...ticketCompanyIds.values()])];
+  const { data: clients } = await admin
+    .from("clients")
+    .select("id, name, autotask_company_id")
+    .in("autotask_company_id", companyIds.length > 0 ? companyIds : [-1]);
+  const clientNameByCompanyId = new Map(
+    (clients ?? []).map((c: { name: string; autotask_company_id: number }) => [
+      c.autotask_company_id,
+      c.name,
+    ])
+  );
+
+  return entries.map((e) => {
+    const companyId = e.ticketID != null ? ticketCompanyIds.get(e.ticketID) : undefined;
+    return {
+      clientName: companyId != null ? (clientNameByCompanyId.get(companyId) ?? null) : null,
+      resourceName: resourceNames.get(e.resourceID) ?? `Resource ${e.resourceID}`,
+      ticketId: e.ticketID,
+      hoursWorked: e.hoursWorked,
+      dateWorked: e.dateWorked.slice(0, 10),
+      summaryNotes: e.summaryNotes,
+    };
+  });
+}
 
 const MAX_ENTRIES = 400;
 const MAX_NOTE_CHARS = 300;
