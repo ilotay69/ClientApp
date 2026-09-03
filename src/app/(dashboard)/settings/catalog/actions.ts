@@ -8,6 +8,7 @@ import {
   analyzeServiceCoverage,
   type ServiceCoverageGap,
   type ClientForCoverage,
+  type CatalogServiceForCoverage,
 } from "@/lib/service-coverage-insights";
 
 export type FormState = { error: string | null };
@@ -84,12 +85,15 @@ export async function detachClientService(clientId: string, serviceId: string) {
   revalidatePath(`/clients/${clientId}`);
 }
 
-/** Reads the catalog and every client's attached services, and asks the
- * active AI provider to group services into real categories (MDR, backup,
- * etc.) and flag any client with nothing attached in a category — even
- * though the exact catalog entries differ per client, e.g. a client with
- * "SentinelOne MDR" isn't a gap for "Huntress MDR". Nothing stored;
- * fetched and analyzed on demand each time. */
+/** Reads every client's ACTIVE Autotask contracted services (already
+ * synced — nothing to set up or maintain separately) and asks the active
+ * AI provider to group them into real categories (MDR, backup, etc.) and
+ * flag any client with nothing in a category — even though the exact
+ * contracted item differs per client, e.g. a client with "BitDefender"
+ * isn't a gap for "Huntress MDR". There's no separate catalog here: the
+ * "catalog" is just the union of every distinct service name seen across
+ * every client's own contracted services. Nothing stored; fetched and
+ * analyzed fresh each time. */
 export async function analyzeServiceCoverageAction(): Promise<
   { gaps: ServiceCoverageGap[] } | { error: string }
 > {
@@ -103,32 +107,53 @@ export async function analyzeServiceCoverageAction(): Promise<
     return { error: "AI insights aren't set up yet — configure a provider under Settings → Integrations." };
   }
 
-  const [{ data: services }, { data: clients }, { data: clientServices }] = await Promise.all([
-    admin.from("services").select("name, description").order("name"),
+  const [{ data: clients }, { data: contractServices }] = await Promise.all([
     admin.from("clients").select("id, name").order("name"),
-    admin.from("client_services").select("client_id, services(name)"),
+    admin
+      .from("autotask_contract_services")
+      .select("client_id, service_name, description, contract_status"),
   ]);
 
-  if (!services || services.length === 0) {
-    return { error: "Add at least one service to the catalog first." };
-  }
   if (!clients || clients.length === 0) {
     return { error: "No clients to check yet." };
   }
+  const activeServices = (contractServices ?? []).filter(
+    (cs: { contract_status: string | null }) => cs.contract_status?.toLowerCase() === "active"
+  );
+  if (activeServices.length === 0) {
+    return {
+      error:
+        "No active Autotask contracted services found across any client — sync Autotask on at least one client first.",
+    };
+  }
 
+  // The "catalog" here is just every distinct service name seen across
+  // every client, each paired with the first description seen for it —
+  // there's no separate catalog to maintain, unlike the manual Service
+  // Catalog list above.
+  const descriptionByServiceName = new Map<string, string | null>();
   const attachedByClientId = new Map<string, string[]>();
-  for (const cs of clientServices ?? []) {
-    const serviceName = (cs.services as unknown as { name: string } | null)?.name;
-    if (!serviceName) continue;
+  for (const cs of activeServices as {
+    client_id: string;
+    service_name: string;
+    description: string | null;
+  }[]) {
+    if (!descriptionByServiceName.has(cs.service_name)) {
+      descriptionByServiceName.set(cs.service_name, cs.description);
+    }
     const existing = attachedByClientId.get(cs.client_id) ?? [];
-    existing.push(serviceName);
+    existing.push(cs.service_name);
     attachedByClientId.set(cs.client_id, existing);
   }
+
+  const services: CatalogServiceForCoverage[] = [...descriptionByServiceName.entries()]
+    .map(([name, description]) => ({ name, description }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const clientsForCoverage: ClientForCoverage[] = clients.map(
     (c: { id: string; name: string }) => ({
       name: c.name,
-      attachedServiceNames: attachedByClientId.get(c.id) ?? [],
+      attachedServiceNames: [...new Set(attachedByClientId.get(c.id) ?? [])],
     })
   );
 

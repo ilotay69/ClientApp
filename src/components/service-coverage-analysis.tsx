@@ -33,8 +33,9 @@ export function ServiceCoverageAnalysis({
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Coverage analysis</h2>
           <p className="text-xs text-slate-500">
-            Groups the catalog into categories (MDR, backup, etc.) and flags clients missing one
-            entirely — a different vendor for the same category still counts as covered.
+            Reads every client&apos;s active Autotask contracted services — nothing to set up
+            here — groups them into categories (MDR, backup, etc.), and flags clients missing one
+            entirely. A different vendor for the same category still counts as covered.
           </p>
         </div>
         <button
