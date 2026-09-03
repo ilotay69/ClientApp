@@ -8,6 +8,7 @@ import {
   REPORT_SUGGESTIONS_SCHEMA,
   type GeneratedSuggestion,
 } from "./schema";
+import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
 export const OPENAI_DEFAULT_MODEL = "gpt-4o-mini";
 
@@ -16,6 +17,7 @@ export async function callOpenAI(
   apiKey: string,
   model: string
 ): Promise<GeneratedSuggestion[]> {
+  assertAsciiHeaderValue(apiKey, "AI provider API key");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {

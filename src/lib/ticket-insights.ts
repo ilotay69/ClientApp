@@ -7,6 +7,7 @@
 // already-working suggestions path.
 import type { AutotaskTicketNote } from "@/lib/autotask";
 import type { ActiveAiSettings } from "@/lib/ai";
+import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
 export type TicketForInsight = {
   id: number;
@@ -120,6 +121,7 @@ async function callAnthropicTool(
   model: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
+  assertAsciiHeaderValue(apiKey, "AI provider API key");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -152,6 +154,7 @@ async function callOpenAiTool(
   model: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
+  assertAsciiHeaderValue(apiKey, "AI provider API key");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {

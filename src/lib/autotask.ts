@@ -3,6 +3,8 @@
 // every tenant has its own "zone" base URL that must be resolved once before
 // any other call can be made.
 
+import { assertAsciiHeaderValue } from "@/lib/ascii-check";
+
 export type AutotaskCredentials = {
   username: string;
   secret: string;
@@ -10,6 +12,10 @@ export type AutotaskCredentials = {
 };
 
 function autotaskHeaders(creds: AutotaskCredentials) {
+  assertAsciiHeaderValue(creds.integrationCode, "Autotask Integration Code");
+  assertAsciiHeaderValue(creds.username, "Autotask Username");
+  assertAsciiHeaderValue(creds.secret, "Autotask Secret");
+
   return {
     ApiIntegrationCode: creds.integrationCode,
     UserName: creds.username,

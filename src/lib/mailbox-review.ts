@@ -7,6 +7,7 @@ import { getValidAccessToken } from "@/lib/mail-sync";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection } from "@/lib/types";
+import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
 const LOOKBACK_DAYS = 30;
 // Scope is intentionally narrow: Inbox, a custom "Active Inbox" triage
@@ -196,6 +197,7 @@ async function callAnthropicTool(
   model: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
+  assertAsciiHeaderValue(apiKey, "AI provider API key");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -228,6 +230,7 @@ async function callOpenAiTool(
   model: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
+  assertAsciiHeaderValue(apiKey, "AI provider API key");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {

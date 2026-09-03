@@ -7,6 +7,7 @@ import {
   REPORT_SUGGESTIONS_SCHEMA,
   type GeneratedSuggestion,
 } from "./schema";
+import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
 export const ANTHROPIC_DEFAULT_MODEL = "claude-3-5-haiku-20241022";
 
@@ -15,6 +16,7 @@ export async function callAnthropic(
   apiKey: string,
   model: string
 ): Promise<GeneratedSuggestion[]> {
+  assertAsciiHeaderValue(apiKey, "AI provider API key");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
