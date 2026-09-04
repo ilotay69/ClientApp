@@ -83,6 +83,18 @@ const COLORS: Record<string, string> = {
   server: CATEGORY_INDIGO,
   workstation: CATEGORY_PURPLE,
   network_device: CATEGORY_PURPLE,
+
+  // sales request stage — "cancelled" reuses the existing project-status
+  // entry above, deliberately not redefined here.
+  requested: NEUTRAL,
+  quoted: ATTENTION,
+  approved: INFO,
+  ordered: ATTENTION,
+  delivered: SUCCESS,
+
+  // sales request source — a category, not a status
+  manual: NEUTRAL,
+  mailbox_ai: CATEGORY_PURPLE,
 };
 
 export function Badge({ value }: { value: string }) {

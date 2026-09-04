@@ -80,6 +80,8 @@ export default async function ClientDetailPage({
     { data: client },
     { data: projects },
     { data: touchpoints },
+    { data: salesRequests },
+    canManageSalesRequests,
     { data: emails },
     { data: tasks },
     { data: serviceChecks },
@@ -110,6 +112,12 @@ export default async function ClientDetailPage({
       .select("id, type, due_date, completed_at")
       .eq("client_id", id)
       .order("due_date", { ascending: false }),
+    supabase
+      .from("sales_requests")
+      .select("id, title, stage, source")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false }),
+    hasPermission(supabase, "manage_sales_requests"),
     supabase
       .from("email_links")
       .select("id, type, subject, from_name, from_email, received_at, web_link, is_flagged")
@@ -446,6 +454,26 @@ export default async function ClientDetailPage({
                           <div className="flex items-center gap-2">
                             {!t.completed_at && isOverdue(t.due_date) && <OverdueBadge />}
                             <Badge value={t.type} />
+                          </div>
+                        </Link>
+                      ))}
+                    </RelatedSection>
+
+                    <RelatedSection
+                      title="Sales Requests"
+                      newHref={canManageSalesRequests ? `/sales-requests?client=${id}` : undefined}
+                      emptyText="No quote/order requests yet."
+                    >
+                      {(salesRequests ?? []).map((r) => (
+                        <Link
+                          key={r.id}
+                          href={`/sales-requests?client=${id}`}
+                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                        >
+                          <p className="text-sm font-medium text-slate-900">{r.title}</p>
+                          <div className="flex items-center gap-2">
+                            <Badge value={r.source} />
+                            <Badge value={r.stage} />
                           </div>
                         </Link>
                       ))}

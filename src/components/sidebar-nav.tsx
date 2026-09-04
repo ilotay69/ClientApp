@@ -13,6 +13,7 @@ import {
   IconRefresh,
   IconList,
   IconSparkles,
+  IconTag,
   IconUsers,
   IconClock,
   IconDownload,
@@ -34,6 +35,7 @@ const MAIN_LINKS: NavItem[] = [
   { href: "/clients", label: "Clients", icon: IconBriefcase },
   { href: "/projects", label: "Projects", icon: IconFolder },
   { href: "/touchpoints", label: "Touchpoints", icon: IconCalendar },
+  { href: "/sales-requests", label: "Sales Requests", icon: IconTag },
 ];
 
 // Standalone utilities, not tied to a client/project workflow — more land

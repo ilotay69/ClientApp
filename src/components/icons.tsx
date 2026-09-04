@@ -51,6 +51,15 @@ export function IconFolder({ className }: IconProps) {
   );
 }
 
+export function IconTag({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M12.59 2.59a2 2 0 0 0-1.42-.59H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.41l8 8a2 2 0 0 0 2.82 0l7.18-7.18a2 2 0 0 0 0-2.82z" />
+      <circle cx="7.5" cy="7.5" r="1.5" />
+    </svg>
+  );
+}
+
 export function IconCalendar({ className }: IconProps) {
   return (
     <svg className={className} {...base}>

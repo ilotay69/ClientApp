@@ -270,6 +270,24 @@ export interface Task {
   updated_at: string;
 }
 
+export type SalesRequestStage = "requested" | "quoted" | "approved" | "ordered" | "delivered" | "cancelled";
+export type SalesRequestSource = "manual" | "mailbox_ai";
+
+export interface SalesRequest {
+  id: string;
+  client_id: string | null;
+  title: string;
+  detail: string | null;
+  stage: SalesRequestStage;
+  source: SalesRequestSource;
+  requested_by_name: string | null;
+  requested_by_email: string | null;
+  assigned_to: string | null;
+  related_email_ids: string[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TaskAssignee {
   task_id: string;
   profile_id: string;
