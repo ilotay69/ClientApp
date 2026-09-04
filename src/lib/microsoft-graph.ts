@@ -116,12 +116,14 @@ export async function fetchRecentMessages(
 
 /**
  * Every message currently flagged for follow-up (Outlook's `flag/flagStatus
- * eq 'flagged'`), mailbox-wide — not bounded by receivedDateTime, since a
- * flag is usually added well after a message was first received/sent and a
- * checkpoint-based incremental sync would otherwise never look at it again.
+ * eq 'flagged'`), mailbox-wide, received on or after `sinceIso` — a flag can
+ * be added well after a message first arrives, so this isn't tied to the
+ * incremental "since last sync" checkpoint, but it's still capped to a
+ * recent window rather than scanning the whole mailbox's history.
  */
 export async function fetchFlaggedMessages(
   accessToken: string,
+  sinceIso: string,
   maxPages = 10
 ): Promise<GraphMessage[]> {
   const base = new URL("https://graph.microsoft.com/v1.0/me/messages");
@@ -129,7 +131,7 @@ export async function fetchFlaggedMessages(
     "$select",
     "id,subject,from,toRecipients,receivedDateTime,webLink,bodyPreview,categories,flag"
   );
-  base.searchParams.set("$filter", "flag/flagStatus eq 'flagged'");
+  base.searchParams.set("$filter", `flag/flagStatus eq 'flagged' and receivedDateTime ge ${sinceIso}`);
   base.searchParams.set("$top", "50");
 
   let url: string | null = base.toString();

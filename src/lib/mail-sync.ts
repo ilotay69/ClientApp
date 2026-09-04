@@ -180,12 +180,16 @@ async function upsertEmailLink(
   return true;
 }
 
+const FLAGGED_SCAN_LOOKBACK_DAYS = 5;
+
 /** Full scan for messages currently flagged for follow-up, independent of
  * the incremental "since last sync" checkpoint below — a flag is typically
  * added well after a message was first received/sent, often after the
- * checkpoint has already moved past it, so a scan bounded by receivedDateTime
- * would miss it. Matches against a client's primary contact or any of
- * their other saved contacts, sent or received. */
+ * checkpoint has already moved past it, so a scan bounded by that checkpoint
+ * would miss it. Bounded instead to the last 5 days, so it stays current
+ * without re-scanning a mailbox's entire history every run. Matches against
+ * a client's primary contact or any of their other saved contacts, sent or
+ * received. */
 async function scanFlaggedMessages(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -193,7 +197,8 @@ async function scanFlaggedMessages(
   accessToken: string,
   clientEmails: ClientEmails[]
 ): Promise<number> {
-  const messages = await fetchFlaggedMessages(accessToken);
+  const since = new Date(Date.now() - FLAGGED_SCAN_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const messages = await fetchFlaggedMessages(accessToken, since);
 
   let matched = 0;
   for (const message of messages) {
