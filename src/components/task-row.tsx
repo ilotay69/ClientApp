@@ -96,19 +96,14 @@ export function TaskRow({
           onClick={(e) => e.stopPropagation()}
         >
           <div>
-            <FieldLabel>Title</FieldLabel>
-            <InlineTextEdit taskId={task.id} field="title" value={task.title} action={updateFieldAction} />
-          </div>
-
-          <div>
-            <FieldLabel>Notes</FieldLabel>
+            <FieldLabel>Description</FieldLabel>
             <InlineTextEdit
               taskId={task.id}
               field="notes"
               value={task.notes ?? ""}
               action={updateFieldAction}
-              placeholder="Add notes..."
-              emptyLabel="Add notes"
+              placeholder="Add description..."
+              emptyLabel="Add description"
             />
           </div>
 
