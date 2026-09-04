@@ -34,68 +34,95 @@ export function SalesRequestQuickAdd({
         await formAction(formData);
         formRef.current?.reset();
       }}
-      className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3 lg:grid-cols-6"
+      className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <input
-        name="title"
-        placeholder="What's being requested?"
-        required
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
-      />
-      <select
-        name="client_id"
-        defaultValue={defaultClientId}
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-      >
-        <option value="">No client (internal)</option>
-        {clients.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-      <select
-        name="assigned_to"
-        defaultValue={defaultAssignedTo}
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-      >
-        <option value="">Unassigned</option>
-        {members.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.full_name}
-          </option>
-        ))}
-      </select>
-      <input
-        name="requested_by_name"
-        defaultValue={defaultRequestedByName}
-        placeholder="Requested by (optional)"
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-      />
-      <input
-        name="requested_by_email"
-        type="email"
-        defaultValue={defaultRequestedByEmail}
-        placeholder="Their email (optional)"
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-      />
-      <textarea
-        name="detail"
-        placeholder="Detail (optional)..."
-        rows={1}
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-3 lg:col-span-6"
-      />
+      <div>
+        <Label>What&apos;s being requested?</Label>
+        <input
+          name="title"
+          placeholder="e.g. 10x Dell laptops for Acme Corp"
+          required
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </div>
 
-      {state.error && (
-        <p className="text-sm text-red-600 sm:col-span-3 lg:col-span-6">{state.error}</p>
-      )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <Label>Client</Label>
+          <select
+            name="client_id"
+            defaultValue={defaultClientId}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">No client (internal)</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>Assigned to</Label>
+          <select
+            name="assigned_to"
+            defaultValue={defaultAssignedTo}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">Unassigned</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <Label>Requested by</Label>
+          <input
+            name="requested_by_name"
+            defaultValue={defaultRequestedByName}
+            placeholder="Name (optional)"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <Label>Their email</Label>
+          <input
+            name="requested_by_email"
+            type="email"
+            defaultValue={defaultRequestedByEmail}
+            placeholder="Email (optional)"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label>Detail</Label>
+        <textarea
+          name="detail"
+          placeholder="Detail (optional)..."
+          rows={2}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </div>
+
+      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60 sm:col-span-3 sm:w-fit lg:col-span-6"
+        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Adding..." : "Add request"}
       </button>
     </form>
   );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <p className="mb-1 text-xs font-medium text-slate-700">{children}</p>;
 }

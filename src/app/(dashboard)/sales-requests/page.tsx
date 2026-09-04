@@ -26,14 +26,24 @@ const STAGE_OPTIONS = [
 export default async function SalesRequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ client?: string; stage?: string; assignee?: string; source?: string }>;
+  searchParams: Promise<{
+    client?: string;
+    stage?: string | string[];
+    assignee?: string;
+    source?: string;
+  }>;
 }) {
   const {
     client: filterClient,
-    stage: filterStage,
+    stage: filterStageRaw,
     assignee: filterAssignee,
     source: filterSource,
   } = await searchParams;
+  const filterStages = Array.isArray(filterStageRaw)
+    ? filterStageRaw
+    : filterStageRaw
+      ? [filterStageRaw]
+      : [];
 
   const supabase = await createClient();
   const {
@@ -67,7 +77,7 @@ export default async function SalesRequestsPage({
   } else if (filterClient) {
     query = query.eq("client_id", filterClient);
   }
-  if (filterStage) query = query.eq("stage", filterStage);
+  if (filterStages.length > 0) query = query.in("stage", filterStages);
   if (filterAssignee) query = query.eq("assigned_to", filterAssignee);
   if (filterSource) query = query.eq("source", filterSource);
 
@@ -89,7 +99,7 @@ export default async function SalesRequestsPage({
         stageOptions={STAGE_OPTIONS}
         values={{
           client: filterClient ?? "",
-          stage: filterStage ?? "",
+          stages: filterStages,
           assignee: filterAssignee ?? "",
           source: filterSource ?? "",
         }}
