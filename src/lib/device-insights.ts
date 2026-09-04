@@ -64,13 +64,16 @@ export type DeviceInsightInput = {
   os_name: string | null;
 };
 
-/** Same workstation/laptop classification as the Devices tab's own
- * deviceTypeLabel — servers and network gear age differently and on
- * different budget cycles, so an age check only makes sense for the
- * things people actually carry around and replace on a refresh cycle. */
+// Same workstation/server classification as the Devices tab's own
+// deviceTypeLabel — each class ages on its own refresh cycle, so an age
+// check only makes sense within one class, not across all hardware.
 function isWorkstation(nodeClass: string | null): boolean {
   if (!nodeClass) return false;
   return nodeClass.includes("WORKSTATION") || nodeClass === "MAC";
+}
+function isServer(nodeClass: string | null): boolean {
+  if (!nodeClass) return false;
+  return nodeClass.includes("SERVER") || nodeClass === "VMWARE_VM_HOST";
 }
 
 export type DeviceInsight = {
@@ -84,7 +87,9 @@ const OFFLINE_WARN_DAYS = 30;
 /** How far ahead an upcoming EOL is worth surfacing — roughly a budget cycle. */
 const EOL_SOON_DAYS = 180;
 /** Typical hardware refresh cycle for a workstation/laptop. */
-const AGE_THRESHOLD_DAYS = 3 * 365;
+const WORKSTATION_AGE_THRESHOLD_DAYS = 3 * 365;
+/** Servers are typically kept in service longer than end-user hardware. */
+const SERVER_AGE_THRESHOLD_DAYS = 5 * 365;
 
 /** Names are truncated in the detail line; the full list is a filter click away. */
 function nameList(names: string[], max = 4) {
@@ -142,29 +147,40 @@ export function buildDeviceInsights(
     });
   }
 
-  // --- Workstations/laptops older than 3 years, by when NinjaOne first
-  // registered them (a proxy for deployment date, not exact purchase date,
-  // but the closest thing NinjaOne tracks). Servers and network gear are
-  // excluded — they're refreshed on a different cycle. ---
+  // --- Hardware older than its typical refresh cycle, by when NinjaOne
+  // first registered it (a proxy for deployment date, not exact purchase
+  // date, but the closest thing NinjaOne tracks). Workstations/laptops and
+  // servers are checked separately against their own thresholds below —
+  // network gear isn't checked, it's refreshed on a different cycle again. ---
   const ageDays = (d: DeviceInsightInput) =>
     d.device_created_at ? differenceInCalendarDays(now, parseISO(d.device_created_at)) : null;
 
-  const agingWorkstations = devices.filter((d) => {
-    if (!isWorkstation(d.node_class)) return false;
-    const days = ageDays(d);
-    return days !== null && days >= AGE_THRESHOLD_DAYS;
-  });
-  if (agingWorkstations.length > 0) {
+  function pushAgingInsight(
+    label: string,
+    classify: (nodeClass: string | null) => boolean,
+    thresholdDays: number
+  ) {
+    const aging = devices.filter((d) => {
+      if (!classify(d.node_class)) return false;
+      const days = ageDays(d);
+      return days !== null && days >= thresholdDays;
+    });
+    if (aging.length === 0) return;
+
+    const years = thresholdDays / 365;
     insights.push({
       severity: "medium",
-      title: `${agingWorkstations.length} workstation${agingWorkstations.length === 1 ? "" : "s"} older than 3 years`,
+      title: `${aging.length} ${label}${aging.length === 1 ? "" : "s"} older than ${years} years`,
       detail: nameList(
-        agingWorkstations
+        aging
           .sort((a, b) => (ageDays(b) ?? 0) - (ageDays(a) ?? 0))
-          .map((d) => `${d.system_name} (${(((ageDays(d) ?? 0) / 365).toFixed(1))}y)`)
+          .map((d) => `${d.system_name} (${((ageDays(d) ?? 0) / 365).toFixed(1)}y)`)
       ),
     });
   }
+
+  pushAgingInsight("workstation", isWorkstation, WORKSTATION_AGE_THRESHOLD_DAYS);
+  pushAgingInsight("server", isServer, SERVER_AGE_THRESHOLD_DAYS);
 
   // --- Operating systems past (or nearing) end of life ---
   const byOs = new Map<string, { rule: OsEolRule; names: string[] }>();
