@@ -5,6 +5,7 @@ import { AI_PROVIDER_LABELS, AI_PROVIDER_DEFAULT_MODELS, type AiProvider } from 
 import { AiProviderSettingsForm } from "@/components/ai-provider-settings-form";
 import { AutotaskSettingsForm } from "@/components/autotask-settings-form";
 import { NinjaOneSettingsForm } from "@/components/ninjaone-settings-form";
+import { HuduSettingsForm } from "@/components/hudu-settings-form";
 import { Tabs } from "@/components/tabs";
 import {
   saveAiProviderSettings,
@@ -13,6 +14,8 @@ import {
   testAutotaskConnectionAction,
   saveNinjaOneSettings,
   testNinjaOneConnectionAction,
+  saveHuduSettings,
+  testHuduConnectionAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -34,19 +37,21 @@ export default async function IntegrationsSettingsPage({
   // Admin client — these tables have no RLS policy for authenticated users
   // at all, so a request-scoped client would always get zero rows back.
   const admin = createAdminClient();
-  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }] = await Promise.all([
-    admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
-    admin
-      .from("autotask_settings")
-      .select("username, secret, integration_code, zone_url")
-      .eq("id", true)
-      .maybeSingle(),
-    admin
-      .from("ninjaone_settings")
-      .select("region, client_id, client_secret")
-      .eq("id", true)
-      .maybeSingle(),
-  ]);
+  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }, { data: huduRow }] =
+    await Promise.all([
+      admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
+      admin
+        .from("autotask_settings")
+        .select("username, secret, integration_code, zone_url")
+        .eq("id", true)
+        .maybeSingle(),
+      admin
+        .from("ninjaone_settings")
+        .select("region, client_id, client_secret")
+        .eq("id", true)
+        .maybeSingle(),
+      admin.from("hudu_settings").select("base_url, api_key").eq("id", true).maybeSingle(),
+    ]);
 
   type ProviderRow = {
     provider: AiProvider;
@@ -128,6 +133,17 @@ export default async function IntegrationsSettingsPage({
                 currentClientId={ninjaOneRow?.client_id ?? null}
                 saveAction={saveNinjaOneSettings}
                 testAction={testNinjaOneConnectionAction}
+              />
+            ),
+          },
+          {
+            label: "Hudu",
+            content: (
+              <HuduSettingsForm
+                hasCredentials={Boolean(huduRow?.base_url && huduRow?.api_key)}
+                currentBaseUrl={huduRow?.base_url ?? null}
+                saveAction={saveHuduSettings}
+                testAction={testHuduConnectionAction}
               />
             ),
           },

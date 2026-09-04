@@ -8,6 +8,8 @@ import { resolveZoneUrl, testAutotaskConnection, type AutotaskCredentials } from
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { testNinjaOneConnection, type NinjaOneCredentials } from "@/lib/ninjaone";
 import { getNinjaOneSettings } from "@/lib/ninjaone-settings";
+import { testHuduConnection, type HuduCredentials } from "@/lib/hudu";
+import { getHuduSettings } from "@/lib/hudu-settings";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -233,6 +235,61 @@ export async function testNinjaOneConnectionAction(): Promise<{ ok: boolean; mes
   }
 
   const result = await testNinjaOneConnection(settings.credentials satisfies NinjaOneCredentials);
+  if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
+  return { ok: true, message: "Connected — credentials are working." };
+}
+
+export async function saveHuduSettings(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const baseUrl = String(formData.get("base_url") ?? "").trim();
+  const apiKey = emptyToUndefined(formData.get("api_key"));
+
+  if (!baseUrl) {
+    return { error: "Hudu URL is required.", success: null };
+  }
+
+  const admin = createAdminClient();
+  const existing = await getHuduSettings(admin);
+  const effectiveApiKey = apiKey ?? existing?.apiKey;
+  if (!effectiveApiKey) {
+    return { error: "An API key is required for first-time setup.", success: null };
+  }
+
+  const payload: { id: true; base_url: string; updated_by: string; api_key?: string } = {
+    id: true,
+    base_url: baseUrl,
+    updated_by: user.id,
+  };
+  if (apiKey) payload.api_key = apiKey;
+
+  const { error } = await admin.from("hudu_settings").upsert(payload, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}
+
+/** Tests the currently-saved Hudu credentials — doesn't persist anything,
+ * just reports whether they work. */
+export async function testHuduConnectionAction(): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getHuduSettings(admin);
+  if (!settings) {
+    return { ok: false, message: "Save your Hudu credentials first." };
+  }
+
+  const result = await testHuduConnection(settings satisfies HuduCredentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
 }
