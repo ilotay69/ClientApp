@@ -15,6 +15,7 @@ import {
   IconSparkles,
   IconUsers,
   IconClock,
+  IconDownload,
   IconLogOut,
   IconMenu,
   IconX,
@@ -40,6 +41,7 @@ export function SidebarNav({
   canManageServices,
   canManageIntegrations,
   canManageTeam,
+  canViewReports,
   signOutAction,
 }: {
   userLabel: string;
@@ -47,6 +49,7 @@ export function SidebarNav({
   canManageServices: boolean;
   canManageIntegrations: boolean;
   canManageTeam: boolean;
+  canViewReports: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -68,12 +71,15 @@ export function SidebarNav({
     { href: "/settings/mail", label: "Mailbox", icon: IconMail },
   ];
 
-  const adminLinks: NavItem[] = canManageTeam
-    ? [
-        { href: "/team", label: "Team", icon: IconUsers },
-        { href: "/hours", label: "Hours", icon: IconClock },
-      ]
-    : [];
+  const adminLinks: NavItem[] = [
+    ...(canManageTeam
+      ? [
+          { href: "/team", label: "Team", icon: IconUsers },
+          { href: "/hours", label: "Hours", icon: IconClock },
+        ]
+      : []),
+    ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
+  ];
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);

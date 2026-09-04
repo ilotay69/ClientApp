@@ -29,6 +29,7 @@ export default async function DashboardLayout({
   const canManageServices = me?.permissions.has("manage_services") ?? false;
   const canManageIntegrations = me?.permissions.has("manage_integrations") ?? false;
   const canManageTeam = me?.permissions.has("manage_team") ?? false;
+  const canViewReports = me?.permissions.has("view_team_wide") ?? false;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -38,6 +39,7 @@ export default async function DashboardLayout({
         canManageServices={canManageServices}
         canManageIntegrations={canManageIntegrations}
         canManageTeam={canManageTeam}
+        canViewReports={canViewReports}
         signOutAction={signOut}
       />
       <main className="px-4 py-8 md:pl-64">

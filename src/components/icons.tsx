@@ -159,6 +159,16 @@ export function IconClock({ className }: IconProps) {
   );
 }
 
+export function IconDownload({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M12 3v12" />
+      <polyline points="7 11 12 16 17 11" />
+      <path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
+    </svg>
+  );
+}
+
 export function IconChevronDown({ className }: IconProps) {
   return (
     <svg className={className} {...base}>
