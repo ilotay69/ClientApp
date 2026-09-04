@@ -110,7 +110,7 @@ export async function createTask(
       title,
       is_personal: isPersonal,
       kind: isPersonal ? "general" : (String(formData.get("kind") ?? "general") as TaskKind),
-      priority: String(formData.get("priority") ?? "medium") as TaskPriority,
+      priority: String(formData.get("priority") ?? "low") as TaskPriority,
       client_id: isPersonal ? null : emptyToNull(formData.get("client_id")),
       project_id: isPersonal ? null : emptyToNull(formData.get("project_id")),
       assigned_to: isPersonal ? null : (assigneeIds[0] ?? null),

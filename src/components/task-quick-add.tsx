@@ -1,26 +1,14 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import type { FormState } from "@/app/(dashboard)/tasks/actions";
 
 const initialState: FormState = { error: null };
 
 const PRIORITY_OPTIONS: { value: string; label: string }[] = [
   { value: "low", label: "Low priority" },
-  { value: "medium", label: "Medium priority" },
   { value: "high", label: "High priority" },
 ];
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysISO(dateStr: string, days: number) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return dateStr;
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 export function TaskQuickAdd({
   clients,
@@ -49,11 +37,6 @@ export function TaskQuickAdd({
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
-  const defaultStart = useMemo(() => todayISO(), []);
-  const [startDate, setStartDate] = useState(defaultStart);
-  const [dueDate, setDueDate] = useState(() => addDaysISO(defaultStart, 30));
-  const [dueDateTouched, setDueDateTouched] = useState(false);
-
   return (
     <form
       ref={formRef}
@@ -61,10 +44,6 @@ export function TaskQuickAdd({
         await formAction(formData);
         formRef.current?.reset();
         setSelectedAssignees([]);
-        const next = todayISO();
-        setStartDate(next);
-        setDueDate(addDaysISO(next, 30));
-        setDueDateTouched(false);
       }}
       className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-4 lg:grid-cols-8"
     >
@@ -139,7 +118,7 @@ export function TaskQuickAdd({
 
       <select
         name="priority"
-        defaultValue="medium"
+        defaultValue="low"
         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
       >
         {PRIORITY_OPTIONS.map((p) => (
@@ -148,35 +127,6 @@ export function TaskQuickAdd({
           </option>
         ))}
       </select>
-      <label className="flex items-center gap-2 text-xs text-slate-500 sm:col-span-2 lg:col-span-1">
-        Start
-        <input
-          type="date"
-          name="start_date"
-          value={startDate}
-          onChange={(e) => {
-            const value = e.target.value;
-            setStartDate(value);
-            // Defaults due date to 30 days out unless the user has already
-            // picked their own due date.
-            if (!dueDateTouched && value) setDueDate(addDaysISO(value, 30));
-          }}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-xs text-slate-500 sm:col-span-2 lg:col-span-1">
-        Due
-        <input
-          type="date"
-          name="due_date"
-          value={dueDate}
-          onChange={(e) => {
-            setDueDateTouched(true);
-            setDueDate(e.target.value);
-          }}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
-        />
-      </label>
       <textarea
         name="notes"
         placeholder="Notes..."

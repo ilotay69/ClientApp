@@ -62,23 +62,32 @@ export default async function TasksPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: clients }, { data: members }, canDeleteTasks, { data: projects }] =
-    await Promise.all([
-      supabase.from("clients").select("id, name").order("name"),
-      supabase.from("profiles").select("id, full_name").order("full_name"),
-      hasPermission(supabase, "delete_tasks"),
-      supabase.from("projects").select("id, name, clients(name)").order("name"),
-    ]);
+  const [
+    { data: clients },
+    { data: members },
+    canDeleteTasks,
+    { data: projects },
+    { data: taskClientRows },
+  ] = await Promise.all([
+    supabase.from("clients").select("id, name").order("name"),
+    supabase.from("profiles").select("id, full_name").order("full_name"),
+    hasPermission(supabase, "delete_tasks"),
+    supabase.from("projects").select("id, name, clients(name)").order("name"),
+    // Unfiltered, so the client filter's own options don't shrink as other
+    // filters (priority, assignee, status, mine/view) are applied.
+    supabase.from("tasks").select("client_id").eq("is_personal", false).not("client_id", "is", null),
+  ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const clientOptions = [{ value: "", label: "No client (internal)" }].concat(
     (clients ?? []).map((c) => ({ value: c.id, label: c.name }))
   );
+  const taskClientIds = new Set((taskClientRows ?? []).map((r) => r.client_id));
+  const filterClients = (clients ?? []).filter((c) => taskClientIds.has(c.id));
   const projectSummaries = (projects ?? []).map((p) => ({
     id: p.id,
     name: p.name,
     clientName: (p.clients as unknown as { name: string } | null)?.name ?? null,
   }));
-  const projectById = new Map(projectSummaries.map((p) => [p.id, p]));
   const projectOptions = [{ value: "", label: "No project" }].concat(
     projectSummaries.map((p) => ({
       value: p.id,
@@ -160,7 +169,7 @@ export default async function TasksPage({
       </div>
 
       <TaskFilterBar
-        clients={clients ?? []}
+        clients={filterClients}
         members={members ?? []}
         priorityOptions={PRIORITY_OPTIONS}
         statusOptions={STATUS_OPTIONS}
@@ -192,14 +201,12 @@ export default async function TasksPage({
             .map((id) => memberById.get(id))
             .filter((n): n is string => Boolean(n))
             .join(", ");
-          const project = t.project_id ? projectById.get(t.project_id) : null;
 
           return (
             <TaskRow
               key={t.id}
               task={t as TaskRowData}
               clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
-              projectLabel={project ? project.name : null}
               assigneeIds={assigneeIds}
               assigneeNames={assigneeNames}
               clientOptions={clientOptions}
@@ -251,7 +258,6 @@ export default async function TasksPage({
             key={t.id}
             task={{ ...t, client_id: null, project_id: null } as TaskRowData}
             clientName={null}
-            projectLabel={null}
             assigneeIds={[]}
             assigneeNames=""
             clientOptions={clientOptions}

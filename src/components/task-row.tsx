@@ -32,7 +32,6 @@ export type TaskRowData = {
 export function TaskRow({
   task,
   clientName,
-  projectLabel,
   assigneeIds,
   assigneeNames,
   clientOptions,
@@ -47,7 +46,6 @@ export function TaskRow({
 }: {
   task: TaskRowData;
   clientName: string | null;
-  projectLabel: string | null;
   assigneeIds: string[];
   assigneeNames: string;
   clientOptions: { value: string; label: string }[];
@@ -62,56 +60,54 @@ export function TaskRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const overdue = task.status !== "done" && task.status !== "dismissed" && isOverdue(task.due_date);
-
-  const metaParts = task.is_personal
-    ? []
-    : [clientName, projectLabel, assigneeNames || "Unassigned"].filter((p): p is string => Boolean(p));
+  const clientLabel = task.is_personal ? "Personal" : (clientName ?? "Internal");
+  const personLabel = task.is_personal ? "You" : assigneeNames || "Unassigned";
 
   return (
     <div className="border-b border-slate-100 last:border-b-0">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex w-full items-start justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((prev) => !prev);
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left hover:bg-slate-50"
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            {/* "general" is the default for every manually-added task — a
-                badge that just says "General" on nearly every row is noise,
-                not signal. A real category (e.g. from an AI insight
-                promoted to a task) is still worth showing. */}
-            {!task.is_personal && task.kind !== "general" && <Badge value={task.kind} />}
-            <p className="truncate text-sm font-medium text-slate-900">{task.title}</p>
-          </div>
-          {metaParts.length > 0 && (
-            <p className="mt-0.5 truncate text-xs text-slate-500">{metaParts.join(" · ")}</p>
-          )}
-          {task.is_personal && task.detail && (
-            <p className="mt-0.5 truncate text-xs text-slate-500">{task.detail}</p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {task.priority === "high" && <Badge value="high" />}
-          {task.due_date && (
-            <span className="text-xs text-slate-500">{formatDate(task.due_date)}</span>
-          )}
+        <span className="w-24 shrink-0 text-xs text-slate-500">
+          {task.due_date ? formatDate(task.due_date) : "—"}
+        </span>
+        <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientLabel}</span>
+        <span className="w-32 shrink-0 truncate text-sm text-slate-700">{personLabel}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+          {task.title}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
           {overdue && <OverdueBadge />}
-          <Badge value={task.status} />
-          <IconChevronDown
-            className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-          />
-        </div>
-      </button>
+          {task.priority === "high" && <Badge value="high" />}
+          <span onClick={(e) => e.stopPropagation()}>
+            <InlineSelectEdit
+              taskId={task.id}
+              field="status"
+              value={task.status}
+              action={updateFieldAction}
+              options={statusOptions}
+            />
+          </span>
+        </span>
+        <IconChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
+      </div>
 
       {expanded && (
         <div
           className="space-y-3 border-t border-slate-100 bg-slate-50 px-5 py-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <div>
-            <FieldLabel>Title</FieldLabel>
-            <InlineTextEdit taskId={task.id} field="title" value={task.title} action={updateFieldAction} />
-          </div>
           <div>
             <FieldLabel>Detail</FieldLabel>
             <InlineTextEdit
@@ -168,16 +164,6 @@ export function TaskRow({
                 value={task.priority}
                 action={updateFieldAction}
                 options={priorityOptions}
-              />
-            </div>
-            <div>
-              <FieldLabel>Status</FieldLabel>
-              <InlineSelectEdit
-                taskId={task.id}
-                field="status"
-                value={task.status}
-                action={updateFieldAction}
-                options={statusOptions}
               />
             </div>
             <div>
