@@ -5,6 +5,15 @@ import type { MailConnection } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+// PAUSED 2026-09-04: a Conditional Access policy in the tenant is blocking
+// token refresh for the connected mailbox (AADSTS53003), so every cron run
+// was just failing anyway — paused here to stop hitting Microsoft's token
+// endpoint with a doomed request every run until that's sorted out. This
+// only short-circuits the CRON-triggered route; the manual "Sync now" /
+// "Sync my mailbox" buttons still work normally, so it's fine to keep
+// testing those. Flip this back to false once resolved.
+const PAUSED = true;
+
 /**
  * Syncs every connected mailbox. Call this on a schedule with header
  * `X-Cron-Secret: <CRON_SECRET>`, same secret as the reminders job. Each
@@ -18,6 +27,10 @@ export async function GET(request: NextRequest) {
   const secret = request.headers.get("x-cron-secret");
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (PAUSED) {
+    return NextResponse.json({ paused: true, synced: 0, results: [] });
   }
 
   const admin = createAdminClient();
