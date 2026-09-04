@@ -94,6 +94,7 @@ export type NinjaOneDeviceRow = {
   is_offline: boolean | null;
   last_contact: string | null;
   device_created_at: string | null;
+  manufacturer_fulfillment_date: string | null;
   os_name: string | null;
   os_version: string | null;
   manufacturer: string | null;
@@ -167,6 +168,7 @@ export async function fetchDevicesForOrganization(
     offline?: boolean;
     lastContact?: number;
     created?: number;
+    references?: { warranty?: { manufacturerFulfillmentDate?: number } };
   };
   const devices = (json ?? []) as RawDevice[];
 
@@ -202,11 +204,19 @@ export async function fetchDevicesForOrganization(
       system_name: d.systemName ?? `Device ${d.id}`,
       node_class: d.nodeClass ?? null,
       is_offline: d.offline ?? null,
-      // lastContact/created appear to be epoch (seconds, with a fractional
-      // part) timestamps — confirmed against NinjaOne's own OpenAPI schema
-      // (both "format: double") and this app's own live data for lastContact.
+      // lastContact/created/manufacturerFulfillmentDate appear to be epoch
+      // (seconds, with a fractional part) timestamps — confirmed against
+      // NinjaOne's own OpenAPI schema (all "format: double") and this app's
+      // own live data for lastContact. manufacturerFulfillmentDate is
+      // NinjaOne's auto-detected (via the device's serial number, for
+      // vendors it supports) hardware ship date — a real proxy for device
+      // age, unlike "created" which is just when it was enrolled here. Not
+      // every device has it (vendor not supported, or lookup never ran).
       last_contact: d.lastContact ? new Date(d.lastContact * 1000).toISOString() : null,
       device_created_at: d.created ? new Date(d.created * 1000).toISOString() : null,
+      manufacturer_fulfillment_date: d.references?.warranty?.manufacturerFulfillmentDate
+        ? new Date(d.references.warranty.manufacturerFulfillmentDate * 1000).toISOString()
+        : null,
       os_name: firstString(os, ["name", "osName", "os", "releaseId", "caption"]),
       os_version: firstString(os, ["version", "osVersion", "buildNumber", "build"]),
       manufacturer: firstString(cs, ["manufacturer", "biosManufacturer", "systemManufacturer"]),

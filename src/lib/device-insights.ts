@@ -61,6 +61,7 @@ export type DeviceInsightInput = {
   is_offline: boolean | null;
   last_contact: string | null;
   device_created_at: string | null;
+  manufacturer_fulfillment_date: string | null;
   os_name: string | null;
 };
 
@@ -86,12 +87,10 @@ const OFFLINE_URGENT_DAYS = 90;
 const OFFLINE_WARN_DAYS = 30;
 /** How far ahead an upcoming EOL is worth surfacing — roughly a budget cycle. */
 const EOL_SOON_DAYS = 180;
-// TEMP: lowered to 1 year on both to test whether NinjaOne's "created"
-// field is actually populating at all — revert to 3/5 once confirmed.
 /** Typical hardware refresh cycle for a workstation/laptop. */
-const WORKSTATION_AGE_THRESHOLD_DAYS = 1 * 365;
+const WORKSTATION_AGE_THRESHOLD_DAYS = 3 * 365;
 /** Servers are typically kept in service longer than end-user hardware. */
-const SERVER_AGE_THRESHOLD_DAYS = 1 * 365;
+const SERVER_AGE_THRESHOLD_DAYS = 5 * 365;
 
 /** Names are truncated in the detail line; the full list is a filter click away. */
 function nameList(names: string[], max = 4) {
@@ -149,13 +148,18 @@ export function buildDeviceInsights(
     });
   }
 
-  // --- Hardware older than its typical refresh cycle, by when NinjaOne
-  // first registered it (a proxy for deployment date, not exact purchase
-  // date, but the closest thing NinjaOne tracks). Workstations/laptops and
+  // --- Hardware older than its typical refresh cycle. Prefers NinjaOne's
+  // auto-detected manufacturer fulfillment date (the actual hardware ship
+  // date, via warranty lookup) — a real proxy for device age. Falls back to
+  // when NinjaOne first registered the device (enrollment date, not
+  // purchase date) when fulfillment data isn't available for that device
+  // (unsupported vendor, or the lookup never ran). Workstations/laptops and
   // servers are checked separately against their own thresholds below —
   // network gear isn't checked, it's refreshed on a different cycle again. ---
-  const ageDays = (d: DeviceInsightInput) =>
-    d.device_created_at ? differenceInCalendarDays(now, parseISO(d.device_created_at)) : null;
+  const ageDays = (d: DeviceInsightInput) => {
+    const source = d.manufacturer_fulfillment_date ?? d.device_created_at;
+    return source ? differenceInCalendarDays(now, parseISO(source)) : null;
+  };
 
   function pushAgingInsight(
     label: string,
