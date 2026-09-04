@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { resolveAppUrl } from "@/lib/app-url";
 
 export type AuthState = { error: string | null };
 
@@ -37,7 +38,15 @@ export async function signUp(
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: {
+      data: { full_name: fullName },
+      // Without this, Supabase falls back to whatever "Site URL" is set
+      // in its own dashboard — which is where localhost:8080 was coming
+      // from. This must also be added to Supabase's Redirect URLs
+      // allowlist (Authentication -> URL Configuration) or Supabase will
+      // reject it and fall back to the same wrong default anyway.
+      emailRedirectTo: `${resolveAppUrl()}/login`,
+    },
   });
 
   if (error) {
