@@ -137,7 +137,7 @@ export async function getSalesRequestNotesAction(
     .from("sales_request_notes")
     .select("id, body, created_at, profiles(full_name)")
     .eq("request_id", requestId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (error) return { error: error.message };
 

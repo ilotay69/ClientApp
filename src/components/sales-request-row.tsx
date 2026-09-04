@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
 import { InlineTextEdit, InlineSelectEdit } from "@/components/task-field-editor";
 import { formatDate } from "@/lib/format";
@@ -83,42 +82,43 @@ export function SalesRequestRow({
 
   return (
     <div className="border-b border-slate-100 last:border-b-0">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-slate-50"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((prev) => !prev);
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left hover:bg-slate-50"
       >
         <span className="w-24 shrink-0 text-xs text-slate-500">{formatDate(request.created_at)}</span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientName ?? "Internal"}</span>
-        <span className="w-32 shrink-0 truncate text-sm text-slate-700">
-          {request.requested_by_name ?? "—"}
-        </span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
           {request.title}
         </span>
-        <span className="flex shrink-0 items-center gap-2">
-          <Badge value={request.stage} />
-          <IconChevronDown
-            className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+        <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+          <InlineSelectEdit
+            taskId={request.id}
+            field="stage"
+            value={request.stage}
+            action={updateFieldAction}
+            options={stageOptions}
+            disabled={!canManage}
           />
         </span>
-      </button>
+        <IconChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
+      </div>
 
       {expanded && (
         <div
           className="space-y-3 border-t border-slate-100 bg-slate-50 px-5 py-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <div>
-            <FieldLabel>Title</FieldLabel>
-            <InlineTextEdit
-              taskId={request.id}
-              field="title"
-              value={request.title}
-              action={updateFieldAction}
-              disabled={!canManage}
-            />
-          </div>
           <div>
             <FieldLabel>Detail</FieldLabel>
             <InlineTextEdit
@@ -132,7 +132,7 @@ export function SalesRequestRow({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
               <FieldLabel>Client</FieldLabel>
               <InlineSelectEdit
@@ -152,44 +152,6 @@ export function SalesRequestRow({
                 value={request.assigned_to ?? ""}
                 action={updateFieldAction}
                 options={assigneeOptions}
-                disabled={!canManage}
-              />
-            </div>
-            <div>
-              <FieldLabel>Stage</FieldLabel>
-              <InlineSelectEdit
-                taskId={request.id}
-                field="stage"
-                value={request.stage}
-                action={updateFieldAction}
-                options={stageOptions}
-                disabled={!canManage}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <FieldLabel>Requested by</FieldLabel>
-              <InlineTextEdit
-                taskId={request.id}
-                field="requested_by_name"
-                value={request.requested_by_name ?? ""}
-                action={updateFieldAction}
-                placeholder="Name"
-                emptyLabel="Add name"
-                disabled={!canManage}
-              />
-            </div>
-            <div>
-              <FieldLabel>Their email</FieldLabel>
-              <InlineTextEdit
-                taskId={request.id}
-                field="requested_by_email"
-                value={request.requested_by_email ?? ""}
-                action={updateFieldAction}
-                placeholder="Email"
-                emptyLabel="Add email"
                 disabled={!canManage}
               />
             </div>
