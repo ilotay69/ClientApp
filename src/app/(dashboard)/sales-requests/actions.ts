@@ -24,6 +24,9 @@ export async function createSalesRequest(
   if (!title) return { error: "Title is required." };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("sales_requests")
     .insert({
@@ -40,7 +43,7 @@ export async function createSalesRequest(
   if (error) return { error: error.message };
 
   revalidatePath("/sales-requests");
-  await notifySalesRequestChange(data.id, "New sales request created.");
+  await notifySalesRequestChange(data.id, "New sales request created.", user?.id ?? null);
   return { error: null };
 }
 
@@ -89,6 +92,9 @@ export async function updateSalesRequestField(requestId: string, field: string, 
   if (field === "title" && !String(nextValue ?? "").trim()) return;
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   await supabase
     .from("sales_requests")
     .update({ [field]: nextValue })
@@ -100,7 +106,7 @@ export async function updateSalesRequestField(requestId: string, field: string, 
     field === "stage"
       ? `Stage changed to ${STAGE_LABELS[value] ?? value}.`
       : `${FIELD_LABELS[field] ?? field} updated.`;
-  await notifySalesRequestChange(requestId, changeSummary);
+  await notifySalesRequestChange(requestId, changeSummary, user?.id ?? null);
 }
 
 export async function deleteSalesRequest(requestId: string) {
@@ -167,6 +173,6 @@ export async function addSalesRequestNote(
   if (error) return { error: error.message };
 
   revalidatePath("/sales-requests");
-  await notifySalesRequestChange(requestId, `New note: ${body.slice(0, 200)}`);
+  await notifySalesRequestChange(requestId, `New note: ${body.slice(0, 200)}`, user?.id ?? null);
   return { error: null };
 }
