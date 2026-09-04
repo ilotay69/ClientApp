@@ -137,7 +137,7 @@ export default async function ClientDetailPage({
     supabase
       .from("client_interactions")
       .select(
-        "id, type, subject, body, created_at, attachment_path, attachment_filename, created_by, client_contacts(name), profiles(full_name)"
+        "id, type, subject, body, next_contact_date, created_at, attachment_path, attachment_filename, created_by, client_contacts(name), profiles(full_name)"
       )
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
@@ -260,6 +260,7 @@ export default async function ClientDetailPage({
       attachmentFilename: i.attachment_filename,
       interactionId: i.id,
       createdByUserId: i.created_by,
+      nextContactDate: i.next_contact_date,
     })),
   ].sort((a, b) => (a.date < b.date ? 1 : -1));
 

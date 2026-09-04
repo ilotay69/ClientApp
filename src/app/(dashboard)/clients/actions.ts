@@ -190,9 +190,15 @@ export async function addClientContactsFromAutotask(
   return { error: null };
 }
 
-/** Logging a Note/Call/Meeting is open to any signed-in user — matches how
- * touchpoints/tasks work today; only editing the client record itself and
- * managing its contact list require manage_clients. */
+/** Logging a Note/Call/Meeting/Check-in is open to any signed-in user —
+ * matches how touchpoints/tasks work today; only editing the client
+ * record itself and managing its contact list require manage_clients.
+ *
+ * A Check-in is the lightweight case: logging one IS the record that the
+ * client was contacted (dated now), plus a required next-contact date and
+ * brief notes. That next-contact date also creates a matching Touchpoint
+ * (monthly_visit — the closest existing fit) so it shows up in the
+ * Touchpoints reminders list too, not just this client's Timeline. */
 export async function logClientInteraction(
   clientId: string,
   _prevState: FormState,
@@ -201,21 +207,44 @@ export async function logClientInteraction(
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return { error: "Enter a note or summary." };
 
+  const type = String(formData.get("type") ?? "note");
+  const nextContactDate = emptyToNull(formData.get("next_contact_date"));
+  if (type === "check_in" && !nextContactDate) {
+    return { error: "Next contact date is required for a check-in." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from("client_interactions").insert({
-    client_id: clientId,
-    contact_id: emptyToNull(formData.get("contact_id")),
-    type: String(formData.get("type") ?? "note"),
-    subject: emptyToNull(formData.get("subject")),
-    body,
-    created_by: user?.id ?? null,
-  });
+  const { data: interaction, error } = await supabase
+    .from("client_interactions")
+    .insert({
+      client_id: clientId,
+      contact_id: emptyToNull(formData.get("contact_id")),
+      type,
+      subject: emptyToNull(formData.get("subject")),
+      body,
+      next_contact_date: type === "check_in" ? nextContactDate : null,
+      created_by: user?.id ?? null,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
+
+  if (type === "check_in" && nextContactDate && interaction) {
+    await supabase.from("touchpoints").insert({
+      client_id: clientId,
+      type: "monthly_visit",
+      due_date: nextContactDate,
+      notes: body,
+      owner_id: user?.id ?? null,
+      source_client_interaction_id: interaction.id,
+    });
+    revalidatePath("/touchpoints");
+  }
 
   revalidatePath(`/clients/${clientId}`);
   return { error: null };

@@ -125,7 +125,7 @@ export interface ClientContact {
   created_at: string;
 }
 
-export type ClientInteractionType = "note" | "call" | "meeting" | "quote" | "review";
+export type ClientInteractionType = "note" | "call" | "meeting" | "quote" | "review" | "check_in";
 
 export interface ClientInteraction {
   id: string;
@@ -134,6 +134,7 @@ export interface ClientInteraction {
   type: ClientInteractionType;
   subject: string | null;
   body: string;
+  next_contact_date: string | null;
   attachment_path: string | null;
   attachment_filename: string | null;
   created_by: string | null;
@@ -162,6 +163,7 @@ export interface Touchpoint {
   notes: string | null;
   next_action: string | null;
   owner_id: string | null;
+  source_client_interaction_id: string | null;
   created_at: string;
   updated_at: string;
 }

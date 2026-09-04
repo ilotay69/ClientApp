@@ -10,7 +10,7 @@ const initialState: FormState = { error: null };
 
 export type TimelineEntry = {
   id: string;
-  type: "note" | "call" | "meeting" | "email" | "quote" | "review";
+  type: "note" | "call" | "meeting" | "email" | "quote" | "review" | "check_in";
   subject: string | null;
   body: string | null;
   contactName: string | null;
@@ -27,6 +27,8 @@ export type TimelineEntry = {
   createdByUserId?: string | null;
   /** Set for an email entry currently flagged for follow-up in Outlook. */
   isFlagged?: boolean;
+  /** Set for a check-in — also created a matching Touchpoint at this date. */
+  nextContactDate?: string | null;
 };
 
 const FILTERS: { value: "all" | TimelineEntry["type"]; label: string }[] = [
@@ -35,6 +37,7 @@ const FILTERS: { value: "all" | TimelineEntry["type"]; label: string }[] = [
   { value: "note", label: "Notes" },
   { value: "call", label: "Calls" },
   { value: "meeting", label: "Meetings" },
+  { value: "check_in", label: "Check-ins" },
   { value: "quote", label: "Quotes" },
   { value: "review", label: "Reviews" },
 ];
@@ -46,6 +49,7 @@ const TYPE_LABELS: Record<TimelineEntry["type"], string> = {
   email: "Email",
   quote: "Signed quote",
   review: "Quarterly review",
+  check_in: "Check-in",
 };
 
 export function ClientTimeline({
@@ -149,6 +153,11 @@ export function ClientTimeline({
             {entry.body && !entry.documentId && (
               <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{entry.body}</p>
             )}
+            {entry.nextContactDate && (
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                Next contact: {formatDate(entry.nextContactDate)}
+              </p>
+            )}
             {entry.webLink && (
               <a
                 href={entry.webLink}
@@ -218,6 +227,7 @@ function LogForm({
 }) {
   const [state, formAction, pending] = useActionState(logAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  const [type, setType] = useState("note");
 
   return (
     <form
@@ -225,18 +235,21 @@ function LogForm({
       action={async (formData: FormData) => {
         await formAction(formData);
         formRef.current?.reset();
+        setType("note");
       }}
       className="space-y-2 border-b border-slate-200 px-5 py-3"
     >
       <div className="flex flex-wrap gap-2">
         <select
           name="type"
-          defaultValue="note"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
           className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
         >
           <option value="note">Note</option>
           <option value="call">Call</option>
           <option value="meeting">Meeting</option>
+          <option value="check_in">Check-in</option>
         </select>
         <select
           name="contact_id"
@@ -250,7 +263,20 @@ function LogForm({
             </option>
           ))}
         </select>
+        {type === "check_in" && (
+          <input
+            type="date"
+            name="next_contact_date"
+            required
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        )}
       </div>
+      {type === "check_in" && (
+        <p className="text-xs text-slate-500">
+          Also creates a Touchpoint on that next-contact date, so it shows up in Touchpoints too.
+        </p>
+      )}
       <input
         name="subject"
         placeholder="Subject (optional)"
@@ -259,7 +285,7 @@ function LogForm({
       <textarea
         name="body"
         rows={3}
-        placeholder="Log a note or call summary..."
+        placeholder={type === "check_in" ? "Brief notes on the check-in..." : "Log a note or call summary..."}
         required
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
       />
