@@ -208,6 +208,62 @@ export async function updateTaskField(taskId: string, field: string, value: stri
   revalidatePath("/dashboard");
 }
 
+export type TaskNote = {
+  id: string;
+  body: string;
+  created_at: string;
+  authorName: string | null;
+};
+
+/** Live-fetched only when a row is expanded — same on-demand pattern used
+ * for Sales Requests' notes thread. */
+export async function getTaskNotesAction(
+  taskId: string
+): Promise<{ notes: TaskNote[] } | { error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("task_notes")
+    .select("id, body, created_at, profiles(full_name)")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+
+  if (error) return { error: error.message };
+
+  return {
+    notes: (data ?? []).map((n) => ({
+      id: n.id,
+      body: n.body,
+      created_at: n.created_at,
+      authorName: (n.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
+    })),
+  };
+}
+
+export async function addTaskNote(
+  taskId: string,
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { error: "Enter a note." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("task_notes").insert({
+    task_id: taskId,
+    author_id: user?.id ?? null,
+    body,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/tasks");
+  return { error: null };
+}
+
 export async function deleteTask(taskId: string) {
   const supabase = await createClient();
   const {

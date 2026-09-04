@@ -5,7 +5,13 @@ import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
-import { createTask, deleteTask, updateTaskField } from "./actions";
+import {
+  createTask,
+  deleteTask,
+  updateTaskField,
+  getTaskNotesAction,
+  addTaskNote,
+} from "./actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
@@ -202,6 +208,8 @@ export default async function TasksPage({
               statusOptions={statusOptionsFor(t.status)}
               updateFieldAction={updateFieldAction}
               deleteAction={deleteTask.bind(null, t.id)}
+              fetchNotesAction={getTaskNotesAction}
+              addNoteAction={addTaskNote.bind(null, t.id)}
             />
           );
         })}
@@ -247,6 +255,8 @@ export default async function TasksPage({
             statusOptions={statusOptionsFor(t.status)}
             updateFieldAction={updateFieldAction}
             deleteAction={deleteTask.bind(null, t.id)}
+            fetchNotesAction={getTaskNotesAction}
+            addNoteAction={addTaskNote.bind(null, t.id)}
           />
         ))}
         {(personalTasks ?? []).length === 0 && (
