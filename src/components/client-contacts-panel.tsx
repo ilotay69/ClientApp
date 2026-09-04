@@ -2,6 +2,7 @@
 
 import { useActionState, useRef } from "react";
 import { DeleteButton } from "@/components/delete-button";
+import { AutotaskContactPicker } from "@/components/autotask-contact-picker";
 import type { FormState } from "@/app/(dashboard)/clients/actions";
 
 const initialState: FormState = { error: null };
@@ -11,11 +12,19 @@ export function ClientContactsPanel({
   canManageClients,
   addAction,
   removeAction,
+  hasAutotaskMapping,
+  searchAutotaskAction,
+  addFromAutotaskAction,
 }: {
   contacts: { id: string; name: string; email: string | null }[];
   canManageClients: boolean;
   addAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
   removeAction: (contactId: string) => Promise<void>;
+  hasAutotaskMapping: boolean;
+  searchAutotaskAction: () => Promise<
+    { contacts: { id: number; name: string; email: string | null }[] } | { error: string }
+  >;
+  addFromAutotaskAction: (contacts: { name: string; email: string | null }[]) => Promise<FormState>;
 }) {
   const [state, formAction, pending] = useActionState(addAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -50,35 +59,40 @@ export function ClientContactsPanel({
       )}
 
       {canManageClients && (
-        <form
-          ref={formRef}
-          action={async (formData: FormData) => {
-            await formAction(formData);
-            formRef.current?.reset();
-          }}
-          className="mt-4 flex flex-wrap items-start gap-2"
-        >
-          <input
-            name="name"
-            placeholder="Name"
-            required
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-          <input
-            type="email"
-            name="email"
-            placeholder="Email (optional)"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+        <div className="mt-4 flex flex-wrap items-start gap-2">
+          <form
+            ref={formRef}
+            action={async (formData: FormData) => {
+              await formAction(formData);
+              formRef.current?.reset();
+            }}
+            className="flex flex-wrap items-start gap-2"
           >
-            {pending ? "Adding..." : "Add contact"}
-          </button>
+            <input
+              name="name"
+              placeholder="Name"
+              required
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email (optional)"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            >
+              {pending ? "Adding..." : "Add contact"}
+            </button>
+          </form>
+          {hasAutotaskMapping && (
+            <AutotaskContactPicker searchAction={searchAutotaskAction} addAction={addFromAutotaskAction} />
+          )}
           {state.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
-        </form>
+        </div>
       )}
     </div>
   );

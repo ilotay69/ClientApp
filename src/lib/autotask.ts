@@ -146,6 +146,48 @@ export async function searchAutotaskCompanies(
   }));
 }
 
+export type AutotaskContact = {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  title: string | null;
+};
+
+/** Active Contacts for one Autotask company, for the "add contacts from
+ * Autotask" picker on a client's Contacts panel. */
+export async function fetchContactsForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number
+): Promise<AutotaskContact[]> {
+  type RawContact = {
+    id: number;
+    firstName?: string;
+    lastName?: string;
+    emailAddress?: string;
+    phone?: string;
+    title?: string;
+  };
+  const items = (await autotaskQuery(creds, zoneUrl, "Contacts", {
+    filter: [
+      { op: "eq", field: "companyID", value: companyId },
+      { op: "eq", field: "isActive", value: true },
+    ],
+    MaxRecords: 200,
+  })) as RawContact[];
+
+  return items
+    .map((c) => ({
+      id: c.id,
+      name: [c.firstName, c.lastName].filter(Boolean).join(" ").trim(),
+      email: c.emailAddress?.trim() || null,
+      phone: c.phone?.trim() || null,
+      title: c.title?.trim() || null,
+    }))
+    .filter((c) => c.name);
+}
+
 export type PicklistLabelMaps = {
   status: Map<number, string>;
   priority: Map<number, string>;

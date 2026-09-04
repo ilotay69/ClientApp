@@ -29,6 +29,8 @@ import {
   deleteClientRecord,
   addClientContact,
   removeClientContact,
+  fetchAutotaskContactsForClient,
+  addClientContactsFromAutotask,
   logClientInteraction,
   uploadClientDocument,
   deleteClientInteraction,
@@ -192,6 +194,8 @@ export default async function ClientDetailPage({
 
   const addContactAction = addClientContact.bind(null, id);
   const removeContactAction = removeClientContact.bind(null, id);
+  const searchAutotaskContactsAction = fetchAutotaskContactsForClient.bind(null, id);
+  const addContactsFromAutotaskAction = addClientContactsFromAutotask.bind(null, id);
   const logInteractionAction = logClientInteraction.bind(null, id);
   const uploadQuoteAction = uploadClientDocument.bind(null, id, "quote");
   const uploadReviewAction = uploadClientDocument.bind(null, id, "review");
@@ -321,6 +325,9 @@ export default async function ClientDetailPage({
           canManageClients={canManageClients}
           addAction={addContactAction}
           removeAction={removeContactAction}
+          hasAutotaskMapping={client.autotask_company_id != null}
+          searchAutotaskAction={searchAutotaskContactsAction}
+          addFromAutotaskAction={addContactsFromAutotaskAction}
         />
       </div>
 

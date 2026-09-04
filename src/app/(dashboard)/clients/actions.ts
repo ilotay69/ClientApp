@@ -14,6 +14,7 @@ import {
   fetchProjectSlaTicketsForCompany,
   fetchTicketNotes,
   fetchTicketTimeEntries,
+  fetchContactsForCompany,
   type AutotaskCompany,
   type AutotaskTicketNote,
   type AutotaskTimeEntry,
@@ -112,6 +113,80 @@ export async function removeClientContact(clientId: string, contactId: string) {
   const supabase = await createClient();
   await supabase.from("client_contacts").delete().eq("id", contactId);
   revalidatePath(`/clients/${clientId}`);
+}
+
+/** Lists this client's Autotask contacts that aren't already in their
+ * Contacts list here, for the "Add from Autotask" picker — deduped by
+ * name+email against what's already saved, so re-opening the picker after
+ * importing some doesn't show them again. */
+export async function fetchAutotaskContactsForClient(
+  clientId: string
+): Promise<{ contacts: { id: number; name: string; email: string | null }[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("autotask_company_id")
+    .eq("id", clientId)
+    .single();
+  if (!client?.autotask_company_id) {
+    return { error: "This client isn't linked to an Autotask company yet." };
+  }
+
+  const { data: existing } = await admin
+    .from("client_contacts")
+    .select("name, email")
+    .eq("client_id", clientId);
+  const existingKeys = new Set(
+    (existing ?? []).map(
+      (c: { name: string; email: string | null }) => `${c.name.toLowerCase()}|${c.email?.toLowerCase() ?? ""}`
+    )
+  );
+
+  try {
+    const contacts = await fetchContactsForCompany(
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id
+    );
+    const newContacts = contacts.filter(
+      (c) => !existingKeys.has(`${c.name.toLowerCase()}|${c.email?.toLowerCase() ?? ""}`)
+    );
+    return { contacts: newContacts.map((c) => ({ id: c.id, name: c.name, email: c.email })) };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load Autotask contacts." };
+  }
+}
+
+/** Bulk-inserts a set of contacts picked from the Autotask picker above —
+ * one insert for however many were checked, not one round-trip per
+ * contact. */
+export async function addClientContactsFromAutotask(
+  clientId: string,
+  contacts: { name: string; email: string | null }[]
+): Promise<FormState> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (contacts.length === 0) return { error: null };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("client_contacts")
+    .insert(contacts.map((c) => ({ client_id: clientId, name: c.name, email: c.email })));
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
 }
 
 /** Logging a Note/Call/Meeting is open to any signed-in user — matches how
