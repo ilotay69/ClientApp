@@ -33,6 +33,7 @@ export async function syncNow(
   try {
     const result = await syncMailConnection(admin, connection as MailConnection);
     revalidatePath("/settings/mail");
+    revalidatePath("/clients");
     return {
       error: null,
       summary: `Scanned ${result.scanned} email${result.scanned === 1 ? "" : "s"}, linked ${result.matched} to clients.`,
