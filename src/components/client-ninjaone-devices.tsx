@@ -24,6 +24,7 @@ export type NinjaOneDeviceRow = {
   node_class: string | null;
   is_offline: boolean | null;
   last_contact: string | null;
+  device_created_at: string | null;
   os_name: string | null;
   os_version: string | null;
   manufacturer: string | null;
@@ -152,7 +153,9 @@ export function ClientNinjaOneDevices({
 
 function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
   const [expanded, setExpanded] = useState(false);
-  const hasDetail = Boolean(d.os_name || d.os_version || d.manufacturer || d.model || d.last_logged_on_user);
+  const hasDetail = Boolean(
+    d.os_name || d.os_version || d.manufacturer || d.model || d.last_logged_on_user || d.device_created_at
+  );
 
   return (
     <div>
@@ -185,6 +188,10 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
           <Detail label="Model" value={d.model} />
           <Detail label="Last logged-on user" value={d.last_logged_on_user} />
           <Detail label="Last contact" value={d.last_contact ? formatDate(d.last_contact) : null} />
+          <Detail
+            label="First registered"
+            value={d.device_created_at ? formatDate(d.device_created_at) : null}
+          />
           {!hasDetail && (
             <p className="col-span-full text-slate-500">
               No additional detail available for this device yet.

@@ -57,10 +57,21 @@ export function matchOsEol(osName: string | null): OsEolRule | null {
 
 export type DeviceInsightInput = {
   system_name: string;
+  node_class: string | null;
   is_offline: boolean | null;
   last_contact: string | null;
+  device_created_at: string | null;
   os_name: string | null;
 };
+
+/** Same workstation/laptop classification as the Devices tab's own
+ * deviceTypeLabel — servers and network gear age differently and on
+ * different budget cycles, so an age check only makes sense for the
+ * things people actually carry around and replace on a refresh cycle. */
+function isWorkstation(nodeClass: string | null): boolean {
+  if (!nodeClass) return false;
+  return nodeClass.includes("WORKSTATION") || nodeClass === "MAC";
+}
 
 export type DeviceInsight = {
   severity: "high" | "medium";
@@ -72,6 +83,8 @@ const OFFLINE_URGENT_DAYS = 90;
 const OFFLINE_WARN_DAYS = 30;
 /** How far ahead an upcoming EOL is worth surfacing — roughly a budget cycle. */
 const EOL_SOON_DAYS = 180;
+/** Typical hardware refresh cycle for a workstation/laptop. */
+const AGE_THRESHOLD_DAYS = 3 * 365;
 
 /** Names are truncated in the detail line; the full list is a filter click away. */
 function nameList(names: string[], max = 4) {
@@ -126,6 +139,30 @@ export function buildDeviceInsights(
       severity: "medium",
       title: `${neverSeen.length} device${neverSeen.length === 1 ? "" : "s"} with no recorded contact`,
       detail: nameList(neverSeen.map((d) => d.system_name)),
+    });
+  }
+
+  // --- Workstations/laptops older than 3 years, by when NinjaOne first
+  // registered them (a proxy for deployment date, not exact purchase date,
+  // but the closest thing NinjaOne tracks). Servers and network gear are
+  // excluded — they're refreshed on a different cycle. ---
+  const ageDays = (d: DeviceInsightInput) =>
+    d.device_created_at ? differenceInCalendarDays(now, parseISO(d.device_created_at)) : null;
+
+  const agingWorkstations = devices.filter((d) => {
+    if (!isWorkstation(d.node_class)) return false;
+    const days = ageDays(d);
+    return days !== null && days >= AGE_THRESHOLD_DAYS;
+  });
+  if (agingWorkstations.length > 0) {
+    insights.push({
+      severity: "medium",
+      title: `${agingWorkstations.length} workstation${agingWorkstations.length === 1 ? "" : "s"} older than 3 years`,
+      detail: nameList(
+        agingWorkstations
+          .sort((a, b) => (ageDays(b) ?? 0) - (ageDays(a) ?? 0))
+          .map((d) => `${d.system_name} (${(((ageDays(d) ?? 0) / 365).toFixed(1))}y)`)
+      ),
     });
   }
 

@@ -119,7 +119,9 @@ export async function generateSuggestions(
         .not("status", "in", "(done,dismissed)"),
       admin
         .from("ninjaone_devices")
-        .select("system_name, node_class, is_offline, last_contact, os_name, os_version")
+        .select(
+          "system_name, node_class, is_offline, last_contact, device_created_at, os_name, os_version"
+        )
         .eq("client_id", clientId),
       admin
         .from("client_interactions")
@@ -251,6 +253,7 @@ type DeviceRow = {
   node_class: string | null;
   is_offline: boolean | null;
   last_contact: string | null;
+  device_created_at: string | null;
   os_name: string | null;
   os_version: string | null;
 };
@@ -356,8 +359,10 @@ function buildPrompt(
   const deviceIssues = buildDeviceInsights(
     devices.map((d) => ({
       system_name: d.system_name,
+      node_class: d.node_class,
       is_offline: d.is_offline,
       last_contact: d.last_contact,
+      device_created_at: d.device_created_at,
       os_name: d.os_name ?? null,
     }))
   );

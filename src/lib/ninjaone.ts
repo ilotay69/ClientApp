@@ -93,6 +93,7 @@ export type NinjaOneDeviceRow = {
   node_class: string | null;
   is_offline: boolean | null;
   last_contact: string | null;
+  device_created_at: string | null;
   os_name: string | null;
   os_version: string | null;
   manufacturer: string | null;
@@ -147,9 +148,11 @@ function deviceIdOf(row: Record<string, unknown>): number | null {
 /** Devices for one organization, via the confirmed df=org=<id> filter
  * syntax, enriched with OS/hardware/last-user info from the bulk "queries"
  * reports above — all org-wide calls, not one per device. Base device
- * fields (id, systemName, nodeClass, offline, lastContact) are confirmed
- * against this app's own live data; the enrichment fields are best-effort
- * and degrade to null rather than fail if the guessed key names are off. */
+ * fields (id, systemName, nodeClass, offline, lastContact, created) are
+ * confirmed against NinjaOne's own public OpenAPI schema (and lastContact
+ * additionally against this app's own live data); the enrichment fields
+ * are best-effort and degrade to null rather than fail if the guessed key
+ * names are off. */
 export async function fetchDevicesForOrganization(
   creds: NinjaOneCredentials,
   token: string,
@@ -163,6 +166,7 @@ export async function fetchDevicesForOrganization(
     nodeClass?: string;
     offline?: boolean;
     lastContact?: number;
+    created?: number;
   };
   const devices = (json ?? []) as RawDevice[];
 
@@ -198,9 +202,11 @@ export async function fetchDevicesForOrganization(
       system_name: d.systemName ?? `Device ${d.id}`,
       node_class: d.nodeClass ?? null,
       is_offline: d.offline ?? null,
-      // lastContact appears to be an epoch (seconds, with a fractional
-      // part) timestamp — confirmed against this app's own live data.
+      // lastContact/created appear to be epoch (seconds, with a fractional
+      // part) timestamps — confirmed against NinjaOne's own OpenAPI schema
+      // (both "format: double") and this app's own live data for lastContact.
       last_contact: d.lastContact ? new Date(d.lastContact * 1000).toISOString() : null,
+      device_created_at: d.created ? new Date(d.created * 1000).toISOString() : null,
       os_name: firstString(os, ["name", "osName", "os", "releaseId", "caption"]),
       os_version: firstString(os, ["version", "osVersion", "buildNumber", "build"]),
       manufacturer: firstString(cs, ["manufacturer", "biosManufacturer", "systemManufacturer"]),
