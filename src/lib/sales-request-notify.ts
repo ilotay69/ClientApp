@@ -12,7 +12,7 @@ export async function notifySalesRequestChange(requestId: string, changeSummary:
     const [{ data: request }, { data: repSettings }] = await Promise.all([
       admin
         .from("sales_requests")
-        .select("title, stage, assigned_to, clients(name)")
+        .select("title, stage, detail, requested_by_name, assigned_to, clients(name)")
         .eq("id", requestId)
         .single(),
       admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
@@ -44,6 +44,8 @@ export async function notifySalesRequestChange(requestId: string, changeSummary:
       stage: request.stage,
       clientName,
       changeSummary,
+      detail: request.detail,
+      requestedByName: request.requested_by_name,
     });
 
     await Promise.all(

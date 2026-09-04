@@ -112,6 +112,8 @@ export type SalesRequestNotifyInfo = {
   stage: string;
   clientName: string | null;
   changeSummary: string;
+  detail: string | null;
+  requestedByName: string | null;
 };
 
 export function buildSalesRequestEmail(info: SalesRequestNotifyInfo) {
@@ -119,22 +121,41 @@ export function buildSalesRequestEmail(info: SalesRequestNotifyInfo) {
   const meta = [info.clientName ?? "Internal", `Stage: ${info.stage}`].join(" · ");
 
   const html = `
-    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <h2 style="color:#0f172a;">Sales request update</h2>
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;font-size:16px;line-height:1.5;">
+      <h2 style="color:#0f172a;font-size:22px;margin-bottom:4px;">Sales request update</h2>
       <p style="margin:16px 0 4px;">
-        <a href="${appUrl}/sales-requests" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:16px;">${escapeHtml(
+        <a href="${appUrl}/sales-requests" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:19px;">${escapeHtml(
           info.title
         )}</a>
       </p>
-      <p style="color:#64748b;font-size:13px;margin-top:4px;">${escapeHtml(meta)}</p>
-      <p style="color:#334155;font-size:14px;margin:12px 0;">${escapeHtml(info.changeSummary)}</p>
-      <p style="margin-top:24px;color:#64748b;font-size:13px;">
+      <p style="color:#64748b;font-size:15px;margin-top:4px;">${escapeHtml(meta)}</p>
+      ${
+        info.requestedByName
+          ? `<p style="color:#64748b;font-size:15px;margin:4px 0;">Requested by ${escapeHtml(
+              info.requestedByName
+            )}</p>`
+          : ""
+      }
+      <p style="color:#0f172a;font-size:17px;font-weight:600;margin:16px 0 4px;">${escapeHtml(info.changeSummary)}</p>
+      ${
+        info.detail
+          ? `<p style="color:#334155;font-size:16px;margin:12px 0;white-space:pre-line;">${escapeHtml(info.detail)}</p>`
+          : ""
+      }
+      <p style="margin-top:24px;color:#64748b;font-size:14px;">
         Sent by the CG Client Tracker.
       </p>
     </div>
   `;
 
-  const text = `${info.changeSummary}\n${info.title} (${meta})${appUrl ? `\n${appUrl}/sales-requests` : ""}`;
+  const textParts = [
+    info.changeSummary,
+    `${info.title} (${meta})`,
+    info.requestedByName ? `Requested by ${info.requestedByName}` : null,
+    info.detail,
+    appUrl ? `${appUrl}/sales-requests` : null,
+  ].filter((p): p is string => Boolean(p));
+  const text = textParts.join("\n");
 
   return { html, text };
 }

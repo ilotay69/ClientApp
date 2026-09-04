@@ -72,6 +72,15 @@ const FIELD_LABELS: Record<string, string> = {
   requested_by_email: "Requester email",
 };
 
+const STAGE_LABELS: Record<string, string> = {
+  requested: "Requested",
+  quoted: "Quoted",
+  approved: "Approved",
+  ordered: "Ordered",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
 export async function updateSalesRequestField(requestId: string, field: string, value: string) {
   if (!(await requirePermission("manage_sales_requests"))) return;
   if (!(EDITABLE_FIELDS as readonly string[]).includes(field)) return;
@@ -87,7 +96,11 @@ export async function updateSalesRequestField(requestId: string, field: string, 
 
   revalidatePath("/sales-requests");
   revalidatePath("/clients");
-  await notifySalesRequestChange(requestId, `${FIELD_LABELS[field] ?? field} updated.`);
+  const changeSummary =
+    field === "stage"
+      ? `Stage changed to ${STAGE_LABELS[value] ?? value}.`
+      : `${FIELD_LABELS[field] ?? field} updated.`;
+  await notifySalesRequestChange(requestId, changeSummary);
 }
 
 export async function deleteSalesRequest(requestId: string) {
