@@ -62,6 +62,16 @@ export function IconCalendar({ className }: IconProps) {
   );
 }
 
+export function IconGlobe({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z" />
+    </svg>
+  );
+}
+
 export function IconMail({ className }: IconProps) {
   return (
     <svg className={className} {...base}>

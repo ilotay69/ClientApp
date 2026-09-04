@@ -22,7 +22,9 @@ import { Badge, OverdueBadge } from "@/components/badge";
 import { AssigneeSelect } from "@/components/assignee-select";
 import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
 import { ClientServiceQuickAdd } from "@/components/client-service-quick-add";
+import { DomainHealthPanel } from "@/components/domain-health-panel";
 import { formatDate, isOverdue, isServiceCheckOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
+import { extractDomainFromEmail } from "@/lib/domain-health";
 import { hasPermission } from "@/lib/permissions";
 import {
   updateClientRecord,
@@ -56,6 +58,7 @@ import {
   markServiceChecked,
   removeClientServiceCheck,
 } from "../../settings/services/actions";
+import { checkDomainHealthAction } from "../../domain-health/actions";
 import { attachClientService, detachClientService } from "../../settings/catalog/actions";
 import { DeleteButton } from "@/components/delete-button";
 import { CollapsibleCard } from "@/components/collapsible-card";
@@ -196,6 +199,10 @@ export default async function ClientDetailPage({
   const removeContactAction = removeClientContact.bind(null, id);
   const searchAutotaskContactsAction = fetchAutotaskContactsForClient.bind(null, id);
   const addContactsFromAutotaskAction = addClientContactsFromAutotask.bind(null, id);
+  const clientDomain =
+    extractDomainFromEmail(client.primary_contact_email) ??
+    (contacts ?? []).map((c) => extractDomainFromEmail(c.email)).find(Boolean) ??
+    null;
   const logInteractionAction = logClientInteraction.bind(null, id);
   const uploadQuoteAction = uploadClientDocument.bind(null, id, "quote");
   const uploadReviewAction = uploadClientDocument.bind(null, id, "review");
@@ -572,6 +579,12 @@ export default async function ClientDetailPage({
                       tenantId={client.m365_tenant_id}
                       summary={m365SecureScore ?? null}
                       gaps={m365SecureScoreGaps ?? []}
+                    />
+
+                    <DomainHealthPanel
+                      action={checkDomainHealthAction}
+                      initialDomain={clientDomain}
+                      title="Domain health"
                     />
                   </>
                 ),

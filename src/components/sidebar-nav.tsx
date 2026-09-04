@@ -16,6 +16,7 @@ import {
   IconUsers,
   IconClock,
   IconDownload,
+  IconGlobe,
   IconLogOut,
   IconMenu,
   IconX,
@@ -33,6 +34,7 @@ const MAIN_LINKS: NavItem[] = [
   { href: "/clients", label: "Clients", icon: IconBriefcase },
   { href: "/projects", label: "Projects", icon: IconFolder },
   { href: "/touchpoints", label: "Touchpoints", icon: IconCalendar },
+  { href: "/domain-health", label: "Domain Health", icon: IconGlobe },
 ];
 
 export function SidebarNav({
