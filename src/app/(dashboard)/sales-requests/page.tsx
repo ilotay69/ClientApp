@@ -4,7 +4,13 @@ import { SalesRequestQuickAdd } from "@/components/sales-request-quick-add";
 import { SalesRequestFilterBar } from "@/components/sales-request-filter-bar";
 import { SalesRequestRow, type SalesRequestRowData } from "@/components/sales-request-row";
 import { filterHref } from "@/components/filter-link";
-import { createSalesRequest, deleteSalesRequest, updateSalesRequestField } from "./actions";
+import {
+  createSalesRequest,
+  deleteSalesRequest,
+  updateSalesRequestField,
+  getSalesRequestNotesAction,
+  addSalesRequestNote,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +36,17 @@ export default async function SalesRequestsPage({
   } = await searchParams;
 
   const supabase = await createClient();
-  const [{ data: clients }, { data: members }, canManage] = await Promise.all([
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: clients }, { data: members }, canManage, { data: me }] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
     hasPermission(supabase, "manage_sales_requests"),
+    user
+      ? supabase.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));
@@ -63,7 +76,7 @@ export default async function SalesRequestsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Sales Requests</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Internal Sales</h1>
         <p className="mt-1 text-sm text-slate-500">
           Every quote/order ask, tracked from Requested through Delivered — for a client, or
           internal.
@@ -89,6 +102,9 @@ export default async function SalesRequestsPage({
           members={members ?? []}
           action={createSalesRequest}
           defaultClientId={filterClient && filterClient !== "none" ? filterClient : ""}
+          defaultAssignedTo={user?.id ?? ""}
+          defaultRequestedByName={me?.full_name ?? ""}
+          defaultRequestedByEmail={me?.email ?? ""}
         />
       )}
 
@@ -105,6 +121,8 @@ export default async function SalesRequestsPage({
             stageOptions={STAGE_OPTIONS}
             updateFieldAction={updateSalesRequestField}
             deleteAction={deleteSalesRequest.bind(null, r.id)}
+            fetchNotesAction={getSalesRequestNotesAction}
+            addNoteAction={addSalesRequestNote.bind(null, r.id)}
           />
         ))}
         {(requests ?? []).length === 0 && (

@@ -293,3 +293,25 @@ export async function testHuduConnectionAction(): Promise<{ ok: boolean; message
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
 }
+
+export async function saveSalesNotificationSettings(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const repEmail = emptyToUndefined(formData.get("rep_email")) ?? null;
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("sales_notification_settings")
+    .upsert({ id: true, rep_email: repEmail, updated_by: user.id }, { onConflict: "id" });
+
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}

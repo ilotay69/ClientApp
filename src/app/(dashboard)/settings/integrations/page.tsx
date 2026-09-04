@@ -6,6 +6,7 @@ import { AiProviderSettingsForm } from "@/components/ai-provider-settings-form";
 import { AutotaskSettingsForm } from "@/components/autotask-settings-form";
 import { NinjaOneSettingsForm } from "@/components/ninjaone-settings-form";
 import { HuduSettingsForm } from "@/components/hudu-settings-form";
+import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
 import { Tabs } from "@/components/tabs";
 import {
   saveAiProviderSettings,
@@ -16,6 +17,7 @@ import {
   testNinjaOneConnectionAction,
   saveHuduSettings,
   testHuduConnectionAction,
+  saveSalesNotificationSettings,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +39,7 @@ export default async function IntegrationsSettingsPage({
   // Admin client — these tables have no RLS policy for authenticated users
   // at all, so a request-scoped client would always get zero rows back.
   const admin = createAdminClient();
-  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }, { data: huduRow }] =
+  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }, { data: huduRow }, { data: salesNotifyRow }] =
     await Promise.all([
       admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
       admin
@@ -51,6 +53,7 @@ export default async function IntegrationsSettingsPage({
         .eq("id", true)
         .maybeSingle(),
       admin.from("hudu_settings").select("base_url, api_key").eq("id", true).maybeSingle(),
+      admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
     ]);
 
   type ProviderRow = {
@@ -144,6 +147,15 @@ export default async function IntegrationsSettingsPage({
                 currentBaseUrl={huduRow?.base_url ?? null}
                 saveAction={saveHuduSettings}
                 testAction={testHuduConnectionAction}
+              />
+            ),
+          },
+          {
+            label: "Internal Sales",
+            content: (
+              <SalesNotificationSettingsForm
+                currentRepEmail={salesNotifyRow?.rep_email ?? null}
+                saveAction={saveSalesNotificationSettings}
               />
             ),
           },

@@ -460,7 +460,7 @@ export default async function ClientDetailPage({
                     </RelatedSection>
 
                     <RelatedSection
-                      title="Sales Requests"
+                      title="Internal Sales"
                       newHref={canManageSalesRequests ? `/sales-requests?client=${id}` : undefined}
                       emptyText="No quote/order requests yet."
                     >

@@ -10,11 +10,19 @@ export function SalesRequestQuickAdd({
   members,
   action,
   defaultClientId = "",
+  defaultAssignedTo = "",
+  defaultRequestedByName = "",
+  defaultRequestedByEmail = "",
 }: {
   clients: { id: string; name: string }[];
   members: { id: string; full_name: string }[];
   action: (prevState: FormState, formData: FormData) => Promise<FormState>;
   defaultClientId?: string;
+  /** Defaults to whoever's creating the request — still editable, e.g. to
+   * hand it straight to someone else instead. */
+  defaultAssignedTo?: string;
+  defaultRequestedByName?: string;
+  defaultRequestedByEmail?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -48,7 +56,7 @@ export function SalesRequestQuickAdd({
       </select>
       <select
         name="assigned_to"
-        defaultValue=""
+        defaultValue={defaultAssignedTo}
         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
       >
         <option value="">Unassigned</option>
@@ -60,12 +68,14 @@ export function SalesRequestQuickAdd({
       </select>
       <input
         name="requested_by_name"
+        defaultValue={defaultRequestedByName}
         placeholder="Requested by (optional)"
         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
       />
       <input
         name="requested_by_email"
         type="email"
+        defaultValue={defaultRequestedByEmail}
         placeholder="Their email (optional)"
         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
       />

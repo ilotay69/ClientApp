@@ -107,6 +107,38 @@ export function buildTaskAssignedEmail(recipientName: string, task: TaskAssigned
   return { html, text };
 }
 
+export type SalesRequestNotifyInfo = {
+  title: string;
+  stage: string;
+  clientName: string | null;
+  changeSummary: string;
+};
+
+export function buildSalesRequestEmail(info: SalesRequestNotifyInfo) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const meta = [info.clientName ?? "Internal", `Stage: ${info.stage}`].join(" · ");
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Sales request update</h2>
+      <p style="margin:16px 0 4px;">
+        <a href="${appUrl}/sales-requests" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:16px;">${escapeHtml(
+          info.title
+        )}</a>
+      </p>
+      <p style="color:#64748b;font-size:13px;margin-top:4px;">${escapeHtml(meta)}</p>
+      <p style="color:#334155;font-size:14px;margin:12px 0;">${escapeHtml(info.changeSummary)}</p>
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">
+        Sent by the CG Client Tracker.
+      </p>
+    </div>
+  `;
+
+  const text = `${info.changeSummary}\n${info.title} (${meta})${appUrl ? `\n${appUrl}/sales-requests` : ""}`;
+
+  return { html, text };
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
