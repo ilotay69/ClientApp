@@ -10,8 +10,12 @@ export type HuduCredentials = {
   apiKey: string;
 };
 
+/** Strips trailing slashes and adds a scheme if one was left off — a bare
+ * "yourcompany.hudu.com" isn't a valid absolute URL for fetch(), and fails
+ * with the unhelpfully generic "fetch failed" rather than a clear error. */
 function normalizedBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, "");
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function huduHeaders(creds: HuduCredentials): HeadersInit {
@@ -24,16 +28,27 @@ function huduHeaders(creds: HuduCredentials): HeadersInit {
 export async function testHuduConnection(
   creds: HuduCredentials
 ): Promise<{ ok: boolean; error?: string }> {
+  const url = `${normalizedBaseUrl(creds.baseUrl)}/api/v1/companies?page_size=1`;
   try {
-    const res = await fetch(`${normalizedBaseUrl(creds.baseUrl)}/api/v1/companies?page_size=1`, {
-      headers: huduHeaders(creds),
-    });
+    const res = await fetch(url, { headers: huduHeaders(creds) });
     if (!res.ok) {
       const text = await res.text();
       return { ok: false, error: `Hudu API request failed (${res.status}): ${text}` };
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
+    // A plain fetch() network failure (bad host, DNS, TLS, connection
+    // refused) throws a generic "fetch failed" TypeError whose real cause
+    // is nested in `.cause`, not the message itself — surface both, plus
+    // the exact URL that was tried, so this is actually debuggable instead
+    // of just saying "fetch failed" with no context.
+    const cause =
+      err instanceof Error && err.cause instanceof Error
+        ? `: ${err.cause.message}`
+        : err instanceof Error && err.cause
+          ? `: ${String(err.cause)}`
+          : "";
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: `${message}${cause} (tried ${url})` };
   }
 }
