@@ -16,6 +16,7 @@ export type DnsRecordSet = {
 export type SpfResult = { found: boolean; record: string | null };
 export type DmarcResult = { found: boolean; record: string | null; policy: string | null };
 export type DkimSelectorResult = { selector: string; found: boolean; record: string | null };
+export type SubdomainResult = { host: string; found: boolean; type: "CNAME" | "A" | null; target: string | null };
 export type WhoisResult = {
   found: boolean;
   registrar: string | null;
@@ -31,6 +32,7 @@ export type DomainHealthReport = {
   spf: SpfResult;
   dmarc: DmarcResult;
   dkim: DkimSelectorResult[];
+  subdomains: SubdomainResult[];
   whois: WhoisResult;
 };
 
@@ -97,6 +99,44 @@ async function checkDkim(domain: string): Promise<DkimSelectorResult[]> {
       return { selector, found: Boolean(record), record };
     })
   );
+}
+
+// DNS has no "list every record for this domain" query — that's a zone
+// transfer (AXFR), which essentially no public DNS host allows externally.
+// So, same as DKIM selectors above, this checks a curated list of common/
+// expected hostnames rather than claiming to be exhaustive. Checks CNAME
+// first, then falls back to A, since a subdomain can be set up either way
+// (M365's own names are always CNAMEs; "www" etc. can be either).
+const COMMON_SUBDOMAINS = [
+  "www",
+  "mail",
+  "webmail",
+  "autodiscover",
+  "owa",
+  "remote",
+  "vpn",
+  "ftp",
+  "cpanel",
+  "sip",
+  "lyncdiscover",
+  "enterpriseregistration",
+  "enterpriseenrollment",
+  "msoid",
+];
+
+async function checkSubdomain(host: string, domain: string): Promise<SubdomainResult> {
+  const fqdn = `${host}.${domain}`;
+  const cname = await safeResolve(() => dnsPromises.resolveCname(fqdn), [] as string[]);
+  if (cname.length > 0) return { host, found: true, type: "CNAME", target: cname[0] };
+
+  const a = await safeResolve(() => dnsPromises.resolve4(fqdn), [] as string[]);
+  if (a.length > 0) return { host, found: true, type: "A", target: a.join(", ") };
+
+  return { host, found: false, type: null, target: null };
+}
+
+async function checkCommonSubdomains(domain: string): Promise<SubdomainResult[]> {
+  return Promise.all(COMMON_SUBDOMAINS.map((host) => checkSubdomain(host, domain)));
 }
 
 const IANA_RDAP_BOOTSTRAP_URL = "https://data.iana.org/rdap/dns.json";
@@ -187,11 +227,12 @@ export function extractDomainFromEmail(email: string | null | undefined): string
 
 export async function checkDomainHealth(input: string): Promise<DomainHealthReport> {
   const domain = normalizeDomain(input);
-  const [dns, dmarc, dkim, whois] = await Promise.all([
+  const [dns, dmarc, dkim, subdomains, whois] = await Promise.all([
     fetchDnsRecords(domain),
     checkDmarc(domain),
     checkDkim(domain),
+    checkCommonSubdomains(domain),
     checkWhois(domain),
   ]);
-  return { domain, dns, spf: checkSpf(dns.txt), dmarc, dkim, whois };
+  return { domain, dns, spf: checkSpf(dns.txt), dmarc, dkim, subdomains, whois };
 }

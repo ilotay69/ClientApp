@@ -158,6 +158,28 @@ export function DomainHealthPanel({
           </div>
 
           <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Common subdomains</p>
+            <p className="mt-1 text-xs text-slate-400">
+              DNS has no "list everything" query — this checks a known set of expected names
+              (www, autodiscover, and the rest of the M365 set), not every subdomain that exists.
+            </p>
+            {report.subdomains.some((s) => s.found) ? (
+              <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
+                {report.subdomains
+                  .filter((s) => s.found)
+                  .map((s) => (
+                    <li key={s.host}>
+                      <span className="font-medium text-slate-700">{s.host}</span> ({s.type}){" "}
+                      {s.target}
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-slate-400">None of the common names found.</p>
+            )}
+          </div>
+
+          <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Registration (RDAP)</p>
             {report.whois.found ? (
               <div className="mt-2 grid gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">
