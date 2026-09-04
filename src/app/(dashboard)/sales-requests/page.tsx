@@ -47,13 +47,19 @@ export default async function SalesRequestsPage({
 
   const supabase = await createClient();
 
-  const [{ data: clients }, { data: members }, canManage] = await Promise.all([
-    supabase.from("clients").select("id, name").order("name"),
-    supabase.from("profiles").select("id, full_name").order("full_name"),
-    hasPermission(supabase, "manage_sales_requests"),
-  ]);
+  const [{ data: clients }, { data: members }, { data: requestClientRows }, canManage] =
+    await Promise.all([
+      supabase.from("clients").select("id, name").order("name"),
+      supabase.from("profiles").select("id, full_name").order("full_name"),
+      // Unfiltered, so the client filter's own options don't shrink as
+      // other filters (stage, assignee, source) are applied.
+      supabase.from("sales_requests").select("client_id").not("client_id", "is", null),
+      hasPermission(supabase, "manage_sales_requests"),
+    ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));
+  const requestClientIds = new Set((requestClientRows ?? []).map((r) => r.client_id));
+  const filterClients = (clients ?? []).filter((c) => requestClientIds.has(c.id));
 
   let query = supabase
     .from("sales_requests")
@@ -85,7 +91,7 @@ export default async function SalesRequestsPage({
       </div>
 
       <SalesRequestFilterBar
-        clients={clients ?? []}
+        clients={filterClients}
         members={members ?? []}
         stageOptions={STAGE_OPTIONS}
         values={{
