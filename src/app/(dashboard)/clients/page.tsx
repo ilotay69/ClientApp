@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
-import { Badge } from "@/components/badge";
-import { daysAgo, buildFollowupSummary, isOverdue } from "@/lib/format";
+import { isOverdue } from "@/lib/format";
 import { FilterLink, filterHref } from "@/components/filter-link";
 import { SearchBox } from "@/components/search-box";
 import { SyncMailButton } from "@/components/sync-mail-button";
@@ -42,36 +41,6 @@ function overdueCountByClient(rows: { client_id: string | null; due_date: string
   return map;
 }
 
-type TicketRow = { client_id: string; title: string; last_activity_at: string | null };
-
-/** The ticket that's gone quietest the longest, per client — a much more
- * useful signal than a bare open-ticket count. Tickets with no activity
- * timestamp sort last (nothing to flag as stale). */
-function stalestTicketByClient(rows: TicketRow[]) {
-  const map = new Map<string, TicketRow>();
-  for (const r of rows) {
-    const existing = map.get(r.client_id);
-    if (!existing) {
-      map.set(r.client_id, r);
-      continue;
-    }
-    if (!r.last_activity_at) continue;
-    if (!existing.last_activity_at || r.last_activity_at < existing.last_activity_at) {
-      map.set(r.client_id, r);
-    }
-  }
-  return map;
-}
-
-/** First occurrence wins — callers pass rows already ordered newest-first. */
-function latestByClient(rows: { client_id: string; created_at: string }[]) {
-  const map = new Map<string, string>();
-  for (const r of rows) {
-    if (!map.has(r.client_id)) map.set(r.client_id, r.created_at);
-  }
-  return map;
-}
-
 export default async function ClientsPage({
   searchParams,
 }: {
@@ -79,41 +48,28 @@ export default async function ClientsPage({
 }) {
   const { view, q } = await searchParams;
   const supabase = await createClient();
-  const [
-    { data: clients },
-    canManageClients,
-    { data: openTasks },
-    { data: openTickets },
-    { data: openSuggestions },
-    { data: interactions },
-  ] = await Promise.all([
-    (q
-      ? supabase.from("clients").select("id, name").ilike("name", `%${q}%`).order("name")
-      : supabase.from("clients").select("id, name").order("name")),
-    hasPermission(supabase, "manage_clients"),
-    supabase
-      .from("tasks")
-      .select("client_id, due_date")
-      .not("client_id", "is", null)
-      .not("status", "in", "(done,dismissed)"),
-    supabase.from("autotask_tickets").select("client_id, title, last_activity_at"),
-    supabase
-      .from("suggestions")
-      .select("client_id, summary, priority")
-      .eq("status", "open")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("client_interactions")
-      .select("client_id, created_at")
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: clients }, canManageClients, { data: openTasks }, { data: openTickets }, { data: openSuggestions }] =
+    await Promise.all([
+      (q
+        ? supabase.from("clients").select("id, name").ilike("name", `%${q}%`).order("name")
+        : supabase.from("clients").select("id, name").order("name")),
+      hasPermission(supabase, "manage_clients"),
+      supabase
+        .from("tasks")
+        .select("client_id, due_date")
+        .not("client_id", "is", null)
+        .not("status", "in", "(done,dismissed)"),
+      supabase.from("autotask_tickets").select("client_id"),
+      supabase
+        .from("suggestions")
+        .select("client_id, summary, priority")
+        .eq("status", "open")
+        .order("created_at", { ascending: false }),
+    ]);
 
-  const taskCounts = countByClient(openTasks ?? []);
   const overdueTaskCounts = overdueCountByClient(openTasks ?? []);
   const ticketCounts = countByClient(openTickets ?? []);
-  const stalestTicket = stalestTicketByClient(openTickets ?? []);
   const suggestions = topSuggestionByClient(openSuggestions ?? []);
-  const lastContact = latestByClient(interactions ?? []);
 
   const visibleClients = (clients ?? []).filter((c) => {
     if (view === "insights") return suggestions.has(c.id);
@@ -176,55 +132,24 @@ export default async function ClientsPage({
           <thead className="bg-slate-50">
             <tr>
               <th className="px-5 py-3 text-left font-medium text-slate-500">Name</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">
-                Insights &amp; followups
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {visibleClients.map((c) => {
-              const suggestion = suggestions.get(c.id);
-              const taskCount = taskCounts.get(c.id) ?? 0;
-              const ticketCount = ticketCounts.get(c.id) ?? 0;
-              const contactDays = daysAgo(lastContact.get(c.id));
-              const stale = stalestTicket.get(c.id);
-              const followupText = buildFollowupSummary({
-                taskCount,
-                overdueTaskCount: overdueTaskCounts.get(c.id) ?? 0,
-                ticketCount,
-                stalestTicketTitle: stale?.title ?? null,
-                stalestTicketDays: daysAgo(stale?.last_activity_at ?? null),
-                lastContactDays: contactDays,
-              });
-
-              return (
-                <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-3">
-                    <Link
-                      href={`/clients/${c.id}`}
-                      className="font-medium text-slate-900 hover:underline"
-                    >
-                      {c.name}
-                    </Link>
-                  </td>
-                  <td className="px-5 py-3">
-                    {suggestion ? (
-                      <div className="flex items-start gap-2">
-                        {suggestion.priority === "high" && <Badge value="high" />}
-                        <span className="text-slate-700">{suggestion.summary}</span>
-                      </div>
-                    ) : followupText ? (
-                      <span className="text-slate-600">{followupText}</span>
-                    ) : (
-                      <span className="text-slate-400">Nothing outstanding.</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {visibleClients.map((c) => (
+              <tr key={c.id} className="hover:bg-slate-50">
+                <td className="px-5 py-3">
+                  <Link
+                    href={`/clients/${c.id}`}
+                    className="font-medium text-slate-900 hover:underline"
+                  >
+                    {c.name}
+                  </Link>
+                </td>
+              </tr>
+            ))}
             {visibleClients.length === 0 && (
               <tr>
-                <td colSpan={2} className="px-5 py-6 text-center text-slate-500">
+                <td className="px-5 py-6 text-center text-slate-500">
                   {view || q ? (
                     <>
                       No clients match this filter.{" "}

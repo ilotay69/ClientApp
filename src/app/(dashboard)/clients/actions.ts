@@ -8,6 +8,7 @@ import { generateSuggestions } from "@/lib/suggestions";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import {
   searchAutotaskCompanies,
+  fetchActiveAutotaskCompanies,
   fetchOpenTicketsForCompany,
   fetchTicketPicklists,
   fetchContractServicesForCompany,
@@ -386,6 +387,63 @@ export async function createClientFromAutotaskCompany(
 
   revalidatePath("/clients");
   return { clientId: data.id };
+}
+
+/** Every active Autotask company not already added here, for the "add
+ * multiple clients" checklist — loaded up front rather than searched, so
+ * picking several doesn't mean searching and adding one at a time. */
+export async function listUnaddedActiveAutotaskCompaniesAction(): Promise<
+  { companies: AutotaskCompany[] } | { error: string }
+> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const companies = await fetchActiveAutotaskCompanies(settings.credentials, settings.zoneUrl);
+    const { data: existingClients } = await admin
+      .from("clients")
+      .select("autotask_company_id")
+      .not("autotask_company_id", "is", null);
+    const existingIds = new Set(
+      (existingClients ?? []).map((c: { autotask_company_id: number }) => c.autotask_company_id)
+    );
+    return { companies: companies.filter((c) => !existingIds.has(c.id)) };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Autotask lookup failed." };
+  }
+}
+
+/** Bulk version of createClientFromAutotaskCompany — one client per
+ * selected company, created sequentially (not Promise.all) since each one
+ * also triggers an Autotask sync and Autotask enforces a low concurrent-
+ * thread cap per API user. */
+export async function createClientsFromAutotaskCompanies(
+  companies: AutotaskCompany[]
+): Promise<{ created: number; errors: string[] }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { created: 0, errors: ["You don't have permission to do that."] };
+  }
+
+  let created = 0;
+  const errors: string[] = [];
+  for (const company of companies) {
+    const result = await createClientFromAutotaskCompany(company);
+    if ("error" in result) {
+      errors.push(`${company.companyName}: ${result.error}`);
+    } else {
+      created += 1;
+    }
+  }
+
+  revalidatePath("/clients");
+  return { created, errors };
 }
 
 export async function linkClientAutotaskCompany(

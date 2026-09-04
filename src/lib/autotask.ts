@@ -130,20 +130,38 @@ export async function testAutotaskConnection(
 
 export type AutotaskCompany = { id: number; companyName: string };
 
-/** Name search over Companies, for the client-mapping UI. */
+/** Name search over active Companies only, for the client-mapping UI —
+ * inactive/former companies shouldn't show up as mapping candidates. */
 export async function searchAutotaskCompanies(
   creds: AutotaskCredentials,
   zoneUrl: string,
   nameQuery: string
 ): Promise<AutotaskCompany[]> {
   const items = (await autotaskQuery(creds, zoneUrl, "Companies", {
-    filter: [{ op: "contains", field: "companyName", value: nameQuery }],
+    filter: [
+      { op: "contains", field: "companyName", value: nameQuery },
+      { op: "eq", field: "isActive", value: true },
+    ],
     MaxRecords: 20,
   })) as { id: number; companyName: string }[];
   return items.map((c) => ({
     id: c.id,
     companyName: c.companyName,
   }));
+}
+
+/** Every active Autotask company, for the "add multiple clients" picker —
+ * paginated since a real book of business can exceed one page. */
+export async function fetchActiveAutotaskCompanies(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<AutotaskCompany[]> {
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "Companies", {
+    filter: [{ op: "eq", field: "isActive", value: true }],
+  })) as { id: number; companyName: string }[];
+  return items
+    .map((c) => ({ id: c.id, companyName: c.companyName }))
+    .sort((a, b) => a.companyName.localeCompare(b.companyName));
 }
 
 export type AutotaskContact = {

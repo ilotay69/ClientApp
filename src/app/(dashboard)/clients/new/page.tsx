@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { AutotaskClientSearch } from "@/components/autotask-client-search";
-import { createClientFromAutotaskCompany, searchAutotaskCompaniesAction } from "../actions";
+import {
+  listUnaddedActiveAutotaskCompaniesAction,
+  createClientsFromAutotaskCompanies,
+} from "../actions";
 
 export default async function NewClientPage() {
   const supabase = await createClient();
@@ -15,8 +18,8 @@ export default async function NewClientPage() {
       <h1 className="text-2xl font-semibold text-slate-900">New client</h1>
 
       <AutotaskClientSearch
-        searchAction={searchAutotaskCompaniesAction}
-        createAction={createClientFromAutotaskCompany}
+        listAction={listUnaddedActiveAutotaskCompaniesAction}
+        createManyAction={createClientsFromAutotaskCompanies}
       />
     </div>
   );
