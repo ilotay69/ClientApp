@@ -86,10 +86,12 @@ const OFFLINE_URGENT_DAYS = 90;
 const OFFLINE_WARN_DAYS = 30;
 /** How far ahead an upcoming EOL is worth surfacing — roughly a budget cycle. */
 const EOL_SOON_DAYS = 180;
+// TEMP: lowered to 1 year on both to test whether NinjaOne's "created"
+// field is actually populating at all — revert to 3/5 once confirmed.
 /** Typical hardware refresh cycle for a workstation/laptop. */
-const WORKSTATION_AGE_THRESHOLD_DAYS = 3 * 365;
+const WORKSTATION_AGE_THRESHOLD_DAYS = 1 * 365;
 /** Servers are typically kept in service longer than end-user hardware. */
-const SERVER_AGE_THRESHOLD_DAYS = 5 * 365;
+const SERVER_AGE_THRESHOLD_DAYS = 1 * 365;
 
 /** Names are truncated in the detail line; the full list is a filter click away. */
 function nameList(names: string[], max = 4) {
