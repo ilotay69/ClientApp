@@ -180,6 +180,33 @@ export function DomainHealthPanel({
           </div>
 
           <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Seen in SSL certificates
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              From public Certificate Transparency logs — every hostname that&apos;s ever had a
+              cert issued for it. This is certificate history, not live DNS: a name here may no
+              longer resolve to anything.
+            </p>
+            {report.certHistory.error ? (
+              <p className="mt-2 text-xs text-red-600">{report.certHistory.error}</p>
+            ) : report.certHistory.hostnames.length > 0 ? (
+              <>
+                <ul className="mt-2 max-h-56 space-y-0.5 overflow-y-auto text-xs text-slate-600">
+                  {report.certHistory.hostnames.map((h) => (
+                    <li key={h}>{h}</li>
+                  ))}
+                </ul>
+                {report.certHistory.truncated && (
+                  <p className="mt-1 text-xs text-slate-400">List truncated — more exist.</p>
+                )}
+              </>
+            ) : (
+              <p className="mt-2 text-xs text-slate-400">No certificate history found.</p>
+            )}
+          </div>
+
+          <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Registration (RDAP)</p>
             {report.whois.found ? (
               <div className="mt-2 grid gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">

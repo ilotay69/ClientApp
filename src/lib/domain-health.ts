@@ -25,6 +25,7 @@ export type WhoisResult = {
   nameservers: string[];
   error?: string;
 };
+export type CertHistoryResult = { hostnames: string[]; truncated: boolean; error?: string };
 
 export type DomainHealthReport = {
   domain: string;
@@ -33,6 +34,7 @@ export type DomainHealthReport = {
   dmarc: DmarcResult;
   dkim: DkimSelectorResult[];
   subdomains: SubdomainResult[];
+  certHistory: CertHistoryResult;
   whois: WhoisResult;
 };
 
@@ -139,6 +141,43 @@ async function checkCommonSubdomains(domain: string): Promise<SubdomainResult[]>
   return Promise.all(COMMON_SUBDOMAINS.map((host) => checkSubdomain(host, domain)));
 }
 
+const MAX_CERT_HOSTNAMES = 200;
+
+/** Every hostname that's ever had a publicly-issued SSL certificate cover
+ * it, via crt.sh's free Certificate Transparency search — the closest
+ * thing to "every subdomain" that's actually queryable, since CT logs are
+ * public by browser-vendor mandate (unlike DNS zone data). This is
+ * certificate HISTORY, not live DNS: a name can show up here long after
+ * its DNS record was removed, so it's shown as leads to check, not a
+ * confirmed-current list like the CNAME/A checks above. */
+async function fetchCertHistorySubdomains(domain: string): Promise<CertHistoryResult> {
+  try {
+    const res = await fetch(`https://crt.sh/?q=${encodeURIComponent(`%.${domain}`)}&output=json`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      return { hostnames: [], truncated: false, error: `crt.sh lookup failed (${res.status}).` };
+    }
+
+    const rows = (await res.json()) as { name_value?: string }[];
+    const names = new Set<string>();
+    for (const row of rows) {
+      for (const raw of (row.name_value ?? "").split("\n")) {
+        const name = raw.trim().toLowerCase().replace(/^\*\./, "");
+        if (name.endsWith(`.${domain}`) || name === domain) names.add(name);
+      }
+    }
+
+    const sorted = [...names].sort();
+    return {
+      hostnames: sorted.slice(0, MAX_CERT_HOSTNAMES),
+      truncated: sorted.length > MAX_CERT_HOSTNAMES,
+    };
+  } catch (err) {
+    return { hostnames: [], truncated: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
 const IANA_RDAP_BOOTSTRAP_URL = "https://data.iana.org/rdap/dns.json";
 
 async function findRdapBaseUrl(tld: string): Promise<string | null> {
@@ -227,12 +266,13 @@ export function extractDomainFromEmail(email: string | null | undefined): string
 
 export async function checkDomainHealth(input: string): Promise<DomainHealthReport> {
   const domain = normalizeDomain(input);
-  const [dns, dmarc, dkim, subdomains, whois] = await Promise.all([
+  const [dns, dmarc, dkim, subdomains, certHistory, whois] = await Promise.all([
     fetchDnsRecords(domain),
     checkDmarc(domain),
     checkDkim(domain),
     checkCommonSubdomains(domain),
+    fetchCertHistorySubdomains(domain),
     checkWhois(domain),
   ]);
-  return { domain, dns, spf: checkSpf(dns.txt), dmarc, dkim, subdomains, whois };
+  return { domain, dns, spf: checkSpf(dns.txt), dmarc, dkim, subdomains, certHistory, whois };
 }
