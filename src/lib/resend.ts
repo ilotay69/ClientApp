@@ -129,21 +129,21 @@ export function buildSalesRequestEmail(info: SalesRequestNotifyInfo) {
   const summaryLine = summaryParts.join("  ·  ");
 
   const html = `
-    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;font-size:16px;line-height:1.5;">
-      <h2 style="color:#0f172a;font-size:22px;margin-bottom:12px;">Sales request update</h2>
-      <p style="margin:0 0 4px;">
-        <a href="${appUrl}/sales-requests" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:18px;">${escapeHtml(
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;font-size:18px;line-height:1.6;">
+      <h2 style="color:#0f172a;font-size:26px;margin-bottom:14px;">Sales request update</h2>
+      <p style="margin:0 0 6px;">
+        <a href="${appUrl}/sales-requests" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:21px;">${escapeHtml(
           summaryLine
         )}</a>
       </p>
-      <p style="color:#0f172a;font-size:17px;font-weight:600;margin:16px 0 4px;">${escapeHtml(info.changeSummary)}</p>
-      <p style="color:#64748b;font-size:15px;margin:4px 0;">Stage: ${escapeHtml(info.stage)}</p>
+      <p style="color:#0f172a;font-size:20px;font-weight:600;margin:18px 0 6px;">${escapeHtml(info.changeSummary)}</p>
+      <p style="color:#64748b;font-size:17px;margin:6px 0;">Stage: ${escapeHtml(info.stage)}</p>
       ${
         info.detail
-          ? `<p style="color:#334155;font-size:16px;margin:12px 0;white-space:pre-line;">${escapeHtml(info.detail)}</p>`
+          ? `<p style="color:#334155;font-size:18px;margin:14px 0;white-space:pre-line;">${escapeHtml(info.detail)}</p>`
           : ""
       }
-      <p style="margin-top:24px;color:#64748b;font-size:14px;">
+      <p style="margin-top:28px;color:#64748b;font-size:15px;">
         Sent by the CG Client Tracker.
       </p>
     </div>
