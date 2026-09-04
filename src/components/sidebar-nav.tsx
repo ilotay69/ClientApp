@@ -34,8 +34,11 @@ const MAIN_LINKS: NavItem[] = [
   { href: "/clients", label: "Clients", icon: IconBriefcase },
   { href: "/projects", label: "Projects", icon: IconFolder },
   { href: "/touchpoints", label: "Touchpoints", icon: IconCalendar },
-  { href: "/domain-health", label: "Domain Health", icon: IconGlobe },
 ];
+
+// Standalone utilities, not tied to a client/project workflow — more land
+// here over time.
+const TOOLS_LINKS: NavItem[] = [{ href: "/domain-health", label: "Domain Health", icon: IconGlobe }];
 
 export function SidebarNav({
   userLabel,
@@ -125,6 +128,15 @@ export function SidebarNav({
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-4">
         <div className="space-y-1">{MAIN_LINKS.map(renderLink)}</div>
+
+        {TOOLS_LINKS.length > 0 && (
+          <div>
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
+              Tools
+            </p>
+            <div className="space-y-1">{TOOLS_LINKS.map(renderLink)}</div>
+          </div>
+        )}
 
         {settingsLinks.length > 0 && (
           <div>
