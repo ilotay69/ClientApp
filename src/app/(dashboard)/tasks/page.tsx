@@ -5,7 +5,7 @@ import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
-import { createTask, deleteTask, setTaskAssignees, updateTaskField } from "./actions";
+import { createTask, deleteTask, updateTaskField } from "./actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
@@ -78,9 +78,6 @@ export default async function TasksPage({
     supabase.from("tasks").select("client_id").eq("is_personal", false).not("client_id", "is", null),
   ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
-  const clientOptions = [{ value: "", label: "No client (internal)" }].concat(
-    (clients ?? []).map((c) => ({ value: c.id, label: c.name }))
-  );
   const taskClientIds = new Set((taskClientRows ?? []).map((r) => r.client_id));
   const filterClients = (clients ?? []).filter((c) => taskClientIds.has(c.id));
   const projectSummaries = (projects ?? []).map((p) => ({
@@ -88,12 +85,6 @@ export default async function TasksPage({
     name: p.name,
     clientName: (p.clients as unknown as { name: string } | null)?.name ?? null,
   }));
-  const projectOptions = [{ value: "", label: "No project" }].concat(
-    projectSummaries.map((p) => ({
-      value: p.id,
-      label: p.clientName ? `${p.name} — ${p.clientName}` : p.name,
-    }))
-  );
   const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));
 
   // "My tasks" is really just the assignee filter defaulting to the
@@ -143,7 +134,6 @@ export default async function TasksPage({
   ]);
 
   const updateFieldAction = updateTaskField;
-  const setAssigneesAction = setTaskAssignees;
 
   const teamTasksList = (
     <div className="space-y-6">
@@ -207,16 +197,10 @@ export default async function TasksPage({
               key={t.id}
               task={t as TaskRowData}
               clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
-              assigneeIds={assigneeIds}
               assigneeNames={assigneeNames}
-              clientOptions={clientOptions}
-              projectOptions={projectOptions}
-              members={members ?? []}
               canDelete={canDeleteTasks}
               statusOptions={statusOptionsFor(t.status)}
-              priorityOptions={PRIORITY_OPTIONS}
               updateFieldAction={updateFieldAction}
-              setAssigneesAction={setAssigneesAction}
               deleteAction={deleteTask.bind(null, t.id)}
             />
           );
@@ -258,16 +242,10 @@ export default async function TasksPage({
             key={t.id}
             task={{ ...t, client_id: null, project_id: null } as TaskRowData}
             clientName={null}
-            assigneeIds={[]}
             assigneeNames=""
-            clientOptions={clientOptions}
-            projectOptions={projectOptions}
-            members={members ?? []}
             canDelete
             statusOptions={statusOptionsFor(t.status)}
-            priorityOptions={PRIORITY_OPTIONS}
             updateFieldAction={updateFieldAction}
-            setAssigneesAction={setAssigneesAction}
             deleteAction={deleteTask.bind(null, t.id)}
           />
         ))}

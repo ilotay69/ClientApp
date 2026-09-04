@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
-import { TaskAssigneesSelect } from "@/components/task-assignees-select";
-import { InlineTextEdit, InlineDateEdit, InlineSelectEdit } from "@/components/task-field-editor";
+import { InlineTextEdit, InlineSelectEdit } from "@/components/task-field-editor";
 import { formatDate, isOverdue } from "@/lib/format";
 import { IconChevronDown } from "@/components/icons";
 
@@ -32,30 +31,18 @@ export type TaskRowData = {
 export function TaskRow({
   task,
   clientName,
-  assigneeIds,
   assigneeNames,
-  clientOptions,
-  projectOptions,
-  members,
   canDelete,
   statusOptions,
-  priorityOptions,
   updateFieldAction,
-  setAssigneesAction,
   deleteAction,
 }: {
   task: TaskRowData;
   clientName: string | null;
-  assigneeIds: string[];
   assigneeNames: string;
-  clientOptions: { value: string; label: string }[];
-  projectOptions: { value: string; label: string }[];
-  members: { id: string; full_name: string }[];
   canDelete: boolean;
   statusOptions: { value: string; label: string }[];
-  priorityOptions: { value: string; label: string }[];
   updateFieldAction: (taskId: string, field: string, value: string) => Promise<void>;
-  setAssigneesAction: (id: string, assigneeIds: string[]) => Promise<void>;
   deleteAction: () => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -109,81 +96,8 @@ export function TaskRow({
           onClick={(e) => e.stopPropagation()}
         >
           <div>
-            <FieldLabel>Detail</FieldLabel>
-            <InlineTextEdit
-              taskId={task.id}
-              field="detail"
-              value={task.detail ?? ""}
-              action={updateFieldAction}
-              placeholder="Add detail..."
-              emptyLabel="Add detail"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {!task.is_personal && (
-              <div>
-                <FieldLabel>Client</FieldLabel>
-                <InlineSelectEdit
-                  taskId={task.id}
-                  field="client_id"
-                  value={task.client_id ?? ""}
-                  action={updateFieldAction}
-                  options={clientOptions}
-                />
-              </div>
-            )}
-            {!task.is_personal && (
-              <div>
-                <FieldLabel>Project</FieldLabel>
-                <InlineSelectEdit
-                  taskId={task.id}
-                  field="project_id"
-                  value={task.project_id ?? ""}
-                  action={updateFieldAction}
-                  options={projectOptions}
-                />
-              </div>
-            )}
-            {!task.is_personal && (
-              <div>
-                <FieldLabel>Assigned to</FieldLabel>
-                <TaskAssigneesSelect
-                  id={task.id}
-                  currentAssigneeIds={assigneeIds}
-                  members={members}
-                  action={setAssigneesAction}
-                />
-              </div>
-            )}
-            <div>
-              <FieldLabel>Priority</FieldLabel>
-              <InlineSelectEdit
-                taskId={task.id}
-                field="priority"
-                value={task.priority}
-                action={updateFieldAction}
-                options={priorityOptions}
-              />
-            </div>
-            <div>
-              <FieldLabel>Start</FieldLabel>
-              <InlineDateEdit
-                taskId={task.id}
-                field="start_date"
-                value={task.start_date ?? ""}
-                action={updateFieldAction}
-              />
-            </div>
-            <div>
-              <FieldLabel>Due</FieldLabel>
-              <InlineDateEdit
-                taskId={task.id}
-                field="due_date"
-                value={task.due_date ?? ""}
-                action={updateFieldAction}
-              />
-            </div>
+            <FieldLabel>Title</FieldLabel>
+            <InlineTextEdit taskId={task.id} field="title" value={task.title} action={updateFieldAction} />
           </div>
 
           <div>
