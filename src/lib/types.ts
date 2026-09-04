@@ -174,7 +174,7 @@ export interface ReminderLogEntry {
   recipient_email: string;
 }
 
-export type EmailLinkType = "quote" | "project" | "general";
+export type EmailLinkType = "quote" | "project" | "general" | "followup";
 
 export interface MailConnection {
   user_id: string;
@@ -196,6 +196,7 @@ export interface EmailLink {
   received_at: string;
   web_link: string | null;
   body_preview: string | null;
+  is_flagged: boolean;
   graph_message_id: string;
   connection_user_id: string | null;
   created_at: string;

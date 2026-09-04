@@ -103,3 +103,11 @@ export function OverdueBadge() {
     </span>
   );
 }
+
+export function FollowupBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+      Follow-up
+    </span>
+  );
+}

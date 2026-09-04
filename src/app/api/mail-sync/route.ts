@@ -6,9 +6,13 @@ import type { MailConnection } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 /**
- * Syncs every connected mailbox. Call this on a schedule (e.g. a Railway
- * Cron Job every 30–60 minutes) with header `X-Cron-Secret: <CRON_SECRET>`,
- * same secret as the reminders job.
+ * Syncs every connected mailbox. Call this on a schedule with header
+ * `X-Cron-Secret: <CRON_SECRET>`, same secret as the reminders job. Each
+ * run also does a full mailbox-wide scan for messages currently flagged
+ * for follow-up (not just new mail), so this needs to run at least once
+ * or twice a day for that to feel current — a Railway Cron Job set to
+ * that cadence (e.g. every 30–60 minutes is fine too, just more often
+ * than strictly needed for the flag scan specifically).
  */
 export async function GET(request: NextRequest) {
   const secret = request.headers.get("x-cron-secret");

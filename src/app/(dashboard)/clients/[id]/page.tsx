@@ -109,7 +109,7 @@ export default async function ClientDetailPage({
       .order("due_date", { ascending: false }),
     supabase
       .from("email_links")
-      .select("id, type, subject, from_name, from_email, received_at, web_link")
+      .select("id, type, subject, from_name, from_email, received_at, web_link, is_flagged")
       .eq("client_id", id)
       .order("received_at", { ascending: false })
       .limit(20),
@@ -239,6 +239,7 @@ export default async function ClientDetailPage({
       contactName: e.from_name ?? e.from_email,
       date: e.received_at,
       webLink: e.web_link,
+      isFlagged: e.is_flagged,
     })),
     ...(interactions ?? []).map((i) => ({
       id: `interaction-${i.id}`,

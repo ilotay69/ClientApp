@@ -1,4 +1,9 @@
-import { refreshAccessToken, fetchRecentMessages, type GraphMessage } from "@/lib/microsoft-graph";
+import {
+  refreshAccessToken,
+  fetchRecentMessages,
+  fetchFlaggedMessages,
+  type GraphMessage,
+} from "@/lib/microsoft-graph";
 import type { MailConnection } from "@/lib/types";
 
 // Free/consumer email domains are excluded from domain-based matching so we
@@ -31,10 +36,13 @@ function domainOf(email: string) {
   return email.split("@")[1]?.toLowerCase() ?? null;
 }
 
-type ClientContact = { id: string; primary_contact_email: string | null };
+/** Every email address known for a client — its primary contact plus
+ * every row in client_contacts — so a message to/from ANY of a client's
+ * people counts as that client's, not just their primary contact. */
+export type ClientEmails = { id: string; emails: string[] };
 
 export function matchClientForMessage(
-  clients: ClientContact[],
+  clients: ClientEmails[],
   message: GraphMessage
 ): string | null {
   const participantEmails = [
@@ -47,23 +55,52 @@ export function matchClientForMessage(
     const participantDomain = domainOf(participantLower);
 
     for (const client of clients) {
-      if (!client.primary_contact_email) continue;
-      const contactLower = client.primary_contact_email.toLowerCase();
+      for (const contactEmail of client.emails) {
+        const contactLower = contactEmail.toLowerCase();
 
-      if (contactLower === participantLower) return client.id;
+        if (contactLower === participantLower) return client.id;
 
-      const contactDomain = domainOf(contactLower);
-      if (
-        contactDomain &&
-        contactDomain === participantDomain &&
-        !COMMON_FREE_DOMAINS.has(contactDomain)
-      ) {
-        return client.id;
+        const contactDomain = domainOf(contactLower);
+        if (
+          contactDomain &&
+          contactDomain === participantDomain &&
+          !COMMON_FREE_DOMAINS.has(contactDomain)
+        ) {
+          return client.id;
+        }
       }
     }
   }
 
   return null;
+}
+
+/** Outlook's "Follow up" flag — `flagged` means still open, `complete`
+ * means resolved, `notFlagged`/missing means never flagged. Only "still
+ * open" counts as needing follow-up. */
+export function isFlaggedForFollowup(message: GraphMessage): boolean {
+  return message.flag?.flagStatus === "flagged";
+}
+
+/** Every email address known for every client, for matching. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadClientEmails(admin: any): Promise<ClientEmails[]> {
+  const [{ data: clients }, { data: contacts }] = await Promise.all([
+    admin.from("clients").select("id, primary_contact_email"),
+    admin.from("client_contacts").select("client_id, email"),
+  ]);
+
+  const emailsByClient = new Map<string, string[]>();
+  for (const c of (clients ?? []) as { id: string; primary_contact_email: string | null }[]) {
+    if (c.primary_contact_email) emailsByClient.set(c.id, [c.primary_contact_email]);
+  }
+  for (const c of (contacts ?? []) as { client_id: string; email: string | null }[]) {
+    if (!c.email) continue;
+    const existing = emailsByClient.get(c.client_id) ?? [];
+    existing.push(c.email);
+    emailsByClient.set(c.client_id, existing);
+  }
+  return [...emailsByClient.entries()].map(([id, emails]) => ({ id, emails }));
 }
 
 /**
@@ -97,12 +134,87 @@ export async function getValidAccessToken(
   return tokens.access_token;
 }
 
+/** Inserts (or, if the message was already linked, flags) one matched
+ * email_links row. Shared by both the incremental category sync and the
+ * full flagged-message scan below. */
+async function upsertEmailLink(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  connection: MailConnection,
+  clientId: string,
+  message: GraphMessage,
+  type: "quote" | "project" | "followup",
+  isFlagged: boolean
+): Promise<boolean> {
+  const { error } = await admin.from("email_links").upsert(
+    {
+      client_id: clientId,
+      type,
+      is_flagged: isFlagged,
+      subject: message.subject,
+      from_name: message.from?.emailAddress?.name ?? null,
+      from_email: message.from?.emailAddress?.address ?? "unknown",
+      received_at: message.receivedDateTime,
+      web_link: message.webLink,
+      body_preview: message.bodyPreview?.slice(0, 500) ?? null,
+      graph_message_id: message.id,
+      connection_user_id: connection.user_id,
+    },
+    { onConflict: "graph_message_id", ignoreDuplicates: true }
+  );
+  if (error) return false;
+
+  // A message synced earlier (e.g. via its Quote/Project category, before
+  // anyone flagged it) won't have been touched by the insert above once it
+  // already exists — flags are usually added well after an email first
+  // shows up, so this catches that case instead of only ever setting
+  // is_flagged at the moment of first insert.
+  if (isFlagged) {
+    await admin
+      .from("email_links")
+      .update({ is_flagged: true })
+      .eq("graph_message_id", message.id)
+      .eq("is_flagged", false);
+  }
+
+  return true;
+}
+
+/** Full scan for messages currently flagged for follow-up, independent of
+ * the incremental "since last sync" checkpoint below — a flag is typically
+ * added well after a message was first received/sent, often after the
+ * checkpoint has already moved past it, so a scan bounded by receivedDateTime
+ * would miss it. Matches against a client's primary contact or any of
+ * their other saved contacts, sent or received. */
+async function scanFlaggedMessages(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  connection: MailConnection,
+  accessToken: string,
+  clientEmails: ClientEmails[]
+): Promise<number> {
+  const messages = await fetchFlaggedMessages(accessToken);
+
+  let matched = 0;
+  for (const message of messages) {
+    const clientId = matchClientForMessage(clientEmails, message);
+    if (!clientId) continue;
+
+    const categoryType = detectEmailType(message.categories);
+    const ok = await upsertEmailLink(admin, connection, clientId, message, categoryType ?? "followup", true);
+    if (ok) matched += 1;
+  }
+  return matched;
+}
+
 /**
- * Syncs one connected mailbox: pulls messages received since the last sync,
- * keeps the ones tagged with the Outlook category "Quote" or "Project" AND
- * whose sender/recipient matches a known client, and stores them as
- * email_links. Anything without one of those two categories is skipped,
- * regardless of who it's from/to.
+ * Syncs one connected mailbox: pulls messages received since the last sync
+ * (inbox and sent — /me/messages is mailbox-wide) and keeps the ones tagged
+ * with the Outlook category "Quote" or "Project" AND whose sender/recipient
+ * matches a known client (their primary contact or any of their other saved
+ * contacts). Separately, every currently-flagged-for-follow-up message
+ * mailbox-wide is scanned and matched the same way, regardless of how old it
+ * is — see scanFlaggedMessages.
  */
 export async function syncMailConnection(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,10 +229,7 @@ export async function syncMailConnection(
     new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const messages = await fetchRecentMessages(accessToken, since);
-
-  const { data: clients } = await admin
-    .from("clients")
-    .select("id, primary_contact_email");
+  const clientEmails = await loadClientEmails(admin);
 
   let matched = 0;
   let latestReceivedAt = since;
@@ -130,34 +239,33 @@ export async function syncMailConnection(
       latestReceivedAt = message.receivedDateTime;
     }
 
-    const type = detectEmailType(message.categories);
-    if (!type) continue;
+    const categoryType = detectEmailType(message.categories);
+    if (!categoryType) continue;
 
-    const clientId = matchClientForMessage(clients ?? [], message);
+    const clientId = matchClientForMessage(clientEmails, message);
     if (!clientId) continue;
 
-    const { error } = await admin.from("email_links").upsert(
-      {
-        client_id: clientId,
-        type,
-        subject: message.subject,
-        from_name: message.from?.emailAddress?.name ?? null,
-        from_email: message.from?.emailAddress?.address ?? "unknown",
-        received_at: message.receivedDateTime,
-        web_link: message.webLink,
-        body_preview: message.bodyPreview?.slice(0, 500) ?? null,
-        graph_message_id: message.id,
-        connection_user_id: connection.user_id,
-      },
-      { onConflict: "graph_message_id", ignoreDuplicates: true }
+    const ok = await upsertEmailLink(
+      admin,
+      connection,
+      clientId,
+      message,
+      categoryType,
+      isFlaggedForFollowup(message)
     );
-    if (!error) matched += 1;
+    if (ok) matched += 1;
   }
 
   await admin
     .from("mail_connections")
     .update({ last_synced_at: latestReceivedAt })
     .eq("user_id", connection.user_id);
+
+  try {
+    matched += await scanFlaggedMessages(admin, connection, accessToken, clientEmails);
+  } catch (err) {
+    console.error("Flagged-message scan failed — category sync above still completed", err);
+  }
 
   return { scanned: messages.length, matched };
 }

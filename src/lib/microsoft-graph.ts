@@ -71,6 +71,7 @@ export type GraphMessage = {
   categories?: string[];
   from?: { emailAddress?: { name?: string; address?: string } };
   toRecipients?: { emailAddress?: { name?: string; address?: string } }[];
+  flag?: { flagStatus?: "notFlagged" | "complete" | "flagged" };
 };
 
 /**
@@ -86,7 +87,7 @@ export async function fetchRecentMessages(
   const base = new URL("https://graph.microsoft.com/v1.0/me/messages");
   base.searchParams.set(
     "$select",
-    "id,subject,from,toRecipients,receivedDateTime,webLink,bodyPreview,categories"
+    "id,subject,from,toRecipients,receivedDateTime,webLink,bodyPreview,categories,flag"
   );
   base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso}`);
   base.searchParams.set("$orderby", "receivedDateTime asc");
@@ -103,6 +104,45 @@ export async function fetchRecentMessages(
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Microsoft Graph request failed (${res.status}): ${text}`);
+    }
+    const json = await res.json();
+    messages.push(...(json.value ?? []));
+    url = json["@odata.nextLink"] ?? null;
+    pages += 1;
+  }
+
+  return messages;
+}
+
+/**
+ * Every message currently flagged for follow-up (Outlook's `flag/flagStatus
+ * eq 'flagged'`), mailbox-wide — not bounded by receivedDateTime, since a
+ * flag is usually added well after a message was first received/sent and a
+ * checkpoint-based incremental sync would otherwise never look at it again.
+ */
+export async function fetchFlaggedMessages(
+  accessToken: string,
+  maxPages = 10
+): Promise<GraphMessage[]> {
+  const base = new URL("https://graph.microsoft.com/v1.0/me/messages");
+  base.searchParams.set(
+    "$select",
+    "id,subject,from,toRecipients,receivedDateTime,webLink,bodyPreview,categories,flag"
+  );
+  base.searchParams.set("$filter", "flag/flagStatus eq 'flagged'");
+  base.searchParams.set("$top", "50");
+
+  let url: string | null = base.toString();
+  const messages: GraphMessage[] = [];
+  let pages = 0;
+
+  while (url && pages < maxPages) {
+    const res: Response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Microsoft Graph flagged-messages request failed (${res.status}): ${text}`);
     }
     const json = await res.json();
     messages.push(...(json.value ?? []));

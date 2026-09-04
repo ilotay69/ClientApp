@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState, useTransition } from "react";
 import { formatDate } from "@/lib/format";
 import { DeleteButton } from "@/components/delete-button";
+import { FollowupBadge } from "@/components/badge";
 import type { FormState } from "@/app/(dashboard)/clients/actions";
 
 const initialState: FormState = { error: null };
@@ -24,6 +25,8 @@ export type TimelineEntry = {
    * client_interactions, and can't be deleted from here. */
   interactionId?: string | null;
   createdByUserId?: string | null;
+  /** Set for an email entry currently flagged for follow-up in Outlook. */
+  isFlagged?: boolean;
 };
 
 const FILTERS: { value: "all" | TimelineEntry["type"]; label: string }[] = [
@@ -123,8 +126,9 @@ export function ClientTimeline({
           return (
           <div key={entry.id} className="px-5 py-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-slate-900">
+              <p className="flex items-center gap-2 text-sm font-medium text-slate-900">
                 {entry.subject || TYPE_LABELS[entry.type]}
+                {entry.isFlagged && <FollowupBadge />}
               </p>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="text-xs text-slate-500">{formatDate(entry.date)}</span>
