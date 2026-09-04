@@ -53,9 +53,7 @@ export default async function SalesRequestsPage({
     hasPermission(supabase, "manage_sales_requests"),
   ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
-  const clientOptions = [{ value: "", label: "No client (internal)" }].concat(
-    (clients ?? []).map((c) => ({ value: c.id, label: c.name }))
-  );
+  const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));
 
   let query = supabase
     .from("sales_requests")
@@ -113,8 +111,7 @@ export default async function SalesRequestsPage({
             key={r.id}
             request={r as SalesRequestRowData}
             clientName={r.client_id ? (clientById.get(r.client_id) ?? null) : null}
-            clientOptions={clientOptions}
-            members={members ?? []}
+            assigneeName={r.assigned_to ? (memberById.get(r.assigned_to) ?? null) : null}
             canManage={canManage}
             stageOptions={STAGE_OPTIONS}
             updateFieldAction={updateSalesRequestField}

@@ -25,8 +25,7 @@ export type SalesRequestRowData = {
 export function SalesRequestRow({
   request,
   clientName,
-  clientOptions,
-  members,
+  assigneeName,
   canManage,
   stageOptions,
   updateFieldAction,
@@ -36,8 +35,7 @@ export function SalesRequestRow({
 }: {
   request: SalesRequestRowData;
   clientName: string | null;
-  clientOptions: { value: string; label: string }[];
-  members: { id: string; full_name: string }[];
+  assigneeName: string | null;
   canManage: boolean;
   stageOptions: { value: string; label: string }[];
   updateFieldAction: (requestId: string, field: string, value: string) => Promise<void>;
@@ -46,9 +44,6 @@ export function SalesRequestRow({
   addNoteAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const assigneeOptions = [{ value: "", label: "Unassigned" }].concat(
-    members.map((m) => ({ value: m.id, label: m.full_name }))
-  );
 
   const [notes, setNotes] = useState<SalesRequestNote[] | null>(null);
   const [notesError, setNotesError] = useState<string | null>(null);
@@ -96,6 +91,7 @@ export function SalesRequestRow({
       >
         <span className="w-24 shrink-0 text-xs text-slate-500">{formatDate(request.created_at)}</span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientName ?? "Internal"}</span>
+        <span className="w-32 shrink-0 truncate text-sm text-slate-700">{assigneeName ?? "—"}</span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
           {request.title}
         </span>
@@ -130,31 +126,6 @@ export function SalesRequestRow({
               emptyLabel="Add detail"
               disabled={!canManage}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div>
-              <FieldLabel>Client</FieldLabel>
-              <InlineSelectEdit
-                taskId={request.id}
-                field="client_id"
-                value={request.client_id ?? ""}
-                action={updateFieldAction}
-                options={clientOptions}
-                disabled={!canManage}
-              />
-            </div>
-            <div>
-              <FieldLabel>Assigned to</FieldLabel>
-              <InlineSelectEdit
-                taskId={request.id}
-                field="assigned_to"
-                value={request.assigned_to ?? ""}
-                action={updateFieldAction}
-                options={assigneeOptions}
-                disabled={!canManage}
-              />
-            </div>
           </div>
 
           <div>

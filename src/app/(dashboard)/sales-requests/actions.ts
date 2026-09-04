@@ -33,9 +33,9 @@ export async function createSalesRequest(
       client_id: emptyToNull(formData.get("client_id")),
       title,
       detail: emptyToNull(formData.get("detail")),
-      requested_by_name: emptyToNull(formData.get("requested_by_name")),
-      requested_by_email: emptyToNull(formData.get("requested_by_email")),
-      assigned_to: emptyToNull(formData.get("assigned_to")),
+      // Whoever creates the request is the one tracking it — no separate
+      // "assigned to" picker in the quick-add form.
+      assigned_to: user?.id ?? null,
     })
     .select("id")
     .single();
