@@ -26,7 +26,6 @@ export type SalesRequestRowData = {
 export function SalesRequestRow({
   request,
   clientName,
-  assigneeName,
   clientOptions,
   members,
   canManage,
@@ -38,7 +37,6 @@ export function SalesRequestRow({
 }: {
   request: SalesRequestRowData;
   clientName: string | null;
-  assigneeName: string | null;
   clientOptions: { value: string; label: string }[];
   members: { id: string; full_name: string }[];
   canManage: boolean;
@@ -88,22 +86,22 @@ export function SalesRequestRow({
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex w-full items-start justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50"
+        className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-slate-50"
       >
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-slate-900">{request.title}</p>
-          <p className="mt-0.5 truncate text-xs text-slate-500">
-            {[clientName ?? "Internal", assigneeName ?? "Unassigned"].join(" · ")}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Badge value={request.source} />
-          <span className="text-xs text-slate-500">{formatDate(request.created_at)}</span>
+        <span className="w-24 shrink-0 text-xs text-slate-500">{formatDate(request.created_at)}</span>
+        <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientName ?? "Internal"}</span>
+        <span className="w-32 shrink-0 truncate text-sm text-slate-700">
+          {request.requested_by_name ?? "—"}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+          {request.title}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
           <Badge value={request.stage} />
           <IconChevronDown
             className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
           />
-        </div>
+        </span>
       </button>
 
       {expanded && (
