@@ -84,7 +84,7 @@ export function SidebarNav({
     ...(canManageTeam
       ? [
           { href: "/team", label: "Team", icon: IconUsers },
-          { href: "/hours", label: "Hours", icon: IconClock },
+          { href: "/hours", label: "Lookups", icon: IconClock },
         ]
       : []),
     ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
