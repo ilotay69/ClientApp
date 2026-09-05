@@ -99,6 +99,11 @@ export async function syncAllAutotaskProjectsAction(): Promise<{ error: string |
   const result = await syncAllAutotaskClients(admin);
   if ("error" in result) return { error: result.error };
 
+  await admin
+    .from("autotask_settings")
+    .update({ projects_last_synced_at: new Date().toISOString() })
+    .eq("id", true);
+
   const failed = result.results.filter((r): r is { clientId: string; error: string } => "error" in r);
 
   revalidatePath("/projects");
@@ -108,6 +113,43 @@ export async function syncAllAutotaskProjectsAction(): Promise<{ error: string |
         ? `Synced ${result.synced - failed.length} of ${result.synced} clients — ${failed.length} failed.`
         : null,
   };
+}
+
+const AUTO_SYNC_THROTTLE_MS = 15 * 60 * 1000;
+
+/** Fired (not awaited) from the Projects page itself on every visit, so
+ * the list reflects recent Autotask changes without a manual "Sync
+ * Autotask" click — but only if the last sync was more than 15 minutes
+ * ago, and always in the background: a full sync loops every mapped
+ * client sequentially and can take a while for a real book of business
+ * (the same kind of long request that caused the "page couldn't load"
+ * issue with a 77-company batch elsewhere), so this must never block the
+ * page's own render. The timestamp is claimed up front, before the slow
+ * part runs, so several people opening the page in the same window don't
+ * each kick off their own sync. */
+export async function autoSyncAutotaskProjectsIfStale(): Promise<void> {
+  const admin = createAdminClient();
+  const { data: settings } = await admin
+    .from("autotask_settings")
+    .select("projects_last_synced_at")
+    .eq("id", true)
+    .maybeSingle();
+
+  const lastSyncedAt = settings?.projects_last_synced_at
+    ? new Date(settings.projects_last_synced_at).getTime()
+    : 0;
+  if (Date.now() - lastSyncedAt < AUTO_SYNC_THROTTLE_MS) return;
+
+  await admin
+    .from("autotask_settings")
+    .update({ projects_last_synced_at: new Date().toISOString() })
+    .eq("id", true);
+
+  // No revalidatePath here: the page is already `force-dynamic`, so the
+  // next visit re-queries Supabase regardless — and this call happens
+  // detached from any request/render lifecycle, which revalidatePath
+  // isn't meant to be called outside of.
+  await syncAllAutotaskClients(admin);
 }
 
 export async function deleteProject(projectId: string, clientId: string) {

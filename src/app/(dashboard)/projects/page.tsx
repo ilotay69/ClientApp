@@ -6,7 +6,7 @@ import { hasPermission } from "@/lib/permissions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 import { SearchBox } from "@/components/search-box";
 import { SyncAutotaskButton } from "@/components/sync-autotask-button";
-import { syncAllAutotaskProjectsAction } from "./actions";
+import { syncAllAutotaskProjectsAction, autoSyncAutotaskProjectsIfStale } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +38,14 @@ export default async function ProjectsPage({
     projectsQuery,
     hasPermission(supabase, "manage_projects"),
   ]);
+
+  // Fire-and-forget: never awaited, so a visit here never waits on
+  // Autotask — see autoSyncAutotaskProjectsIfStale's own comment for why.
+  if (canManageProjects) {
+    autoSyncAutotaskProjectsIfStale().catch((err) => {
+      console.error("Background Autotask projects sync failed", err);
+    });
+  }
 
   return (
     <div className="space-y-6">
