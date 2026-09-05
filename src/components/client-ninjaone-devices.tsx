@@ -197,19 +197,19 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex w-full items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
+        className="grid w-full grid-cols-[minmax(0,1fr)_14rem_9rem_3.5rem_auto] items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+        <span className="min-w-0 truncate text-sm font-medium text-slate-900">
           {d.system_name}
         </span>
-        <span className="w-56 shrink-0 truncate text-xs text-slate-500">
+        <span className="min-w-0 truncate text-xs text-slate-500">
           {d.os_name || "OS unknown"}
         </span>
-        <span className="w-32 shrink-0 truncate text-xs text-slate-500">
+        <span className="min-w-0 truncate text-xs text-slate-500">
           {d.last_logged_on_user || "—"}
         </span>
-        <span className="w-16 shrink-0 text-xs text-slate-500">{ageLabel(d) ?? "—"}</span>
-        <span className="flex shrink-0 items-center gap-2">
+        <span className="text-xs text-slate-500">{ageLabel(d) ?? "—"}</span>
+        <span className="flex items-center gap-2 justify-self-end">
           <Badge value={deviceTypeLabel(d.node_class)} />
           {d.is_offline !== null && <Badge value={d.is_offline ? "offline" : "online"} />}
         </span>
