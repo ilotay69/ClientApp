@@ -78,12 +78,24 @@ export function ClientNinjaOneDevices({
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<string | null>(null);
+  const [osFilter, setOsFilter] = useState("");
+  const [userFilter, setUserFilter] = useState("");
 
   // Type chips are limited to the types actually present, so a client with no
   // servers doesn't get a chip that can only ever return nothing.
   const presentTypes = Array.from(
     new Set(devices.map((d) => deviceTypeLabel(d.node_class)))
   ).filter((t) => ["server", "workstation", "network_device"].includes(t));
+
+  // OS and logged-on user can each have far too many distinct values for
+  // chips, so these are dropdowns instead — same "only what's present"
+  // rule as the type chips above.
+  const presentOs = Array.from(
+    new Set(devices.map((d) => d.os_name).filter((v): v is string => Boolean(v)))
+  ).sort();
+  const presentUsers = Array.from(
+    new Set(devices.map((d) => d.last_logged_on_user).filter((v): v is string => Boolean(v)))
+  ).sort();
 
   const visible = devices.filter((d) => {
     if (filter === "offline" && !d.is_offline) return false;
@@ -96,6 +108,8 @@ export function ClientNinjaOneDevices({
     ) {
       return false;
     }
+    if (osFilter && d.os_name !== osFilter) return false;
+    if (userFilter && d.last_logged_on_user !== userFilter) return false;
     return matchesQuery(
       query,
       d.system_name,
@@ -187,6 +201,20 @@ export function ClientNinjaOneDevices({
           ]}
           activeToggle={filter}
           onToggle={setFilter}
+          selects={[
+            {
+              label: "OS",
+              value: osFilter,
+              onChange: setOsFilter,
+              options: presentOs.map((os) => ({ value: os, label: os })),
+            },
+            {
+              label: "user",
+              value: userFilter,
+              onChange: setUserFilter,
+              options: presentUsers.map((u) => ({ value: u, label: u })),
+            },
+          ]}
         />
       )}
       <div className="divide-y divide-slate-100">
