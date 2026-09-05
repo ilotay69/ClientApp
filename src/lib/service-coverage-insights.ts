@@ -37,7 +37,7 @@ export type ServiceCoverageCategory = {
 
 const TOOL_NAME = "report_service_coverage";
 const TOOL_DESCRIPTION =
-  "Report every real category of service found, and which clients have nothing matching it.";
+  "Report every real, SPECIFIC category of service found (e.g. MDR, backup, email security — never a broad umbrella like \"Managed Services\"), and which clients have nothing matching it.";
 const TOOL_SCHEMA = {
   type: "object",
   properties: {
@@ -49,7 +49,7 @@ const TOOL_SCHEMA = {
           category: {
             type: "string",
             description:
-              "A short name for the category, e.g. \"MDR / endpoint detection and response\" or \"Backup\" — your own label, not necessarily a service's exact name.",
+              "A short, SPECIFIC category name, e.g. \"MDR / endpoint detection and response\" or \"Backup\" — your own label, not necessarily a service's exact name. Never a broad umbrella like \"Managed Services\" or \"IT Support\" that would trivially cover most clients and hide real gaps.",
           },
           matched_services: {
             type: "array",
@@ -83,7 +83,7 @@ function buildPrompt(services: CatalogServiceForCoverage[], clients: ClientForCo
     )
     .join("\n");
 
-  return `You're reviewing an MSP's service catalog and which services each client currently has attached, grouping into real CATEGORIES of protection so coverage can be checked even when the exact product differs from client to client.
+  return `You're reviewing an MSP's service catalog and which services each client currently has attached. This is used for upselling and coverage auditing — the entire point is finding real, specific gaps ("these 6 clients have no MDR at all"), so the single biggest mistake you can make here is grouping too broadly and hiding a real gap inside a vague umbrella category. Grouping too narrowly is fine and safe; grouping too broadly defeats the whole purpose of this report.
 
 Service catalog (what's offered, with a description if one was given):
 ${serviceList}
@@ -91,7 +91,21 @@ ${serviceList}
 Clients and the catalog services they currently have attached:
 ${clientList}
 
-Group the catalog into real categories by what the services actually do (infer this from the names and descriptions — e.g. "Huntress MDR" and "SentinelOne MDR" are both MDR/endpoint detection and response, even though they're different vendors and neither name matches the other exactly). For EVERY category you identify — not just ones with a gap — list which clients have NONE of that category's services attached (missing_clients). A client with ANY service in that category — any vendor, any exact name — is NOT missing; only list a client under a category if they truly have nothing matching it.
+Group the catalog into categories by what the service actually DOES, at the same granularity a security-minded IT professional would use to check coverage — treat these as always-separate categories when the catalog has services fitting each, never merged into one:
+- MDR / EDR (endpoint detection & response) — separate from plain antivirus
+- Antivirus / anti-malware (if distinct from an MDR/EDR product)
+- Backup (server/workstation, and cloud/SaaS backup e.g. Microsoft 365 backup, as its own category if the catalog has it separately)
+- Email security / spam & phishing filtering
+- Patch management
+- SOC / 24x7 monitoring (if sold separately from MDR itself)
+- Firewall management / network security
+- Vulnerability scanning / management
+- Password/credential management
+- Anything else that is clearly its own distinct kind of protection or service, by the same standard — when in doubt, keep it as its own category rather than folding it into a broader one.
+
+Do NOT invent a single broad bucket like "Managed Services" or "IT Support" that most clients trivially have something in — if you notice you're about to report zero or near-zero gaps across the board, that is a signal you've grouped too broadly, not a real result; re-examine whether some of what you lumped together should actually be split into the specific categories above.
+
+For each category, go through the client list one at a time and check their attached services against matched_services for that category — only list a client under missing_clients if they truly have NOTHING matching that category. A client with ANY service in that category — any vendor, any exact product name — is covered, not missing.
 
 Don't invent a category that isn't actually represented by a real catalog entry. Report every real category you find, even ones where missing_clients ends up empty because every client is already covered.
 
