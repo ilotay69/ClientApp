@@ -16,6 +16,7 @@ import {
   fetchTicketNotes,
   fetchTicketTimeEntries,
   fetchContactsForCompany,
+  fetchPrimaryContactForCompany,
   fetchQuotesForCompany,
   buildAutotaskQuoteUrl,
   type AutotaskCompany,
@@ -616,6 +617,21 @@ export async function syncClientAutotaskData(clientId: string): Promise<{ error:
         .from("projects")
         .insert(projectTickets.map((p) => ({ ...p, client_id: clientId })));
     }
+
+    // Autotask enforces at most one primaryContact per company — this is
+    // a real designation, not a guess, and isn't user-editable here.
+    const primaryContact = await fetchPrimaryContactForCompany(
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id
+    );
+    await admin
+      .from("clients")
+      .update({
+        primary_contact_name: primaryContact?.name ?? null,
+        primary_contact_email: primaryContact?.email ?? null,
+      })
+      .eq("id", clientId);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Sync failed." };
   }

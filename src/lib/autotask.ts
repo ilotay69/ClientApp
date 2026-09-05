@@ -233,6 +233,37 @@ export async function fetchContactsForCompany(
     .filter((c) => c.name);
 }
 
+export type AutotaskPrimaryContact = {
+  name: string;
+  email: string | null;
+};
+
+/** The one Contact Autotask allows to be flagged primaryContact=true for a
+ * company (it enforces at most one per company, unsetting any previous
+ * one) — this is a real designation, not a guess at "whichever contact
+ * happens to be first". Null if the company has none set. */
+export async function fetchPrimaryContactForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number
+): Promise<AutotaskPrimaryContact | null> {
+  type RawContact = { firstName?: string; lastName?: string; emailAddress?: string };
+  const items = (await autotaskQuery(creds, zoneUrl, "Contacts", {
+    filter: [
+      { op: "eq", field: "companyID", value: companyId },
+      { op: "eq", field: "primaryContact", value: true },
+      { op: "eq", field: "isActive", value: true },
+    ],
+    MaxRecords: 1,
+  })) as RawContact[];
+
+  const raw = items[0];
+  if (!raw) return null;
+  const name = [raw.firstName, raw.lastName].filter(Boolean).join(" ").trim();
+  if (!name) return null;
+  return { name, email: raw.emailAddress?.trim() || null };
+}
+
 export type PicklistLabelMaps = {
   status: Map<number, string>;
   priority: Map<number, string>;

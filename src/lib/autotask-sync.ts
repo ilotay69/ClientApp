@@ -9,6 +9,7 @@ import {
   fetchTicketPicklists,
   fetchContractServicesForCompany,
   fetchProjectSlaTicketsForCompany,
+  fetchPrimaryContactForCompany,
 } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 
@@ -78,6 +79,19 @@ export async function syncAllAutotaskClients(
           .from("projects")
           .insert(projectTickets.map((p) => ({ ...p, client_id: client.id })));
       }
+
+      const primaryContact = await fetchPrimaryContactForCompany(
+        settings.credentials,
+        settings.zoneUrl,
+        client.autotask_company_id as number
+      );
+      await admin
+        .from("clients")
+        .update({
+          primary_contact_name: primaryContact?.name ?? null,
+          primary_contact_email: primaryContact?.email ?? null,
+        })
+        .eq("id", client.id);
 
       results.push({
         clientId: client.id,

@@ -294,17 +294,6 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      <div className="max-w-md">
-        <ClientContactsPanel
-          contacts={contacts ?? []}
-          canManageClients={canManageClients}
-          removeAction={removeContactAction}
-          hasAutotaskMapping={client.autotask_company_id != null}
-          searchAutotaskAction={searchAutotaskContactsAction}
-          addFromAutotaskAction={addContactsFromAutotaskAction}
-        />
-      </div>
-
       <Tabs
         tabs={[
               {
@@ -436,6 +425,23 @@ export default async function ClientDetailPage({
                       ))}
                     </RelatedSection>
                   </>
+                ),
+              },
+              {
+                label: "Contacts",
+                content: (
+                  <div className="max-w-md">
+                    <ClientContactsPanel
+                      primaryContactName={client.primary_contact_name}
+                      primaryContactEmail={client.primary_contact_email}
+                      contacts={contacts ?? []}
+                      canManageClients={canManageClients}
+                      removeAction={removeContactAction}
+                      hasAutotaskMapping={client.autotask_company_id != null}
+                      searchAutotaskAction={searchAutotaskContactsAction}
+                      addFromAutotaskAction={addContactsFromAutotaskAction}
+                    />
+                  </div>
                 ),
               },
               {

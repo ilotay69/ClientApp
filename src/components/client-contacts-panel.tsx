@@ -4,11 +4,14 @@ import { AutotaskContactPicker } from "@/components/autotask-contact-picker";
 import { DeleteButton } from "@/components/delete-button";
 import type { FormState } from "@/app/(dashboard)/clients/actions";
 
-/** Contacts only ever come from Autotask now (no manual add) — the first
- * one in the list doubles as the "primary contact" shown up top, since
- * neither Autotask's Contacts entity nor this app's own client_contacts
- * table has a real "primary" flag to pull instead. */
+/** Primary contact is a real Autotask designation (its Contacts entity
+ * enforces at most one primaryContact per company) — synced in
+ * automatically whenever this client's Autotask data syncs, never
+ * editable or removable here. The rest of the list is manually curated
+ * (Autotask contacts added on demand) and can be removed. */
 export function ClientContactsPanel({
+  primaryContactName,
+  primaryContactEmail,
   contacts,
   canManageClients,
   removeAction,
@@ -16,6 +19,8 @@ export function ClientContactsPanel({
   searchAutotaskAction,
   addFromAutotaskAction,
 }: {
+  primaryContactName: string | null;
+  primaryContactEmail: string | null;
   contacts: { id: string; name: string; email: string | null }[];
   canManageClients: boolean;
   removeAction: (contactId: string) => Promise<void>;
@@ -25,24 +30,32 @@ export function ClientContactsPanel({
   >;
   addFromAutotaskAction: (contacts: { name: string; email: string | null }[]) => Promise<FormState>;
 }) {
-  const primary = contacts[0] ?? null;
-
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="mb-4 text-sm font-semibold text-slate-900">Contacts</h2>
 
-      {primary && (
-        <div className="mb-4 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Primary contact
+      <div className="mb-4 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Primary contact
+        </p>
+        {primaryContactName ? (
+          <>
+            <p className="text-sm font-medium text-slate-900">{primaryContactName}</p>
+            {primaryContactEmail && (
+              <p className="text-xs text-slate-500">{primaryContactEmail}</p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-slate-500">
+            {hasAutotaskMapping
+              ? "None set in Autotask yet."
+              : "Not linked to Autotask yet."}
           </p>
-          <p className="text-sm font-medium text-slate-900">{primary.name}</p>
-          {primary.email && <p className="text-xs text-slate-500">{primary.email}</p>}
-        </div>
-      )}
+        )}
+      </div>
 
       {contacts.length === 0 ? (
-        <p className="text-sm text-slate-500">No contacts yet.</p>
+        <p className="text-sm text-slate-500">No other contacts yet.</p>
       ) : (
         <ul className="space-y-2">
           {contacts.map((c) => (
