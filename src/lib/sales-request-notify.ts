@@ -79,15 +79,27 @@ export async function notifySalesRequestChange(
     });
 
     // Separate sends, not one email addressed to both — recipients
-    // shouldn't see each other's address.
+    // shouldn't see each other's address. resend.emails.send() returns
+    // {data, error} rather than throwing on an API-level rejection (e.g.
+    // an unverified domain only allowing sends to the account's own
+    // address) — checked and logged per recipient so a silent rejection
+    // for one recipient doesn't look identical to it never being
+    // attempted at all.
     for (const recipient of recipients) {
-      await resend.emails.send({
+      const { error: sendError } = await resend.emails.send({
         from: fromAddress,
         to: recipient,
         subject: `Sales request: ${request.title}`,
         html,
         text,
       });
+      if (sendError) {
+        console.error("Resend rejected sales-request notification", {
+          requestId,
+          recipient,
+          sendError,
+        });
+      }
     }
   } catch (err) {
     console.error("Failed to send sales-request notification email", err);
