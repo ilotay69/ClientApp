@@ -67,7 +67,8 @@ export async function deleteServiceOffering(serviceId: string) {
  * every client's own contracted services. Nothing stored; fetched and
  * analyzed fresh each time. */
 export async function analyzeServiceCoverageAction(): Promise<
-  { categories: ServiceCoverageCategory[] } | { error: string }
+  | { categories: ServiceCoverageCategory[]; clients: { id: string; name: string }[] }
+  | { error: string }
 > {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
@@ -131,7 +132,10 @@ export async function analyzeServiceCoverageAction(): Promise<
 
   try {
     const categories = await analyzeServiceCoverage(services, clientsForCoverage, aiSettings);
-    return { categories };
+    return {
+      categories,
+      clients: clients.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
+    };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Analysis failed." };
   }
