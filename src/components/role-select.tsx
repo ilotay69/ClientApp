@@ -2,8 +2,9 @@
 
 import { useTransition } from "react";
 import type { UserRole } from "@/lib/types";
+import { humanizeLabel } from "@/lib/format";
 
-const ROLES: UserRole[] = ["owner", "manager", "tech"];
+const ROLES: UserRole[] = ["owner", "manager", "tech", "sales_rep"];
 
 export function RoleSelect({
   memberId,
@@ -32,7 +33,7 @@ export function RoleSelect({
     >
       {ROLES.map((r) => (
         <option key={r} value={r}>
-          {r.replace("_", " ")}
+          {humanizeLabel(r)}
         </option>
       ))}
     </select>

@@ -21,7 +21,7 @@ import { Badge, OverdueBadge } from "@/components/badge";
 import { DomainHealthPanel } from "@/components/domain-health-panel";
 import { formatDate, isOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
 import { extractDomainFromEmail } from "@/lib/domain-health";
-import { hasPermission, isOwner } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 import {
   deleteClientRecord,
   removeClientContact,
@@ -68,7 +68,7 @@ export default async function ClientDetailPage({
     { data: client },
     { data: projects },
     { data: touchpoints },
-    isOwnerUser,
+    canManageTouchpoints,
     { data: salesRequests },
     canManageSalesRequests,
     { data: emails },
@@ -95,7 +95,7 @@ export default async function ClientDetailPage({
       .select("id, contact_method, due_date, completed_at")
       .eq("client_id", id)
       .order("due_date", { ascending: false }),
-    isOwner(supabase),
+    hasPermission(supabase, "manage_touchpoints"),
     supabase
       .from("sales_requests")
       .select("id, title, stage, source")
@@ -389,7 +389,7 @@ export default async function ClientDetailPage({
                       ))}
                     </RelatedSection>
 
-                    {isOwnerUser && (
+                    {canManageTouchpoints && (
                       <RelatedSection
                         title="Touchpoints"
                         newHref={`/touchpoints/new?client_id=${id}`}

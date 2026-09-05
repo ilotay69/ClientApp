@@ -3,10 +3,11 @@
 import { useActionState, useRef, useState } from "react";
 import type { AddMemberState } from "@/app/(dashboard)/team/actions";
 import type { UserRole } from "@/lib/types";
+import { humanizeLabel } from "@/lib/format";
 
 const initialState: AddMemberState = { error: null, createdPassword: null };
 
-const ROLES: UserRole[] = ["owner", "manager", "tech"];
+const ROLES: UserRole[] = ["owner", "manager", "tech", "sales_rep"];
 
 export function AddTeamMemberForm({
   action,
@@ -47,7 +48,7 @@ export function AddTeamMemberForm({
       >
         {ROLES.map((r) => (
           <option key={r} value={r}>
-            {r.replace("_", " ")}
+            {humanizeLabel(r)}
           </option>
         ))}
       </select>

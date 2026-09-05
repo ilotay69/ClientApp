@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isOwner } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 import { TouchpointForm } from "@/components/touchpoint-form";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge } from "@/components/badge";
@@ -24,7 +24,7 @@ export default async function TouchpointDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  if (!(await isOwner(supabase))) {
+  if (!(await hasPermission(supabase, "manage_touchpoints"))) {
     redirect("/touchpoints");
   }
 

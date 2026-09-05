@@ -2,7 +2,7 @@
 // If the schema changes, update these to match (or generate them with
 // `supabase gen types typescript` once the Supabase CLI is linked to the project).
 
-export type UserRole = "owner" | "manager" | "tech";
+export type UserRole = "owner" | "manager" | "tech" | "sales_rep";
 export type ProjectStatus =
   | "planning"
   | "active"

@@ -29,12 +29,16 @@ export default async function DashboardLayout({
   const canManageIntegrations = me?.permissions.has("manage_integrations") ?? false;
   const canManageTeam = me?.permissions.has("manage_team") ?? false;
   const canViewReports = me?.permissions.has("view_team_wide") ?? false;
-  const isOwner = me?.role === "owner";
+  const canManageTouchpoints = me?.permissions.has("manage_touchpoints") ?? false;
+  const canViewDomainHealth = me?.permissions.has("view_domain_health") ?? false;
 
-  const [teamOwnerOnly, integrationsOwnerOnly] = await Promise.all([
-    isPermissionOwnerOnly(supabase, "manage_team"),
-    isPermissionOwnerOnly(supabase, "manage_integrations"),
-  ]);
+  const [teamOwnerOnly, integrationsOwnerOnly, touchpointsOwnerOnly, domainHealthOwnerOnly] =
+    await Promise.all([
+      isPermissionOwnerOnly(supabase, "manage_team"),
+      isPermissionOwnerOnly(supabase, "manage_integrations"),
+      isPermissionOwnerOnly(supabase, "manage_touchpoints"),
+      isPermissionOwnerOnly(supabase, "view_domain_health"),
+    ]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -44,9 +48,12 @@ export default async function DashboardLayout({
         canManageIntegrations={canManageIntegrations}
         canManageTeam={canManageTeam}
         canViewReports={canViewReports}
-        isOwner={isOwner}
+        canManageTouchpoints={canManageTouchpoints}
+        canViewDomainHealth={canViewDomainHealth}
         teamOwnerOnly={teamOwnerOnly}
         integrationsOwnerOnly={integrationsOwnerOnly}
+        touchpointsOwnerOnly={touchpointsOwnerOnly}
+        domainHealthOwnerOnly={domainHealthOwnerOnly}
         signOutAction={signOut}
       />
       <main className="px-4 py-8 md:pl-64">

@@ -75,6 +75,7 @@ const COLORS: Record<string, string> = {
   owner: "bg-charcoal text-white",
   manager: INFO,
   tech: CATEGORY_PURPLE,
+  sales_rep: CATEGORY_INDIGO,
 
   // device online/offline (NinjaOne)
   online: SUCCESS,

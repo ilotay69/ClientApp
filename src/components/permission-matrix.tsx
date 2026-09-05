@@ -4,9 +4,10 @@ import { useTransition } from "react";
 import type { PermissionKey } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 
-const EDITABLE_ROLES: { role: "manager" | "tech"; label: string }[] = [
+const EDITABLE_ROLES: { role: "manager" | "tech" | "sales_rep"; label: string }[] = [
   { role: "manager", label: "Manager" },
   { role: "tech", label: "Tech" },
+  { role: "sales_rep", label: "Sales Rep" },
 ];
 
 export function PermissionMatrix({
@@ -18,7 +19,7 @@ export function PermissionMatrix({
   permissions: PermissionKey[];
   labels: Record<PermissionKey, string>;
   /** enabled permission keys per editable role */
-  grants: Record<"manager" | "tech", Set<PermissionKey>>;
+  grants: Record<"manager" | "tech" | "sales_rep", Set<PermissionKey>>;
   action: (role: UserRole, permission: PermissionKey, enabled: boolean) => Promise<void>;
 }) {
   return (

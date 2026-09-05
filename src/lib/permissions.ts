@@ -8,9 +8,11 @@ export type PermissionKey =
   | "view_team_wide"
   | "manage_clients"
   | "manage_projects"
+  | "manage_touchpoints"
   | "delete_tasks"
   | "manage_integrations"
-  | "manage_sales_requests";
+  | "manage_sales_requests"
+  | "view_domain_health";
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_team: "Add team members & change roles",
@@ -19,9 +21,11 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   view_team_wide: "View team-wide dashboard data",
   manage_clients: "Create, edit & delete clients",
   manage_projects: "Create, edit & delete projects",
+  manage_touchpoints: "Create, edit & delete touchpoints",
   delete_tasks: "Delete tasks",
   manage_integrations: "Configure AI providers & integrations",
   manage_sales_requests: "Create, edit & delete sales requests",
+  view_domain_health: "View the Domain Health tool",
 };
 
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];
@@ -84,34 +88,11 @@ export async function requirePermission(permission: PermissionKey) {
   return user;
 }
 
-/** Boolean check for pages that are Owner-only regardless of
- * role_permissions (e.g. Touchpoints) — a role check, not a permission
- * key, since no other role can ever be granted this. */
-export async function isOwner(supabase: SupabaseClient): Promise<boolean> {
-  const me = await getMyPermissions(supabase);
-  return me?.role === "owner";
-}
-
-/** Server-action guard for Owner-only actions — same shape as
- * requirePermission. */
-export async function requireOwner() {
-  const supabase = await createClient();
-  const me = await getMyPermissions(supabase);
-  if (!me || me.role !== "owner") return null;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
-
 /** True if no non-Owner role currently has this permission granted — i.e.
- * it's owner-only right now purely by configuration, not hardcoded the
- * way isOwner()/requireOwner() are. Drives the sidebar's "owner only"
- * lock icon for permission-gated links (Team, Integrations): granting
- * the permission to Manager or Tech later should make that lock
- * disappear on its own, unlike Touchpoints' lock, which can never go
- * away since it isn't tied to role_permissions at all. */
+ * it's owner-only right now purely by configuration. Drives the sidebar's
+ * "owner only" lock icon for permission-gated links: granting the
+ * permission to any other role later makes that lock disappear on its
+ * own, no code change needed. */
 export async function isPermissionOwnerOnly(
   supabase: SupabaseClient,
   permission: PermissionKey

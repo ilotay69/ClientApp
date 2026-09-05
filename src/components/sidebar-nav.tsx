@@ -27,8 +27,11 @@ type NavItem = {
   href: string;
   label: string;
   icon: (props: { className?: string }) => React.ReactNode;
-  /** Shows a small lock after the label — pages gated to Owner only,
-   * regardless of role_permissions (e.g. Touchpoints). */
+  /** Shows a small lock after the label — true while no non-Owner role
+   * currently has the permission behind this link granted, so Owner is
+   * effectively the only one with access right now (see
+   * isPermissionOwnerOnly). Disappears on its own once the Owner grants
+   * the permission to another role. */
   ownerOnly?: boolean;
 };
 
@@ -42,19 +45,18 @@ const LINKS_AFTER_TOUCHPOINTS: NavItem[] = [
   { href: "/sales-requests", label: "Internal Sales", icon: IconTag },
 ];
 
-// Standalone utilities, not tied to a client/project workflow — more land
-// here over time.
-const TOOLS_LINKS: NavItem[] = [{ href: "/domain-health", label: "Domain Health", icon: IconGlobe }];
-
 export function SidebarNav({
   userLabel,
   canManageServices,
   canManageIntegrations,
   canManageTeam,
   canViewReports,
-  isOwner,
+  canManageTouchpoints,
+  canViewDomainHealth,
   teamOwnerOnly,
   integrationsOwnerOnly,
+  touchpointsOwnerOnly,
+  domainHealthOwnerOnly,
   signOutAction,
 }: {
   userLabel: string;
@@ -62,24 +64,49 @@ export function SidebarNav({
   canManageIntegrations: boolean;
   canManageTeam: boolean;
   canViewReports: boolean;
-  isOwner: boolean;
-  /** True only while no non-Owner role has been granted manage_team —
+  canManageTouchpoints: boolean;
+  canViewDomainHealth: boolean;
+  /** True only while no non-Owner role has been granted the permission —
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
   integrationsOwnerOnly: boolean;
+  touchpointsOwnerOnly: boolean;
+  domainHealthOwnerOnly: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Touchpoints is a relationship-contact log restricted to owners — no
-  // point linking to a page that'll just redirect back out.
+  // Touchpoints is a relationship-contact log gated by manage_touchpoints —
+  // no point linking to a page that'll just redirect back out.
   const MAIN_LINKS: NavItem[] = [
     ...LINKS_BEFORE_TOUCHPOINTS,
-    ...(isOwner
-      ? [{ href: "/touchpoints", label: "Touchpoints", icon: IconCalendar, ownerOnly: true }]
+    ...(canManageTouchpoints
+      ? [
+          {
+            href: "/touchpoints",
+            label: "Touchpoints",
+            icon: IconCalendar,
+            ownerOnly: touchpointsOwnerOnly,
+          },
+        ]
       : []),
     ...LINKS_AFTER_TOUCHPOINTS,
+  ];
+
+  // Standalone utilities, not tied to a client/project workflow — more land
+  // here over time.
+  const TOOLS_LINKS: NavItem[] = [
+    ...(canViewDomainHealth
+      ? [
+          {
+            href: "/domain-health",
+            label: "Domain Health",
+            icon: IconGlobe,
+            ownerOnly: domainHealthOwnerOnly,
+          },
+        ]
+      : []),
   ];
 
   const settingsLinks: NavItem[] = [

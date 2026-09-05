@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue } from "@/lib/format";
-import { isOwner } from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +22,7 @@ export default async function TouchpointsPage({
   const { view, type } = await searchParams;
   const supabase = await createClient();
 
-  // A relationship-contact log (who said what, when to follow up) is
-  // owner-only, not gated by role_permissions like everything else here.
-  if (!(await isOwner(supabase))) {
+  if (!(await hasPermission(supabase, "manage_touchpoints"))) {
     redirect("/dashboard");
   }
 

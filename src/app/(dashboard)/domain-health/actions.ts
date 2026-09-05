@@ -1,18 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/permissions";
 import { checkDomainHealth, type DomainHealthReport } from "@/lib/domain-health";
 
-/** Live DNS/RDAP checks only — nothing sensitive, nothing stored, so this
- * is open to any signed-in user rather than gated behind a permission. */
 export async function checkDomainHealthAction(
   domain: string
 ): Promise<{ report: DomainHealthReport } | { error: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not signed in." };
+  if (!(await hasPermission(supabase, "view_domain_health"))) {
+    return { error: "You don't have permission to do that." };
+  }
 
   const trimmed = domain.trim();
   if (!trimmed) return { error: "Enter a domain." };

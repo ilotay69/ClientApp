@@ -23,13 +23,14 @@ export default async function RolesPage() {
     .from("role_permissions")
     .select("role, permission, enabled");
 
-  const grants: Record<"manager" | "tech", Set<PermissionKey>> = {
+  const grants: Record<"manager" | "tech" | "sales_rep", Set<PermissionKey>> = {
     manager: new Set(),
     tech: new Set(),
+    sales_rep: new Set(),
   };
   for (const row of rows ?? []) {
-    const role = row.role as "manager" | "tech" | "owner";
-    if (row.enabled && (role === "manager" || role === "tech")) {
+    const role = row.role as "manager" | "tech" | "sales_rep" | "owner";
+    if (row.enabled && (role === "manager" || role === "tech" || role === "sales_rep")) {
       grants[role].add(row.permission as PermissionKey);
     }
   }
@@ -44,8 +45,8 @@ export default async function RolesPage() {
           Roles &amp; permissions
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Owner always has full access. Toggle what Manager and Tech can do —
-          changes apply immediately, team-wide.
+          Owner always has full access. Toggle what Manager, Tech, and Sales
+          Rep can do — changes apply immediately, team-wide.
         </p>
       </div>
 

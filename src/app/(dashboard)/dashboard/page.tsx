@@ -16,11 +16,11 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: me }, canSeeTeamWide] = await Promise.all([
+  const [{ data: me }, canSeeTeamWide, canManageTouchpoints] = await Promise.all([
     supabase.from("profiles").select("role, full_name").eq("id", user?.id ?? "").single(),
     hasPermission(supabase, "view_team_wide"),
+    hasPermission(supabase, "manage_touchpoints"),
   ]);
-  const isOwnerUser = me?.role === "owner";
 
   const [
     { data: myTasks },
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="My open tasks" value={myTasks?.length ?? 0} href="/tasks?mine=1" />
-        {isOwnerUser && (
+        {canManageTouchpoints && (
           <StatCard
             label="Touchpoints past due"
             value={overdueTouchpoints.length}
@@ -198,7 +198,7 @@ export default async function DashboardPage() {
         })}
       </Section>
 
-      {isOwnerUser && (
+      {canManageTouchpoints && (
         <Section
           title={canSeeTeamWide ? "Touchpoints coming up" : "Your touchpoints coming up"}
           emptyText="No touchpoints scheduled."

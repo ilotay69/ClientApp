@@ -1,7 +1,17 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/permissions";
 import { DomainHealthPanel } from "@/components/domain-health-panel";
 import { checkDomainHealthAction } from "./actions";
 
-export default function DomainHealthPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DomainHealthPage() {
+  const supabase = await createClient();
+  if (!(await hasPermission(supabase, "view_domain_health"))) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="space-y-6">
       <div>
