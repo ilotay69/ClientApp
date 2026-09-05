@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Badge } from "@/components/badge";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 import type { TimeEntryFinding } from "@/lib/time-entry-insights";
 
 type ClientsResult = { id: string; name: string }[] | { error: string };
@@ -78,6 +79,7 @@ export function TimeEntryPatterns({
         >
           {analyzing ? "Analyzing…" : "Analyze patterns"}
         </button>
+        {analyzing && <IndeterminateProgressBar />}
       </div>
 
       {!analyzing && result && "error" in result && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 export type ClientServiceGap = { serviceName: string; otherClientCount: number };
 
@@ -77,7 +78,12 @@ export function ServiceCoverageAnalysis({
         )}
       </div>
 
-      {loading && <p className="px-5 py-4 text-sm text-slate-500">Checking…</p>}
+      {loading && (
+        <div className="flex items-center gap-2 px-5 py-4">
+          <p className="text-sm text-slate-500">Checking…</p>
+          <IndeterminateProgressBar />
+        </div>
+      )}
 
       {!loading && result && "error" in result && (
         <p className="px-5 py-4 text-sm text-red-600">{result.error}</p>

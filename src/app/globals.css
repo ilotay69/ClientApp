@@ -49,3 +49,16 @@ body {
   color: var(--color-charcoal);
   font-family: var(--font-sans);
 }
+
+/* Indeterminate progress bar (IndeterminateProgressBar component) — for a
+ * long-running action with no real percentage to report (an AI analysis
+ * call), a sliding bar reads as "still working" without pretending to
+ * know how close it is to done. */
+@keyframes indeterminate-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
