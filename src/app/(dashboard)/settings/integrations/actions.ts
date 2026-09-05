@@ -110,9 +110,10 @@ export async function saveAutotaskSettings(
     return { error: "A Secret is required for first-time setup.", success: null };
   }
 
-  let zoneUrl: string | null = null;
+  let zoneUrl: string;
+  let webZoneUrl: string;
   try {
-    zoneUrl = await resolveZoneUrl(username);
+    ({ zoneUrl, webUrl: webZoneUrl } = await resolveZoneUrl(username));
   } catch (err) {
     return {
       error: err instanceof Error ? err.message : "Failed to resolve Autotask zone.",
@@ -125,6 +126,7 @@ export async function saveAutotaskSettings(
     username: string;
     integration_code: string;
     zone_url: string;
+    web_zone_url: string;
     updated_by: string;
     secret?: string;
   } = {
@@ -132,6 +134,7 @@ export async function saveAutotaskSettings(
     username,
     integration_code: integrationCode,
     zone_url: zoneUrl,
+    web_zone_url: webZoneUrl,
     updated_by: user.id,
   };
   if (secret) payload.secret = secret;
@@ -159,8 +162,11 @@ export async function testAutotaskConnectionAction(): Promise<{ ok: boolean; mes
   const result = await testAutotaskConnection(settings.credentials satisfies AutotaskCredentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
 
-  if (result.zoneUrl && result.zoneUrl !== settings.zoneUrl) {
-    await admin.from("autotask_settings").update({ zone_url: result.zoneUrl }).eq("id", true);
+  if (result.zoneUrl && (result.zoneUrl !== settings.zoneUrl || result.webUrl !== settings.webZoneUrl)) {
+    await admin
+      .from("autotask_settings")
+      .update({ zone_url: result.zoneUrl, web_zone_url: result.webUrl })
+      .eq("id", true);
   }
 
   return { ok: true, message: "Connected — credentials are working." };

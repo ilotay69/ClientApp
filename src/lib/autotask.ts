@@ -91,9 +91,16 @@ async function autotaskQueryAllPages(
   return results;
 }
 
-/** Resolves the tenant's per-zone API base URL — required first call,
- * unauthenticated, before any other Autotask request can be made. */
-export async function resolveZoneUrl(username: string): Promise<string> {
+/** Resolves the tenant's per-zone API base URL (for REST calls) and its
+ * classic web-UI zone (for deep links, e.g. a quote's own quote.asp page —
+ * that UI has no REST-accessible equivalent) — required first call,
+ * unauthenticated, before any other Autotask request can be made. The two
+ * zones use different hostname numbering (e.g. "webservices3" vs "ww3"),
+ * so the web one can't be derived from the API one and must come from
+ * this same response. */
+export async function resolveZoneUrl(
+  username: string
+): Promise<{ zoneUrl: string; webUrl: string }> {
   const url = new URL("https://webservices.autotask.net/atservicesrest/v1.0/zoneInformation");
   url.searchParams.set("user", username);
 
@@ -104,25 +111,29 @@ export async function resolveZoneUrl(username: string): Promise<string> {
   }
   const json = await res.json();
   const zoneUrl = json.url as string | undefined;
+  const webUrl = json.webUrl as string | undefined;
   if (!zoneUrl) throw new Error("Autotask zone lookup did not return a URL.");
   // zoneInformation returns the bare zone base (e.g.
   // "https://webservices3.autotask.net/atservicesrest/") with no version
   // segment — every other endpoint lives under /v1.0 on top of that.
-  return `${zoneUrl.replace(/\/$/, "")}/v1.0`;
+  return {
+    zoneUrl: `${zoneUrl.replace(/\/$/, "")}/v1.0`,
+    webUrl: (webUrl ?? "").replace(/\/$/, ""),
+  };
 }
 
 /** Resolves the zone, then makes one trivial authenticated call to confirm
  * the credentials actually work (not just that zone resolution succeeded). */
 export async function testAutotaskConnection(
   creds: AutotaskCredentials
-): Promise<{ ok: boolean; zoneUrl?: string; error?: string }> {
+): Promise<{ ok: boolean; zoneUrl?: string; webUrl?: string; error?: string }> {
   try {
-    const zoneUrl = await resolveZoneUrl(creds.username);
+    const { zoneUrl, webUrl } = await resolveZoneUrl(creds.username);
     await autotaskQuery(creds, zoneUrl, "Companies", {
       filter: [{ op: "gte", field: "id", value: 0 }],
       MaxRecords: 1,
     });
-    return { ok: true, zoneUrl };
+    return { ok: true, zoneUrl, webUrl };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
   }
@@ -823,4 +834,67 @@ export async function fetchContractServicesForCompany(
       quantity: quantities.get(cs.id) ?? null,
     };
   });
+}
+
+export type AutotaskQuote = {
+  id: number;
+  name: string;
+  quoteNumber: number | null;
+  approvalStatus: string | null;
+  effectiveDate: string | null;
+  expirationDate: string | null;
+};
+
+/** Quotes have no direct company filter — a Quote only carries an
+ * opportunityID, so this goes through the client's Opportunities first.
+ * No dollar amounts read or returned (this app never surfaces those) and
+ * no PDF/portal link either — Autotask's Quotes entity doesn't have one;
+ * callers build a deep link to the quote's own classic-UI page instead. */
+export async function fetchQuotesForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number
+): Promise<AutotaskQuote[]> {
+  type RawOpportunity = { id: number };
+  const opportunities = (await autotaskQuery(creds, zoneUrl, "Opportunities", {
+    filter: [{ op: "eq", field: "companyID", value: companyId }],
+    MaxRecords: 200,
+  })) as RawOpportunity[];
+  if (opportunities.length === 0) return [];
+
+  type RawQuote = {
+    id: number;
+    name: string;
+    quoteNumber?: number;
+    approvalStatus?: number;
+    effectiveDate?: string;
+    expirationDate?: string;
+  };
+  const items = (await autotaskQuery(creds, zoneUrl, "Quotes", {
+    filter: [{ op: "in", field: "opportunityID", value: opportunities.map((o) => o.id) }],
+    MaxRecords: 200,
+  })) as RawQuote[];
+  if (items.length === 0) return [];
+
+  const fields = await fetchEntityFields(creds, zoneUrl, "Quotes");
+  const approvalStatusLabels = picklistMap(fields, "approvalStatus");
+
+  return items
+    .map((q) => ({
+      id: q.id,
+      name: q.name,
+      quoteNumber: q.quoteNumber ?? null,
+      approvalStatus:
+        q.approvalStatus != null ? (approvalStatusLabels.get(q.approvalStatus) ?? null) : null,
+      effectiveDate: q.effectiveDate ?? null,
+      expirationDate: q.expirationDate ?? null,
+    }))
+    .sort((a, b) => (b.effectiveDate ?? "").localeCompare(a.effectiveDate ?? ""));
+}
+
+/** The classic web UI's quote page — Autotask's REST API has nothing
+ * equivalent to link to, so this is the only clickable way back to a
+ * quote from outside Autotask itself. */
+export function buildAutotaskQuoteUrl(webZoneUrl: string, quoteId: number): string {
+  return `${webZoneUrl.replace(/\/$/, "")}/opportunity/quotes/quote.asp?QuoteID=${quoteId}`;
 }

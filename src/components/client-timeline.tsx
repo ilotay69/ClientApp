@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/format";
 import { DeleteButton } from "@/components/delete-button";
 import { FollowupBadge } from "@/components/badge";
-import type { FormState } from "@/app/(dashboard)/clients/actions";
+import type { FormState, AutotaskQuoteOption } from "@/app/(dashboard)/clients/actions";
 
 const initialState: FormState = { error: null };
 
@@ -16,6 +17,10 @@ export type TimelineEntry = {
   contactName: string | null;
   date: string;
   webLink?: string | null;
+  /** Label for webLink — defaults to "Open in Outlook" (the only source
+   * for it until quote references existed). Set explicitly for anything
+   * else, e.g. "View in Autotask". */
+  linkLabel?: string | null;
   loggedBy?: string | null;
   /** Set only for an uploaded document — the id to fetch /api/documents/[id]
    * with, not the storage path itself (the route mints a fresh signed URL). */
@@ -58,6 +63,8 @@ export function ClientTimeline({
   logAction,
   uploadQuoteAction,
   uploadReviewAction,
+  listAutotaskQuotesAction,
+  logAutotaskQuoteAction,
   deleteAction,
   currentUserId,
   canManageAllEntries,
@@ -67,12 +74,14 @@ export function ClientTimeline({
   logAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
   uploadQuoteAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
   uploadReviewAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
+  listAutotaskQuotesAction: () => Promise<{ quotes: AutotaskQuoteOption[] } | { error: string }>;
+  logAutotaskQuoteAction: (quote: AutotaskQuoteOption) => Promise<FormState>;
   deleteAction: (interactionId: string) => Promise<void>;
   currentUserId: string | null;
   canManageAllEntries: boolean;
 }) {
   const [filter, setFilter] = useState<"all" | TimelineEntry["type"]>("all");
-  const [mode, setMode] = useState<"log" | "upload">("log");
+  const [mode, setMode] = useState<"log" | "upload" | "autotask-quote">("log");
 
   const visible = filter === "all" ? entries : entries.filter((e) => e.type === filter);
 
@@ -89,15 +98,23 @@ export function ClientTimeline({
         <ModeTab active={mode === "upload"} onClick={() => setMode("upload")}>
           Upload quote / review
         </ModeTab>
+        <ModeTab active={mode === "autotask-quote"} onClick={() => setMode("autotask-quote")}>
+          Select Autotask quote
+        </ModeTab>
       </div>
 
-      {mode === "log" ? (
-        <LogForm logAction={logAction} contacts={contacts} />
-      ) : (
+      {mode === "log" && <LogForm logAction={logAction} contacts={contacts} />}
+      {mode === "upload" && (
         <UploadForm
           uploadQuoteAction={uploadQuoteAction}
           uploadReviewAction={uploadReviewAction}
           contacts={contacts}
+        />
+      )}
+      {mode === "autotask-quote" && (
+        <AutotaskQuoteForm
+          listAutotaskQuotesAction={listAutotaskQuotesAction}
+          logAutotaskQuoteAction={logAutotaskQuoteAction}
         />
       )}
 
@@ -165,7 +182,7 @@ export function ClientTimeline({
                 rel="noreferrer"
                 className="mt-1 inline-block text-xs text-slate-500 underline"
               >
-                Open in Outlook
+                {entry.linkLabel ?? "Open in Outlook"}
               </a>
             )}
             {entry.documentId && (
@@ -379,5 +396,83 @@ function UploadForm({
         {pending ? "Uploading..." : "Upload document"}
       </button>
     </form>
+  );
+}
+
+function AutotaskQuoteForm({
+  listAutotaskQuotesAction,
+  logAutotaskQuoteAction,
+}: {
+  listAutotaskQuotesAction: () => Promise<{ quotes: AutotaskQuoteOption[] } | { error: string }>;
+  logAutotaskQuoteAction: (quote: AutotaskQuoteOption) => Promise<FormState>;
+}) {
+  const router = useRouter();
+  const [quotes, setQuotes] = useState<AutotaskQuoteOption[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, startLoad] = useTransition();
+  const [loggingId, setLoggingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    startLoad(async () => {
+      const result = await listAutotaskQuotesAction();
+      if ("error" in result) setError(result.error);
+      else setQuotes(result.quotes);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const logQuote = (quote: AutotaskQuoteOption) => {
+    setError(null);
+    setLoggingId(quote.id);
+    startLoad(async () => {
+      const result = await logAutotaskQuoteAction(quote);
+      setLoggingId(null);
+      if (result.error) setError(result.error);
+      else router.refresh();
+    });
+  };
+
+  return (
+    <div className="space-y-2 border-b border-slate-200 px-5 py-2">
+      <p className="text-xs text-slate-500">
+        Logs a reference to an existing Autotask quote (name, number, status, dates) with a link
+        back to it — not a document, since Autotask has no PDF for a quote to fetch.
+      </p>
+      {loading && quotes === null && (
+        <p className="text-sm text-slate-500">Loading Autotask quotes…</p>
+      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {quotes && quotes.length === 0 && (
+        <p className="text-sm text-slate-500">No Autotask quotes found for this client.</p>
+      )}
+      {quotes && quotes.length > 0 && (
+        <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200">
+          {quotes.map((q) => (
+            <li key={q.id} className="flex items-center justify-between gap-3 px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">{q.name}</p>
+                <p className="text-xs text-slate-500">
+                  {[
+                    q.quoteNumber ? `#${q.quoteNumber}` : null,
+                    q.approvalStatus,
+                    q.effectiveDate ? formatDate(q.effectiveDate) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => logQuote(q)}
+                disabled={loggingId === q.id}
+                className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+              >
+                {loggingId === q.id ? "Logging…" : "Log this quote"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

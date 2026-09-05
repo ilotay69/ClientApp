@@ -32,6 +32,8 @@ import {
   addClientContactsFromAutotask,
   logClientInteraction,
   uploadClientDocument,
+  listAutotaskQuotesForClientAction,
+  logAutotaskQuoteReference,
   deleteClientInteraction,
   searchAutotaskCompaniesAction,
   linkClientAutotaskCompany,
@@ -119,7 +121,7 @@ export default async function ClientDetailPage({
     supabase
       .from("client_interactions")
       .select(
-        "id, type, subject, body, next_contact_date, created_at, attachment_path, attachment_filename, created_by, client_contacts(name), profiles(full_name)"
+        "id, type, subject, body, next_contact_date, created_at, attachment_path, attachment_filename, external_link, created_by, client_contacts(name), profiles(full_name)"
       )
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
@@ -188,6 +190,8 @@ export default async function ClientDetailPage({
   const logInteractionAction = logClientInteraction.bind(null, id);
   const uploadQuoteAction = uploadClientDocument.bind(null, id, "quote");
   const uploadReviewAction = uploadClientDocument.bind(null, id, "review");
+  const listAutotaskQuotesAction = listAutotaskQuotesForClientAction.bind(null, id);
+  const logAutotaskQuoteAction = logAutotaskQuoteReference.bind(null, id);
   const deleteInteractionAction = deleteClientInteraction.bind(null, id);
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
@@ -240,6 +244,8 @@ export default async function ClientDetailPage({
       loggedBy: (i.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
       documentId: i.attachment_path ? i.id : null,
       attachmentFilename: i.attachment_filename,
+      webLink: i.external_link,
+      linkLabel: i.external_link ? "View in Autotask" : null,
       interactionId: i.id,
       createdByUserId: i.created_by,
       nextContactDate: i.next_contact_date,
@@ -490,6 +496,8 @@ export default async function ClientDetailPage({
                     logAction={logInteractionAction}
                     uploadQuoteAction={uploadQuoteAction}
                     uploadReviewAction={uploadReviewAction}
+                    listAutotaskQuotesAction={listAutotaskQuotesAction}
+                    logAutotaskQuoteAction={logAutotaskQuoteAction}
                     deleteAction={deleteInteractionAction}
                     currentUserId={currentUser?.id ?? null}
                     canManageAllEntries={canManageClients}
