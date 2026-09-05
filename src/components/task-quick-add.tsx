@@ -70,27 +70,25 @@ export function TaskQuickAdd({
         required
         className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
       />
-      {!personal && (
-        <select
-          name="client_id"
-          value={selectedClientId}
-          onChange={(e) => {
-            const clientId = e.target.value;
-            setSelectedClientId(clientId);
-            if (selectedProject && selectedProject.clientId !== clientId) {
-              setSelectedProjectId("");
-            }
-          }}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-        >
-          <option value="">No client (internal)</option>
-          {visibleClients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      )}
+      <select
+        name="client_id"
+        value={selectedClientId}
+        onChange={(e) => {
+          const clientId = e.target.value;
+          setSelectedClientId(clientId);
+          if (selectedProject && selectedProject.clientId !== clientId) {
+            setSelectedProjectId("");
+          }
+        }}
+        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+      >
+        <option value="">No client (internal)</option>
+        {visibleClients.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
       {!personal && (
         <select
           name="project_id"

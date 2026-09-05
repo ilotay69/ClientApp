@@ -111,7 +111,9 @@ export async function createTask(
       is_personal: isPersonal,
       kind: isPersonal ? "general" : (String(formData.get("kind") ?? "general") as TaskKind),
       priority: String(formData.get("priority") ?? "low") as TaskPriority,
-      client_id: isPersonal ? null : emptyToNull(formData.get("client_id")),
+      // A personal to-do can still be tagged to a client (for the
+      // creator's own reference) — just never a project or an assignee.
+      client_id: emptyToNull(formData.get("client_id")),
       project_id: isPersonal ? null : emptyToNull(formData.get("project_id")),
       assigned_to: isPersonal ? null : (assigneeIds[0] ?? null),
       start_date: startDate,

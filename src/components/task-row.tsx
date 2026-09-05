@@ -54,8 +54,8 @@ export function TaskRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const overdue = task.status !== "done" && task.status !== "dismissed" && isOverdue(task.due_date);
-  const clientLabel = task.is_personal ? "Personal" : (clientName ?? "Internal");
-  const personLabel = task.is_personal ? "You" : assigneeNames || "Unassigned";
+  const clientLabel = clientName ?? (task.is_personal ? "—" : "Internal");
+  const personLabel = task.is_personal ? "" : assigneeNames || "Unassigned";
 
   const [notes, setNotes] = useState<TaskNote[] | null>(null);
   const [notesError, setNotesError] = useState<string | null>(null);

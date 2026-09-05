@@ -145,7 +145,9 @@ export default async function TasksPage({
     // just keeps the query's intent explicit.
     supabase
       .from("tasks")
-      .select("id, kind, title, detail, notes, status, priority, start_date, due_date, is_personal")
+      .select(
+        "id, kind, title, detail, notes, status, priority, start_date, due_date, client_id, is_personal"
+      )
       .eq("is_personal", true)
       .order("due_date", { ascending: true, nullsFirst: false }),
   ]);
@@ -256,8 +258,8 @@ export default async function TasksPage({
         {(personalTasks ?? []).map((t) => (
           <TaskRow
             key={t.id}
-            task={{ ...t, client_id: null, project_id: null } as TaskRowData}
-            clientName={null}
+            task={{ ...t, project_id: null } as TaskRowData}
+            clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
             assigneeNames=""
             canDelete
             statusOptions={statusOptionsFor(t.status)}
