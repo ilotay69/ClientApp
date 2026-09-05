@@ -221,6 +221,62 @@ export async function getProjectQuoteLogAction(
   };
 }
 
+export type ProjectNote = {
+  id: string;
+  body: string;
+  created_at: string;
+  authorName: string | null;
+};
+
+/** Live-fetched only when a project's row is expanded — same on-demand
+ * pattern used for Tasks'/Sales Requests' notes threads. */
+export async function getProjectNotesAction(
+  projectId: string
+): Promise<{ notes: ProjectNote[] } | { error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("project_notes")
+    .select("id, body, created_at, profiles(full_name)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  if (error) return { error: error.message };
+
+  return {
+    notes: (data ?? []).map((n) => ({
+      id: n.id,
+      body: n.body,
+      created_at: n.created_at,
+      authorName: (n.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
+    })),
+  };
+}
+
+export async function addProjectNote(
+  projectId: string,
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { error: "Enter a note." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("project_notes").insert({
+    project_id: projectId,
+    author_id: user?.id ?? null,
+    body,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  return { error: null };
+}
+
 export async function deleteProject(projectId: string, clientId: string) {
   if (!(await requirePermission("manage_projects"))) return;
 

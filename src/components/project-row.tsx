@@ -1,15 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Badge } from "@/components/badge";
 import { formatDate } from "@/lib/format";
 import { IconChevronDown } from "@/components/icons";
 import { ProjectTaskQuickAdd } from "@/components/project-task-quick-add";
 import { AutotaskQuotePicker } from "@/components/autotask-quote-picker";
-import type { ProjectTask, ProjectQuoteLogEntry } from "@/app/(dashboard)/projects/actions";
+import type {
+  ProjectTask,
+  ProjectQuoteLogEntry,
+  ProjectNote,
+  FormState as ProjectFormState,
+} from "@/app/(dashboard)/projects/actions";
 import type { FormState, AutotaskQuoteOption } from "@/app/(dashboard)/clients/actions";
 import type { FormState as TaskFormState } from "@/app/(dashboard)/tasks/actions";
+
+const initialNoteState: ProjectFormState = { error: null };
 
 export type ProjectRowData = {
   id: string;
@@ -28,6 +35,8 @@ export function ProjectRow({
   listAutotaskQuotesAction,
   logAutotaskQuoteAction,
   fetchQuoteLogAction,
+  fetchNotesAction,
+  addNoteAction,
 }: {
   project: ProjectRowData;
   clientName: string | null;
@@ -45,6 +54,8 @@ export function ProjectRow({
   fetchQuoteLogAction: (
     projectId: string
   ) => Promise<{ entries: ProjectQuoteLogEntry[] } | { error: string }>;
+  fetchNotesAction: (projectId: string) => Promise<{ notes: ProjectNote[] } | { error: string }>;
+  addNoteAction: (prevState: ProjectFormState, formData: FormData) => Promise<ProjectFormState>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [tasks, setTasks] = useState<ProjectTask[] | null>(null);
@@ -53,6 +64,9 @@ export function ProjectRow({
   const [quoteLog, setQuoteLog] = useState<ProjectQuoteLogEntry[] | null>(null);
   const [quoteLogError, setQuoteLogError] = useState<string | null>(null);
   const [loadingQuoteLog, startLoadQuoteLog] = useTransition();
+  const [notes, setNotes] = useState<ProjectNote[] | null>(null);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [loadingNotes, startLoadNotes] = useTransition();
 
   useEffect(() => {
     if (!expanded || tasks !== null) return;
@@ -74,6 +88,16 @@ export function ProjectRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
 
+  useEffect(() => {
+    if (!expanded || notes !== null) return;
+    startLoadNotes(async () => {
+      const result = await fetchNotesAction(project.id);
+      if ("error" in result) setNotesError(result.error);
+      else setNotes(result.notes);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded]);
+
   const refreshTasks = () => {
     startLoadTasks(async () => {
       const result = await fetchTasksAction(project.id);
@@ -87,6 +111,21 @@ export function ProjectRow({
       if (!("error" in result)) setQuoteLog(result.entries);
     });
   };
+
+  const [noteState, noteFormAction, notePending] = useActionState(addNoteAction, initialNoteState);
+  const noteFormRef = useRef<HTMLFormElement>(null);
+  const prevNoteState = useRef(noteState);
+  useEffect(() => {
+    if (prevNoteState.current !== noteState && !noteState.error) {
+      noteFormRef.current?.reset();
+      startLoadNotes(async () => {
+        const result = await fetchNotesAction(project.id);
+        if (!("error" in result)) setNotes(result.notes);
+      });
+    }
+    prevNoteState.current = noteState;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteState]);
 
   return (
     <div className="border-b border-slate-100 last:border-b-0">
@@ -159,6 +198,50 @@ export function ProjectRow({
                 return result;
               }}
             />
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-white p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Notes
+            </p>
+            <div className="space-y-2">
+              {loadingNotes && notes === null && (
+                <p className="text-xs text-slate-500">Loading notes…</p>
+              )}
+              {notesError && <p className="text-xs text-red-600">{notesError}</p>}
+              {notes && notes.length > 0 && (
+                <ul className="space-y-2">
+                  {notes.map((n) => (
+                    <li key={n.id} className="text-sm">
+                      <p className="whitespace-pre-line text-slate-700">{n.body}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {n.authorName ?? "Unknown"} · {formatDate(n.created_at)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {notes && notes.length === 0 && (
+                <p className="text-xs text-slate-500">No notes yet.</p>
+              )}
+              <form ref={noteFormRef} action={noteFormAction} className="flex items-start gap-2 pt-1">
+                <textarea
+                  name="body"
+                  rows={2}
+                  placeholder="Add a note..."
+                  required
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={notePending}
+                  className="shrink-0 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+                >
+                  {notePending ? "Adding…" : "Add"}
+                </button>
+              </form>
+              {noteState.error && <p className="text-xs text-red-600">{noteState.error}</p>}
+            </div>
           </div>
 
           {project.hasAutotaskCompany && (

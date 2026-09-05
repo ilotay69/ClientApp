@@ -10,6 +10,8 @@ import {
   autoSyncAutotaskProjectsIfStale,
   getProjectTasksAction,
   getProjectQuoteLogAction,
+  getProjectNotesAction,
+  addProjectNote,
 } from "./actions";
 import { createTask } from "../tasks/actions";
 import { listAutotaskQuotesForClientAction, logAutotaskQuoteReference } from "../clients/actions";
@@ -115,6 +117,8 @@ export default async function ProjectsPage({
               createTaskAction={createTask}
               listAutotaskQuotesAction={listAutotaskQuotesForClientAction}
               logAutotaskQuoteAction={logAutotaskQuoteReference}
+              fetchNotesAction={getProjectNotesAction}
+              addNoteAction={addProjectNote.bind(null, p.id)}
             />
           );
         })}
