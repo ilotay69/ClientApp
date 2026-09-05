@@ -4,13 +4,14 @@ import { getResendClient, buildSalesRequestEmail } from "@/lib/resend";
 /** Best-effort — a missing Resend key, unset rep email, or send failure
  * never blocks the actual create/update/note action itself.
  *
- * Notifies both the sales rep and the assignee (the tech who created the
- * request) on every change, minus whoever actually made that change —
- * so e.g. a rep editing the stage still notifies the tech, a tech editing
- * it still notifies the rep, and a third party (an Owner stepping in)
- * notifies both, instead of only the rep. `actorUserId` is whoever
- * performed the action (null if not resolvable), used only to exclude
- * them from their own notification. */
+ * Notifies both the person who made the change and the sales rep, every
+ * time — no exclusions. (Previously excluded whoever acted, so the rep
+ * making a change wouldn't notify themselves; but sales requests
+ * auto-assign the creator, so on create the actor and assignee were
+ * always the same person — if that person was also the rep, every
+ * candidate got excluded and nobody was notified at all. Simpler and
+ * more predictable to always include both.) `actorUserId` is whoever
+ * performed the action (null if not resolvable). */
 export async function notifySalesRequestChange(
   requestId: string,
   changeSummary: string,
@@ -22,7 +23,7 @@ export async function notifySalesRequestChange(
     const [{ data: request }, { data: repSettings }, { data: actorProfile }] = await Promise.all([
       admin
         .from("sales_requests")
-        .select("title, stage, detail, requested_by_name, assigned_to, clients(name)")
+        .select("title, stage, detail, requested_by_name, clients(name)")
         .eq("id", requestId)
         .single(),
       admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
@@ -32,29 +33,17 @@ export async function notifySalesRequestChange(
     ]);
     if (!request) return;
 
-    let assigneeEmail: string | null = null;
-    if (request.assigned_to) {
-      const { data: assignee } = await admin
-        .from("profiles")
-        .select("email")
-        .eq("id", request.assigned_to)
-        .maybeSingle();
-      assigneeEmail = assignee?.email ?? null;
-    }
-
     const repEmail = repSettings?.rep_email ?? null;
     const actorEmail = actorProfile?.email ?? null;
-    const actorEmailLower = actorEmail?.toLowerCase() ?? null;
 
-    // Both sides get notified, minus whoever just made the change
-    // themselves — deduped case-insensitively, since the rep and the
-    // assignee can be the same person.
+    // Both get notified, always — deduped case-insensitively since the
+    // actor and the rep can be the same person.
     const seen = new Set<string>();
     const recipients: string[] = [];
-    for (const candidate of [repEmail, assigneeEmail]) {
+    for (const candidate of [repEmail, actorEmail]) {
       if (!candidate) continue;
       const lower = candidate.toLowerCase();
-      if (lower === actorEmailLower || seen.has(lower)) continue;
+      if (seen.has(lower)) continue;
       seen.add(lower);
       recipients.push(candidate);
     }
@@ -63,7 +52,6 @@ export async function notifySalesRequestChange(
       console.error("Sales-request notification skipped: no recipient resolved", {
         requestId,
         repEmail,
-        assigneeEmail,
         actorEmail,
       });
       return;
