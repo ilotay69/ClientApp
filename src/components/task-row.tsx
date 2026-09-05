@@ -105,7 +105,9 @@ export function TaskRow({
           {task.due_date ? formatDate(task.due_date) : "—"}
         </span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientLabel}</span>
-        <span className="w-32 shrink-0 truncate text-sm text-slate-700">{personLabel}</span>
+        {personLabel && (
+          <span className="w-32 shrink-0 truncate text-sm text-slate-700">{personLabel}</span>
+        )}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
           {task.title}
         </span>
