@@ -14,7 +14,7 @@ import { ClientM365Licenses } from "@/components/client-m365-licenses";
 import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
 import { SyncM365Button } from "@/components/sync-m365-button";
 import { M365ClientCredentialsButton } from "@/components/m365-client-credentials-button";
-import { SuggestionCard } from "@/components/suggestion-card";
+import { ClientInsightParagraph } from "@/components/client-insight-paragraph";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
 import { Badge, OverdueBadge } from "@/components/badge";
@@ -70,7 +70,6 @@ export default async function ClientDetailPage({
     canManageSalesRequests,
     { data: emails },
     { data: tasks },
-    { data: members },
     { data: contacts },
     { data: interactions },
     canManageClients,
@@ -111,7 +110,6 @@ export default async function ClientDetailPage({
       .eq("client_id", id)
       .not("status", "in", "(done,dismissed)")
       .order("due_date", { ascending: true, nullsFirst: false }),
-    supabase.from("profiles").select("id, full_name").order("full_name"),
     supabase.from("client_contacts").select("id, name, email").eq("client_id", id).order("name"),
     supabase
       .from("client_interactions")
@@ -133,7 +131,7 @@ export default async function ClientDetailPage({
       .order("due_date", { ascending: true, nullsFirst: false }),
     supabase
       .from("suggestions")
-      .select("id, kind, summary, detail, priority")
+      .select("id, summary, detail, priority")
       .eq("client_id", id)
       .eq("status", "open")
       .order("priority", { ascending: true })
@@ -307,16 +305,12 @@ export default async function ClientDetailPage({
                       </div>
                       <div className="divide-y divide-slate-100">
                         {(suggestions ?? []).map((s) => (
-                          <SuggestionCard
+                          <ClientInsightParagraph
                             key={s.id}
                             id={s.id}
-                            clientId={id}
-                            clientName={client.name}
-                            kind={s.kind}
                             summary={s.summary}
                             detail={s.detail}
                             priority={s.priority}
-                            members={members ?? []}
                           />
                         ))}
                         {(suggestions ?? []).length === 0 && (
