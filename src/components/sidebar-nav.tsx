@@ -10,7 +10,6 @@ import {
   IconFolder,
   IconCalendar,
   IconMail,
-  IconRefresh,
   IconList,
   IconSparkles,
   IconTag,
@@ -44,7 +43,6 @@ const TOOLS_LINKS: NavItem[] = [{ href: "/domain-health", label: "Domain Health"
 
 export function SidebarNav({
   userLabel,
-  canManageServiceCatalog,
   canManageServices,
   canManageIntegrations,
   canManageTeam,
@@ -52,7 +50,6 @@ export function SidebarNav({
   signOutAction,
 }: {
   userLabel: string;
-  canManageServiceCatalog: boolean;
   canManageServices: boolean;
   canManageIntegrations: boolean;
   canManageTeam: boolean;
@@ -63,9 +60,6 @@ export function SidebarNav({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const settingsLinks: NavItem[] = [
-    ...(canManageServiceCatalog
-      ? [{ href: "/settings/services", label: "Recurring Services", icon: IconRefresh }]
-      : []),
     ...(canManageServices
       ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
       : []),

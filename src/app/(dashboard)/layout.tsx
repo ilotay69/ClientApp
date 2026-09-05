@@ -25,7 +25,6 @@ export default async function DashboardLayout({
   }
 
   const me = await getMyPermissions(supabase);
-  const canManageServiceCatalog = me?.permissions.has("manage_service_catalog") ?? false;
   const canManageServices = me?.permissions.has("manage_services") ?? false;
   const canManageIntegrations = me?.permissions.has("manage_integrations") ?? false;
   const canManageTeam = me?.permissions.has("manage_team") ?? false;
@@ -35,7 +34,6 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-slate-50">
       <SidebarNav
         userLabel={profile?.full_name ?? user?.email ?? ""}
-        canManageServiceCatalog={canManageServiceCatalog}
         canManageServices={canManageServices}
         canManageIntegrations={canManageIntegrations}
         canManageTeam={canManageTeam}

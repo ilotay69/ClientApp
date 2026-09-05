@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     supabase
       .from("client_service_checks")
       .select(
-        "id, cadence_days, last_checked_at, assigned_to, clients(name), service_catalog(name, default_cadence_days), profiles:assigned_to(email, full_name)"
+        "id, client_id, cadence_days, last_checked_at, assigned_to, clients(name), service_catalog(name, default_cadence_days), profiles:assigned_to(email, full_name)"
       )
       .not("assigned_to", "is", null),
     supabase.from("reminder_log").select("kind, entity_id").gte("sent_at", todayStart),
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
       {
         label: `${catalog?.name ?? "Service check"} overdue`,
         detail: `${clientName} · last checked ${formatDate(sc.last_checked_at)}`,
-        href: "/settings/services",
+        href: `/clients/${sc.client_id}`,
       }
     );
   }

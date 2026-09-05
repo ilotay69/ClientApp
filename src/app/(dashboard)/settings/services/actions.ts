@@ -11,44 +11,6 @@ function emptyToNull(value: FormDataEntryValue | null) {
   return str.length > 0 ? str : null;
 }
 
-export async function createCatalogItem(
-  _prevState: FormState,
-  formData: FormData
-): Promise<FormState> {
-  if (!(await requirePermission("manage_service_catalog"))) {
-    return { error: "You don't have permission to do that." };
-  }
-
-  const supabase = await createClient();
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "Name is required." };
-
-  const cadenceRaw = String(formData.get("default_cadence_days") ?? "90");
-  const cadence = Number(cadenceRaw);
-  if (!Number.isFinite(cadence) || cadence <= 0) {
-    return { error: "Cadence must be a positive number of days." };
-  }
-
-  const { error } = await supabase.from("service_catalog").insert({
-    name,
-    description: emptyToNull(formData.get("description")),
-    default_cadence_days: cadence,
-  });
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/settings/services");
-  return { error: null };
-}
-
-export async function deleteCatalogItem(serviceId: string) {
-  if (!(await requirePermission("manage_service_catalog"))) return;
-
-  const supabase = await createClient();
-  await supabase.from("service_catalog").delete().eq("id", serviceId);
-  revalidatePath("/settings/services");
-}
-
 export async function addClientServiceCheck(
   clientId: string,
   _prevState: FormState,
