@@ -29,11 +29,20 @@ export function FilterLink({
 }
 
 /** Builds a querystring from the current params plus an override, dropping
- * empty values so the default view stays at a clean URL. */
-export function filterHref(base: string, params: Record<string, string | undefined>) {
+ * empty values so the default view stays at a clean URL. An array value
+ * (e.g. multi-select stage/status/priority chips) appends one entry per
+ * item under the same key. */
+export function filterHref(
+  base: string,
+  params: Record<string, string | string[] | undefined>
+) {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v) qs.set(k, v);
+    if (Array.isArray(v)) {
+      for (const item of v) qs.append(k, item);
+    } else if (v) {
+      qs.set(k, v);
+    }
   }
   const s = qs.toString();
   return s ? `${base}?${s}` : base;

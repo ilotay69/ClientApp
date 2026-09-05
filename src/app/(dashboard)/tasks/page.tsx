@@ -49,6 +49,9 @@ export default async function TasksPage({
     priority?: string | string[];
     assignee?: string;
     status?: string | string[];
+    todoClient?: string;
+    todoPriority?: string | string[];
+    todoStatus?: string | string[];
   }>;
 }) {
   const {
@@ -60,6 +63,9 @@ export default async function TasksPage({
     priority: filterPriorityRaw,
     assignee: filterAssignee,
     status: filterStatusRaw,
+    todoClient: filterTodoClient,
+    todoPriority: filterTodoPriorityRaw,
+    todoStatus: filterTodoStatusRaw,
   } = await searchParams;
   const filterStatuses = Array.isArray(filterStatusRaw)
     ? filterStatusRaw
@@ -70,6 +76,16 @@ export default async function TasksPage({
     ? filterPriorityRaw
     : filterPriorityRaw
       ? [filterPriorityRaw]
+      : [];
+  const filterTodoStatuses = Array.isArray(filterTodoStatusRaw)
+    ? filterTodoStatusRaw
+    : filterTodoStatusRaw
+      ? [filterTodoStatusRaw]
+      : [];
+  const filterTodoPriorities = Array.isArray(filterTodoPriorityRaw)
+    ? filterTodoPriorityRaw
+    : filterTodoPriorityRaw
+      ? [filterTodoPriorityRaw]
       : [];
   const supabase = await createClient();
   const {
@@ -82,6 +98,7 @@ export default async function TasksPage({
     canDeleteTasks,
     { data: projects },
     { data: taskClientRows },
+    { data: todoTaskClientRows },
   ] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
@@ -90,10 +107,14 @@ export default async function TasksPage({
     // Unfiltered, so the client filter's own options don't shrink as other
     // filters (priority, assignee, status, mine/view) are applied.
     supabase.from("tasks").select("client_id").eq("is_personal", false).not("client_id", "is", null),
+    // RLS already scopes this to the current user's own personal tasks.
+    supabase.from("tasks").select("client_id").eq("is_personal", true).not("client_id", "is", null),
   ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const taskClientIds = new Set((taskClientRows ?? []).map((r) => r.client_id));
   const filterClients = (clients ?? []).filter((c) => taskClientIds.has(c.id));
+  const todoTaskClientIds = new Set((todoTaskClientRows ?? []).map((r) => r.client_id));
+  const todoFilterClients = (clients ?? []).filter((c) => todoTaskClientIds.has(c.id));
   const projectSummaries = (projects ?? []).map((p) => ({
     id: p.id,
     name: p.name,
@@ -139,18 +160,27 @@ export default async function TasksPage({
     teamQuery = teamQuery.in("priority", filterPriorities);
   }
 
-  const [{ data: teamTasks }, { data: personalTasks }] = await Promise.all([
-    teamQuery,
-    // RLS already restricts personal rows to their creator — this filter
-    // just keeps the query's intent explicit.
-    supabase
-      .from("tasks")
-      .select(
-        "id, kind, title, detail, notes, status, priority, start_date, due_date, client_id, is_personal"
-      )
-      .eq("is_personal", true)
-      .order("due_date", { ascending: true, nullsFirst: false }),
-  ]);
+  // RLS already restricts personal rows to their creator — this filter
+  // just keeps the query's intent explicit.
+  let personalQuery = supabase
+    .from("tasks")
+    .select(
+      "id, kind, title, detail, notes, status, priority, start_date, due_date, client_id, is_personal"
+    )
+    .eq("is_personal", true)
+    .order("due_date", { ascending: true, nullsFirst: false });
+
+  if (filterTodoStatuses.length > 0) {
+    personalQuery = personalQuery.in("status", filterTodoStatuses);
+  }
+  if (filterTodoClient) {
+    personalQuery = personalQuery.eq("client_id", filterTodoClient);
+  }
+  if (filterTodoPriorities.length > 0) {
+    personalQuery = personalQuery.in("priority", filterTodoPriorities);
+  }
+
+  const [{ data: teamTasks }, { data: personalTasks }] = await Promise.all([teamQuery, personalQuery]);
 
   const updateFieldAction = updateTaskField;
 
@@ -185,8 +215,20 @@ export default async function TasksPage({
           assignee: filterAssignee ?? "",
           statuses: filterStatuses,
         }}
-        preserve={{ mine, view }}
-        clearHref={filterHref("/tasks", { mine, view })}
+        preserve={{
+          mine,
+          view,
+          todoClient: filterTodoClient,
+          todoPriority: filterTodoPriorities,
+          todoStatus: filterTodoStatuses,
+        }}
+        clearHref={filterHref("/tasks", {
+          mine,
+          view,
+          todoClient: filterTodoClient,
+          todoPriority: filterTodoPriorities,
+          todoStatus: filterTodoStatuses,
+        })}
       />
 
       <TaskQuickAdd
@@ -245,6 +287,42 @@ export default async function TasksPage({
           they&apos;re tied to work in this app.
         </p>
       </div>
+
+      <TaskFilterBar
+        clients={todoFilterClients}
+        members={[]}
+        priorityOptions={PRIORITY_OPTIONS}
+        statusOptions={STATUS_OPTIONS}
+        values={{
+          client: filterTodoClient ?? "",
+          priorities: filterTodoPriorities,
+          assignee: "",
+          statuses: filterTodoStatuses,
+        }}
+        fieldNames={{
+          client: "todoClient",
+          priority: "todoPriority",
+          status: "todoStatus",
+          assignee: "assignee",
+        }}
+        showAssignee={false}
+        preserve={{
+          mine,
+          view,
+          client: filterClient,
+          priority: filterPriorities,
+          assignee: filterAssignee,
+          status: filterStatuses,
+        }}
+        clearHref={filterHref("/tasks", {
+          mine,
+          view,
+          client: filterClient,
+          priority: filterPriorities,
+          assignee: filterAssignee,
+          status: filterStatuses,
+        })}
+      />
 
       <TaskQuickAdd
         clients={clients ?? []}

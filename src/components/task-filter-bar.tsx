@@ -2,11 +2,13 @@
 
 // A plain GET form, auto-submitting on change — same "filtered view is a
 // real URL, filtering happens in the query" approach as the other list
-// pages' filters. `mine`/`view` (the My tasks/All chips) come along as
-// hidden inputs so changing a dropdown here doesn't reset them. Priority
-// and status are both checkbox groups (repeated `name`) rather than
-// single-select dropdowns, so one or more of either can be highlighted at
-// once — same pattern as Internal Sales' stage filter.
+// pages' filters. Priority and status are both checkbox groups (repeated
+// `name`) rather than single-select dropdowns, so one or more of either
+// can be highlighted at once — same pattern as Internal Sales' stage
+// filter. Reused for both Team Tasks and My To-Do (which has no assignee
+// concept and uses its own `todo*`-prefixed query params so the two
+// tabs' filters don't collide) — `fieldNames` remaps the form field
+// names, `showAssignee` toggles the assignee dropdown.
 function Chip({
   name,
   option,
@@ -37,6 +39,30 @@ function Chip({
   );
 }
 
+/** Hidden inputs that carry forward whatever isn't this form's own
+ * field(s) — otherwise submitting one tab's filter form would wipe the
+ * other tab's params out of the URL. */
+function PreserveParams({ params }: { params: Record<string, string | string[] | undefined> }) {
+  return (
+    <>
+      {Object.entries(params).flatMap(([key, value]) => {
+        if (value === undefined) return [];
+        const values = Array.isArray(value) ? value : [value];
+        return values.map((v, i) => (
+          <input key={`${key}-${i}`} type="hidden" name={key} value={v} />
+        ));
+      })}
+    </>
+  );
+}
+
+const DEFAULT_FIELD_NAMES = {
+  client: "client",
+  priority: "priority",
+  status: "status",
+  assignee: "assignee",
+};
+
 export function TaskFilterBar({
   clients,
   members,
@@ -45,32 +71,36 @@ export function TaskFilterBar({
   values,
   preserve,
   clearHref,
+  fieldNames = DEFAULT_FIELD_NAMES,
+  showAssignee = true,
 }: {
   clients: { id: string; name: string }[];
   members: { id: string; full_name: string }[];
   priorityOptions: { value: string; label: string }[];
   statusOptions: { value: string; label: string }[];
   values: { client: string; priorities: string[]; assignee: string; statuses: string[] };
-  preserve: { mine?: string; view?: string };
-  /** Where "Clear filters" goes — computed server-side so it can drop the
-   * filter params while keeping mine/view (the My tasks/All chips)
-   * intact. */
+  /** Every other filter param (from either tab) so it survives this
+   * form's own submission — see `PreserveParams`. */
+  preserve: Record<string, string | string[] | undefined>;
+  /** Where "Clear filters" goes — computed server-side so it can drop
+   * this tab's filter params while keeping everything else intact. */
   clearHref: string;
+  fieldNames?: { client: string; priority: string; status: string; assignee: string };
+  showAssignee?: boolean;
 }) {
   const hasFilters =
     values.client ||
     values.priorities.length > 0 ||
-    values.assignee ||
+    (showAssignee && values.assignee) ||
     values.statuses.length > 0;
 
   return (
     <form action="/tasks" className="space-y-2">
-      {preserve.mine && <input type="hidden" name="mine" value={preserve.mine} />}
-      {preserve.view && <input type="hidden" name="view" value={preserve.view} />}
+      <PreserveParams params={preserve} />
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <select
-          name="client"
+          name={fieldNames.client}
           defaultValue={values.client}
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
           className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
@@ -83,19 +113,21 @@ export function TaskFilterBar({
           ))}
         </select>
 
-        <select
-          name="assignee"
-          defaultValue={values.assignee}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
-        >
-          <option value="">Everyone</option>
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.full_name}
-            </option>
-          ))}
-        </select>
+        {showAssignee && (
+          <select
+            name={fieldNames.assignee}
+            defaultValue={values.assignee}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+          >
+            <option value="">Everyone</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.full_name}
+              </option>
+            ))}
+          </select>
+        )}
 
         {hasFilters && (
           <a href={clearHref} className="text-xs text-slate-500 underline">
@@ -106,11 +138,21 @@ export function TaskFilterBar({
 
       <div className="flex flex-wrap items-center gap-1.5">
         {priorityOptions.map((o) => (
-          <Chip key={`priority-${o.value}`} name="priority" option={o} checked={values.priorities.includes(o.value)} />
+          <Chip
+            key={`priority-${o.value}`}
+            name={fieldNames.priority}
+            option={o}
+            checked={values.priorities.includes(o.value)}
+          />
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {statusOptions.map((o) => (
-          <Chip key={`status-${o.value}`} name="status" option={o} checked={values.statuses.includes(o.value)} />
+          <Chip
+            key={`status-${o.value}`}
+            name={fieldNames.status}
+            option={o}
+            checked={values.statuses.includes(o.value)}
+          />
         ))}
       </div>
     </form>
