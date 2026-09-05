@@ -67,7 +67,7 @@ function QuotedHoursEditor({
           setDraft(hours !== null ? String(hours) : "");
           setEditing(true);
         }}
-        className="rounded px-1 py-0.5 text-xs text-slate-500 hover:bg-slate-100"
+        className="w-full truncate rounded px-1 py-0.5 text-left text-xs text-slate-500 hover:bg-slate-100"
       >
         {hours !== null ? `${formatHours(hours)} quoted` : "Set quoted hours"}
       </button>
@@ -249,34 +249,28 @@ export function ProjectRow({
             setExpanded((prev) => !prev);
           }
         }}
-        className="flex w-full cursor-pointer items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
+        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_9rem_5rem_8rem_5rem_6.5rem_1rem] items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+        <span className="min-w-0 truncate text-sm font-medium text-slate-900">
           {project.name}
         </span>
-        <span className="w-40 shrink-0 truncate text-sm text-slate-600">{clientName ?? "—"}</span>
-        {project.actualHours !== null && (
-          <span className="w-16 shrink-0 text-xs text-slate-500">
-            {formatHours(project.actualHours)} used
-          </span>
-        )}
-        <span className="shrink-0">
+        <span className="min-w-0 truncate text-sm text-slate-600">{clientName ?? "—"}</span>
+        <span className="truncate text-xs text-slate-500">
+          {project.actualHours !== null ? `${formatHours(project.actualHours)} used` : "—"}
+        </span>
+        <span className="min-w-0">
           <QuotedHoursEditor
             projectId={project.id}
             hours={project.quotedHours}
             action={updateQuotedHoursAction}
           />
         </span>
-        {hoursUsage && (
-          <span className="shrink-0">
-            <Badge value={hoursUsage} />
-          </span>
-        )}
-        <span className="shrink-0">
+        <span>{hoursUsage && <Badge value={hoursUsage} />}</span>
+        <span>
           <Badge value={project.status} />
         </span>
         <IconChevronDown
-          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 justify-self-end text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
         />
       </div>
 
