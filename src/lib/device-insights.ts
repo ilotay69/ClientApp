@@ -91,7 +91,7 @@ const OFFLINE_WARN_DAYS = 30;
 const EOL_SOON_DAYS = 180;
 const WORKSTATION_AGE_THRESHOLD_DAYS = 3 * 365;
 const SERVER_AGE_THRESHOLD_DAYS = 5 * 365;
-const DISK_USAGE_ALERT_PERCENT = 95;
+const DISK_USAGE_ALERT_PERCENT = 90;
 
 /** Device age in days — prefers NinjaOne's auto-detected manufacturer
  * fulfillment date (the actual hardware ship date, via warranty lookup)
