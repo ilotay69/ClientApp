@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
-import { formatDate } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 import { SearchBox } from "@/components/search-box";
@@ -28,7 +27,7 @@ export default async function ProjectsPage({
 
   let projectsQuery = supabase
     .from("projects")
-    .select("id, name, status, target_end_date, source_autotask_ticket_id, clients(name)")
+    .select("id, name, status, clients(name)")
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
   if (status) projectsQuery = projectsQuery.eq("status", status);
@@ -93,7 +92,6 @@ export default async function ProjectsPage({
             <tr>
               <th className="px-5 py-2 text-left font-medium text-slate-500">Name</th>
               <th className="px-5 py-2 text-left font-medium text-slate-500">Client</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Target end</th>
               <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
             </tr>
           </thead>
@@ -101,17 +99,13 @@ export default async function ProjectsPage({
             {(projects ?? []).map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
                 <td className="px-5 py-2">
-                  <div className="flex items-center gap-2">
-                    <Link href={`/projects/${p.id}`} className="font-medium text-slate-900 hover:underline">
-                      {p.name}
-                    </Link>
-                    {p.source_autotask_ticket_id && <Badge value="autotask" />}
-                  </div>
+                  <Link href={`/projects/${p.id}`} className="font-medium text-slate-900 hover:underline">
+                    {p.name}
+                  </Link>
                 </td>
                 <td className="px-5 py-2 text-slate-600">
                   {(p.clients as unknown as { name: string } | null)?.name ?? "—"}
                 </td>
-                <td className="px-5 py-2 text-slate-600">{formatDate(p.target_end_date)}</td>
                 <td className="px-5 py-2">
                   <Badge value={p.status} />
                 </td>
@@ -119,7 +113,7 @@ export default async function ProjectsPage({
             ))}
             {(projects ?? []).length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 py-6 text-center text-slate-500">
+                <td colSpan={3} className="px-5 py-6 text-center text-slate-500">
                   {status || q ? (
                     <>
                       No projects match this filter.{" "}
