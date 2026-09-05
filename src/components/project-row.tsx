@@ -29,6 +29,7 @@ export type ProjectRowData = {
   hasAutotaskCompany: boolean;
   quotedHours: number | null;
   actualHours: number | null;
+  daysOpen: number;
 };
 
 /** Under 50% used = low, 50-90% = medium, over 90% = high — null when
@@ -249,12 +250,15 @@ export function ProjectRow({
             setExpanded((prev) => !prev);
           }
         }}
-        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_9rem_5rem_8rem_5rem_6.5rem_1rem] items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
+        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_9rem_4rem_5rem_8rem_5rem_6.5rem_1rem] items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
       >
         <span className="min-w-0 truncate text-sm font-medium text-slate-900">
           {project.name}
         </span>
         <span className="min-w-0 truncate text-sm text-slate-600">{clientName ?? "—"}</span>
+        <span className="truncate text-xs text-slate-500" title="Days open">
+          {project.daysOpen}d
+        </span>
         <span className="truncate text-xs text-slate-500">
           {project.actualHours !== null ? `${formatHours(project.actualHours)} used` : "—"}
         </span>

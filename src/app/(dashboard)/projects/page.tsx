@@ -44,7 +44,7 @@ export default async function ProjectsPage({
   let projectsQuery = supabase
     .from("projects")
     .select(
-      "id, name, status, client_id, quoted_hours, actual_hours, clients(name, autotask_company_id)"
+      "id, name, status, client_id, quoted_hours, actual_hours, start_date, created_at, clients(name, autotask_company_id)"
     )
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
@@ -117,6 +117,14 @@ export default async function ProjectsPage({
             // numeric columns come back as strings over the wire
             quotedHours: p.quoted_hours !== null ? Number(p.quoted_hours) : null,
             actualHours: p.actual_hours !== null ? Number(p.actual_hours) : null,
+            // start_date if set (Autotask ticket's own start, or manually
+            // entered), otherwise when this project record was created.
+            daysOpen: Math.max(
+              0,
+              Math.floor(
+                (Date.now() - new Date(p.start_date ?? p.created_at).getTime()) / 86_400_000
+              )
+            ),
           };
           return (
             <ProjectRow
