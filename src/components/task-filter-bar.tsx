@@ -7,41 +7,33 @@
 // and status are both checkbox groups (repeated `name`) rather than
 // single-select dropdowns, so one or more of either can be highlighted at
 // once — same pattern as Internal Sales' stage filter.
-function ChipGroup({
+function Chip({
   name,
-  options,
-  selected,
+  option,
+  checked,
 }: {
   name: string;
-  options: { value: string; label: string }[];
-  selected: string[];
+  option: { value: string; label: string };
+  checked: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {options.map((o) => {
-        const checked = selected.includes(o.value);
-        return (
-          <label
-            key={o.value}
-            className={`cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
-              checked
-                ? "bg-charcoal text-white"
-                : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            <input
-              type="checkbox"
-              name={name}
-              value={o.value}
-              defaultChecked={checked}
-              onChange={(e) => e.currentTarget.form?.requestSubmit()}
-              className="sr-only"
-            />
-            {o.label}
-          </label>
-        );
-      })}
-    </div>
+    <label
+      className={`cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+        checked
+          ? "bg-charcoal text-white"
+          : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+      }`}
+    >
+      <input
+        type="checkbox"
+        name={name}
+        value={option.value}
+        defaultChecked={checked}
+        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        className="sr-only"
+      />
+      {option.label}
+    </label>
   );
 }
 
@@ -112,8 +104,14 @@ export function TaskFilterBar({
         )}
       </div>
 
-      <ChipGroup name="priority" options={priorityOptions} selected={values.priorities} />
-      <ChipGroup name="status" options={statusOptions} selected={values.statuses} />
+      <div className="flex flex-wrap items-center gap-1.5">
+        {priorityOptions.map((o) => (
+          <Chip key={`priority-${o.value}`} name="priority" option={o} checked={values.priorities.includes(o.value)} />
+        ))}
+        {statusOptions.map((o) => (
+          <Chip key={`status-${o.value}`} name="status" option={o} checked={values.statuses.includes(o.value)} />
+        ))}
+      </div>
     </form>
   );
 }

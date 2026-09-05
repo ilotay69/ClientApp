@@ -27,7 +27,6 @@ const STATUS_OPTIONS = [
   { value: "on_hold", label: "On Hold" },
   { value: "waiting_client", label: "Waiting Client" },
   { value: "done", label: "Done" },
-  { value: "dismissed", label: "Dismissed" },
 ];
 
 // A task created before this status list changed may still carry some
