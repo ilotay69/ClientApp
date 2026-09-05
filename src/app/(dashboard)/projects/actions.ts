@@ -152,6 +152,40 @@ export async function autoSyncAutotaskProjectsIfStale(): Promise<void> {
   await syncAllAutotaskClients(admin);
 }
 
+export type ProjectTask = {
+  id: string;
+  title: string;
+  status: string;
+  dueDate: string | null;
+  assigneeName: string | null;
+};
+
+/** Live-fetched only when a project's row is expanded — same on-demand
+ * pattern used for Sales Requests'/Tasks' notes threads. */
+export async function getProjectTasksAction(
+  projectId: string
+): Promise<{ tasks: ProjectTask[] } | { error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, title, status, due_date, profiles:assigned_to(full_name)")
+    .eq("project_id", projectId)
+    .not("status", "in", "(done,dismissed)")
+    .order("due_date", { ascending: true, nullsFirst: false });
+
+  if (error) return { error: error.message };
+
+  return {
+    tasks: (data ?? []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      dueDate: t.due_date,
+      assigneeName: (t.profiles as unknown as { full_name: string } | null)?.full_name ?? null,
+    })),
+  };
+}
+
 export async function deleteProject(projectId: string, clientId: string) {
   if (!(await requirePermission("manage_projects"))) return;
 

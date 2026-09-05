@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Badge } from "@/components/badge";
 import { hasPermission } from "@/lib/permissions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 import { SearchBox } from "@/components/search-box";
 import { SyncAutotaskButton } from "@/components/sync-autotask-button";
-import { syncAllAutotaskProjectsAction, autoSyncAutotaskProjectsIfStale } from "./actions";
+import { ProjectRow, type ProjectRowData } from "@/components/project-row";
+import { syncAllAutotaskProjectsAction, autoSyncAutotaskProjectsIfStale, getProjectTasksAction } from "./actions";
+import { createTask } from "../tasks/actions";
+import { listAutotaskQuotesForClientAction, logAutotaskQuoteReference } from "../clients/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +29,15 @@ export default async function ProjectsPage({
 
   let projectsQuery = supabase
     .from("projects")
-    .select("id, name, status, clients(name)")
+    .select("id, name, status, client_id, clients(name, autotask_company_id)")
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
   if (status) projectsQuery = projectsQuery.eq("status", status);
   if (q) projectsQuery = projectsQuery.ilike("name", `%${q}%`);
 
-  const [{ data: projects }, canManageProjects] = await Promise.all([
+  const [{ data: projects }, { data: members }, canManageProjects] = await Promise.all([
     projectsQuery,
+    supabase.from("profiles").select("id, full_name").order("full_name"),
     hasPermission(supabase, "manage_projects"),
   ]);
 
@@ -86,54 +89,48 @@ export default async function ProjectsPage({
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Name</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Client</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {(projects ?? []).map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50">
-                <td className="px-5 py-2">
-                  <Link href={`/projects/${p.id}`} className="font-medium text-slate-900 hover:underline">
-                    {p.name}
-                  </Link>
-                </td>
-                <td className="px-5 py-2 text-slate-600">
-                  {(p.clients as unknown as { name: string } | null)?.name ?? "—"}
-                </td>
-                <td className="px-5 py-2">
-                  <Badge value={p.status} />
-                </td>
-              </tr>
-            ))}
-            {(projects ?? []).length === 0 && (
-              <tr>
-                <td colSpan={3} className="px-5 py-6 text-center text-slate-500">
-                  {status || q ? (
-                    <>
-                      No projects match this filter.{" "}
-                      <Link href="/projects" className="underline">
-                        Clear filters
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      No projects yet.{" "}
-                      <Link href="/projects/new" className="underline">
-                        Add your first one.
-                      </Link>
-                    </>
-                  )}
-                </td>
-              </tr>
+      <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
+        {(projects ?? []).map((p) => {
+          const client = p.clients as unknown as { name: string; autotask_company_id: number | null } | null;
+          const row: ProjectRowData = {
+            id: p.id,
+            name: p.name,
+            status: p.status,
+            client_id: p.client_id,
+            hasAutotaskCompany: Boolean(client?.autotask_company_id),
+          };
+          return (
+            <ProjectRow
+              key={p.id}
+              project={row}
+              clientName={client?.name ?? null}
+              members={members ?? []}
+              fetchTasksAction={getProjectTasksAction}
+              createTaskAction={createTask}
+              listAutotaskQuotesAction={listAutotaskQuotesForClientAction}
+              logAutotaskQuoteAction={logAutotaskQuoteReference}
+            />
+          );
+        })}
+        {(projects ?? []).length === 0 && (
+          <p className="px-5 py-6 text-center text-sm text-slate-500">
+            {status || q ? (
+              <>
+                No projects match this filter.{" "}
+                <Link href="/projects" className="underline">
+                  Clear filters
+                </Link>
+              </>
+            ) : (
+              <>
+                No projects yet.{" "}
+                <Link href="/projects/new" className="underline">
+                  Add your first one.
+                </Link>
+              </>
             )}
-          </tbody>
-        </table>
+          </p>
+        )}
       </div>
     </div>
   );

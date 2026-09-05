@@ -32,8 +32,6 @@ import {
   addClientContactsFromAutotask,
   logClientInteraction,
   uploadClientDocument,
-  listAutotaskQuotesForClientAction,
-  logAutotaskQuoteReference,
   deleteClientInteraction,
   searchAutotaskCompaniesAction,
   linkClientAutotaskCompany,
@@ -190,8 +188,6 @@ export default async function ClientDetailPage({
   const logInteractionAction = logClientInteraction.bind(null, id);
   const uploadQuoteAction = uploadClientDocument.bind(null, id, "quote");
   const uploadReviewAction = uploadClientDocument.bind(null, id, "review");
-  const listAutotaskQuotesAction = listAutotaskQuotesForClientAction.bind(null, id);
-  const logAutotaskQuoteAction = logAutotaskQuoteReference.bind(null, id);
   const deleteInteractionAction = deleteClientInteraction.bind(null, id);
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
@@ -496,8 +492,6 @@ export default async function ClientDetailPage({
                     logAction={logInteractionAction}
                     uploadQuoteAction={uploadQuoteAction}
                     uploadReviewAction={uploadReviewAction}
-                    listAutotaskQuotesAction={listAutotaskQuotesAction}
-                    logAutotaskQuoteAction={logAutotaskQuoteAction}
                     deleteAction={deleteInteractionAction}
                     currentUserId={currentUser?.id ?? null}
                     canManageAllEntries={canManageClients}
