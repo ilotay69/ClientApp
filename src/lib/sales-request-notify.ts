@@ -4,12 +4,13 @@ import { getResendClient, buildSalesRequestEmail } from "@/lib/resend";
 /** Best-effort — a missing Resend key, unset rep email, or send failure
  * never blocks the actual create/update/note action itself.
  *
- * Notifies whichever side DIDN'T make the change, not both every time:
- * the assignee changing something notifies the sales rep, and the sales
- * rep changing something notifies the assignee. `actorUserId` is whoever
- * performed the action (null if not resolvable), used only to tell which
- * side that was — if neither matches (e.g. an Owner steps in), the rep
- * gets notified by default, same as any other non-rep actor. */
+ * Notifies both the sales rep and the assignee (the tech who created the
+ * request) on every change, minus whoever actually made that change —
+ * so e.g. a rep editing the stage still notifies the tech, a tech editing
+ * it still notifies the rep, and a third party (an Owner stepping in)
+ * notifies both, instead of only the rep. `actorUserId` is whoever
+ * performed the action (null if not resolvable), used only to exclude
+ * them from their own notification. */
 export async function notifySalesRequestChange(
   requestId: string,
   changeSummary: string,
@@ -43,23 +44,26 @@ export async function notifySalesRequestChange(
 
     const repEmail = repSettings?.rep_email ?? null;
     const actorEmail = actorProfile?.email ?? null;
-    const actorIsRep = Boolean(
-      actorEmail && repEmail && actorEmail.toLowerCase() === repEmail.toLowerCase()
-    );
+    const actorEmailLower = actorEmail?.toLowerCase() ?? null;
 
-    const recipient = actorIsRep ? assigneeEmail : repEmail;
-    if (!recipient) {
-      console.error(
-        "Sales-request notification skipped: no recipient resolved",
-        { requestId, repEmail, assigneeEmail, actorEmail, actorIsRep }
-      );
-      return;
+    // Both sides get notified, minus whoever just made the change
+    // themselves — deduped case-insensitively, since the rep and the
+    // assignee can be the same person.
+    const seen = new Set<string>();
+    const recipients: string[] = [];
+    for (const candidate of [repEmail, assigneeEmail]) {
+      if (!candidate) continue;
+      const lower = candidate.toLowerCase();
+      if (lower === actorEmailLower || seen.has(lower)) continue;
+      seen.add(lower);
+      recipients.push(candidate);
     }
-    // Don't notify someone about their own change.
-    if (actorEmail && recipient.toLowerCase() === actorEmail.toLowerCase()) {
-      console.error("Sales-request notification skipped: recipient is the actor", {
+
+    if (recipients.length === 0) {
+      console.error("Sales-request notification skipped: no recipient resolved", {
         requestId,
-        recipient,
+        repEmail,
+        assigneeEmail,
         actorEmail,
       });
       return;
@@ -79,13 +83,17 @@ export async function notifySalesRequestChange(
       requestedByName: request.requested_by_name,
     });
 
-    await resend.emails.send({
-      from: fromAddress,
-      to: recipient,
-      subject: `Sales request: ${request.title}`,
-      html,
-      text,
-    });
+    // Separate sends, not one email addressed to both — recipients
+    // shouldn't see each other's address.
+    for (const recipient of recipients) {
+      await resend.emails.send({
+        from: fromAddress,
+        to: recipient,
+        subject: `Sales request: ${request.title}`,
+        html,
+        text,
+      });
+    }
   } catch (err) {
     console.error("Failed to send sales-request notification email", err);
   }
