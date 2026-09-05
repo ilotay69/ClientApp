@@ -149,13 +149,45 @@ function isExcludedService(serviceName: string): boolean {
   );
 }
 
+/** Strips the varying size/duration tier off a service name — e.g.
+ * "Slide - Backup and DR - Z2 - 1TB - 1yr" and "...- 6TB - 1yr" are the
+ * same underlying product at a different storage size, not two separate
+ * things a client could be missing one of. Used only to build the
+ * display label; normalizeServiceKey (below) does the actual grouping. */
+function stripVariantTokens(name: string): string {
+  return name
+    .replace(/\b\d+(\.\d+)?\s*(GB|TB|MB)\b/gi, "")
+    .replace(/\b\d+\s*(yrs?|years?|mo|months?)\b/gi, "")
+    .replace(/\s*-\s*-\s*/g, " - ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*-\s*$/, "")
+    .trim();
+}
+
+/** Groups variants of the same product together even when formatting is
+ * inconsistent between them (e.g. one entry missing a dash the others
+ * have) — strips the size/duration tier, then collapses everything down
+ * to bare lowercase words so "Backup and DR - Z2" and "Backup and DR Z2"
+ * key identically. */
+function normalizeServiceKey(name: string): string {
+  return stripVariantTokens(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Deterministic, no AI: for one client, every distinct ACTIVE Autotask
  * contracted service name that at least one OTHER client has and this
  * one doesn't — sorted by how many other clients have it, so the
  * strongest upsell signal (something almost everyone else has) sorts
- * first. Exact service-name comparison, not cross-vendor category
- * matching — an AI-judgment version of this kept collapsing everything
- * into broad umbrella categories that hid real gaps, so this trades that
+ * first. Normalized-name comparison (see normalizeServiceKey), not exact
+ * string or cross-vendor category matching — different size/duration
+ * tiers of the same product (e.g. "Slide - Backup and DR - Z2 - 1TB -
+ * 1yr" vs "...- 6TB - 1yr") collapse into one row, but a genuinely
+ * different vendor for the same protection still shows as two; an
+ * AI-judgment version of this kept collapsing everything into broad
+ * umbrella categories that hid real gaps, so this trades that
  * "different vendor, same protection" nuance for something that reliably
  * finds gaps at all; a human reviewing the list can tell "Huntress MDR"
  * isn't a real gap for a client that already has "SentinelOne MDR". */
@@ -188,20 +220,28 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
   }
 
   const thisClientServices = new Set(
-    active.filter((cs) => cs.client_id === clientId).map((cs) => cs.service_name)
+    active.filter((cs) => cs.client_id === clientId).map((cs) => normalizeServiceKey(cs.service_name))
   );
 
   const otherClientIdsByService = new Map<string, Set<string>>();
+  const displayNameByService = new Map<string, string>();
   for (const cs of active) {
     if (cs.client_id === clientId) continue;
-    const set = otherClientIdsByService.get(cs.service_name) ?? new Set<string>();
+    const key = normalizeServiceKey(cs.service_name);
+    if (!displayNameByService.has(key)) {
+      displayNameByService.set(key, stripVariantTokens(cs.service_name));
+    }
+    const set = otherClientIdsByService.get(key) ?? new Set<string>();
     set.add(cs.client_id);
-    otherClientIdsByService.set(cs.service_name, set);
+    otherClientIdsByService.set(key, set);
   }
 
   const gaps: ClientServiceGap[] = [...otherClientIdsByService.entries()]
-    .filter(([serviceName]) => !thisClientServices.has(serviceName))
-    .map(([serviceName, clientIds]) => ({ serviceName, otherClientCount: clientIds.size }))
+    .filter(([key]) => !thisClientServices.has(key))
+    .map(([key, clientIds]) => ({
+      serviceName: displayNameByService.get(key) ?? key,
+      otherClientCount: clientIds.size,
+    }))
     .sort((a, b) => b.otherClientCount - a.otherClientCount);
 
   return { clientName: client.name, gaps };
