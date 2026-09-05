@@ -65,6 +65,15 @@ export async function getClientsForServiceGapsAction(): Promise<
 
 export type ClientServiceGap = { serviceName: string; otherClientCount: number };
 
+/** Microsoft 365/Office 365 licensing varies by client based on seat
+ * count and plan tier they've already chosen — not a missing-service
+ * upsell signal the way a security tool or backup gap is, so it's
+ * excluded from this comparison entirely rather than showing up as a
+ * "gap" just because two clients are on different M365 SKUs. */
+function isLicenseService(serviceName: string): boolean {
+  return /\b365\b/i.test(serviceName);
+}
+
 /** Deterministic, no AI: for one client, every distinct ACTIVE Autotask
  * contracted service name that at least one OTHER client has and this
  * one doesn't — sorted by how many other clients have it, so the
@@ -92,7 +101,8 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
   if (!client) return { error: "Client not found." };
 
   const active = (contractServices ?? []).filter(
-    (cs: { contract_status: string | null }) => cs.contract_status?.toLowerCase() === "active"
+    (cs: { contract_status: string | null; service_name: string }) =>
+      cs.contract_status?.toLowerCase() === "active" && !isLicenseService(cs.service_name)
   ) as { client_id: string; service_name: string }[];
 
   if (active.length === 0) {
