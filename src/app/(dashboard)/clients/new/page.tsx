@@ -15,7 +15,7 @@ export default async function NewClientPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">New client</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Add Client</h1>
 
       <AutotaskClientSearch
         listAction={listUnaddedActiveAutotaskCompaniesAction}
