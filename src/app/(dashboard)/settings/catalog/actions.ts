@@ -7,12 +7,6 @@ import { getActiveAiSettings } from "@/lib/ai/settings";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { ymd } from "@/lib/resource-hours";
 import {
-  analyzeServiceCoverage,
-  type ServiceCoverageCategory,
-  type ClientForCoverage,
-  type CatalogServiceForCoverage,
-} from "@/lib/service-coverage-insights";
-import {
   fetchTimeEntriesForAnalysis,
   analyzeTimeEntryPatterns,
   type ClientPatternReport,
@@ -57,88 +51,75 @@ export async function deleteServiceOffering(serviceId: string) {
   revalidatePath("/clients");
 }
 
-/** Reads every client's ACTIVE Autotask contracted services (already
- * synced — nothing to set up or maintain separately) and asks the active
- * AI provider to group them into real categories (MDR, backup, etc.) and
- * flag any client with nothing in a category — even though the exact
- * contracted item differs per client, e.g. a client with "BitDefender"
- * isn't a gap for "Huntress MDR". There's no separate catalog here: the
- * "catalog" is just the union of every distinct service name seen across
- * every client's own contracted services. Nothing stored; fetched and
- * analyzed fresh each time. */
-export async function analyzeServiceCoverageAction(): Promise<
-  | { categories: ServiceCoverageCategory[]; clients: { id: string; name: string }[] }
-  | { error: string }
+/** Client list for the sales-opportunity picker — id/name only, cheap. */
+export async function getClientsForServiceGapsAction(): Promise<
+  { id: string; name: string }[] | { error: string }
+> {
+  if (!(await requirePermission("manage_services"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  const admin = createAdminClient();
+  const { data: clients } = await admin.from("clients").select("id, name").order("name");
+  return clients ?? [];
+}
+
+export type ClientServiceGap = { serviceName: string; otherClientCount: number };
+
+/** Deterministic, no AI: for one client, every distinct ACTIVE Autotask
+ * contracted service name that at least one OTHER client has and this
+ * one doesn't — sorted by how many other clients have it, so the
+ * strongest upsell signal (something almost everyone else has) sorts
+ * first. Exact service-name comparison, not cross-vendor category
+ * matching — an AI-judgment version of this kept collapsing everything
+ * into broad umbrella categories that hid real gaps, so this trades that
+ * "different vendor, same protection" nuance for something that reliably
+ * finds gaps at all; a human reviewing the list can tell "Huntress MDR"
+ * isn't a real gap for a client that already has "SentinelOne MDR". */
+export async function getClientServiceGapsAction(clientId: string): Promise<
+  { clientName: string; gaps: ClientServiceGap[] } | { error: string }
 > {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
   }
 
   const admin = createAdminClient();
-  const aiSettings = await getActiveAiSettings(admin);
-  if (!aiSettings) {
-    return { error: "AI insights aren't set up yet — configure a provider under Settings → Integrations." };
-  }
-
-  const [{ data: clients }, { data: contractServices }] = await Promise.all([
-    admin.from("clients").select("id, name").order("name"),
+  const [{ data: client }, { data: contractServices }] = await Promise.all([
+    admin.from("clients").select("id, name").eq("id", clientId).single(),
     admin
       .from("autotask_contract_services")
-      .select("client_id, service_name, description, contract_status"),
+      .select("client_id, service_name, contract_status"),
   ]);
+  if (!client) return { error: "Client not found." };
 
-  if (!clients || clients.length === 0) {
-    return { error: "No clients to check yet." };
-  }
-  const activeServices = (contractServices ?? []).filter(
+  const active = (contractServices ?? []).filter(
     (cs: { contract_status: string | null }) => cs.contract_status?.toLowerCase() === "active"
-  );
-  if (activeServices.length === 0) {
+  ) as { client_id: string; service_name: string }[];
+
+  if (active.length === 0) {
     return {
       error:
         "No active Autotask contracted services found across any client — sync Autotask on at least one client first.",
     };
   }
 
-  // The "catalog" here is just every distinct service name seen across
-  // every client, each paired with the first description seen for it —
-  // there's no separate catalog to maintain, unlike the manual Service
-  // Catalog list above.
-  const descriptionByServiceName = new Map<string, string | null>();
-  const attachedByClientId = new Map<string, string[]>();
-  for (const cs of activeServices as {
-    client_id: string;
-    service_name: string;
-    description: string | null;
-  }[]) {
-    if (!descriptionByServiceName.has(cs.service_name)) {
-      descriptionByServiceName.set(cs.service_name, cs.description);
-    }
-    const existing = attachedByClientId.get(cs.client_id) ?? [];
-    existing.push(cs.service_name);
-    attachedByClientId.set(cs.client_id, existing);
-  }
-
-  const services: CatalogServiceForCoverage[] = [...descriptionByServiceName.entries()]
-    .map(([name, description]) => ({ name, description }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const clientsForCoverage: ClientForCoverage[] = clients.map(
-    (c: { id: string; name: string }) => ({
-      name: c.name,
-      attachedServiceNames: [...new Set(attachedByClientId.get(c.id) ?? [])],
-    })
+  const thisClientServices = new Set(
+    active.filter((cs) => cs.client_id === clientId).map((cs) => cs.service_name)
   );
 
-  try {
-    const categories = await analyzeServiceCoverage(services, clientsForCoverage, aiSettings);
-    return {
-      categories,
-      clients: clients.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
-    };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Analysis failed." };
+  const otherClientIdsByService = new Map<string, Set<string>>();
+  for (const cs of active) {
+    if (cs.client_id === clientId) continue;
+    const set = otherClientIdsByService.get(cs.service_name) ?? new Set<string>();
+    set.add(cs.client_id);
+    otherClientIdsByService.set(cs.service_name, set);
   }
+
+  const gaps: ClientServiceGap[] = [...otherClientIdsByService.entries()]
+    .filter(([serviceName]) => !thisClientServices.has(serviceName))
+    .map(([serviceName, clientIds]) => ({ serviceName, otherClientCount: clientIds.size }))
+    .sort((a, b) => b.otherClientCount - a.otherClientCount);
+
+  return { clientName: client.name, gaps };
 }
 
 const PATTERN_ANALYSIS_DAYS = 90;

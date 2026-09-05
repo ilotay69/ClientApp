@@ -3,7 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { ServiceCoverageAnalysis } from "@/components/service-coverage-analysis";
 import { TimeEntryPatterns } from "@/components/time-entry-patterns";
 import { hasPermission } from "@/lib/permissions";
-import { analyzeServiceCoverageAction, analyzeTimeEntryPatternsAction } from "./actions";
+import {
+  getClientsForServiceGapsAction,
+  getClientServiceGapsAction,
+  analyzeTimeEntryPatternsAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +27,10 @@ export default async function AnalysisPage() {
         </p>
       </div>
 
-      <ServiceCoverageAnalysis action={analyzeServiceCoverageAction} />
+      <ServiceCoverageAnalysis
+        fetchClientsAction={getClientsForServiceGapsAction}
+        fetchGapsAction={getClientServiceGapsAction}
+      />
 
       <TimeEntryPatterns analyzeAction={analyzeTimeEntryPatternsAction} />
     </div>
