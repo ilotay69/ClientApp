@@ -63,6 +63,8 @@ export type DeviceInsightInput = {
   device_created_at: string | null;
   manufacturer_fulfillment_date: string | null;
   os_name: string | null;
+  disk_total_bytes: number | null;
+  disk_free_bytes: number | null;
 };
 
 // Same workstation/server classification as the Devices tab's own
@@ -89,6 +91,7 @@ const OFFLINE_WARN_DAYS = 30;
 const EOL_SOON_DAYS = 180;
 const WORKSTATION_AGE_THRESHOLD_DAYS = 3 * 365;
 const SERVER_AGE_THRESHOLD_DAYS = 5 * 365;
+const DISK_USAGE_ALERT_PERCENT = 95;
 
 /** Device age in days — prefers NinjaOne's auto-detected manufacturer
  * fulfillment date (the actual hardware ship date, via warranty lookup)
@@ -158,6 +161,28 @@ export function buildDeviceInsights(
       severity: "medium",
       title: `${neverSeen.length} device${neverSeen.length === 1 ? "" : "s"} with no recorded contact`,
       detail: nameList(neverSeen.map((d) => d.system_name)),
+    });
+  }
+
+  // --- Disk nearly full ---
+  const diskUsedPercent = (d: DeviceInsightInput) =>
+    d.disk_total_bytes && d.disk_free_bytes !== null
+      ? Math.round(((d.disk_total_bytes - d.disk_free_bytes) / d.disk_total_bytes) * 100)
+      : null;
+
+  const diskFull = devices.filter((d) => {
+    const percent = diskUsedPercent(d);
+    return percent !== null && percent > DISK_USAGE_ALERT_PERCENT;
+  });
+  if (diskFull.length > 0) {
+    insights.push({
+      severity: "high",
+      title: `${diskFull.length} device${diskFull.length === 1 ? "" : "s"} with disk usage over ${DISK_USAGE_ALERT_PERCENT}%`,
+      detail: nameList(
+        diskFull
+          .sort((a, b) => (diskUsedPercent(b) ?? 0) - (diskUsedPercent(a) ?? 0))
+          .map((d) => `${d.system_name} (${diskUsedPercent(d)}%)`)
+      ),
     });
   }
 

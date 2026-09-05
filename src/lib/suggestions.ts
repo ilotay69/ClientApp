@@ -120,7 +120,7 @@ export async function generateSuggestions(
       admin
         .from("ninjaone_devices")
         .select(
-          "system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, os_version"
+          "system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, os_version, disk_total_bytes, disk_free_bytes"
         )
         .eq("client_id", clientId),
       admin
@@ -366,6 +366,8 @@ function buildPrompt(
       device_created_at: d.device_created_at,
       manufacturer_fulfillment_date: d.manufacturer_fulfillment_date,
       os_name: d.os_name ?? null,
+      disk_total_bytes: d.disk_total_bytes,
+      disk_free_bytes: d.disk_free_bytes,
     }))
   );
   const deviceIssueList = deviceIssues.length
