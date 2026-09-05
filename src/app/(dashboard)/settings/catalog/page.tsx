@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ServiceCoverageAnalysis } from "@/components/service-coverage-analysis";
 import { TimeEntryPatterns } from "@/components/time-entry-patterns";
+import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
 import {
   getClientsForAnalysisAction,
@@ -27,14 +28,27 @@ export default async function AnalysisPage() {
         </p>
       </div>
 
-      <ServiceCoverageAnalysis
-        fetchClientsAction={getClientsForAnalysisAction}
-        fetchGapsAction={getClientServiceGapsAction}
-      />
-
-      <TimeEntryPatterns
-        fetchClientsAction={getClientsForAnalysisAction}
-        analyzeAction={analyzeClientTimeEntryPatternsAction}
+      <Tabs
+        tabs={[
+          {
+            label: "Sales opportunities",
+            content: (
+              <ServiceCoverageAnalysis
+                fetchClientsAction={getClientsForAnalysisAction}
+                fetchGapsAction={getClientServiceGapsAction}
+              />
+            ),
+          },
+          {
+            label: "Ticket Pattern",
+            content: (
+              <TimeEntryPatterns
+                fetchClientsAction={getClientsForAnalysisAction}
+                analyzeAction={analyzeClientTimeEntryPatternsAction}
+              />
+            ),
+          },
+        ]}
       />
     </div>
   );
