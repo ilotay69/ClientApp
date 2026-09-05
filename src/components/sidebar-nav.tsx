@@ -71,9 +71,6 @@ export function SidebarNav({
   ];
 
   const settingsLinks: NavItem[] = [
-    ...(canManageServices
-      ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
-      : []),
     ...(canManageIntegrations
       ? [{ href: "/settings/integrations", label: "Integrations", icon: IconSparkles }]
       : []),
@@ -83,7 +80,7 @@ export function SidebarNav({
     { href: "/settings/mail", label: "Mailbox", icon: IconMail },
   ];
 
-  const adminLinks: NavItem[] = [
+  const insightsLinks: NavItem[] = [
     ...(canManageTeam
       ? [
           { href: "/team", label: "Team", icon: IconUsers },
@@ -91,6 +88,9 @@ export function SidebarNav({
         ]
       : []),
     ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
+    ...(canManageServices
+      ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
+      : []),
   ];
 
   const isActive = (href: string) =>
@@ -154,12 +154,12 @@ export function SidebarNav({
           </div>
         )}
 
-        {adminLinks.length > 0 && (
+        {insightsLinks.length > 0 && (
           <div>
             <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
-              Admin
+              Insights &amp; Reports
             </p>
-            <div className="space-y-1">{adminLinks.map(renderLink)}</div>
+            <div className="space-y-1">{insightsLinks.map(renderLink)}</div>
           </div>
         )}
       </nav>
