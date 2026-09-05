@@ -48,9 +48,22 @@ export async function notifySalesRequestChange(
     );
 
     const recipient = actorIsRep ? assigneeEmail : repEmail;
-    if (!recipient) return;
+    if (!recipient) {
+      console.error(
+        "Sales-request notification skipped: no recipient resolved",
+        { requestId, repEmail, assigneeEmail, actorEmail, actorIsRep }
+      );
+      return;
+    }
     // Don't notify someone about their own change.
-    if (actorEmail && recipient.toLowerCase() === actorEmail.toLowerCase()) return;
+    if (actorEmail && recipient.toLowerCase() === actorEmail.toLowerCase()) {
+      console.error("Sales-request notification skipped: recipient is the actor", {
+        requestId,
+        recipient,
+        actorEmail,
+      });
+      return;
+    }
 
     const resend = getResendClient();
     const fromAddress =
