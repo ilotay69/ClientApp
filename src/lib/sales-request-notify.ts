@@ -36,6 +36,13 @@ export async function notifySalesRequestChange(
     const repEmail = repSettings?.rep_email ?? null;
     const actorEmail = actorProfile?.email ?? null;
 
+    console.log("Sales-request notify: resolved recipients", {
+      requestId,
+      actorUserId,
+      repEmail,
+      actorEmail,
+    });
+
     // Both get notified, always — deduped case-insensitively since the
     // actor and the rep can be the same person.
     const seen = new Set<string>();
