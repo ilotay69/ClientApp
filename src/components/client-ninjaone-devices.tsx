@@ -36,7 +36,36 @@ export type NinjaOneDeviceRow = {
   manufacturer: string | null;
   model: string | null;
   last_logged_on_user: string | null;
+  cpu_model: string | null;
+  ram_bytes: number | null;
+  disk_total_bytes: number | null;
+  disk_free_bytes: number | null;
+  last_boot_at: string | null;
+  last_synced_at: string | null;
 };
+
+function formatBytes(bytes: number | null): string | null {
+  if (bytes === null || bytes <= 0) return null;
+  const gb = bytes / 1024 ** 3;
+  return gb >= 1000 ? `${(gb / 1024).toFixed(1)} TB` : `${gb.toFixed(0)} GB`;
+}
+
+function diskUsageLabel(d: Pick<NinjaOneDeviceRow, "disk_total_bytes" | "disk_free_bytes">): string | null {
+  if (!d.disk_total_bytes) return null;
+  const total = formatBytes(d.disk_total_bytes);
+  if (!total) return null;
+  if (d.disk_free_bytes === null) return total;
+  const usedBytes = d.disk_total_bytes - d.disk_free_bytes;
+  const usedPercent = Math.round((usedBytes / d.disk_total_bytes) * 100);
+  return `${formatBytes(usedBytes)} used of ${total} (${usedPercent}%)`;
+}
+
+function uptimeLabel(lastBootAt: string | null): string | null {
+  if (!lastBootAt) return null;
+  const days = Math.floor((Date.now() - new Date(lastBootAt).getTime()) / 86_400_000);
+  if (days < 0) return null;
+  return days === 0 ? "<1 day" : `${days} day${days === 1 ? "" : "s"}`;
+}
 
 const FILTER_THRESHOLD = 5;
 
@@ -189,7 +218,11 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
       d.model ||
       d.last_logged_on_user ||
       d.device_created_at ||
-      d.manufacturer_fulfillment_date
+      d.manufacturer_fulfillment_date ||
+      d.cpu_model ||
+      d.ram_bytes ||
+      d.disk_total_bytes ||
+      d.last_boot_at
   );
 
   return (
@@ -224,8 +257,13 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
           />
           <Detail label="Manufacturer" value={d.manufacturer} />
           <Detail label="Model" value={d.model} />
+          <Detail label="CPU" value={d.cpu_model} />
+          <Detail label="RAM" value={formatBytes(d.ram_bytes)} />
+          <Detail label="Disk usage" value={diskUsageLabel(d)} />
           <Detail label="Last logged-on user" value={d.last_logged_on_user} />
           <Detail label="Last contact" value={d.last_contact ? formatDate(d.last_contact) : null} />
+          <Detail label="Last boot" value={d.last_boot_at ? formatDate(d.last_boot_at) : null} />
+          <Detail label="Uptime" value={uptimeLabel(d.last_boot_at)} />
           <Detail label="Device age" value={ageLabel(d)} />
           <Detail
             label="Manufactured / shipped"
@@ -236,6 +274,10 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
           <Detail
             label="First registered"
             value={d.device_created_at ? formatDate(d.device_created_at) : null}
+          />
+          <Detail
+            label="Last updated"
+            value={d.last_synced_at ? formatDate(d.last_synced_at) : null}
           />
           {!hasDetail && (
             <p className="col-span-full text-slate-500">

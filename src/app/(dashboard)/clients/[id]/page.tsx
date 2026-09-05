@@ -146,7 +146,7 @@ export default async function ClientDetailPage({
     supabase
       .from("ninjaone_devices")
       .select(
-        "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, os_version, manufacturer, model, last_logged_on_user"
+        "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, os_version, manufacturer, model, last_logged_on_user, cpu_model, ram_bytes, disk_total_bytes, disk_free_bytes, last_boot_at, last_synced_at"
       )
       .eq("client_id", id)
       .order("system_name"),

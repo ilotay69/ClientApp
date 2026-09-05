@@ -100,6 +100,11 @@ export type NinjaOneDeviceRow = {
   manufacturer: string | null;
   model: string | null;
   last_logged_on_user: string | null;
+  cpu_model: string | null;
+  ram_bytes: number | null;
+  disk_total_bytes: number | null;
+  disk_free_bytes: number | null;
+  last_boot_at: string | null;
   detail: unknown;
   raw: unknown;
 };
@@ -141,6 +146,14 @@ function firstString(obj: Record<string, unknown>, keys: string[]): string | nul
   return null;
 }
 
+function firstNumber(obj: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
 function deviceIdOf(row: Record<string, unknown>): number | null {
   const id = row.deviceId ?? row.device_id ?? row.id;
   return typeof id === "number" ? id : null;
@@ -172,11 +185,15 @@ export async function fetchDevicesForOrganization(
   };
   const devices = (json ?? []) as RawDevice[];
 
-  const [computerSystems, operatingSystems, loggedOnUsers] = await Promise.all([
-    fetchDeviceQuery(creds, token, orgId, "computer-systems"),
-    fetchDeviceQuery(creds, token, orgId, "operating-systems"),
-    fetchDeviceQuery(creds, token, orgId, "logged-on-users"),
-  ]);
+  const [computerSystems, operatingSystems, loggedOnUsers, processors, volumes, deviceHealth] =
+    await Promise.all([
+      fetchDeviceQuery(creds, token, orgId, "computer-systems"),
+      fetchDeviceQuery(creds, token, orgId, "operating-systems"),
+      fetchDeviceQuery(creds, token, orgId, "logged-on-users"),
+      fetchDeviceQuery(creds, token, orgId, "processors"),
+      fetchDeviceQuery(creds, token, orgId, "volumes"),
+      fetchDeviceQuery(creds, token, orgId, "device-health"),
+    ]);
 
   const computerSystemByDevice = new Map<number, Record<string, unknown>>();
   for (const row of computerSystems) {
@@ -193,11 +210,51 @@ export async function fetchDevicesForOrganization(
     const id = deviceIdOf(row);
     if (id !== null) userByDevice.set(id, row);
   }
+  // First processor row per device — enough for a model name, not summing
+  // core counts across sockets.
+  const processorByDevice = new Map<number, Record<string, unknown>>();
+  for (const row of processors) {
+    const id = deviceIdOf(row);
+    if (id !== null && !processorByDevice.has(id)) processorByDevice.set(id, row);
+  }
+  // A device can have several volumes — sum capacity/free space across all
+  // of them for one overall "disk usage" figure rather than picking one.
+  const volumesByDevice = new Map<number, Record<string, unknown>[]>();
+  for (const row of volumes) {
+    const id = deviceIdOf(row);
+    if (id === null) continue;
+    const list = volumesByDevice.get(id) ?? [];
+    list.push(row);
+    volumesByDevice.set(id, list);
+  }
+  const healthByDevice = new Map<number, Record<string, unknown>>();
+  for (const row of deviceHealth) {
+    const id = deviceIdOf(row);
+    if (id !== null) healthByDevice.set(id, row);
+  }
 
   return devices.map((d) => {
     const cs = computerSystemByDevice.get(d.id) ?? {};
     const os = osByDevice.get(d.id) ?? {};
     const user = userByDevice.get(d.id) ?? {};
+    const proc = processorByDevice.get(d.id) ?? {};
+    const deviceVolumes = volumesByDevice.get(d.id) ?? [];
+    const health = healthByDevice.get(d.id) ?? {};
+
+    const diskTotals = deviceVolumes.reduce(
+      (sum, v) => {
+        const total = firstNumber(v, ["capacity", "size", "totalSize", "totalBytes"]);
+        const free = firstNumber(v, ["freeSpace", "free", "freeBytes"]);
+        return {
+          total: total !== null ? sum.total + total : sum.total,
+          free: free !== null ? sum.free + free : sum.free,
+          any: sum.any || total !== null || free !== null,
+        };
+      },
+      { total: 0, free: 0, any: false }
+    );
+
+    const lastBootEpoch = firstNumber(health, ["lastBootTime", "lastBoot", "bootTime"]);
 
     return {
       id: d.id,
@@ -222,7 +279,25 @@ export async function fetchDevicesForOrganization(
       manufacturer: firstString(cs, ["manufacturer", "biosManufacturer", "systemManufacturer"]),
       model: firstString(cs, ["model", "systemModel"]),
       last_logged_on_user: firstString(user, ["username", "userName", "user", "lastLoggedOnUser"]),
-      detail: { computerSystem: cs, operatingSystem: os, loggedOnUser: user },
+      cpu_model: firstString(proc, ["name", "caption", "model"]),
+      ram_bytes: firstNumber(cs, [
+        "totalPhysicalMemory",
+        "totalRam",
+        "totalRAM",
+        "memory",
+        "physicalMemory",
+      ]),
+      disk_total_bytes: diskTotals.any ? diskTotals.total : null,
+      disk_free_bytes: diskTotals.any ? diskTotals.free : null,
+      last_boot_at: lastBootEpoch ? new Date(lastBootEpoch * 1000).toISOString() : null,
+      detail: {
+        computerSystem: cs,
+        operatingSystem: os,
+        loggedOnUser: user,
+        processor: proc,
+        volumes: deviceVolumes,
+        health,
+      },
       raw: d,
     };
   });
