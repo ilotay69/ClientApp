@@ -975,3 +975,100 @@ export async function syncClientM365Data(clientId: string): Promise<{ error: str
   revalidatePath(`/clients/${clientId}`);
   return { error: null };
 }
+
+const AUTO_SYNC_THROTTLE_MS = 60 * 60 * 1000;
+
+/** Fired (not awaited) from a client's own page on every visit, so
+ * devices reflect recent NinjaOne changes without a manual "Sync
+ * NinjaOne" click — but only if the last auto-sync was more than an hour
+ * ago, and always in the background so a visit never waits on NinjaOne.
+ * Same throttle-then-detach pattern as
+ * autoSyncAutotaskProjectsIfStale (src/app/(dashboard)/projects/actions.ts),
+ * just scoped to one client's timestamp instead of one org-wide one since
+ * this syncs a single client rather than every mapped client at once. */
+export async function autoSyncClientNinjaOneIfStale(clientId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data: client } = await admin
+    .from("clients")
+    .select("ninjaone_organization_id, ninjaone_last_synced_at")
+    .eq("id", clientId)
+    .single();
+  if (!client?.ninjaone_organization_id) return;
+
+  const lastSyncedAt = client.ninjaone_last_synced_at
+    ? new Date(client.ninjaone_last_synced_at).getTime()
+    : 0;
+  if (Date.now() - lastSyncedAt < AUTO_SYNC_THROTTLE_MS) return;
+
+  const settings = await getNinjaOneSettings(admin);
+  if (!settings) return;
+
+  await admin
+    .from("clients")
+    .update({ ninjaone_last_synced_at: new Date().toISOString() })
+    .eq("id", clientId);
+
+  try {
+    const token = await getValidNinjaOneToken(admin, settings);
+    const devices = await fetchDevicesForOrganization(
+      settings.credentials,
+      token,
+      client.ninjaone_organization_id
+    );
+    await admin.from("ninjaone_devices").delete().eq("client_id", clientId);
+    if (devices.length > 0) {
+      await admin
+        .from("ninjaone_devices")
+        .insert(devices.map((d) => ({ ...d, client_id: clientId })));
+    }
+  } catch (err) {
+    console.error("Background NinjaOne auto-sync failed", err);
+  }
+}
+
+/** Same throttled background pattern as autoSyncClientNinjaOneIfStale,
+ * for M365 licenses/Secure Score gaps. */
+export async function autoSyncClientM365IfStale(clientId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data: client } = await admin
+    .from("clients")
+    .select("m365_last_synced_at")
+    .eq("id", clientId)
+    .single();
+
+  const lastSyncedAt = client?.m365_last_synced_at
+    ? new Date(client.m365_last_synced_at).getTime()
+    : 0;
+  if (Date.now() - lastSyncedAt < AUTO_SYNC_THROTTLE_MS) return;
+
+  const settings = await getM365ClientSettings(admin, clientId);
+  if (!settings) return;
+
+  await admin
+    .from("clients")
+    .update({ m365_last_synced_at: new Date().toISOString() })
+    .eq("id", clientId);
+
+  try {
+    const customerToken = await getValidM365Token(admin, clientId, settings);
+
+    const licenses = await fetchLicenseSummaryForTenant(customerToken);
+    await admin.from("m365_license_summary").delete().eq("client_id", clientId);
+    if (licenses.length > 0) {
+      await admin
+        .from("m365_license_summary")
+        .insert(licenses.map((l) => ({ ...l, client_id: clientId })));
+    }
+
+    const { summary, gaps } = await fetchSecureScoreGapsForTenant(customerToken);
+    await admin.from("m365_secure_score").upsert({ ...summary, client_id: clientId });
+    await admin.from("m365_secure_score_gaps").delete().eq("client_id", clientId);
+    if (gaps.length > 0) {
+      await admin
+        .from("m365_secure_score_gaps")
+        .insert(gaps.map((g) => ({ ...g, client_id: clientId })));
+    }
+  } catch (err) {
+    console.error("Background M365 auto-sync failed", err);
+  }
+}

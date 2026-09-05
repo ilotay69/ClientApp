@@ -45,6 +45,8 @@ import {
   testM365ClientConnectionAction,
   unlinkClientM365Tenant,
   syncClientM365Data,
+  autoSyncClientNinjaOneIfStale,
+  autoSyncClientM365IfStale,
 } from "../actions";
 import { checkDomainHealthAction } from "../../domain-health/actions";
 import { DeleteButton } from "@/components/delete-button";
@@ -198,6 +200,19 @@ export default async function ClientDetailPage({
   const unlinkM365Action = unlinkClientM365Tenant.bind(null, id);
   const syncM365Action = syncClientM365Data.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
+
+  // Fire-and-forget: never awaited, so visiting this page never waits on
+  // NinjaOne/M365 — same throttled background pattern as
+  // autoSyncAutotaskProjectsIfStale on the Projects page, just scoped to
+  // this one client instead of every mapped client at once.
+  if (canManageClients) {
+    autoSyncClientNinjaOneIfStale(id).catch((err) => {
+      console.error("Background NinjaOne auto-sync failed", err);
+    });
+    autoSyncClientM365IfStale(id).catch((err) => {
+      console.error("Background M365 auto-sync failed", err);
+    });
+  }
 
   const stalestAutotaskTicket = (autotaskTickets ?? []).reduce<
     { title: string; last_activity_at: string | null } | null
