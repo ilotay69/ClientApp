@@ -150,14 +150,30 @@ export async function searchAutotaskCompanies(
   }));
 }
 
-/** Every active Autotask company, for the "add multiple clients" picker —
- * paginated since a real book of business can exceed one page. */
+/** Every active Autotask company whose companyType is "Customer", for the
+ * "add multiple clients" picker — paginated since a real book of business
+ * can exceed one page. companyType's numeric values are resolved from this
+ * tenant's own picklist (same reasoning as fetchTicketPicklists) rather
+ * than hardcoded, since Autotask lets a tenant customize/reorder them. If
+ * the tenant's picklist has no label matching "Customer" (unexpected, but
+ * shouldn't hard-fail the picker), only the isActive filter is applied. */
 export async function fetchActiveAutotaskCompanies(
   creds: AutotaskCredentials,
   zoneUrl: string
 ): Promise<AutotaskCompany[]> {
+  const fields = await fetchEntityFields(creds, zoneUrl, "Companies");
+  const companyTypeMap = picklistMap(fields, "companyType");
+  const customerValue = [...companyTypeMap.entries()].find(
+    ([, label]) => label.trim().toLowerCase() === "customer"
+  )?.[0];
+
+  const filter: Record<string, unknown>[] = [{ op: "eq", field: "isActive", value: true }];
+  if (customerValue !== undefined) {
+    filter.push({ op: "eq", field: "companyType", value: customerValue });
+  }
+
   const items = (await autotaskQueryAllPages(creds, zoneUrl, "Companies", {
-    filter: [{ op: "eq", field: "isActive", value: true }],
+    filter,
   })) as { id: number; companyName: string }[];
   return items
     .map((c) => ({ id: c.id, companyName: c.companyName }))
