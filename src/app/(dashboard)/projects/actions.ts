@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, hasPermission } from "@/lib/permissions";
 import { syncAllAutotaskClients } from "@/lib/autotask-sync";
 import type { ProjectStatus } from "@/lib/types";
 
@@ -275,6 +275,65 @@ export async function addProjectNote(
 
   revalidatePath("/projects");
   return { error: null };
+}
+
+export type ProjectDocument = {
+  id: string;
+  subject: string | null;
+  attachmentFilename: string | null;
+  createdAt: string;
+};
+
+/** Manually-uploaded PDF/Word/Excel documents for this project (see
+ * uploadProjectDocument) — live-fetched only when the row is expanded,
+ * same as its tasks and Autotask quote log. */
+export async function getProjectDocumentsAction(
+  projectId: string
+): Promise<{ documents: ProjectDocument[] } | { error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("client_interactions")
+    .select("id, subject, attachment_filename, created_at")
+    .eq("project_id", projectId)
+    .eq("type", "document")
+    .order("created_at", { ascending: false });
+
+  if (error) return { error: error.message };
+
+  return {
+    documents: (data ?? []).map((d) => ({
+      id: d.id,
+      subject: d.subject,
+      attachmentFilename: d.attachment_filename,
+      createdAt: d.created_at,
+    })),
+  };
+}
+
+/** Removes an uploaded project document and its file. Anyone can remove
+ * their own upload; removing someone else's needs manage_projects. */
+export async function deleteProjectDocument(projectId: string, interactionId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: interaction } = await supabase
+    .from("client_interactions")
+    .select("created_by, attachment_path")
+    .eq("id", interactionId)
+    .maybeSingle();
+  if (!interaction) return;
+
+  const isOwnEntry = Boolean(user) && interaction.created_by === user!.id;
+  if (!isOwnEntry && !(await hasPermission(supabase, "manage_projects"))) return;
+
+  await supabase.from("client_interactions").delete().eq("id", interactionId);
+  if (interaction.attachment_path) {
+    await supabase.storage.from("client-documents").remove([interaction.attachment_path]);
+  }
+
+  revalidatePath("/projects");
 }
 
 export async function deleteProject(projectId: string, clientId: string) {

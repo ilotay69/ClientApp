@@ -323,6 +323,70 @@ export async function uploadClientDocument(
   return { error: null };
 }
 
+const ACCEPTED_PROJECT_DOC_TYPES: Record<string, string> = {
+  ...ACCEPTED_TYPES,
+  "application/vnd.ms-excel": ".xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+};
+
+/** A project's own manually-uploaded document (PDF/Word/Excel) — same
+ * mechanism as uploadClientDocument (private storage bucket, served
+ * through /api/documents/[id]), but scoped to the project (project_id
+ * set) rather than the client's Timeline. Open to any signed-in user,
+ * same posture as uploadClientDocument. */
+export async function uploadProjectDocument(
+  projectId: string,
+  clientId: string,
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
+  // Some browsers/OSes report older .doc/.xls files as
+  // application/octet-stream rather than their real MIME type — fall
+  // back to the file extension so a real file isn't rejected on a
+  // mislabeled MIME type.
+  const extensionOk = /\.(pdf|docx?|xlsx?)$/i.test(file.name);
+  if (!ACCEPTED_PROJECT_DOC_TYPES[file.type] && !extensionOk) {
+    return { error: "Only PDF, Word, or Excel documents (.pdf, .doc, .docx, .xls, .xlsx) are supported." };
+  }
+  if (file.size > MAX_UPLOAD_BYTES) return { error: "That file is larger than 20MB." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${clientId}/${crypto.randomUUID()}-${safeName}`;
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { error: uploadError } = await supabase.storage
+    .from("client-documents")
+    .upload(path, bytes, { contentType: file.type || "application/octet-stream" });
+  if (uploadError) return { error: uploadError.message };
+
+  const subject = emptyToNull(formData.get("subject")) ?? file.name;
+  const { error } = await supabase.from("client_interactions").insert({
+    client_id: clientId,
+    project_id: projectId,
+    type: "document",
+    subject,
+    body: "Document uploaded — view or download it below.",
+    attachment_path: path,
+    attachment_filename: file.name,
+    created_by: user?.id ?? null,
+  });
+
+  if (error) {
+    await supabase.storage.from("client-documents").remove([path]);
+    return { error: error.message };
+  }
+
+  revalidatePath("/projects");
+  return { error: null };
+}
+
 export type AutotaskQuoteOption = {
   id: number;
   name: string;

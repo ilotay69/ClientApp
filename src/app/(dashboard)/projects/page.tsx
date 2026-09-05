@@ -12,9 +12,15 @@ import {
   getProjectQuoteLogAction,
   getProjectNotesAction,
   addProjectNote,
+  getProjectDocumentsAction,
+  deleteProjectDocument,
 } from "./actions";
 import { createTask } from "../tasks/actions";
-import { listAutotaskQuotesForClientAction, logAutotaskQuoteReference } from "../clients/actions";
+import {
+  listAutotaskQuotesForClientAction,
+  logAutotaskQuoteReference,
+  uploadProjectDocument,
+} from "../clients/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +125,9 @@ export default async function ProjectsPage({
               logAutotaskQuoteAction={logAutotaskQuoteReference}
               fetchNotesAction={getProjectNotesAction}
               addNoteAction={addProjectNote.bind(null, p.id)}
+              fetchDocumentsAction={getProjectDocumentsAction}
+              uploadDocumentAction={uploadProjectDocument.bind(null, p.id, p.client_id)}
+              deleteDocumentAction={deleteProjectDocument.bind(null, p.id)}
             />
           );
         })}

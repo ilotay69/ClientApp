@@ -1,0 +1,11 @@
+-- CG Technologies Client Tracker — a project's own manually-uploaded
+-- documents (PDF/Word/Excel), reusing the existing client_interactions
+-- attachment mechanism (same private "client-documents" storage bucket
+-- and /api/documents/[id] signed-URL route already used for signed
+-- quotes/reviews) — scoped to the project (project_id set) rather than
+-- the client's Timeline, same as the Autotask quote log.
+--
+-- New enum value can't be used in the same script that adds it (Postgres
+-- 55P04), so this migration only adds it — uploadProjectDocument (the
+-- first thing to use it) is a separate, later change.
+alter type public.client_interaction_type add value if not exists 'document';

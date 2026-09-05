@@ -7,10 +7,13 @@ import { formatDate } from "@/lib/format";
 import { IconChevronDown } from "@/components/icons";
 import { ProjectTaskQuickAdd } from "@/components/project-task-quick-add";
 import { AutotaskQuotePicker } from "@/components/autotask-quote-picker";
+import { ProjectDocumentUpload } from "@/components/project-document-upload";
+import { DeleteButton } from "@/components/delete-button";
 import type {
   ProjectTask,
   ProjectQuoteLogEntry,
   ProjectNote,
+  ProjectDocument,
   FormState as ProjectFormState,
 } from "@/app/(dashboard)/projects/actions";
 import type { FormState, AutotaskQuoteOption } from "@/app/(dashboard)/clients/actions";
@@ -37,6 +40,9 @@ export function ProjectRow({
   fetchQuoteLogAction,
   fetchNotesAction,
   addNoteAction,
+  fetchDocumentsAction,
+  uploadDocumentAction,
+  deleteDocumentAction,
 }: {
   project: ProjectRowData;
   clientName: string | null;
@@ -56,6 +62,11 @@ export function ProjectRow({
   ) => Promise<{ entries: ProjectQuoteLogEntry[] } | { error: string }>;
   fetchNotesAction: (projectId: string) => Promise<{ notes: ProjectNote[] } | { error: string }>;
   addNoteAction: (prevState: ProjectFormState, formData: FormData) => Promise<ProjectFormState>;
+  fetchDocumentsAction: (
+    projectId: string
+  ) => Promise<{ documents: ProjectDocument[] } | { error: string }>;
+  uploadDocumentAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
+  deleteDocumentAction: (interactionId: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [tasks, setTasks] = useState<ProjectTask[] | null>(null);
@@ -67,6 +78,9 @@ export function ProjectRow({
   const [notes, setNotes] = useState<ProjectNote[] | null>(null);
   const [notesError, setNotesError] = useState<string | null>(null);
   const [loadingNotes, startLoadNotes] = useTransition();
+  const [documents, setDocuments] = useState<ProjectDocument[] | null>(null);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [loadingDocuments, startLoadDocuments] = useTransition();
 
   useEffect(() => {
     if (!expanded || tasks !== null) return;
@@ -97,6 +111,23 @@ export function ProjectRow({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
+
+  useEffect(() => {
+    if (!expanded || documents !== null) return;
+    startLoadDocuments(async () => {
+      const result = await fetchDocumentsAction(project.id);
+      if ("error" in result) setDocumentsError(result.error);
+      else setDocuments(result.documents);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded]);
+
+  const refreshDocuments = () => {
+    startLoadDocuments(async () => {
+      const result = await fetchDocumentsAction(project.id);
+      if (!("error" in result)) setDocuments(result.documents);
+    });
+  };
 
   const refreshTasks = () => {
     startLoadTasks(async () => {
@@ -242,6 +273,66 @@ export function ProjectRow({
               </form>
               {noteState.error && <p className="text-xs text-red-600">{noteState.error}</p>}
             </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-white">
+            <div className="border-b border-slate-100 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Documents
+              </p>
+            </div>
+            {loadingDocuments && documents === null && (
+              <p className="px-3 py-2 text-xs text-slate-500">Loading documents…</p>
+            )}
+            {documentsError && <p className="px-3 py-2 text-xs text-red-600">{documentsError}</p>}
+            {documents && documents.length > 0 && (
+              <ul className="divide-y divide-slate-100">
+                {documents.map((doc) => (
+                  <li key={doc.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">
+                        {doc.subject ?? doc.attachmentFilename ?? "Document"}
+                      </p>
+                      <p className="text-xs text-slate-500">{formatDate(doc.createdAt)}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <a
+                        href={`/api/documents/${doc.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-medium text-brand underline"
+                      >
+                        View
+                      </a>
+                      <a
+                        href={`/api/documents/${doc.id}?download=1`}
+                        className="text-xs font-medium text-slate-600 underline"
+                      >
+                        Download
+                      </a>
+                      <DeleteButton
+                        action={async () => {
+                          await deleteDocumentAction(doc.id);
+                          refreshDocuments();
+                        }}
+                        confirmText={`Remove "${doc.subject ?? doc.attachmentFilename ?? "this document"}"?`}
+                        label="Remove"
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {documents && documents.length === 0 && (
+              <p className="px-3 py-2 text-xs text-slate-500">No documents uploaded yet.</p>
+            )}
+            <ProjectDocumentUpload
+              action={async (prevState, formData) => {
+                const result = await uploadDocumentAction(prevState, formData);
+                if (!result.error) refreshDocuments();
+                return result;
+              }}
+            />
           </div>
 
           {project.hasAutotaskCompany && (
