@@ -40,37 +40,6 @@ import { generateTicketInsights, type TicketInsight } from "@/lib/ticket-insight
 
 export type FormState = { error: string | null };
 
-export async function updateClientRecord(
-  clientId: string,
-  _prevState: FormState,
-  formData: FormData
-): Promise<FormState> {
-  if (!(await requirePermission("manage_clients"))) {
-    return { error: "You don't have permission to do that." };
-  }
-
-  const supabase = await createClient();
-
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "Client name is required." };
-
-  const { error } = await supabase
-    .from("clients")
-    .update({
-      name,
-      primary_contact_name: emptyToNull(formData.get("primary_contact_name")),
-      primary_contact_email: emptyToNull(formData.get("primary_contact_email")),
-      primary_contact_phone: emptyToNull(formData.get("primary_contact_phone")),
-    })
-    .eq("id", clientId);
-
-  if (error) return { error: error.message };
-
-  revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/clients");
-  return { error: null };
-}
-
 export async function deleteClientRecord(clientId: string) {
   if (!(await requirePermission("manage_clients"))) return;
 
@@ -83,31 +52,6 @@ export async function deleteClientRecord(clientId: string) {
 function emptyToNull(value: FormDataEntryValue | null) {
   const str = String(value ?? "").trim();
   return str.length > 0 ? str : null;
-}
-
-export async function addClientContact(
-  clientId: string,
-  _prevState: FormState,
-  formData: FormData
-): Promise<FormState> {
-  if (!(await requirePermission("manage_clients"))) {
-    return { error: "You don't have permission to do that." };
-  }
-
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "Contact name is required." };
-
-  const supabase = await createClient();
-  const { error } = await supabase.from("client_contacts").insert({
-    client_id: clientId,
-    name,
-    email: emptyToNull(formData.get("email")),
-  });
-
-  if (error) return { error: error.message };
-
-  revalidatePath(`/clients/${clientId}`);
-  return { error: null };
 }
 
 export async function removeClientContact(clientId: string, contactId: string) {

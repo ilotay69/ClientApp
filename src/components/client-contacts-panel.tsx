@@ -1,16 +1,16 @@
 "use client";
 
-import { useActionState, useRef } from "react";
-import { DeleteButton } from "@/components/delete-button";
 import { AutotaskContactPicker } from "@/components/autotask-contact-picker";
+import { DeleteButton } from "@/components/delete-button";
 import type { FormState } from "@/app/(dashboard)/clients/actions";
 
-const initialState: FormState = { error: null };
-
+/** Contacts only ever come from Autotask now (no manual add) — the first
+ * one in the list doubles as the "primary contact" shown up top, since
+ * neither Autotask's Contacts entity nor this app's own client_contacts
+ * table has a real "primary" flag to pull instead. */
 export function ClientContactsPanel({
   contacts,
   canManageClients,
-  addAction,
   removeAction,
   hasAutotaskMapping,
   searchAutotaskAction,
@@ -18,7 +18,6 @@ export function ClientContactsPanel({
 }: {
   contacts: { id: string; name: string; email: string | null }[];
   canManageClients: boolean;
-  addAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
   removeAction: (contactId: string) => Promise<void>;
   hasAutotaskMapping: boolean;
   searchAutotaskAction: () => Promise<
@@ -26,15 +25,24 @@ export function ClientContactsPanel({
   >;
   addFromAutotaskAction: (contacts: { name: string; email: string | null }[]) => Promise<FormState>;
 }) {
-  const [state, formAction, pending] = useActionState(addAction, initialState);
-  const formRef = useRef<HTMLFormElement>(null);
+  const primary = contacts[0] ?? null;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="mb-4 text-sm font-semibold text-slate-900">Contacts</h2>
 
+      {primary && (
+        <div className="mb-4 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Primary contact
+          </p>
+          <p className="text-sm font-medium text-slate-900">{primary.name}</p>
+          {primary.email && <p className="text-xs text-slate-500">{primary.email}</p>}
+        </div>
+      )}
+
       {contacts.length === 0 ? (
-        <p className="text-sm text-slate-500">No additional contacts yet.</p>
+        <p className="text-sm text-slate-500">No contacts yet.</p>
       ) : (
         <ul className="space-y-2">
           {contacts.map((c) => (
@@ -58,40 +66,9 @@ export function ClientContactsPanel({
         </ul>
       )}
 
-      {canManageClients && (
-        <div className="mt-4 flex flex-wrap items-start gap-2">
-          <form
-            ref={formRef}
-            action={async (formData: FormData) => {
-              await formAction(formData);
-              formRef.current?.reset();
-            }}
-            className="flex flex-wrap items-start gap-2"
-          >
-            <input
-              name="name"
-              placeholder="Name"
-              required
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="email"
-              name="email"
-              placeholder="Email (optional)"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={pending}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-            >
-              {pending ? "Adding..." : "Add contact"}
-            </button>
-          </form>
-          {hasAutotaskMapping && (
-            <AutotaskContactPicker searchAction={searchAutotaskAction} addAction={addFromAutotaskAction} />
-          )}
-          {state.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
+      {canManageClients && hasAutotaskMapping && (
+        <div className="mt-4">
+          <AutotaskContactPicker searchAction={searchAutotaskAction} addAction={addFromAutotaskAction} />
         </div>
       )}
     </div>

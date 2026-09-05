@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { ClientForm } from "@/components/client-form";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
 import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
@@ -24,9 +23,7 @@ import { formatDate, isOverdue, daysAgo, buildFollowupSummary } from "@/lib/form
 import { extractDomainFromEmail } from "@/lib/domain-health";
 import { hasPermission } from "@/lib/permissions";
 import {
-  updateClientRecord,
   deleteClientRecord,
-  addClientContact,
   removeClientContact,
   fetchAutotaskContactsForClient,
   addClientContactsFromAutotask,
@@ -180,7 +177,6 @@ export default async function ClientDetailPage({
     .eq("client_id", id)
     .maybeSingle();
 
-  const addContactAction = addClientContact.bind(null, id);
   const removeContactAction = removeClientContact.bind(null, id);
   const searchAutotaskContactsAction = fetchAutotaskContactsForClient.bind(null, id);
   const addContactsFromAutotaskAction = addClientContactsFromAutotask.bind(null, id);
@@ -250,8 +246,6 @@ export default async function ClientDetailPage({
     })),
   ].sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  const updateAction = updateClientRecord.bind(null, id);
-
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -300,18 +294,10 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
-          <h2 className="mb-4 text-sm font-semibold text-slate-900">
-            Client details
-          </h2>
-          <ClientForm client={client} action={updateAction} submitLabel="Save changes" />
-        </div>
-
+      <div className="max-w-md">
         <ClientContactsPanel
           contacts={contacts ?? []}
           canManageClients={canManageClients}
-          addAction={addContactAction}
           removeAction={removeContactAction}
           hasAutotaskMapping={client.autotask_company_id != null}
           searchAutotaskAction={searchAutotaskContactsAction}
