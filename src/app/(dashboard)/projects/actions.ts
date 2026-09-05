@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission, hasPermission } from "@/lib/permissions";
-import { syncAllAutotaskClients } from "@/lib/autotask-sync";
+import { syncAllProjectSlaProjects } from "@/lib/autotask-sync";
 import type { ProjectStatus } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -111,17 +111,19 @@ export async function updateProjectQuotedHours(
   return { error: null };
 }
 
-/** Runs the same tickets/contract-services/Project-SLA sync the nightly
- * cron job does, on demand, for every Autotask-mapped client at once —
- * so a freshly Project-SLA-tagged ticket shows up here without visiting
- * each client's page individually. */
+/** Runs the Project-SLA sync for every Autotask-mapped client at once, on
+ * demand — so a freshly Project-SLA-tagged ticket shows up here without
+ * visiting each client's page individually. Scoped to just projects (not
+ * the full tickets/contract-services/primary-contact sync that button
+ * used to also trigger) — that's what made it slow, and none of that data
+ * belongs to this page anyway. */
 export async function syncAllAutotaskProjectsAction(): Promise<{ error: string | null }> {
   if (!(await requirePermission("manage_projects"))) {
     return { error: "You don't have permission to do that." };
   }
 
   const admin = createAdminClient();
-  const result = await syncAllAutotaskClients(admin);
+  const result = await syncAllProjectSlaProjects(admin);
   if ("error" in result) return { error: result.error };
 
   await admin
@@ -145,13 +147,15 @@ const AUTO_SYNC_THROTTLE_MS = 30 * 60 * 1000;
 /** Fired (not awaited) from the Projects page itself on every visit, so
  * the list reflects recent Autotask changes without a manual "Sync
  * Autotask" click — but only if the last sync was more than 30 minutes
- * ago, and always in the background: a full sync loops every mapped
- * client sequentially and can take a while for a real book of business
- * (the same kind of long request that caused the "page couldn't load"
- * issue with a 77-company batch elsewhere), so this must never block the
- * page's own render. The timestamp is claimed up front, before the slow
- * part runs, so several people opening the page in the same window don't
- * each kick off their own sync. */
+ * ago, and always in the background: syncing every mapped client
+ * sequentially can take a while for a real book of business (the same
+ * kind of long request that caused the "page couldn't load" issue with a
+ * 77-company batch elsewhere), so this must never block the page's own
+ * render. Scoped to syncAllProjectSlaProjects, not the full client sync —
+ * this page has no use for tickets/contract-services/primary-contact
+ * data. The timestamp is claimed up front, before the slow part runs, so
+ * several people opening the page in the same window don't each kick off
+ * their own sync. */
 export async function autoSyncAutotaskProjectsIfStale(): Promise<void> {
   const admin = createAdminClient();
   const { data: settings } = await admin
@@ -174,7 +178,7 @@ export async function autoSyncAutotaskProjectsIfStale(): Promise<void> {
   // next visit re-queries Supabase regardless — and this call happens
   // detached from any request/render lifecycle, which revalidatePath
   // isn't meant to be called outside of.
-  await syncAllAutotaskClients(admin);
+  await syncAllProjectSlaProjects(admin);
 }
 
 export type ProjectTask = {

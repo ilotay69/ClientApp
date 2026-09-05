@@ -194,3 +194,52 @@ export async function syncAllAutotaskClients(
 
   return { synced: results.length, results };
 }
+
+export type ProjectSlaSyncResult =
+  | { clientId: string; projectCount: number }
+  | { clientId: string; error: string };
+
+/** Projects-only counterpart to syncAllAutotaskClients — for the Projects
+ * page's own "Sync Autotask" button and its background auto-sync, neither
+ * of which has any reason to also re-pull tickets/contract services/
+ * primary contact for every client (that's what made this button slow;
+ * those are already kept fresh by the client page's own sync button and
+ * the nightly cron). Skips straight to syncProjectSlaProjects per client. */
+export async function syncAllProjectSlaProjects(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any
+): Promise<{ synced: number; results: ProjectSlaSyncResult[] } | { error: string }> {
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't configured yet." };
+  }
+
+  const { data: clients } = await admin
+    .from("clients")
+    .select("id, autotask_company_id")
+    .not("autotask_company_id", "is", null);
+
+  const labels = await fetchTicketPicklists(settings.credentials, settings.zoneUrl);
+
+  const results: ProjectSlaSyncResult[] = [];
+  for (const client of clients ?? []) {
+    try {
+      const projectCount = await syncProjectSlaProjects(
+        admin,
+        settings.credentials,
+        settings.zoneUrl,
+        client.id,
+        client.autotask_company_id as number,
+        labels
+      );
+      results.push({ clientId: client.id, projectCount });
+    } catch (err) {
+      results.push({
+        clientId: client.id,
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  }
+
+  return { synced: results.length, results };
+}
