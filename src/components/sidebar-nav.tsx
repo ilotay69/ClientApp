@@ -20,12 +20,16 @@ import {
   IconLogOut,
   IconMenu,
   IconX,
+  IconLock,
 } from "@/components/icons";
 
 type NavItem = {
   href: string;
   label: string;
   icon: (props: { className?: string }) => React.ReactNode;
+  /** Shows a small lock after the label — pages gated to Owner only,
+   * regardless of role_permissions (e.g. Touchpoints). */
+  ownerOnly?: boolean;
 };
 
 const LINKS_BEFORE_TOUCHPOINTS: NavItem[] = [
@@ -66,7 +70,9 @@ export function SidebarNav({
   // point linking to a page that'll just redirect back out.
   const MAIN_LINKS: NavItem[] = [
     ...LINKS_BEFORE_TOUCHPOINTS,
-    ...(isOwner ? [{ href: "/touchpoints", label: "Touchpoints", icon: IconCalendar }] : []),
+    ...(isOwner
+      ? [{ href: "/touchpoints", label: "Touchpoints", icon: IconCalendar, ownerOnly: true }]
+      : []),
     ...LINKS_AFTER_TOUCHPOINTS,
   ];
 
@@ -108,7 +114,12 @@ export function SidebarNav({
         }`}
       >
         <Icon className="h-4 w-4 shrink-0" />
-        {item.label}
+        <span className="flex-1 truncate">{item.label}</span>
+        {item.ownerOnly && (
+          <span title="Owner only">
+            <IconLock className="h-3 w-3 shrink-0 opacity-70" />
+          </span>
+        )}
       </Link>
     );
   };
