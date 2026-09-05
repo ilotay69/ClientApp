@@ -189,8 +189,7 @@ export default async function ClientDetailPage({
     (contacts ?? []).map((c) => extractDomainFromEmail(c.email)).find(Boolean) ??
     null;
   const logInteractionAction = logClientInteraction.bind(null, id);
-  const uploadQuoteAction = uploadClientDocument.bind(null, id, "quote");
-  const uploadReviewAction = uploadClientDocument.bind(null, id, "review");
+  const uploadDocumentAction = uploadClientDocument.bind(null, id, "document");
   const deleteInteractionAction = deleteClientInteraction.bind(null, id);
   const linkAutotaskAction = linkClientAutotaskCompany.bind(null, id);
   const unlinkAutotaskAction = unlinkClientAutotaskCompany.bind(null, id);
@@ -493,8 +492,7 @@ export default async function ClientDetailPage({
                     entries={timelineEntries}
                     contacts={contacts ?? []}
                     logAction={logInteractionAction}
-                    uploadQuoteAction={uploadQuoteAction}
-                    uploadReviewAction={uploadReviewAction}
+                    uploadDocumentAction={uploadDocumentAction}
                     deleteAction={deleteInteractionAction}
                     currentUserId={currentUser?.id ?? null}
                     canManageAllEntries={canManageClients}

@@ -258,97 +258,34 @@ const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB
 // enough on real quotes/reviews to not be worth trusting in AI Insights or
 // showing as the entry's body. This just stores and attaches the file now;
 // viewing/downloading it is how you read it.
-const ACCEPTED_TYPES: Record<string, string> = {
+const ACCEPTED_DOC_TYPES: Record<string, string> = {
   "application/pdf": ".pdf",
   "application/msword": ".doc",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
-};
-
-/** A signed quote or a quarterly review document, logged as a Timeline
- * entry the same way a manually typed note is — the original file is
- * attached for viewing/download. Open to any signed-in user, matching
- * logClientInteraction's posture: uploading a document a tech received
- * from a client isn't a "manage_clients" action. */
-export async function uploadClientDocument(
-  clientId: string,
-  category: "quote" | "review",
-  _prevState: FormState,
-  formData: FormData
-): Promise<FormState> {
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
-  // Some browsers/OSes report older .doc files as application/octet-stream
-  // rather than application/msword — fall back to the file extension so a
-  // real Word doc isn't rejected on a mislabeled MIME type.
-  const extensionOk = /\.(pdf|docx?)$/i.test(file.name);
-  if (!ACCEPTED_TYPES[file.type] && !extensionOk) {
-    return { error: "Only PDF or Word documents (.pdf, .doc, .docx) are supported." };
-  }
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "That file is larger than 20MB." };
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `${clientId}/${crypto.randomUUID()}-${safeName}`;
-
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const { error: uploadError } = await supabase.storage
-    .from("client-documents")
-    .upload(path, bytes, { contentType: file.type || "application/octet-stream" });
-  if (uploadError) return { error: uploadError.message };
-
-  const subject = emptyToNull(formData.get("subject")) ?? file.name;
-  const { error } = await supabase.from("client_interactions").insert({
-    client_id: clientId,
-    contact_id: emptyToNull(formData.get("contact_id")),
-    type: category,
-    subject,
-    body: "Document uploaded — view or download it below.",
-    attachment_path: path,
-    attachment_filename: file.name,
-    created_by: user?.id ?? null,
-  });
-
-  if (error) {
-    // Don't leave an orphaned file in storage if the row it belongs to
-    // failed to insert.
-    await supabase.storage.from("client-documents").remove([path]);
-    return { error: error.message };
-  }
-
-  revalidatePath(`/clients/${clientId}`);
-  return { error: null };
-}
-
-const ACCEPTED_PROJECT_DOC_TYPES: Record<string, string> = {
-  ...ACCEPTED_TYPES,
   "application/vnd.ms-excel": ".xls",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
 };
 
-/** A project's own manually-uploaded document (PDF/Word/Excel) — same
- * mechanism as uploadClientDocument (private storage bucket, served
- * through /api/documents/[id]), but scoped to the project (project_id
- * set) rather than the client's Timeline. Open to any signed-in user,
- * same posture as uploadClientDocument. */
-export async function uploadProjectDocument(
-  projectId: string,
+/** Shared upload+insert logic behind both uploadClientDocument (Timeline,
+ * project_id null) and uploadProjectDocument (project_id set) — same
+ * private storage bucket, served through /api/documents/[id]. */
+async function uploadInteractionDocument(
   clientId: string,
-  _prevState: FormState,
+  projectId: string | null,
+  category: string,
   formData: FormData
 ): Promise<FormState> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
-  // Some browsers/OSes report older .doc/.xls files as
-  // application/octet-stream rather than their real MIME type — fall
-  // back to the file extension so a real file isn't rejected on a
-  // mislabeled MIME type.
+  // Some browsers/OSes report an older .doc/.xls file as
+  // application/octet-stream rather than its real MIME type — fall back
+  // to the file extension so a real file isn't rejected on a mislabeled
+  // MIME type.
   const extensionOk = /\.(pdf|docx?|xlsx?)$/i.test(file.name);
-  if (!ACCEPTED_PROJECT_DOC_TYPES[file.type] && !extensionOk) {
-    return { error: "Only PDF, Word, or Excel documents (.pdf, .doc, .docx, .xls, .xlsx) are supported." };
+  if (!ACCEPTED_DOC_TYPES[file.type] && !extensionOk) {
+    return {
+      error: "Only PDF, Word, or Excel documents (.pdf, .doc, .docx, .xls, .xlsx) are supported.",
+    };
   }
   if (file.size > MAX_UPLOAD_BYTES) return { error: "That file is larger than 20MB." };
 
@@ -370,7 +307,8 @@ export async function uploadProjectDocument(
   const { error } = await supabase.from("client_interactions").insert({
     client_id: clientId,
     project_id: projectId,
-    type: "document",
+    contact_id: emptyToNull(formData.get("contact_id")),
+    type: category,
     subject,
     body: "Document uploaded — view or download it below.",
     attachment_path: path,
@@ -379,12 +317,43 @@ export async function uploadProjectDocument(
   });
 
   if (error) {
+    // Don't leave an orphaned file in storage if the row it belongs to
+    // failed to insert.
     await supabase.storage.from("client-documents").remove([path]);
     return { error: error.message };
   }
 
-  revalidatePath("/projects");
   return { error: null };
+}
+
+/** A document logged to a client's Timeline the same way a manually typed
+ * note is — the original file is attached for viewing/download. Open to
+ * any signed-in user, matching logClientInteraction's posture: uploading
+ * a document a tech received from a client isn't a "manage_clients"
+ * action. */
+export async function uploadClientDocument(
+  clientId: string,
+  category: "quote" | "review" | "document",
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const result = await uploadInteractionDocument(clientId, null, category, formData);
+  if (!result.error) revalidatePath(`/clients/${clientId}`);
+  return result;
+}
+
+/** A project's own manually-uploaded document (PDF/Word/Excel) — same
+ * mechanism as uploadClientDocument, but scoped to the project
+ * (project_id set) rather than the client's Timeline. */
+export async function uploadProjectDocument(
+  projectId: string,
+  clientId: string,
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const result = await uploadInteractionDocument(clientId, projectId, "document", formData);
+  if (!result.error) revalidatePath("/projects");
+  return result;
 }
 
 export type AutotaskQuoteOption = {
