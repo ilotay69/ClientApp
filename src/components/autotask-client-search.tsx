@@ -10,12 +10,10 @@ import type { AutotaskCompany } from "@/lib/autotask";
 // picked and created in one action.
 export function AutotaskClientSearch({
   listAction,
-  createManyAction,
+  createOneAction,
 }: {
   listAction: () => Promise<{ companies: AutotaskCompany[] } | { error: string }>;
-  createManyAction: (
-    companies: AutotaskCompany[]
-  ) => Promise<{ created: number; errors: string[] }>;
+  createOneAction: (company: AutotaskCompany) => Promise<{ clientId: string } | { error: string }>;
 }) {
   const router = useRouter();
   const [companies, setCompanies] = useState<AutotaskCompany[] | null>(null);
@@ -24,6 +22,7 @@ export function AutotaskClientSearch({
   const [error, setError] = useState<string | null>(null);
   const [loading, startLoad] = useTransition();
   const [creating, startCreate] = useTransition();
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     startLoad(async () => {
@@ -61,6 +60,13 @@ export function AutotaskClientSearch({
     });
   };
 
+  // One request per company rather than a single bulk call — Autotask's
+  // low concurrent-thread cap already forces this to run sequentially, and
+  // a 70+ company batch as one long-lived request risked outrunning the
+  // browser/proxy's own timeout (seen in practice as a blank "page
+  // couldn't load" partway through). Per-company requests stay short, show
+  // real progress, and only ever lose the one in-flight company if the
+  // page is left before it finishes.
   const createSelected = () => {
     if (!companies) return;
     const picked = companies.filter((c) => selected.has(c.id));
@@ -68,11 +74,29 @@ export function AutotaskClientSearch({
 
     setError(null);
     startCreate(async () => {
-      const result = await createManyAction(picked);
-      if (result.errors.length > 0) {
-        setError(result.errors.join("; "));
+      let created = 0;
+      const errors: string[] = [];
+      setProgress({ done: 0, total: picked.length });
+
+      for (const company of picked) {
+        try {
+          const result = await createOneAction(company);
+          if ("error" in result) {
+            errors.push(`${company.companyName}: ${result.error}`);
+          } else {
+            created += 1;
+          }
+        } catch (err) {
+          errors.push(
+            `${company.companyName}: ${err instanceof Error ? err.message : "Unknown error"}`
+          );
+        }
+        setProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev));
       }
-      if (result.created > 0) {
+
+      setProgress(null);
+      if (errors.length > 0) setError(errors.join("; "));
+      if (created > 0) {
         router.push("/clients");
         router.refresh();
       }
@@ -140,8 +164,14 @@ export function AutotaskClientSearch({
                 disabled={creating || selected.size === 0}
                 className="mt-3 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
               >
-                {creating ? "Adding…" : `Add selected (${selected.size})`}
+                {progress ? `Adding ${progress.done} of ${progress.total}…` : `Add selected (${selected.size})`}
               </button>
+              {creating && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Feel free to stay on this page until it finishes — leaving skips whatever
+                  hasn&apos;t been added yet.
+                </p>
+              )}
             </>
           )}
         </>

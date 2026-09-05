@@ -449,32 +449,6 @@ export async function listUnaddedActiveAutotaskCompaniesAction(): Promise<
   }
 }
 
-/** Bulk version of createClientFromAutotaskCompany — one client per
- * selected company, created sequentially (not Promise.all) since each one
- * also triggers an Autotask sync and Autotask enforces a low concurrent-
- * thread cap per API user. */
-export async function createClientsFromAutotaskCompanies(
-  companies: AutotaskCompany[]
-): Promise<{ created: number; errors: string[] }> {
-  if (!(await requirePermission("manage_clients"))) {
-    return { created: 0, errors: ["You don't have permission to do that."] };
-  }
-
-  let created = 0;
-  const errors: string[] = [];
-  for (const company of companies) {
-    const result = await createClientFromAutotaskCompany(company);
-    if ("error" in result) {
-      errors.push(`${company.companyName}: ${result.error}`);
-    } else {
-      created += 1;
-    }
-  }
-
-  revalidatePath("/clients");
-  return { created, errors };
-}
-
 export async function linkClientAutotaskCompany(
   clientId: string,
   companyId: number

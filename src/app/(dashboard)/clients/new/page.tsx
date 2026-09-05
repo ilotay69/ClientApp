@@ -4,7 +4,7 @@ import { hasPermission } from "@/lib/permissions";
 import { AutotaskClientSearch } from "@/components/autotask-client-search";
 import {
   listUnaddedActiveAutotaskCompaniesAction,
-  createClientsFromAutotaskCompanies,
+  createClientFromAutotaskCompany,
 } from "../actions";
 
 export default async function NewClientPage() {
@@ -19,7 +19,7 @@ export default async function NewClientPage() {
 
       <AutotaskClientSearch
         listAction={listUnaddedActiveAutotaskCompaniesAction}
-        createManyAction={createClientsFromAutotaskCompanies}
+        createOneAction={createClientFromAutotaskCompany}
       />
     </div>
   );
