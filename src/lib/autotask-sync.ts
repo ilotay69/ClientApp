@@ -23,9 +23,12 @@ export type AutotaskSyncResult =
 /** Project-SLA tickets become this client's Projects — update-in-place
  * keyed on source_autotask_ticket_id (unique), not delete+insert: a fresh
  * insert would regenerate each project's id every sync, orphaning its
- * tasks/notes/documents and resetting quoted_hours. Shared by the cron
- * route, the Projects page's bulk sync, and the per-client "Sync Autotask"
- * button, so all three run identical logic.
+ * tasks/notes/documents and resetting quoted_hours. A ticket that no
+ * longer qualifies (closed, SLA removed, etc.) is never deleted either —
+ * its project is marked completed and its open tasks marked done instead,
+ * preserving the record. Shared by the cron route, the Projects page's
+ * bulk sync, and the per-client "Sync Autotask" button, so all three run
+ * identical logic.
  *
  * Also sums each ticket's own time entries into actual_hours — a single
  * derived number per project, refreshed each sync. This is not the same
@@ -64,20 +67,36 @@ export async function syncProjectSlaProjects(
     });
   }
 
+  // A ticket that drops off the Project-SLA list (closed, SLA removed,
+  // etc.) stays as a historical record instead of being deleted — mark the
+  // project completed and roll its still-open tasks to done, once
+  // (excluded going forward via the status != completed check, so this
+  // doesn't re-touch it — or override someone reopening it — on every
+  // later sync).
   const currentTicketIds = enriched.map((p) => p.source_autotask_ticket_id);
-  let removeQuery = admin
+  let staleQuery = admin
     .from("projects")
-    .delete()
+    .select("id")
     .eq("client_id", clientId)
-    .not("source_autotask_ticket_id", "is", null);
+    .not("source_autotask_ticket_id", "is", null)
+    .neq("status", "completed");
   if (currentTicketIds.length > 0) {
-    removeQuery = removeQuery.not(
+    staleQuery = staleQuery.not(
       "source_autotask_ticket_id",
       "in",
       `(${currentTicketIds.join(",")})`
     );
   }
-  await removeQuery;
+  const { data: staleProjects } = await staleQuery;
+  if (staleProjects && staleProjects.length > 0) {
+    const staleIds = staleProjects.map((p: { id: string }) => p.id);
+    await admin.from("projects").update({ status: "completed" }).in("id", staleIds);
+    await admin
+      .from("tasks")
+      .update({ status: "done" })
+      .in("project_id", staleIds)
+      .not("status", "in", "(done,dismissed)");
+  }
 
   if (enriched.length > 0) {
     await admin
