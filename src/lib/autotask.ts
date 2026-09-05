@@ -4,6 +4,7 @@
 // any other call can be made.
 
 import { assertAsciiHeaderValue } from "@/lib/ascii-check";
+import type { ProjectStatus } from "@/lib/types";
 
 export type AutotaskCredentials = {
   username: string;
@@ -478,19 +479,37 @@ function resolveProjectSlaId(labels: PicklistLabelMaps): number | null {
 export type AutotaskProjectTicketRow = {
   source_autotask_ticket_id: number;
   name: string;
-  status: "active";
+  status: ProjectStatus;
   start_date: string | null;
   target_end_date: string | null;
 };
+
+/** Autotask's ticket status labels are a tenant-specific picklist, not a
+ * fixed set — matched by keyword rather than exact value so this doesn't
+ * silently stop working the moment an account's wording differs
+ * ("On Hold" vs "Waiting Customer" vs "Customer Hold", etc.). Falls back
+ * to "active", the same status every Project-SLA ticket got before this
+ * mapping existed. */
+function mapAutotaskStatusToProjectStatus(label: string | null): ProjectStatus {
+  if (!label) return "active";
+  const l = label.toLowerCase();
+  if (l.includes("cancel")) return "cancelled";
+  if (l.includes("complete") || l.includes("closed") || l.includes("resolved")) return "completed";
+  if (l.includes("hold") || l.includes("waiting")) return "on_hold";
+  if (l.includes("new")) return "planning";
+  return "active";
+}
 
 /** Open tickets tagged with the "Project SLA" service level agreement,
  * treated as this app's Projects instead of requiring a project to be
  * created by hand in both Autotask and here — one ticket becomes one
  * project. Only open ones (completedDate is null), same as
- * fetchOpenTicketsForCompany — once a project ticket is completed in
- * Autotask, replace-on-sync just stops re-inserting it here, so it drops
- * off this app's Projects list the same way a completed support ticket
- * drops off the Tickets tab, rather than lingering marked "completed".
+ * fetchOpenTicketsForCompany — once a ticket's completedDate is set, it
+ * stops appearing here at all; syncProjectSlaProjects (autotask-sync.ts)
+ * is what marks that project completed rather than deleting it. While a
+ * ticket IS still open, its own status maps onto this app's project
+ * status via mapAutotaskStatusToProjectStatus below (e.g. "Waiting
+ * Customer" → on_hold), so status stays live, not stuck on "active".
  * Returns an empty list, not an error, if this tenant's SLA picklist has
  * no label matching PROJECT_SLA_LABEL — that's a normal state (the SLA
  * hasn't been applied to anything yet), not a failure. */
@@ -515,7 +534,9 @@ export async function fetchProjectSlaTicketsForCompany(
   return items.map((t) => ({
     source_autotask_ticket_id: t.id,
     name: t.title,
-    status: "active",
+    status: mapAutotaskStatusToProjectStatus(
+      t.status != null ? (labels.status.get(t.status) ?? null) : null
+    ),
     start_date: t.createDate ?? null,
     target_end_date: t.dueDateTime ?? null,
   }));
