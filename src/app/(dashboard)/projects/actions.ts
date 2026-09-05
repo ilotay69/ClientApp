@@ -86,6 +86,31 @@ export async function updateProject(
   return { error: null };
 }
 
+/** Unlike updateProject, this applies to Autotask-sourced projects too —
+ * quoted hours is a manually-entered business fact independent of where
+ * the project came from, and syncProjectSlaProjects never touches this
+ * column so it survives every Autotask sync untouched. */
+export async function updateProjectQuotedHours(
+  projectId: string,
+  hours: number | null
+): Promise<{ error: string | null }> {
+  if (!(await requirePermission("manage_projects"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("projects")
+    .update({ quoted_hours: hours })
+    .eq("id", projectId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  return { error: null };
+}
+
 /** Runs the same tickets/contract-services/Project-SLA sync the nightly
  * cron job does, on demand, for every Autotask-mapped client at once —
  * so a freshly Project-SLA-tagged ticket shows up here without visiting

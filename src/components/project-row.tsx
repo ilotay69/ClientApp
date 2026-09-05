@@ -27,7 +27,83 @@ export type ProjectRowData = {
   status: string;
   client_id: string;
   hasAutotaskCompany: boolean;
+  quotedHours: number | null;
+  actualHours: number | null;
 };
+
+/** Under 50% used = low, 50-90% = medium, over 90% = high — null when
+ * either side of the ratio isn't known yet. */
+function hoursUsageLevel(actualHours: number | null, quotedHours: number | null) {
+  if (actualHours === null || quotedHours === null || quotedHours <= 0) return null;
+  const ratio = actualHours / quotedHours;
+  if (ratio > 0.9) return "high";
+  if (ratio >= 0.5) return "medium";
+  return "low";
+}
+
+function formatHours(hours: number) {
+  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
+}
+
+function QuotedHoursEditor({
+  projectId,
+  hours,
+  action,
+}: {
+  projectId: string;
+  hours: number | null;
+  action: (projectId: string, hours: number | null) => Promise<{ error: string | null }>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(hours !== null ? String(hours) : "");
+  const [isPending, startTransition] = useTransition();
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setDraft(hours !== null ? String(hours) : "");
+          setEditing(true);
+        }}
+        className="rounded px-1 py-0.5 text-xs text-slate-500 hover:bg-slate-100"
+      >
+        {hours !== null ? `${formatHours(hours)} quoted` : "Set quoted hours"}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="number"
+      min={0}
+      step={0.5}
+      defaultValue={draft}
+      disabled={isPending}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setEditing(false);
+        const parsed = draft.trim() === "" ? null : Number(draft);
+        if (parsed !== hours && !(parsed !== null && Number.isNaN(parsed))) {
+          startTransition(() => {
+            action(projectId, parsed);
+          });
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        else if (e.key === "Escape") {
+          setDraft(hours !== null ? String(hours) : "");
+          setEditing(false);
+        }
+      }}
+      className="w-20 rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
+    />
+  );
+}
 
 export function ProjectRow({
   project,
@@ -43,6 +119,7 @@ export function ProjectRow({
   fetchDocumentsAction,
   uploadDocumentAction,
   deleteDocumentAction,
+  updateQuotedHoursAction,
 }: {
   project: ProjectRowData;
   clientName: string | null;
@@ -66,8 +143,10 @@ export function ProjectRow({
     projectId: string
   ) => Promise<{ documents: ProjectDocument[] } | { error: string }>;
   uploadDocumentAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
+  updateQuotedHoursAction: (projectId: string, hours: number | null) => Promise<{ error: string | null }>;
   deleteDocumentAction: (interactionId: string) => Promise<void>;
 }) {
+  const hoursUsage = hoursUsageLevel(project.actualHours, project.quotedHours);
   const [expanded, setExpanded] = useState(false);
   const [tasks, setTasks] = useState<ProjectTask[] | null>(null);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -176,6 +255,23 @@ export function ProjectRow({
           {project.name}
         </span>
         <span className="w-40 shrink-0 truncate text-sm text-slate-600">{clientName ?? "—"}</span>
+        {project.actualHours !== null && (
+          <span className="w-16 shrink-0 text-xs text-slate-500">
+            {formatHours(project.actualHours)} used
+          </span>
+        )}
+        <span className="shrink-0">
+          <QuotedHoursEditor
+            projectId={project.id}
+            hours={project.quotedHours}
+            action={updateQuotedHoursAction}
+          />
+        </span>
+        {hoursUsage && (
+          <span className="shrink-0">
+            <Badge value={hoursUsage} />
+          </span>
+        )}
         <span className="shrink-0">
           <Badge value={project.status} />
         </span>

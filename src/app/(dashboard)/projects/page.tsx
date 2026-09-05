@@ -14,6 +14,7 @@ import {
   addProjectNote,
   getProjectDocumentsAction,
   deleteProjectDocument,
+  updateProjectQuotedHours,
 } from "./actions";
 import { createTask } from "../tasks/actions";
 import {
@@ -42,7 +43,9 @@ export default async function ProjectsPage({
 
   let projectsQuery = supabase
     .from("projects")
-    .select("id, name, status, client_id, clients(name, autotask_company_id)")
+    .select(
+      "id, name, status, client_id, quoted_hours, actual_hours, clients(name, autotask_company_id)"
+    )
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
   if (status) projectsQuery = projectsQuery.eq("status", status);
@@ -111,6 +114,9 @@ export default async function ProjectsPage({
             status: p.status,
             client_id: p.client_id,
             hasAutotaskCompany: Boolean(client?.autotask_company_id),
+            // numeric columns come back as strings over the wire
+            quotedHours: p.quoted_hours !== null ? Number(p.quoted_hours) : null,
+            actualHours: p.actual_hours !== null ? Number(p.actual_hours) : null,
           };
           return (
             <ProjectRow
@@ -128,6 +134,7 @@ export default async function ProjectsPage({
               fetchDocumentsAction={getProjectDocumentsAction}
               uploadDocumentAction={uploadProjectDocument.bind(null, p.id, p.client_id)}
               deleteDocumentAction={deleteProjectDocument.bind(null, p.id)}
+              updateQuotedHoursAction={updateProjectQuotedHours}
             />
           );
         })}

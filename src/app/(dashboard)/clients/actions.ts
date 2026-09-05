@@ -12,7 +12,6 @@ import {
   fetchOpenTicketsForCompany,
   fetchTicketPicklists,
   fetchContractServicesForCompany,
-  fetchProjectSlaTicketsForCompany,
   fetchTicketNotes,
   fetchTicketTimeEntries,
   fetchContactsForCompany,
@@ -24,6 +23,7 @@ import {
   type AutotaskTimeEntry,
 } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { syncProjectSlaProjects } from "@/lib/autotask-sync";
 import {
   searchNinjaOneOrganizations,
   fetchDevicesForOrganization,
@@ -599,24 +599,16 @@ export async function syncClientAutotaskData(clientId: string): Promise<{ error:
     }
 
     // Tickets tagged with the Project SLA become this client's Projects —
-    // replace-on-sync, same as tickets/contract services above, so a
-    // project's status/dates always reflect Autotask, not a stale copy.
-    const projectTickets = await fetchProjectSlaTicketsForCompany(
+    // same shared helper the bulk/cron sync uses, so this button never
+    // does anything subtly different from the scheduled job.
+    await syncProjectSlaProjects(
+      admin,
       settings.credentials,
       settings.zoneUrl,
+      clientId,
       client.autotask_company_id,
       labels
     );
-    await admin
-      .from("projects")
-      .delete()
-      .eq("client_id", clientId)
-      .not("source_autotask_ticket_id", "is", null);
-    if (projectTickets.length > 0) {
-      await admin
-        .from("projects")
-        .insert(projectTickets.map((p) => ({ ...p, client_id: clientId })));
-    }
 
     // Autotask enforces at most one primaryContact per company — this is
     // a real designation, not a guess, and isn't user-editable here.

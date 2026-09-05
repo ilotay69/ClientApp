@@ -9,13 +9,87 @@ import {
   fetchTicketPicklists,
   fetchContractServicesForCompany,
   fetchProjectSlaTicketsForCompany,
+  fetchTicketTimeEntries,
   fetchPrimaryContactForCompany,
+  type AutotaskCredentials,
+  type PicklistLabelMaps,
 } from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 
 export type AutotaskSyncResult =
   | { clientId: string; tickets: number; contractServices: number; projectTickets: number }
   | { clientId: string; error: string };
+
+/** Project-SLA tickets become this client's Projects — update-in-place
+ * keyed on source_autotask_ticket_id (unique), not delete+insert: a fresh
+ * insert would regenerate each project's id every sync, orphaning its
+ * tasks/notes/documents and resetting quoted_hours. Shared by the cron
+ * route, the Projects page's bulk sync, and the per-client "Sync Autotask"
+ * button, so all three run identical logic.
+ *
+ * Also sums each ticket's own time entries into actual_hours — a single
+ * derived number per project, refreshed each sync. This is not the same
+ * as the account-wide time-entry table dropped in
+ * 026_drop_autotask_time_entries.sql (that stored every entry for pattern
+ * analysis); this keeps nothing but one running total per project. */
+export async function syncProjectSlaProjects(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  clientId: string,
+  companyId: number,
+  labels: PicklistLabelMaps
+): Promise<number> {
+  const projectTickets = await fetchProjectSlaTicketsForCompany(creds, zoneUrl, companyId, labels);
+
+  // Sequential, not Promise.all — Autotask rate-limits concurrent requests
+  // (same reasoning as getAutotaskTicketDetailAction's sequential fetches).
+  const enriched = [];
+  for (const p of projectTickets) {
+    let actualHours: number | null = null;
+    try {
+      const entries = await fetchTicketTimeEntries(creds, zoneUrl, p.source_autotask_ticket_id);
+      actualHours = entries.reduce((sum, e) => sum + (e.hoursWorked ?? 0), 0);
+    } catch (err) {
+      console.error(
+        `Failed to fetch time entries for ticket ${p.source_autotask_ticket_id}`,
+        err
+      );
+    }
+    enriched.push({
+      ...p,
+      actual_hours: actualHours,
+      hours_synced_at: new Date().toISOString(),
+    });
+  }
+
+  const currentTicketIds = enriched.map((p) => p.source_autotask_ticket_id);
+  let removeQuery = admin
+    .from("projects")
+    .delete()
+    .eq("client_id", clientId)
+    .not("source_autotask_ticket_id", "is", null);
+  if (currentTicketIds.length > 0) {
+    removeQuery = removeQuery.not(
+      "source_autotask_ticket_id",
+      "in",
+      `(${currentTicketIds.join(",")})`
+    );
+  }
+  await removeQuery;
+
+  if (enriched.length > 0) {
+    await admin
+      .from("projects")
+      .upsert(
+        enriched.map((p) => ({ ...p, client_id: clientId })),
+        { onConflict: "source_autotask_ticket_id" }
+      );
+  }
+
+  return enriched.length;
+}
 
 export async function syncAllAutotaskClients(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,22 +137,14 @@ export async function syncAllAutotaskClients(
           .insert(contractServices.map((cs) => ({ ...cs, client_id: client.id })));
       }
 
-      const projectTickets = await fetchProjectSlaTicketsForCompany(
+      const projectCount = await syncProjectSlaProjects(
+        admin,
         settings.credentials,
         settings.zoneUrl,
+        client.id,
         client.autotask_company_id as number,
         labels
       );
-      await admin
-        .from("projects")
-        .delete()
-        .eq("client_id", client.id)
-        .not("source_autotask_ticket_id", "is", null);
-      if (projectTickets.length > 0) {
-        await admin
-          .from("projects")
-          .insert(projectTickets.map((p) => ({ ...p, client_id: client.id })));
-      }
 
       const primaryContact = await fetchPrimaryContactForCompany(
         settings.credentials,
@@ -97,7 +163,7 @@ export async function syncAllAutotaskClients(
         clientId: client.id,
         tickets: tickets.length,
         contractServices: contractServices.length,
-        projectTickets: projectTickets.length,
+        projectTickets: projectCount,
       });
     } catch (err) {
       results.push({
