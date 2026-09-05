@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 export function SyncNinjaOneButton({
@@ -7,6 +8,7 @@ export function SyncNinjaOneButton({
 }: {
   action: () => Promise<{ error: string | null }>;
 }) {
+  const router = useRouter();
   const [syncing, startSync] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +21,7 @@ export function SyncNinjaOneButton({
           startSync(async () => {
             const result = await action();
             setError(result.error);
+            router.refresh();
           })
         }
         className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"

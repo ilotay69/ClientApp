@@ -36,9 +36,9 @@ const STATUS_FILTERS = [
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; showCompleted?: string }>;
 }) {
-  const { status, q } = await searchParams;
+  const { status, q, showCompleted } = await searchParams;
   const supabase = await createClient();
 
   let projectsQuery = supabase
@@ -48,7 +48,15 @@ export default async function ProjectsPage({
     )
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
-  if (status) projectsQuery = projectsQuery.eq("status", status);
+  if (status) {
+    projectsQuery = projectsQuery.eq("status", status);
+  } else if (!showCompleted) {
+    // Completed projects pile up over time (especially now that a stale
+    // Autotask ticket auto-completes its project instead of vanishing) —
+    // keep them out of the default "All" view unless asked for. Picking
+    // "Completed" from the status chips still shows them regardless.
+    projectsQuery = projectsQuery.neq("status", "completed");
+  }
   if (q) projectsQuery = projectsQuery.ilike("name", `%${q}%`);
 
   const [{ data: projectsData }, { data: members }, canManageProjects] = await Promise.all([
@@ -108,6 +116,14 @@ export default async function ProjectsPage({
               {f.label}
             </FilterLink>
           ))}
+          {!status && (
+            <FilterLink
+              href={filterHref("/projects", { q, showCompleted: showCompleted ? undefined : "1" })}
+              active={Boolean(showCompleted)}
+            >
+              Show completed
+            </FilterLink>
+          )}
         </div>
         <SearchBox
           action="/projects"
