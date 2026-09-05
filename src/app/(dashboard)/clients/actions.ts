@@ -375,11 +375,14 @@ export async function listAutotaskQuotesForClientAction(
   }
 }
 
-/** Logs a Timeline "quote" entry referencing an existing Autotask quote
- * instead of uploading a file — a text reference (name/number/status/
- * dates) plus the deep link, not a document. */
+/** Logs a quote reference under one project (not the client's Timeline —
+ * project_id being set is what keeps it out of there, see the Timeline
+ * query's own .is("project_id", null) filter) — a text reference
+ * (name/number/status/dates) plus a deep link back to the Autotask quote,
+ * not a document. */
 export async function logAutotaskQuoteReference(
   clientId: string,
+  projectId: string,
   quote: {
     name: string;
     quoteNumber: number | null;
@@ -403,6 +406,7 @@ export async function logAutotaskQuoteReference(
 
   const { error } = await supabase.from("client_interactions").insert({
     client_id: clientId,
+    project_id: projectId,
     type: "quote",
     subject: quote.name,
     body: details.length > 0 ? details.join(" · ") : "Referenced from Autotask.",
@@ -412,7 +416,7 @@ export async function logAutotaskQuoteReference(
 
   if (error) return { error: error.message };
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/projects");
   return { error: null };
 }
 

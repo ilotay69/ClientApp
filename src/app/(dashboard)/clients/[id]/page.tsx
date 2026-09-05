@@ -122,6 +122,9 @@ export default async function ClientDetailPage({
         "id, type, subject, body, next_contact_date, created_at, attachment_path, attachment_filename, external_link, created_by, client_contacts(name), profiles(full_name)"
       )
       .eq("client_id", id)
+      // Project-scoped entries (an Autotask quote logged from a project's
+      // own row) show there instead of here.
+      .is("project_id", null)
       .order("created_at", { ascending: false }),
     hasPermission(supabase, "manage_clients"),
     supabase

@@ -5,7 +5,12 @@ import { FilterLink, filterHref } from "@/components/filter-link";
 import { SearchBox } from "@/components/search-box";
 import { SyncAutotaskButton } from "@/components/sync-autotask-button";
 import { ProjectRow, type ProjectRowData } from "@/components/project-row";
-import { syncAllAutotaskProjectsAction, autoSyncAutotaskProjectsIfStale, getProjectTasksAction } from "./actions";
+import {
+  syncAllAutotaskProjectsAction,
+  autoSyncAutotaskProjectsIfStale,
+  getProjectTasksAction,
+  getProjectQuoteLogAction,
+} from "./actions";
 import { createTask } from "../tasks/actions";
 import { listAutotaskQuotesForClientAction, logAutotaskQuoteReference } from "../clients/actions";
 
@@ -106,6 +111,7 @@ export default async function ProjectsPage({
               clientName={client?.name ?? null}
               members={members ?? []}
               fetchTasksAction={getProjectTasksAction}
+              fetchQuoteLogAction={getProjectQuoteLogAction}
               createTaskAction={createTask}
               listAutotaskQuotesAction={listAutotaskQuotesForClientAction}
               logAutotaskQuoteAction={logAutotaskQuoteReference}

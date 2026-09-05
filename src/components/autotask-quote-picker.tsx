@@ -6,18 +6,20 @@ import { formatDate } from "@/lib/format";
 import type { FormState, AutotaskQuoteOption } from "@/app/(dashboard)/clients/actions";
 
 /** Lists a client's Autotask quotes (via their Opportunities — Quotes have
- * no direct company filter) and logs a chosen one to that client's
- * Timeline as a reference (name/number/status/dates + a "View in
- * Autotask" link) — not a document, since Autotask's Quotes API has no
- * PDF/portal link of its own. Used from a project's row, since quotes
- * aren't tied to a specific project in this app's own data model, only
- * to the client. */
+ * no direct company filter) and logs a chosen one under this project as a
+ * reference (name/number/status/dates + a "View in Autotask" link) — not
+ * a document, since Autotask's Quotes API has no PDF/portal link of its
+ * own. Quotes aren't tied to a specific project in this app's own data
+ * model, only to the client, hence listing by client — but the log entry
+ * itself is scoped to this project, not the client's Timeline. */
 export function AutotaskQuotePicker({
   listAutotaskQuotesAction,
   logAutotaskQuoteAction,
+  onLogged,
 }: {
   listAutotaskQuotesAction: () => Promise<{ quotes: AutotaskQuoteOption[] } | { error: string }>;
   logAutotaskQuoteAction: (quote: AutotaskQuoteOption) => Promise<FormState>;
+  onLogged?: () => void;
 }) {
   const router = useRouter();
   const [quotes, setQuotes] = useState<AutotaskQuoteOption[] | null>(null);
@@ -44,6 +46,7 @@ export function AutotaskQuotePicker({
       if (result.error) setError(result.error);
       else {
         setLoggedIds((prev) => new Set(prev).add(quote.id));
+        onLogged?.();
         router.refresh();
       }
     });
@@ -52,9 +55,9 @@ export function AutotaskQuotePicker({
   return (
     <div className="space-y-2">
       <p className="text-xs text-slate-500">
-        Logs a reference to an existing Autotask quote (name, number, status, dates) to this
-        client&apos;s Timeline, with a link back to it — not a document, since Autotask has no PDF
-        for a quote to fetch.
+        Logs a reference to an existing Autotask quote (name, number, status, dates) under this
+        project, with a link back to it — not a document, since Autotask has no PDF for a quote to
+        fetch.
       </p>
       {quotes === null && (
         <button

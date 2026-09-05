@@ -186,6 +186,41 @@ export async function getProjectTasksAction(
   };
 }
 
+export type ProjectQuoteLogEntry = {
+  id: string;
+  subject: string | null;
+  body: string | null;
+  externalLink: string | null;
+  createdAt: string;
+};
+
+/** Autotask quote references logged against this project specifically
+ * (project_id set — see logAutotaskQuoteReference) — live-fetched only
+ * when the row is expanded, same as its tasks. */
+export async function getProjectQuoteLogAction(
+  projectId: string
+): Promise<{ entries: ProjectQuoteLogEntry[] } | { error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("client_interactions")
+    .select("id, subject, body, external_link, created_at")
+    .eq("project_id", projectId)
+    .eq("type", "quote")
+    .order("created_at", { ascending: false });
+
+  if (error) return { error: error.message };
+
+  return {
+    entries: (data ?? []).map((e) => ({
+      id: e.id,
+      subject: e.subject,
+      body: e.body,
+      externalLink: e.external_link,
+      createdAt: e.created_at,
+    })),
+  };
+}
+
 export async function deleteProject(projectId: string, clientId: string) {
   if (!(await requirePermission("manage_projects"))) return;
 
