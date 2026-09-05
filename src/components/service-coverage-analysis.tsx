@@ -5,7 +5,9 @@ import { useEffect, useState, useTransition } from "react";
 export type ClientServiceGap = { serviceName: string; otherClientCount: number };
 
 type ClientsResult = { id: string; name: string }[] | { error: string };
-type GapsResult = { clientName: string; gaps: ClientServiceGap[] } | { error: string };
+type GapsResult =
+  | { clientName: string; has: string[]; gaps: ClientServiceGap[] }
+  | { error: string };
 
 export function ServiceCoverageAnalysis({
   fetchClientsAction,
@@ -82,22 +84,46 @@ export function ServiceCoverageAnalysis({
       )}
 
       {!loading && result && !("error" in result) && (
-        <div className="divide-y divide-slate-100">
-          {result.gaps.length === 0 ? (
-            <p className="px-5 py-6 text-center text-sm text-slate-500">
-              {result.clientName} has everything at least one other client has — no gap found.
-            </p>
-          ) : (
-            result.gaps.map((g) => (
-              <div key={g.serviceName} className="flex items-center justify-between px-5 py-2">
-                <p className="text-sm font-medium text-slate-900">{g.serviceName}</p>
-                <p className="text-xs text-slate-500">
-                  {g.otherClientCount} other client{g.otherClientCount === 1 ? "" : "s"} {g.otherClientCount === 1 ? "has" : "have"} this
+        <>
+          <div className="border-b border-slate-200 px-5 py-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {result.clientName} currently has ({result.has.length})
+            </h3>
+          </div>
+          <div className="divide-y divide-slate-100 border-b border-slate-200">
+            {result.has.length === 0 ? (
+              <p className="px-5 py-4 text-sm text-slate-500">Nothing on record.</p>
+            ) : (
+              result.has.map((name) => (
+                <p key={name} className="px-5 py-2 text-sm text-slate-700">
+                  {name}
                 </p>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+
+          <div className="border-b border-slate-200 px-5 py-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Missing — sales opportunity ({result.gaps.length})
+            </h3>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {result.gaps.length === 0 ? (
+              <p className="px-5 py-6 text-center text-sm text-slate-500">
+                {result.clientName} has everything at least one other client has — no gap found.
+              </p>
+            ) : (
+              result.gaps.map((g) => (
+                <div key={g.serviceName} className="flex items-center justify-between px-5 py-2">
+                  <p className="text-sm font-medium text-slate-900">{g.serviceName}</p>
+                  <p className="text-xs text-slate-500">
+                    {g.otherClientCount} other client{g.otherClientCount === 1 ? "" : "s"} {g.otherClientCount === 1 ? "has" : "have"} this
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </>
       )}
     </div>
   );

@@ -192,7 +192,7 @@ function normalizeServiceKey(name: string): string {
  * finds gaps at all; a human reviewing the list can tell "Huntress MDR"
  * isn't a real gap for a client that already has "SentinelOne MDR". */
 export async function getClientServiceGapsAction(clientId: string): Promise<
-  { clientName: string; gaps: ClientServiceGap[] } | { error: string }
+  { clientName: string; has: string[]; gaps: ClientServiceGap[] } | { error: string }
 > {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
@@ -219,9 +219,16 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
     };
   }
 
-  const thisClientServices = new Set(
-    active.filter((cs) => cs.client_id === clientId).map((cs) => normalizeServiceKey(cs.service_name))
-  );
+  const hasDisplayNameByKey = new Map<string, string>();
+  for (const cs of active) {
+    if (cs.client_id !== clientId) continue;
+    const key = normalizeServiceKey(cs.service_name);
+    if (!hasDisplayNameByKey.has(key)) {
+      hasDisplayNameByKey.set(key, stripVariantTokens(cs.service_name));
+    }
+  }
+  const thisClientServices = new Set(hasDisplayNameByKey.keys());
+  const has = [...hasDisplayNameByKey.values()].sort((a, b) => a.localeCompare(b));
 
   const otherClientIdsByService = new Map<string, Set<string>>();
   const displayNameByService = new Map<string, string>();
@@ -244,7 +251,7 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
     }))
     .sort((a, b) => b.otherClientCount - a.otherClientCount);
 
-  return { clientName: client.name, gaps };
+  return { clientName: client.name, has, gaps };
 }
 
 const PATTERN_ANALYSIS_DAYS = 90;
