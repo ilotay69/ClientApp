@@ -139,6 +139,13 @@ const OTHER_EXCLUDED_KEYWORDS = [
   "3rd party backup",
   "remote backup",
   "smartphone wireless sync",
+  "hbs security bundle",
+  "it managed staffing",
+  "ftp site hosting",
+  "managed co-location",
+  "managed colocation",
+  "device management support bundle",
+  "server hosting",
 ];
 
 function isExcludedService(serviceName: string): boolean {
