@@ -692,6 +692,8 @@ export async function fetchTimeEntriesInRange(
  * resilience posture as resolveResourceNames/resolveServiceNames: some
  * API Users may lack read access, so a failure here degrades to "unknown
  * client" for those entries rather than failing the whole sync. */
+const TICKET_LOOKUP_CHUNK_SIZE = 200;
+
 export async function resolveTicketCompanyIds(
   creds: AutotaskCredentials,
   zoneUrl: string,
@@ -701,19 +703,29 @@ export async function resolveTicketCompanyIds(
   const uniqueIds = [...new Set(ticketIds)].filter((id) => Number.isFinite(id));
   if (uniqueIds.length === 0) return map;
 
-  try {
-    // Paginated — a month's worth of time entries can easily reference
-    // more distinct tickets than fit on one page, and requesting
-    // MaxRecords: uniqueIds.length doesn't guarantee Autotask honors a
-    // page size above its own per-page ceiling.
-    const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
-      filter: [{ op: "in", field: "id", value: uniqueIds }],
-    })) as { id: number; companyID?: number }[];
-    for (const t of items) {
-      if (t.companyID != null) map.set(t.id, t.companyID);
+  // Chunked, not one query with every id in an "in" filter — a 90-day,
+  // account-wide time-entries pull can easily reference many hundreds of
+  // distinct tickets, and the URL-encoded JSON search param gets long
+  // enough that Autotask (or a proxy in front of it) starts 404ing with a
+  // generic HTML error page instead of a real API error. Bounded batches
+  // avoid that regardless of how many tickets exist, and one bad batch
+  // (network hiccup, etc.) no longer wipes out attribution for every
+  // other ticket — it just degrades to "unknown client" for that batch.
+  for (let i = 0; i < uniqueIds.length; i += TICKET_LOOKUP_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + TICKET_LOOKUP_CHUNK_SIZE);
+    try {
+      const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+        filter: [{ op: "in", field: "id", value: chunk }],
+      })) as { id: number; companyID?: number }[];
+      for (const t of items) {
+        if (t.companyID != null) map.set(t.id, t.companyID);
+      }
+    } catch (err) {
+      console.error(
+        `Autotask Tickets company lookup failed for a batch of ${chunk.length} tickets — those entries will show no client`,
+        err
+      );
     }
-  } catch (err) {
-    console.error("Autotask Tickets company lookup failed — entries will show no client", err);
   }
 
   return map;
