@@ -43,6 +43,7 @@ export default async function TasksPage({
   searchParams: Promise<{
     mine?: string;
     view?: string;
+    tab?: string;
     project_id?: string;
     client_id?: string;
     client?: string;
@@ -57,6 +58,7 @@ export default async function TasksPage({
   const {
     mine,
     view,
+    tab,
     project_id: defaultProjectId,
     client_id: defaultClientId,
     client: filterClient,
@@ -218,6 +220,7 @@ export default async function TasksPage({
         preserve={{
           mine,
           view,
+          tab: "team",
           todoClient: filterTodoClient,
           todoPriority: filterTodoPriorities,
           todoStatus: filterTodoStatuses,
@@ -225,6 +228,7 @@ export default async function TasksPage({
         clearHref={filterHref("/tasks", {
           mine,
           view,
+          tab: "team",
           todoClient: filterTodoClient,
           todoPriority: filterTodoPriorities,
           todoStatus: filterTodoStatuses,
@@ -309,6 +313,7 @@ export default async function TasksPage({
         preserve={{
           mine,
           view,
+          tab: "todo",
           client: filterClient,
           priority: filterPriorities,
           assignee: filterAssignee,
@@ -317,6 +322,7 @@ export default async function TasksPage({
         clearHref={filterHref("/tasks", {
           mine,
           view,
+          tab: "todo",
           client: filterClient,
           priority: filterPriorities,
           assignee: filterAssignee,
@@ -362,6 +368,7 @@ export default async function TasksPage({
         { label: "Team Tasks", content: teamTasksList },
         { label: "My To-Do", content: myToDoList },
       ]}
+      defaultActive={tab === "todo" ? 1 : 0}
     />
   );
 }

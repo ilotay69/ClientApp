@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 
-export function Tabs({ tabs }: { tabs: { label: string; content: React.ReactNode }[] }) {
-  const [active, setActive] = useState(0);
+export function Tabs({
+  tabs,
+  defaultActive = 0,
+}: {
+  tabs: { label: string; content: React.ReactNode }[];
+  /** Which tab to start on — pass this from a URL param when a form on
+   * one of the tabs does a full GET navigation (e.g. a filter bar), so
+   * that submission doesn't silently bounce back to the first tab. */
+  defaultActive?: number;
+}) {
+  const [active, setActive] = useState(defaultActive);
 
   return (
     <div>
