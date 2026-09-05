@@ -83,16 +83,21 @@ const MICROSOFT_LICENSE_KEYWORDS = [
   "m365",
   "o365",
   "azure ad",
+  "azure active directory",
   "entra id",
   "entra",
   "exchange online",
   "exchange plan",
+  "exchange e-mail hosting",
+  "exchange email hosting",
   "sharepoint online",
+  "sharepoint",
   "onedrive for business",
   "intune",
   "windows enterprise",
   "windows 10 enterprise",
   "windows 11 enterprise",
+  "windows server",
   "power bi",
   "power apps",
   "power automate",
@@ -101,9 +106,8 @@ const MICROSOFT_LICENSE_KEYWORDS = [
   "visio",
   "project online",
   "project plan",
-  "teams phone",
-  "teams rooms",
-  "teams premium",
+  "planner",
+  "teams",
   "copilot",
   "defender for office",
   "defender for endpoint",
@@ -118,11 +122,31 @@ const MICROSOFT_LICENSE_KEYWORDS = [
   "enterprise mobility + security",
   "ems e3",
   "ems e5",
+  "remote desktop",
 ];
 
-function isLicenseService(serviceName: string): boolean {
+/** Not Microsoft, but flagged the same way — generic infrastructure/
+ * hosting line items (storage, application hosting, backup) and specific
+ * vendor product lines (Proofpoint, BitDefender) that this MSP's own
+ * catalog treats as standard/near-universal rather than a real upsell
+ * differentiator. Same maintained-list approach and same caveat as
+ * MICROSOFT_LICENSE_KEYWORDS above. */
+const OTHER_EXCLUDED_KEYWORDS = [
+  "proofpoint",
+  "bitdefender",
+  "data storage",
+  "application hosting",
+  "3rd party backup",
+  "remote backup",
+  "smartphone wireless sync",
+];
+
+function isExcludedService(serviceName: string): boolean {
   const lower = serviceName.toLowerCase();
-  return MICROSOFT_LICENSE_KEYWORDS.some((kw) => lower.includes(kw));
+  return (
+    MICROSOFT_LICENSE_KEYWORDS.some((kw) => lower.includes(kw)) ||
+    OTHER_EXCLUDED_KEYWORDS.some((kw) => lower.includes(kw))
+  );
 }
 
 /** Deterministic, no AI: for one client, every distinct ACTIVE Autotask
@@ -153,7 +177,7 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
 
   const active = (contractServices ?? []).filter(
     (cs: { contract_status: string | null; service_name: string }) =>
-      cs.contract_status?.toLowerCase() === "active" && !isLicenseService(cs.service_name)
+      cs.contract_status?.toLowerCase() === "active" && !isExcludedService(cs.service_name)
   ) as { client_id: string; service_name: string }[];
 
   if (active.length === 0) {
