@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/format";
 import type { FormState, AutotaskQuoteOption } from "@/app/(dashboard)/clients/actions";
@@ -26,14 +26,14 @@ export function AutotaskQuotePicker({
   const [loggingId, setLoggingId] = useState<number | null>(null);
   const [loggedIds, setLoggedIds] = useState<Set<number>>(new Set());
 
-  useEffect(() => {
+  const loadQuotes = () => {
+    setError(null);
     startLoad(async () => {
       const result = await listAutotaskQuotesAction();
       if ("error" in result) setError(result.error);
       else setQuotes(result.quotes);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   const logQuote = (quote: AutotaskQuoteOption) => {
     setError(null);
@@ -56,8 +56,15 @@ export function AutotaskQuotePicker({
         client&apos;s Timeline, with a link back to it — not a document, since Autotask has no PDF
         for a quote to fetch.
       </p>
-      {loading && quotes === null && (
-        <p className="text-sm text-slate-500">Loading Autotask quotes…</p>
+      {quotes === null && (
+        <button
+          type="button"
+          onClick={loadQuotes}
+          disabled={loading}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+        >
+          {loading ? "Loading…" : "Load Autotask quotes"}
+        </button>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
       {quotes && quotes.length === 0 && (
