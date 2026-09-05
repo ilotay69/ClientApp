@@ -223,3 +223,52 @@ export function buildDeviceInsights(
   // High severity first, so the worst thing is the first thing read.
   return insights.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "high" ? -1 : 1));
 }
+
+export type AgeBucket = { label: string; count: number };
+export type DeviceAgeBreakdown = { label: string; buckets: AgeBucket[]; unknownCount: number };
+
+/** One-year buckets from 0 up to (not including) maxYears, plus a final
+ * overflow bucket for maxYears+ — e.g. maxYears=3 gives <1y/1-2y/2-3y/3y+. */
+function buildAgeBuckets(list: DeviceInsightInput[], maxYears: number, now: Date): AgeBucket[] {
+  const ages = list
+    .map((d) => deviceAgeDays(d, now))
+    .filter((days): days is number => days !== null)
+    .map((days) => days / 365);
+
+  const buckets: AgeBucket[] = [];
+  for (let y = 0; y < maxYears; y++) {
+    buckets.push({
+      label: y === 0 ? "<1y" : `${y}-${y + 1}y`,
+      count: ages.filter((a) => a >= y && a < y + 1).length,
+    });
+  }
+  buckets.push({ label: `${maxYears}y+`, count: ages.filter((a) => a >= maxYears).length });
+  return buckets;
+}
+
+/** Age distribution for workstations and servers, each bucketed in
+ * 1-year increments up to that class's own aging threshold above (3
+ * years for workstations, 5 for servers) — purely informational, so kept
+ * separate from buildDeviceInsights' actionable warning list. A class
+ * with no devices (or no ages known for any of them) is omitted rather
+ * than shown as all-zero. */
+export function buildDeviceAgeBreakdown(
+  devices: DeviceInsightInput[],
+  now: Date = new Date()
+): DeviceAgeBreakdown[] {
+  const classes: { label: string; classify: (nodeClass: string | null) => boolean; maxYears: number }[] = [
+    { label: "Workstations", classify: isWorkstation, maxYears: 3 },
+    { label: "Servers", classify: isServer, maxYears: 5 },
+  ];
+
+  return classes
+    .map(({ label, classify, maxYears }) => {
+      const list = devices.filter((d) => classify(d.node_class));
+      return {
+        label,
+        buckets: buildAgeBuckets(list, maxYears, now),
+        unknownCount: list.filter((d) => deviceAgeDays(d, now) === null).length,
+      };
+    })
+    .filter((entry) => entry.buckets.reduce((sum, b) => sum + b.count, 0) + entry.unknownCount > 0);
+}

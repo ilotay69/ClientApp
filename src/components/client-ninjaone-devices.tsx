@@ -5,7 +5,7 @@ import { Badge } from "@/components/badge";
 import { formatDate, humanizeLabel } from "@/lib/format";
 import { CollapsibleCard } from "@/components/collapsible-card";
 import { ListFilterBar, matchesQuery } from "@/components/list-filter-bar";
-import { buildDeviceInsights, deviceAgeDays } from "@/lib/device-insights";
+import { buildDeviceInsights, buildDeviceAgeBreakdown, deviceAgeDays } from "@/lib/device-insights";
 
 function ageLabel(d: Pick<NinjaOneDeviceRow, "manufacturer_fulfillment_date" | "device_created_at">) {
   const days = deviceAgeDays(d);
@@ -80,6 +80,7 @@ export function ClientNinjaOneDevices({
   const showFilters = devices.length > FILTER_THRESHOLD;
   const insights = buildDeviceInsights(devices);
   const highCount = insights.filter((i) => i.severity === "high").length;
+  const ageBreakdown = buildDeviceAgeBreakdown(devices);
 
   return (
     <CollapsibleCard
@@ -119,6 +120,28 @@ export function ClientNinjaOneDevices({
                 </p>
                 <p className="text-xs text-slate-600">{i.detail}</p>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {ageBreakdown.length > 0 && (
+        <div className="space-y-2 border-b border-slate-100 px-5 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Device age
+          </p>
+          {ageBreakdown.map((entry) => (
+            <div key={entry.label} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="w-24 shrink-0 text-xs font-medium text-slate-700">
+                {entry.label}
+              </span>
+              {entry.buckets.map((b) => (
+                <span key={b.label} className="text-xs text-slate-600">
+                  {b.label}: <span className="font-medium text-slate-900">{b.count}</span>
+                </span>
+              ))}
+              {entry.unknownCount > 0 && (
+                <span className="text-xs text-slate-400">Unknown: {entry.unknownCount}</span>
+              )}
             </div>
           ))}
         </div>
@@ -174,20 +197,19 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex w-full items-center justify-between gap-3 px-5 py-2 text-left hover:bg-slate-50"
+        className="flex w-full items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
       >
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900">{d.system_name}</p>
-          <p className="text-xs text-slate-500">
-            {[d.os_name, d.os_version].filter(Boolean).join(" ") || "OS unknown"}
-            {d.last_contact ? ` · last seen ${formatDate(d.last_contact)}` : ""}
-            {ageLabel(d) ? ` · ${ageLabel(d)}` : ""}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+          {d.system_name}
+        </span>
+        <span className="w-40 shrink-0 truncate text-xs text-slate-500">
+          {[d.os_name, d.os_version].filter(Boolean).join(" ") || "OS unknown"}
+        </span>
+        <span className="w-16 shrink-0 text-xs text-slate-500">{ageLabel(d) ?? "—"}</span>
+        <span className="flex shrink-0 items-center gap-2">
           <Badge value={deviceTypeLabel(d.node_class)} />
           {d.is_offline !== null && <Badge value={d.is_offline ? "offline" : "online"} />}
-        </div>
+        </span>
       </button>
 
       {expanded && (
