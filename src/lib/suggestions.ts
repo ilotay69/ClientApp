@@ -257,6 +257,8 @@ type DeviceRow = {
   manufacturer_fulfillment_date: string | null;
   os_name: string | null;
   os_version: string | null;
+  disk_total_bytes: number | null;
+  disk_free_bytes: number | null;
 };
 type DocumentRow = {
   type: "quote" | "review";
