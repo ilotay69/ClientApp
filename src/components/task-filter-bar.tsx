@@ -108,6 +108,7 @@ export function TaskFilterBar({
         {priorityOptions.map((o) => (
           <Chip key={`priority-${o.value}`} name="priority" option={o} checked={values.priorities.includes(o.value)} />
         ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {statusOptions.map((o) => (
           <Chip key={`status-${o.value}`} name="status" option={o} checked={values.statuses.includes(o.value)} />
         ))}
