@@ -101,13 +101,13 @@ export function SidebarNav({
         href={item.href}
         onClick={() => setMobileOpen(false)}
         aria-current={active ? "page" : undefined}
-        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+        className={`flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
           active
             ? "bg-brand text-white"
             : "text-white/70 hover:bg-white/10 hover:text-white"
         }`}
       >
-        <Icon className="h-5 w-5 shrink-0" />
+        <Icon className="h-4 w-4 shrink-0" />
         {item.label}
       </Link>
     );
@@ -115,7 +115,7 @@ export function SidebarNav({
 
   const sidebarContent = (
     <div className="flex h-full flex-col bg-charcoal text-white">
-      <div className="flex items-center justify-between px-4 py-5">
+      <div className="flex items-center justify-between px-4 py-3">
         <span className="text-base font-semibold tracking-tight text-white">
           <span className="text-brand">CG</span> Client Tracker
         </span>
@@ -129,43 +129,43 @@ export function SidebarNav({
         </button>
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-4">
-        <div className="space-y-1">{MAIN_LINKS.map(renderLink)}</div>
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
+        <div className="space-y-0.5">{MAIN_LINKS.map(renderLink)}</div>
 
         {TOOLS_LINKS.length > 0 && (
           <div>
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
+            <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
               Tools
             </p>
-            <div className="space-y-1">{TOOLS_LINKS.map(renderLink)}</div>
+            <div className="space-y-0.5">{TOOLS_LINKS.map(renderLink)}</div>
           </div>
         )}
 
         {insightsLinks.length > 0 && (
           <div>
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
+            <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
               Insights &amp; Reports
             </p>
-            <div className="space-y-1">{insightsLinks.map(renderLink)}</div>
+            <div className="space-y-0.5">{insightsLinks.map(renderLink)}</div>
           </div>
         )}
 
         {settingsLinks.length > 0 && (
           <div>
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
+            <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
               Settings
             </p>
-            <div className="space-y-1">{settingsLinks.map(renderLink)}</div>
+            <div className="space-y-0.5">{settingsLinks.map(renderLink)}</div>
           </div>
         )}
       </nav>
 
-      <div className="border-t border-white/15 px-4 py-4">
+      <div className="border-t border-white/15 px-4 py-3">
         <p className="truncate text-sm text-white/80">{userLabel}</p>
         <form action={signOutAction} className="mt-2">
           <button
             type="submit"
-            className="flex w-full items-center gap-2 rounded-md border border-white/25 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+            className="flex w-full items-center gap-2 rounded-md border border-white/25 px-3 py-1 text-sm text-white/80 hover:bg-white/10 hover:text-white"
           >
             <IconLogOut className="h-4 w-4" />
             Sign out
