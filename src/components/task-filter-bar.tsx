@@ -2,11 +2,49 @@
 
 // A plain GET form, auto-submitting on change — same "filtered view is a
 // real URL, filtering happens in the query" approach as the other list
-// pages' filters. `mine`/`view` (the existing Open/My tasks/All chips)
-// come along as hidden inputs so changing a dropdown here doesn't reset
-// them. Status is a checkbox group (name="status" repeated) rather than a
-// single-select dropdown, so one or more statuses can be highlighted at
+// pages' filters. `mine`/`view` (the My tasks/All chips) come along as
+// hidden inputs so changing a dropdown here doesn't reset them. Priority
+// and status are both checkbox groups (repeated `name`) rather than
+// single-select dropdowns, so one or more of either can be highlighted at
 // once — same pattern as Internal Sales' stage filter.
+function ChipGroup({
+  name,
+  options,
+  selected,
+}: {
+  name: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {options.map((o) => {
+        const checked = selected.includes(o.value);
+        return (
+          <label
+            key={o.value}
+            className={`cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+              checked
+                ? "bg-charcoal text-white"
+                : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            <input
+              type="checkbox"
+              name={name}
+              value={o.value}
+              defaultChecked={checked}
+              onChange={(e) => e.currentTarget.form?.requestSubmit()}
+              className="sr-only"
+            />
+            {o.label}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TaskFilterBar({
   clients,
   members,
@@ -20,15 +58,18 @@ export function TaskFilterBar({
   members: { id: string; full_name: string }[];
   priorityOptions: { value: string; label: string }[];
   statusOptions: { value: string; label: string }[];
-  values: { client: string; priority: string; assignee: string; statuses: string[] };
+  values: { client: string; priorities: string[]; assignee: string; statuses: string[] };
   preserve: { mine?: string; view?: string };
   /** Where "Clear filters" goes — computed server-side so it can drop the
-   * filter params while keeping mine/view (the Open/My tasks/All chips)
+   * filter params while keeping mine/view (the My tasks/All chips)
    * intact. */
   clearHref: string;
 }) {
   const hasFilters =
-    values.client || values.priority || values.assignee || values.statuses.length > 0;
+    values.client ||
+    values.priorities.length > 0 ||
+    values.assignee ||
+    values.statuses.length > 0;
 
   return (
     <form action="/tasks" className="space-y-2">
@@ -46,20 +87,6 @@ export function TaskFilterBar({
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          name="priority"
-          defaultValue={values.priority}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
-        >
-          <option value="">All priorities</option>
-          {priorityOptions.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
             </option>
           ))}
         </select>
@@ -85,31 +112,8 @@ export function TaskFilterBar({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        {statusOptions.map((s) => {
-          const checked = values.statuses.includes(s.value);
-          return (
-            <label
-              key={s.value}
-              className={`cursor-pointer rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
-                checked
-                  ? "bg-charcoal text-white"
-                  : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              <input
-                type="checkbox"
-                name="status"
-                value={s.value}
-                defaultChecked={checked}
-                onChange={(e) => e.currentTarget.form?.requestSubmit()}
-                className="sr-only"
-              />
-              {s.label}
-            </label>
-          );
-        })}
-      </div>
+      <ChipGroup name="priority" options={priorityOptions} selected={values.priorities} />
+      <ChipGroup name="status" options={statusOptions} selected={values.statuses} />
     </form>
   );
 }

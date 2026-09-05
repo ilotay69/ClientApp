@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ];
 
@@ -48,7 +47,7 @@ export default async function TasksPage({
     project_id?: string;
     client_id?: string;
     client?: string;
-    priority?: string;
+    priority?: string | string[];
     assignee?: string;
     status?: string | string[];
   }>;
@@ -59,7 +58,7 @@ export default async function TasksPage({
     project_id: defaultProjectId,
     client_id: defaultClientId,
     client: filterClient,
-    priority: filterPriority,
+    priority: filterPriorityRaw,
     assignee: filterAssignee,
     status: filterStatusRaw,
   } = await searchParams;
@@ -67,6 +66,11 @@ export default async function TasksPage({
     ? filterStatusRaw
     : filterStatusRaw
       ? [filterStatusRaw]
+      : [];
+  const filterPriorities = Array.isArray(filterPriorityRaw)
+    ? filterPriorityRaw
+    : filterPriorityRaw
+      ? [filterPriorityRaw]
       : [];
   const supabase = await createClient();
   const {
@@ -99,10 +103,12 @@ export default async function TasksPage({
   }));
   const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));
 
-  // "My tasks" is really just the assignee filter defaulting to the
-  // current user — an explicit assignee filter takes precedence if both
-  // are somehow present at once.
-  const effectiveAssigneeId = filterAssignee || (mine === "1" && user ? user.id : "");
+  // Defaults to "my tasks": with no explicit assignee/mine/view param, a
+  // logged-in tech lands on their own open tasks rather than everyone's.
+  // An explicit assignee filter always wins; "All" (view=all) opts back
+  // out of the current-user default so it can show everyone's.
+  const defaultsToMine = mine === "1" || (mine === undefined && view !== "all");
+  const effectiveAssigneeId = filterAssignee || (defaultsToMine && user ? user.id : "");
 
   const assigneesRelation = effectiveAssigneeId
     ? "task_assignees!inner(profile_id)"
@@ -130,8 +136,8 @@ export default async function TasksPage({
   if (filterClient) {
     teamQuery = teamQuery.eq("client_id", filterClient);
   }
-  if (filterPriority) {
-    teamQuery = teamQuery.eq("priority", filterPriority);
+  if (filterPriorities.length > 0) {
+    teamQuery = teamQuery.in("priority", filterPriorities);
   }
 
   const [{ data: teamTasks }, { data: personalTasks }] = await Promise.all([
@@ -158,13 +164,10 @@ export default async function TasksPage({
           </p>
         </div>
         <div className="flex gap-2 text-sm">
-          <FilterLink href="/tasks" active={!mine && view !== "all"}>
-            Open
-          </FilterLink>
-          <FilterLink href="/tasks?mine=1" active={mine === "1"}>
+          <FilterLink href="/tasks" active={view !== "all"}>
             My tasks
           </FilterLink>
-          <FilterLink href="/tasks?view=all" active={view === "all" && !mine}>
+          <FilterLink href="/tasks?view=all" active={view === "all"}>
             All
           </FilterLink>
         </div>
@@ -177,7 +180,7 @@ export default async function TasksPage({
         statusOptions={STATUS_OPTIONS}
         values={{
           client: filterClient ?? "",
-          priority: filterPriority ?? "",
+          priorities: filterPriorities,
           assignee: filterAssignee ?? "",
           statuses: filterStatuses,
         }}
