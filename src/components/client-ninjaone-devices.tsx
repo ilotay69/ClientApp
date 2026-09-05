@@ -5,7 +5,12 @@ import { Badge } from "@/components/badge";
 import { formatDate, humanizeLabel } from "@/lib/format";
 import { CollapsibleCard } from "@/components/collapsible-card";
 import { ListFilterBar, matchesQuery } from "@/components/list-filter-bar";
-import { buildDeviceInsights } from "@/lib/device-insights";
+import { buildDeviceInsights, deviceAgeDays } from "@/lib/device-insights";
+
+function ageLabel(d: Pick<NinjaOneDeviceRow, "manufacturer_fulfillment_date" | "device_created_at">) {
+  const days = deviceAgeDays(d);
+  return days !== null ? `${(days / 365).toFixed(1)}y old` : null;
+}
 
 /** Collapses NinjaOne's many nodeClass values down to the one distinction
  * that matters at a glance — Server vs. Workstation vs. Network device —
@@ -176,6 +181,7 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
           <p className="text-xs text-slate-500">
             {[d.os_name, d.os_version].filter(Boolean).join(" ") || "OS unknown"}
             {d.last_contact ? ` · last seen ${formatDate(d.last_contact)}` : ""}
+            {ageLabel(d) ? ` · ${ageLabel(d)}` : ""}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -195,6 +201,7 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
           <Detail label="Model" value={d.model} />
           <Detail label="Last logged-on user" value={d.last_logged_on_user} />
           <Detail label="Last contact" value={d.last_contact ? formatDate(d.last_contact) : null} />
+          <Detail label="Device age" value={ageLabel(d)} />
           <Detail
             label="Manufactured / shipped"
             value={

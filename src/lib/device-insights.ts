@@ -87,8 +87,23 @@ const OFFLINE_URGENT_DAYS = 90;
 const OFFLINE_WARN_DAYS = 30;
 /** How far ahead an upcoming EOL is worth surfacing — roughly a budget cycle. */
 const EOL_SOON_DAYS = 180;
-const WORKSTATION_AGE_THRESHOLD_DAYS = 2 * 365;
-const SERVER_AGE_THRESHOLD_DAYS = 2 * 365;
+const WORKSTATION_AGE_THRESHOLD_DAYS = 3 * 365;
+const SERVER_AGE_THRESHOLD_DAYS = 5 * 365;
+
+/** Device age in days — prefers NinjaOne's auto-detected manufacturer
+ * fulfillment date (the actual hardware ship date, via warranty lookup)
+ * over when NinjaOne first registered the device (enrollment date, not
+ * purchase date), since fulfillment data isn't available for every
+ * device (unsupported vendor, or the lookup never ran). Shared by the
+ * aging-hardware insight below and the Devices list's own age display so
+ * both agree on the same number. */
+export function deviceAgeDays(
+  d: Pick<DeviceInsightInput, "manufacturer_fulfillment_date" | "device_created_at">,
+  now: Date = new Date()
+): number | null {
+  const source = d.manufacturer_fulfillment_date ?? d.device_created_at;
+  return source ? differenceInCalendarDays(now, parseISO(source)) : null;
+}
 
 /** Names are truncated in the detail line; the full list is a filter click away. */
 function nameList(names: string[], max = 4) {
@@ -146,19 +161,9 @@ export function buildDeviceInsights(
     });
   }
 
-  // --- Hardware older than its typical refresh cycle. Prefers NinjaOne's
-  // auto-detected manufacturer fulfillment date (the actual hardware ship
-  // date, via warranty lookup) — a real proxy for device age. Falls back to
-  // when NinjaOne first registered the device (enrollment date, not
-  // purchase date) when fulfillment data isn't available for that device
-  // (unsupported vendor, or the lookup never ran). Workstations/laptops and
-  // servers are checked separately against their own thresholds below —
+  // --- Hardware older than its typical refresh cycle. Workstations/laptops
+  // and servers are checked separately against their own thresholds below —
   // network gear isn't checked, it's refreshed on a different cycle again. ---
-  const ageDays = (d: DeviceInsightInput) => {
-    const source = d.manufacturer_fulfillment_date ?? d.device_created_at;
-    return source ? differenceInCalendarDays(now, parseISO(source)) : null;
-  };
-
   function pushAgingInsight(
     label: string,
     classify: (nodeClass: string | null) => boolean,
@@ -166,7 +171,7 @@ export function buildDeviceInsights(
   ) {
     const aging = devices.filter((d) => {
       if (!classify(d.node_class)) return false;
-      const days = ageDays(d);
+      const days = deviceAgeDays(d, now);
       return days !== null && days >= thresholdDays;
     });
     if (aging.length === 0) return;
@@ -177,8 +182,8 @@ export function buildDeviceInsights(
       title: `${aging.length} ${label}${aging.length === 1 ? "" : "s"} older than ${years} years`,
       detail: nameList(
         aging
-          .sort((a, b) => (ageDays(b) ?? 0) - (ageDays(a) ?? 0))
-          .map((d) => `${d.system_name} (${((ageDays(d) ?? 0) / 365).toFixed(1)}y)`)
+          .sort((a, b) => (deviceAgeDays(b, now) ?? 0) - (deviceAgeDays(a, now) ?? 0))
+          .map((d) => `${d.system_name} (${((deviceAgeDays(d, now) ?? 0) / 365).toFixed(1)}y)`)
       ),
     });
   }
