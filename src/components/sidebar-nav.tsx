@@ -71,6 +71,7 @@ export function SidebarNav({
   ];
 
   const settingsLinks: NavItem[] = [
+    ...(canManageTeam ? [{ href: "/team", label: "Team", icon: IconUsers }] : []),
     ...(canManageIntegrations
       ? [{ href: "/settings/integrations", label: "Integrations", icon: IconSparkles }]
       : []),
@@ -81,12 +82,7 @@ export function SidebarNav({
   ];
 
   const insightsLinks: NavItem[] = [
-    ...(canManageTeam
-      ? [
-          { href: "/team", label: "Team", icon: IconUsers },
-          { href: "/hours", label: "Lookups", icon: IconClock },
-        ]
-      : []),
+    ...(canManageTeam ? [{ href: "/hours", label: "Lookups", icon: IconClock }] : []),
     ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
     ...(canManageServices
       ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
@@ -145,21 +141,21 @@ export function SidebarNav({
           </div>
         )}
 
-        {settingsLinks.length > 0 && (
-          <div>
-            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
-              Settings
-            </p>
-            <div className="space-y-1">{settingsLinks.map(renderLink)}</div>
-          </div>
-        )}
-
         {insightsLinks.length > 0 && (
           <div>
             <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
               Insights &amp; Reports
             </p>
             <div className="space-y-1">{insightsLinks.map(renderLink)}</div>
+          </div>
+        )}
+
+        {settingsLinks.length > 0 && (
+          <div>
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/70">
+              Settings
+            </p>
+            <div className="space-y-1">{settingsLinks.map(renderLink)}</div>
           </div>
         )}
       </nav>
