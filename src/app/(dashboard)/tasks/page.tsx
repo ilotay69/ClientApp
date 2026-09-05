@@ -50,7 +50,7 @@ export default async function TasksPage({
     client?: string;
     priority?: string;
     assignee?: string;
-    status?: string;
+    status?: string | string[];
   }>;
 }) {
   const {
@@ -61,8 +61,13 @@ export default async function TasksPage({
     client: filterClient,
     priority: filterPriority,
     assignee: filterAssignee,
-    status: filterStatus,
+    status: filterStatusRaw,
   } = await searchParams;
+  const filterStatuses = Array.isArray(filterStatusRaw)
+    ? filterStatusRaw
+    : filterStatusRaw
+      ? [filterStatusRaw]
+      : [];
   const supabase = await createClient();
   const {
     data: { user },
@@ -111,11 +116,11 @@ export default async function TasksPage({
     .eq("is_personal", false)
     .order("due_date", { ascending: true, nullsFirst: false });
 
-  if (filterStatus) {
+  if (filterStatuses.length > 0) {
     // An explicit status filter (e.g. "Done") overrides the default
-    // open-only view — picking "Done" should show done tasks regardless
-    // of the Open/All chip.
-    teamQuery = teamQuery.eq("status", filterStatus);
+    // open-only view — picking one or more statuses should show those
+    // regardless of the Open/All chip.
+    teamQuery = teamQuery.in("status", filterStatuses);
   } else if (view !== "all") {
     teamQuery = teamQuery.not("status", "in", "(done,dismissed)");
   }
@@ -174,7 +179,7 @@ export default async function TasksPage({
           client: filterClient ?? "",
           priority: filterPriority ?? "",
           assignee: filterAssignee ?? "",
-          status: filterStatus ?? "",
+          statuses: filterStatuses,
         }}
         preserve={{ mine, view }}
         clearHref={filterHref("/tasks", { mine, view })}
