@@ -69,7 +69,7 @@ export function ClientM365Licenses({
           visible.map((l) => {
             const noHeadroom = atCapacity(l);
             return (
-              <div key={l.id} className="flex items-center justify-between gap-3 px-5 py-3">
+              <div key={l.id} className="flex items-center justify-between gap-3 px-5 py-2">
                 <p className="text-sm font-medium text-slate-900">
                   {friendlyM365SkuName(l.sku_part_number)}
                 </p>

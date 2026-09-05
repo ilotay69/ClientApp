@@ -24,7 +24,7 @@ export function ServiceCheckQuickAdd({
         await formAction(formData);
         formRef.current?.reset();
       }}
-      className="border-t border-slate-200 px-5 py-3"
+      className="border-t border-slate-200 px-5 py-2"
     >
       <div className="flex flex-wrap items-center gap-2">
         <select

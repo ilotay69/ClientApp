@@ -93,7 +93,7 @@ export function ClientNinjaOneDevices({
       }
     >
       {insights.length > 0 && (
-        <div className="space-y-2 border-b border-slate-100 bg-amber-50/40 px-5 py-3">
+        <div className="space-y-2 border-b border-slate-100 bg-amber-50/40 px-5 py-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Needs attention
           </p>
@@ -169,7 +169,7 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50"
+        className="flex w-full items-center justify-between gap-3 px-5 py-2 text-left hover:bg-slate-50"
       >
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900">{d.system_name}</p>

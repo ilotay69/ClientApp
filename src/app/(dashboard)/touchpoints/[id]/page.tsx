@@ -97,7 +97,7 @@ export default async function TouchpointDetailPage({
       </div>
 
       <div className="max-w-xl rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-5 py-3">
+        <div className="border-b border-slate-200 px-5 py-2">
           <h2 className="text-sm font-semibold text-slate-900">
             Related emails ({RELATED_EMAIL_WINDOW_DAYS} days either side of the due date)
           </h2>
@@ -110,7 +110,7 @@ export default async function TouchpointDetailPage({
                 href={e.web_link ?? "#"}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
               >
                 <div>
                   <p className="text-sm font-medium text-slate-900">{e.subject}</p>

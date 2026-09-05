@@ -26,10 +26,10 @@ export function PermissionMatrix({
       <table className="min-w-full divide-y divide-slate-200 text-sm">
         <thead className="bg-slate-50">
           <tr>
-            <th className="px-5 py-3 text-left font-medium text-slate-500">Permission</th>
-            <th className="px-5 py-3 text-center font-medium text-slate-500">Owner</th>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">Permission</th>
+            <th className="px-5 py-2 text-center font-medium text-slate-500">Owner</th>
             {EDITABLE_ROLES.map((r) => (
-              <th key={r.role} className="px-5 py-3 text-center font-medium text-slate-500">
+              <th key={r.role} className="px-5 py-2 text-center font-medium text-slate-500">
                 {r.label}
               </th>
             ))}
@@ -38,8 +38,8 @@ export function PermissionMatrix({
         <tbody className="divide-y divide-slate-100">
           {permissions.map((permission) => (
             <tr key={permission}>
-              <td className="px-5 py-3 text-slate-900">{labels[permission]}</td>
-              <td className="px-5 py-3 text-center">
+              <td className="px-5 py-2 text-slate-900">{labels[permission]}</td>
+              <td className="px-5 py-2 text-center">
                 <span
                   title="Owner always has full access"
                   className="inline-flex items-center rounded-full bg-charcoal px-2.5 py-0.5 text-xs font-medium text-white"
@@ -48,7 +48,7 @@ export function PermissionMatrix({
                 </span>
               </td>
               {EDITABLE_ROLES.map((r) => (
-                <td key={r.role} className="px-5 py-3 text-center">
+                <td key={r.role} className="px-5 py-2 text-center">
                   <PermissionCheckbox
                     role={r.role}
                     permission={permission}

@@ -36,19 +36,19 @@ export default async function ServiceCatalogPage() {
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Service</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Description</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Default cadence</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500"></th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Service</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Description</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Default cadence</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {(catalog ?? []).map((c) => (
               <tr key={c.id}>
-                <td className="px-5 py-3 font-medium text-slate-900">{c.name}</td>
-                <td className="px-5 py-3 text-slate-600">{c.description ?? "—"}</td>
-                <td className="px-5 py-3 text-slate-600">Every {c.default_cadence_days} days</td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-2 font-medium text-slate-900">{c.name}</td>
+                <td className="px-5 py-2 text-slate-600">{c.description ?? "—"}</td>
+                <td className="px-5 py-2 text-slate-600">Every {c.default_cadence_days} days</td>
+                <td className="px-5 py-2">
                   <DeleteButton
                     action={deleteCatalogItem.bind(null, c.id)}
                     confirmText={`Remove "${c.name}" from Recurring Services? This also removes it from any client it's tracked on.`}

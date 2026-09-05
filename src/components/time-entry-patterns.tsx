@@ -32,7 +32,7 @@ export function TimeEntryPatterns({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Ticket Pattern</h2>
           <p className="text-xs text-slate-500">
@@ -50,7 +50,7 @@ export function TimeEntryPatterns({
         </button>
       </div>
 
-      {analyzeError && <p className="px-5 py-3 text-sm text-red-600">{analyzeError}</p>}
+      {analyzeError && <p className="px-5 py-2 text-sm text-red-600">{analyzeError}</p>}
 
       {clients && (
         <div className="divide-y divide-slate-100">
@@ -60,7 +60,7 @@ export function TimeEntryPatterns({
             </p>
           )}
           {clients.map((c, i) => (
-            <div key={i} className="px-5 py-3">
+            <div key={i} className="px-5 py-2">
               <p className="text-sm font-semibold text-slate-900">{c.clientName}</p>
               <div className="mt-2 space-y-2">
                 {c.findings.map((f, j) => (

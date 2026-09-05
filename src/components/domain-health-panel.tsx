@@ -46,14 +46,14 @@ export function DomainHealthPanel({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-3">
+      <div className="border-b border-slate-200 px-5 py-2">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
         <p className="mt-1 text-xs text-slate-500">
           Live DNS/MX/SPF/DMARC/DKIM and registrar lookup — nothing stored.
         </p>
       </div>
 
-      <div className="flex gap-2 px-5 py-3">
+      <div className="flex gap-2 px-5 py-2">
         <input
           value={domain}
           onChange={(e) => setDomain(e.target.value)}

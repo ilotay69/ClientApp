@@ -97,30 +97,30 @@ export default async function TouchpointsPage({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Client</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Type</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Due date</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Status</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Client</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Type</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Due date</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {(touchpoints ?? []).map((t) => (
               <tr key={t.id} className="hover:bg-slate-50">
-                <td className="px-5 py-3">
+                <td className="px-5 py-2">
                   <Link href={`/touchpoints/${t.id}`} className="font-medium text-slate-900 hover:underline">
                     {(t.clients as unknown as { name: string } | null)?.name ?? "—"}
                   </Link>
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-2">
                   <Badge value={t.type} />
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-2">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-600">{formatDate(t.due_date)}</span>
                     {!t.completed_at && isOverdue(t.due_date) && <OverdueBadge />}
                   </div>
                 </td>
-                <td className="px-5 py-3 text-slate-600">
+                <td className="px-5 py-2 text-slate-600">
                   {t.completed_at ? `Completed ${formatDate(t.completed_at)}` : "Not completed"}
                 </td>
               </tr>

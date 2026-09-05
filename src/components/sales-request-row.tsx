@@ -87,7 +87,7 @@ export function SalesRequestRow({
             setExpanded((prev) => !prev);
           }
         }}
-        className="flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left hover:bg-slate-50"
+        className="flex w-full cursor-pointer items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
       >
         <span className="w-24 shrink-0 text-xs text-slate-500">{formatDate(request.created_at)}</span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientName ?? "Internal"}</span>

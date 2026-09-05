@@ -28,7 +28,7 @@ export function CollapsibleCard({
       open={defaultOpen}
       className="group rounded-xl border border-slate-200 bg-white shadow-sm"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-2 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
           {count !== null && count !== undefined && (

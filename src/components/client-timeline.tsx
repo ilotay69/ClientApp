@@ -78,7 +78,7 @@ export function ClientTimeline({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-3">
+      <div className="border-b border-slate-200 px-5 py-2">
         <h2 className="text-sm font-semibold text-slate-900">Timeline</h2>
       </div>
 
@@ -101,7 +101,7 @@ export function ClientTimeline({
         />
       )}
 
-      <div className="flex flex-wrap gap-2 px-5 py-3">
+      <div className="flex flex-wrap gap-2 px-5 py-2">
         {FILTERS.map((f) => (
           <button
             key={f.value}
@@ -128,7 +128,7 @@ export function ClientTimeline({
             (canManageAllEntries || (currentUserId && entry.createdByUserId === currentUserId));
 
           return (
-          <div key={entry.id} className="px-5 py-3">
+          <div key={entry.id} className="px-5 py-2">
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-2 text-sm font-medium text-slate-900">
                 {entry.subject || TYPE_LABELS[entry.type]}
@@ -237,7 +237,7 @@ function LogForm({
         formRef.current?.reset();
         setType("note");
       }}
-      className="space-y-2 border-b border-slate-200 px-5 py-3"
+      className="space-y-2 border-b border-slate-200 px-5 py-2"
     >
       <div className="flex flex-wrap gap-2">
         <select
@@ -329,7 +329,7 @@ function UploadForm({
         });
       }}
       encType="multipart/form-data"
-      className="space-y-2 border-b border-slate-200 px-5 py-3"
+      className="space-y-2 border-b border-slate-200 px-5 py-2"
     >
       <div className="flex flex-wrap gap-2">
         <select

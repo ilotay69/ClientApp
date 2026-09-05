@@ -32,7 +32,7 @@ export function ServiceCoverageAnalysis({
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Services Deployed</h2>
             <p className="text-xs text-slate-500">
@@ -51,12 +51,12 @@ export function ServiceCoverageAnalysis({
           </button>
         </div>
 
-        {error && <p className="px-5 py-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="px-5 py-2 text-sm text-red-600">{error}</p>}
 
         {gaps && (
           <div className="divide-y divide-slate-100">
             {gaps.map((g, i) => (
-              <div key={i} className="px-5 py-3">
+              <div key={i} className="px-5 py-2">
                 <p className="text-sm font-medium text-slate-900">{g.category}</p>
                 {g.matchedServices.length > 0 && (
                   <p className="mt-0.5 text-xs text-slate-500">
@@ -80,7 +80,7 @@ export function ServiceCoverageAnalysis({
 
       {categories && categories.length > 0 && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-5 py-3">
+          <div className="border-b border-slate-200 px-5 py-2">
             <h2 className="text-sm font-semibold text-slate-900">Coverage by category — who has it</h2>
             <p className="text-xs text-slate-500">
               The reverse view of the same analysis above: every category found, and which clients
@@ -89,7 +89,7 @@ export function ServiceCoverageAnalysis({
           </div>
           <div className="divide-y divide-slate-100">
             {categories.map((c, i) => (
-              <div key={i} className="px-5 py-3">
+              <div key={i} className="px-5 py-2">
                 <p className="text-sm font-medium text-slate-900">{c.category}</p>
                 {c.matchedServices.length > 0 && (
                   <p className="mt-0.5 text-xs text-slate-500">

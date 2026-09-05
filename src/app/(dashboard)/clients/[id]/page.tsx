@@ -355,7 +355,7 @@ export default async function ClientDetailPage({
                 content: (
                   <>
                     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+                      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
                         <h2 className="text-sm font-semibold text-slate-900">Insights</h2>
                         <RefreshClientInsightsButton action={refreshInsightsAction} />
                       </div>
@@ -392,7 +392,7 @@ export default async function ClientDetailPage({
                         <Link
                           key={t.id}
                           href="/tasks"
-                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                          className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
                         >
                           <div>
                             <p className="text-sm font-medium text-slate-900">{t.title}</p>
@@ -419,7 +419,7 @@ export default async function ClientDetailPage({
                         <Link
                           key={p.id}
                           href={`/projects/${p.id}`}
-                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                          className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
                         >
                           <div>
                             <p className="text-sm font-medium text-slate-900">{p.name}</p>
@@ -441,7 +441,7 @@ export default async function ClientDetailPage({
                         <Link
                           key={t.id}
                           href={`/touchpoints/${t.id}`}
-                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                          className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
                         >
                           <div>
                             <p className="text-sm font-medium text-slate-900">
@@ -468,7 +468,7 @@ export default async function ClientDetailPage({
                         <Link
                           key={r.id}
                           href={`/sales-requests?client=${id}`}
-                          className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+                          className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
                         >
                           <p className="text-sm font-medium text-slate-900">{r.title}</p>
                           <div className="flex items-center gap-2">
@@ -495,7 +495,7 @@ export default async function ClientDetailPage({
                           return (
                             <div
                               key={cs.service_id}
-                              className="flex items-center justify-between gap-3 px-5 py-3"
+                              className="flex items-center justify-between gap-3 px-5 py-2"
                             >
                               <p className="text-sm font-medium text-slate-900">
                                 {svc?.name ?? "Service"}
@@ -544,7 +544,7 @@ export default async function ClientDetailPage({
                           return (
                             <div
                               key={sc.id}
-                              className="flex items-center justify-between gap-3 px-5 py-3"
+                              className="flex items-center justify-between gap-3 px-5 py-2"
                             >
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-slate-900">
@@ -666,7 +666,7 @@ function RelatedSection({
     : Boolean(children);
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
         {newHref && (
           <Link href={newHref} className="text-sm text-slate-600 hover:underline">

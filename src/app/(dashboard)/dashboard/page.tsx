@@ -256,7 +256,7 @@ function Section({
     : Boolean(children);
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
         {action}
       </div>
@@ -275,7 +275,7 @@ function Row({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+      className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
     >
       {children}
     </Link>

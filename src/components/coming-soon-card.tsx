@@ -7,7 +7,7 @@ export function ComingSoonCard({
 }) {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 shadow-sm">
-      <div className="border-b border-dashed border-slate-300 px-5 py-3">
+      <div className="border-b border-dashed border-slate-300 px-5 py-2">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
       </div>
       <div className="px-5 py-4">

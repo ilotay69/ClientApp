@@ -91,16 +91,16 @@ export default async function ProjectsPage({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Name</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Client</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Target end</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Status</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Name</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Client</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Target end</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {(projects ?? []).map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
-                <td className="px-5 py-3">
+                <td className="px-5 py-2">
                   <div className="flex items-center gap-2">
                     <Link href={`/projects/${p.id}`} className="font-medium text-slate-900 hover:underline">
                       {p.name}
@@ -108,11 +108,11 @@ export default async function ProjectsPage({
                     {p.source_autotask_ticket_id && <Badge value="autotask" />}
                   </div>
                 </td>
-                <td className="px-5 py-3 text-slate-600">
+                <td className="px-5 py-2 text-slate-600">
                   {(p.clients as unknown as { name: string } | null)?.name ?? "—"}
                 </td>
-                <td className="px-5 py-3 text-slate-600">{formatDate(p.target_end_date)}</td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-2 text-slate-600">{formatDate(p.target_end_date)}</td>
+                <td className="px-5 py-2">
                   <Badge value={p.status} />
                 </td>
               </tr>

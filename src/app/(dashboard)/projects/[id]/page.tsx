@@ -101,7 +101,7 @@ export default async function ProjectDetailPage({
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
           <h2 className="text-sm font-semibold text-slate-900">Tasks</h2>
           <Link
             href={`/tasks?project_id=${id}&client_id=${project.client_id}`}
@@ -115,7 +115,7 @@ export default async function ProjectDetailPage({
             <Link
               key={t.id}
               href="/tasks"
-              className="flex items-center justify-between px-5 py-3 hover:bg-slate-50"
+              className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
             >
               <div>
                 <p className="text-sm font-medium text-slate-900">{t.title}</p>

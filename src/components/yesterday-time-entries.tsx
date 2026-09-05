@@ -27,7 +27,7 @@ export function YesterdayTimeEntries({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Yesterday&apos;s time entries</h2>
           <p className="text-xs text-slate-500">

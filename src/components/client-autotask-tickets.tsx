@@ -52,7 +52,7 @@ export function ClientAutotaskTickets({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-2">
         <h2 className="text-sm font-semibold text-slate-900">Tickets</h2>
         {companyId !== null && tickets.length > 0 && (
           <div className="flex items-center gap-2">
@@ -134,7 +134,7 @@ function TicketRow({
       <button
         type="button"
         onClick={toggle}
-        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50"
+        className="flex w-full items-center justify-between gap-3 px-5 py-2 text-left hover:bg-slate-50"
       >
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900">

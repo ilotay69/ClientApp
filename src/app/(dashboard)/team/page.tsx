@@ -52,19 +52,19 @@ export default async function TeamPage() {
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Name</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Email</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Joined</th>
-              <th className="px-5 py-3 text-left font-medium text-slate-500">Role</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Name</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Email</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Joined</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Role</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {(members ?? []).map((m) => (
               <tr key={m.id}>
-                <td className="px-5 py-3 font-medium text-slate-900">{m.full_name}</td>
-                <td className="px-5 py-3 text-slate-600">{m.email}</td>
-                <td className="px-5 py-3 text-slate-600">{formatDate(m.created_at)}</td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-2 font-medium text-slate-900">{m.full_name}</td>
+                <td className="px-5 py-2 text-slate-600">{m.email}</td>
+                <td className="px-5 py-2 text-slate-600">{formatDate(m.created_at)}</td>
+                <td className="px-5 py-2">
                   {m.id === user?.id ? (
                     <Badge value={m.role} />
                   ) : (
