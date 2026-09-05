@@ -2,7 +2,6 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { SearchBox } from "@/components/search-box";
-import { SyncMailButton } from "@/components/sync-mail-button";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +24,6 @@ export default async function ClientsPage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Clients</h1>
         <div className="flex items-center gap-2">
-          <SyncMailButton label="Sync my mailbox" />
           {canManageClients && (
             <Link
               href="/clients/new"
