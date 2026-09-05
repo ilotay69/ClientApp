@@ -242,7 +242,7 @@ export async function fetchDevicesForOrganization(
     const health = healthByDevice.get(d.id) ?? {};
 
     const diskTotals = deviceVolumes.reduce(
-      (sum, v) => {
+      (sum: { total: number; free: number; any: boolean }, v) => {
         const total = firstNumber(v, ["capacity", "size", "totalSize", "totalBytes"]);
         const free = firstNumber(v, ["freeSpace", "free", "freeBytes"]);
         return {
