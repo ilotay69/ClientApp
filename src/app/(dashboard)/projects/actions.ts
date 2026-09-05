@@ -115,11 +115,11 @@ export async function syncAllAutotaskProjectsAction(): Promise<{ error: string |
   };
 }
 
-const AUTO_SYNC_THROTTLE_MS = 15 * 60 * 1000;
+const AUTO_SYNC_THROTTLE_MS = 30 * 60 * 1000;
 
 /** Fired (not awaited) from the Projects page itself on every visit, so
  * the list reflects recent Autotask changes without a manual "Sync
- * Autotask" click — but only if the last sync was more than 15 minutes
+ * Autotask" click — but only if the last sync was more than 30 minutes
  * ago, and always in the background: a full sync loops every mapped
  * client sequentially and can take a while for a real book of business
  * (the same kind of long request that caused the "page couldn't load"
