@@ -202,8 +202,11 @@ function DeviceRow({ device: d }: { device: NinjaOneDeviceRow }) {
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
           {d.system_name}
         </span>
-        <span className="w-40 shrink-0 truncate text-xs text-slate-500">
-          {[d.os_name, d.os_version].filter(Boolean).join(" ") || "OS unknown"}
+        <span className="w-56 shrink-0 truncate text-xs text-slate-500">
+          {d.os_name || "OS unknown"}
+        </span>
+        <span className="w-32 shrink-0 truncate text-xs text-slate-500">
+          {d.last_logged_on_user || "—"}
         </span>
         <span className="w-16 shrink-0 text-xs text-slate-500">{ageLabel(d) ?? "—"}</span>
         <span className="flex shrink-0 items-center gap-2">
