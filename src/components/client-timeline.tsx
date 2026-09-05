@@ -41,7 +41,6 @@ const FILTERS: { value: "all" | TimelineEntry["type"]; label: string }[] = [
   { value: "note", label: "Notes" },
   { value: "call", label: "Calls" },
   { value: "meeting", label: "Meetings" },
-  { value: "check_in", label: "Check-ins" },
   { value: "document", label: "Documents" },
 ];
 
@@ -226,7 +225,6 @@ function LogForm({
           <option value="note">Note</option>
           <option value="call">Call</option>
           <option value="meeting">Meeting</option>
-          <option value="check_in">Check-in</option>
           <option value="document">Document</option>
         </select>
         <select
@@ -241,20 +239,7 @@ function LogForm({
             </option>
           ))}
         </select>
-        {type === "check_in" && (
-          <input
-            type="date"
-            name="next_contact_date"
-            required
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-          />
-        )}
       </div>
-      {type === "check_in" && (
-        <p className="text-xs text-slate-500">
-          Also creates a Touchpoint on that next-contact date, so it shows up in Touchpoints too.
-        </p>
-      )}
 
       {isDocument ? (
         <>
@@ -286,9 +271,7 @@ function LogForm({
           <textarea
             name="body"
             rows={3}
-            placeholder={
-              type === "check_in" ? "Brief notes on the check-in..." : "Log a note or call summary..."
-            }
+            placeholder="Log a note or call summary..."
             required
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
