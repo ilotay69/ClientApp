@@ -53,6 +53,8 @@ export function SidebarNav({
   canManageTeam,
   canViewReports,
   isOwner,
+  teamOwnerOnly,
+  integrationsOwnerOnly,
   signOutAction,
 }: {
   userLabel: string;
@@ -61,6 +63,10 @@ export function SidebarNav({
   canManageTeam: boolean;
   canViewReports: boolean;
   isOwner: boolean;
+  /** True only while no non-Owner role has been granted manage_team —
+   * disappears on its own once one is (see isPermissionOwnerOnly). */
+  teamOwnerOnly: boolean;
+  integrationsOwnerOnly: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -77,9 +83,18 @@ export function SidebarNav({
   ];
 
   const settingsLinks: NavItem[] = [
-    ...(canManageTeam ? [{ href: "/team", label: "Team", icon: IconUsers }] : []),
+    ...(canManageTeam
+      ? [{ href: "/team", label: "Team", icon: IconUsers, ownerOnly: teamOwnerOnly }]
+      : []),
     ...(canManageIntegrations
-      ? [{ href: "/settings/integrations", label: "Integrations", icon: IconSparkles }]
+      ? [
+          {
+            href: "/settings/integrations",
+            label: "Integrations",
+            icon: IconSparkles,
+            ownerOnly: integrationsOwnerOnly,
+          },
+        ]
       : []),
     // Sits under Integrations since it's the same kind of setting, but stays
     // its own link — the mailbox connection is per-user and ungated, unlike

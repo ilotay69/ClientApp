@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/login/actions";
-import { getMyPermissions } from "@/lib/permissions";
+import { getMyPermissions, isPermissionOwnerOnly } from "@/lib/permissions";
 import { SidebarNav } from "@/components/sidebar-nav";
 import type { Profile } from "@/lib/types";
 
@@ -31,6 +31,11 @@ export default async function DashboardLayout({
   const canViewReports = me?.permissions.has("view_team_wide") ?? false;
   const isOwner = me?.role === "owner";
 
+  const [teamOwnerOnly, integrationsOwnerOnly] = await Promise.all([
+    isPermissionOwnerOnly(supabase, "manage_team"),
+    isPermissionOwnerOnly(supabase, "manage_integrations"),
+  ]);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <SidebarNav
@@ -40,6 +45,8 @@ export default async function DashboardLayout({
         canManageTeam={canManageTeam}
         canViewReports={canViewReports}
         isOwner={isOwner}
+        teamOwnerOnly={teamOwnerOnly}
+        integrationsOwnerOnly={integrationsOwnerOnly}
         signOutAction={signOut}
       />
       <main className="px-4 py-8 md:pl-64">
