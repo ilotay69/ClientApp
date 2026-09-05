@@ -28,12 +28,13 @@ type NavItem = {
   icon: (props: { className?: string }) => React.ReactNode;
 };
 
-const MAIN_LINKS: NavItem[] = [
+const LINKS_BEFORE_TOUCHPOINTS: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: IconGrid },
   { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
   { href: "/clients", label: "Clients", icon: IconBriefcase },
   { href: "/projects", label: "Projects", icon: IconFolder },
-  { href: "/touchpoints", label: "Touchpoints", icon: IconCalendar },
+];
+const LINKS_AFTER_TOUCHPOINTS: NavItem[] = [
   { href: "/sales-requests", label: "Internal Sales", icon: IconTag },
 ];
 
@@ -47,6 +48,7 @@ export function SidebarNav({
   canManageIntegrations,
   canManageTeam,
   canViewReports,
+  isOwner,
   signOutAction,
 }: {
   userLabel: string;
@@ -54,10 +56,19 @@ export function SidebarNav({
   canManageIntegrations: boolean;
   canManageTeam: boolean;
   canViewReports: boolean;
+  isOwner: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Touchpoints is a relationship-contact log restricted to owners — no
+  // point linking to a page that'll just redirect back out.
+  const MAIN_LINKS: NavItem[] = [
+    ...LINKS_BEFORE_TOUCHPOINTS,
+    ...(isOwner ? [{ href: "/touchpoints", label: "Touchpoints", icon: IconCalendar }] : []),
+    ...LINKS_AFTER_TOUCHPOINTS,
+  ];
 
   const settingsLinks: NavItem[] = [
     ...(canManageServices

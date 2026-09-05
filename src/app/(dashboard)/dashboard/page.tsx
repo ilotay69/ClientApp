@@ -20,6 +20,7 @@ export default async function DashboardPage() {
     supabase.from("profiles").select("role, full_name").eq("id", user?.id ?? "").single(),
     hasPermission(supabase, "view_team_wide"),
   ]);
+  const isOwnerUser = me?.role === "owner";
 
   const [
     { data: myTasks },
@@ -43,7 +44,7 @@ export default async function DashboardPage() {
       .not("status", "in", "(done,dismissed)"),
     supabase
       .from("touchpoints")
-      .select("id, type, due_date, owner_id, clients(name)")
+      .select("id, contact_method, due_date, owner_id, clients(name)")
       .is("completed_at", null)
       .order("due_date", { ascending: true }),
     supabase
@@ -110,11 +111,13 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="My open tasks" value={myTasks?.length ?? 0} href="/tasks?mine=1" />
-        <StatCard
-          label="Touchpoints past due"
-          value={overdueTouchpoints.length}
-          href="/touchpoints"
-        />
+        {isOwnerUser && (
+          <StatCard
+            label="Touchpoints past due"
+            value={overdueTouchpoints.length}
+            href="/touchpoints"
+          />
+        )}
         <StatCard
           label="Service checks overdue"
           value={overdueServiceChecks.length}
@@ -195,27 +198,29 @@ export default async function DashboardPage() {
         })}
       </Section>
 
-      <Section
-        title={canSeeTeamWide ? "Touchpoints coming up" : "Your touchpoints coming up"}
-        emptyText="No touchpoints scheduled."
-      >
-        {(canSeeTeamWide ? dueTouchpoints ?? [] : myOpenTouchpoints).slice(0, 8).map((t) => (
-          <Row key={t.id} href={`/touchpoints/${t.id}`}>
-            <div>
-              <p className="text-sm font-medium text-slate-900">
-                {(t.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
-              </p>
-              <p className="text-xs text-slate-500">
-                Due {formatDate(t.due_date)}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {isOverdue(t.due_date) && <OverdueBadge />}
-              <Badge value={t.type} />
-            </div>
-          </Row>
-        ))}
-      </Section>
+      {isOwnerUser && (
+        <Section
+          title={canSeeTeamWide ? "Touchpoints coming up" : "Your touchpoints coming up"}
+          emptyText="No touchpoints scheduled."
+        >
+          {(canSeeTeamWide ? dueTouchpoints ?? [] : myOpenTouchpoints).slice(0, 8).map((t) => (
+            <Row key={t.id} href={`/touchpoints/${t.id}`}>
+              <div>
+                <p className="text-sm font-medium text-slate-900">
+                  {(t.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Due {formatDate(t.due_date)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {isOverdue(t.due_date) && <OverdueBadge />}
+                {t.contact_method && <Badge value={t.contact_method} />}
+              </div>
+            </Row>
+          ))}
+        </Section>
+      )}
     </div>
   );
 }

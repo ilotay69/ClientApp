@@ -59,9 +59,10 @@ const COLORS: Record<string, string> = {
   review_prep: CATEGORY_INDIGO,
   touchpoint_action: CATEGORY_PURPLE,
 
-  // touchpoint type — a category, not a status
-  monthly_visit: CATEGORY_PURPLE,
-  quarterly_review: CATEGORY_INDIGO,
+  // touchpoint contact method — a category, not a status
+  email: CATEGORY_INDIGO,
+  call: CATEGORY_PURPLE,
+  meeting: INFO,
 
   // project source — a category, not a status
   autotask: CATEGORY_INDIGO,

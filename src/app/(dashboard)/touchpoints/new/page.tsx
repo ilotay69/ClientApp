@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { hasPermission } from "@/lib/permissions";
+import { isOwner } from "@/lib/permissions";
 import { TouchpointForm } from "@/components/touchpoint-form";
 import { createTouchpoint } from "../actions";
 
@@ -11,7 +11,7 @@ export default async function NewTouchpointPage({
 }) {
   const { client_id } = await searchParams;
   const supabase = await createClient();
-  if (!(await hasPermission(supabase, "manage_touchpoints"))) {
+  if (!(await isOwner(supabase))) {
     redirect("/touchpoints");
   }
 

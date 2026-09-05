@@ -1,15 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue } from "@/lib/format";
-import { hasPermission } from "@/lib/permissions";
+import { isOwner } from "@/lib/permissions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
 
-const TYPE_FILTERS = [
-  { value: "monthly_visit", label: "Monthly visit" },
-  { value: "quarterly_review", label: "Quarterly review" },
+const CONTACT_METHOD_FILTERS = [
+  { value: "email", label: "Email" },
+  { value: "call", label: "Call" },
+  { value: "meeting", label: "Meeting" },
 ];
 
 export default async function TouchpointsPage({
@@ -20,9 +22,15 @@ export default async function TouchpointsPage({
   const { view, type } = await searchParams;
   const supabase = await createClient();
 
+  // A relationship-contact log (who said what, when to follow up) is
+  // owner-only, not gated by role_permissions like everything else here.
+  if (!(await isOwner(supabase))) {
+    redirect("/dashboard");
+  }
+
   let touchpointsQuery = supabase
     .from("touchpoints")
-    .select("id, type, due_date, completed_at, clients(name)")
+    .select("id, contact_method, due_date, completed_at, outcome, clients(name)")
     .order("due_date", { ascending: true });
 
   // "Overdue" is outstanding *and* past due — the same rule the OverdueBadge
@@ -36,25 +44,20 @@ export default async function TouchpointsPage({
   if (view === "completed") {
     touchpointsQuery = touchpointsQuery.not("completed_at", "is", null);
   }
-  if (type) touchpointsQuery = touchpointsQuery.eq("type", type);
+  if (type) touchpointsQuery = touchpointsQuery.eq("contact_method", type);
 
-  const [{ data: touchpoints }, canManageTouchpoints] = await Promise.all([
-    touchpointsQuery,
-    hasPermission(supabase, "manage_touchpoints"),
-  ]);
+  const { data: touchpoints } = await touchpointsQuery;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Touchpoints</h1>
-        {canManageTouchpoints && (
-          <Link
-            href="/touchpoints/new"
-            className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark"
-          >
-            New touchpoint
-          </Link>
-        )}
+        <Link
+          href="/touchpoints/new"
+          className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+        >
+          New touchpoint
+        </Link>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -82,7 +85,7 @@ export default async function TouchpointsPage({
 
         <span className="mx-1 h-5 w-px bg-slate-300" aria-hidden="true" />
 
-        {TYPE_FILTERS.map((f) => (
+        {CONTACT_METHOD_FILTERS.map((f) => (
           <FilterLink
             key={f.value}
             href={filterHref("/touchpoints", { view, type: type === f.value ? undefined : f.value })}
@@ -98,8 +101,9 @@ export default async function TouchpointsPage({
           <thead className="bg-slate-50">
             <tr>
               <th className="px-5 py-2 text-left font-medium text-slate-500">Client</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Type</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Due date</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">How contacted</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Outcome</th>
+              <th className="px-5 py-2 text-left font-medium text-slate-500">Next contact</th>
               <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
             </tr>
           </thead>
@@ -112,8 +116,9 @@ export default async function TouchpointsPage({
                   </Link>
                 </td>
                 <td className="px-5 py-2">
-                  <Badge value={t.type} />
+                  {t.contact_method ? <Badge value={t.contact_method} /> : "—"}
                 </td>
+                <td className="max-w-xs truncate px-5 py-2 text-slate-600">{t.outcome ?? "—"}</td>
                 <td className="px-5 py-2">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-600">{formatDate(t.due_date)}</span>
@@ -127,7 +132,7 @@ export default async function TouchpointsPage({
             ))}
             {(touchpoints ?? []).length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 py-6 text-center text-slate-500">
+                <td colSpan={5} className="px-5 py-6 text-center text-slate-500">
                   {view || type ? (
                     <>
                       No touchpoints match this filter.{" "}

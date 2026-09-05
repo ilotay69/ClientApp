@@ -45,14 +45,19 @@ export function TouchpointForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700">Type</label>
+        <label className="block text-sm font-medium text-slate-700">How contacted</label>
         <select
-          name="type"
-          defaultValue={touchpoint?.type ?? "monthly_visit"}
+          name="contact_method"
+          required
+          defaultValue={touchpoint?.contact_method ?? ""}
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         >
-          <option value="monthly_visit">Monthly visit</option>
-          <option value="quarterly_review">Quarterly review (QBR)</option>
+          <option value="" disabled>
+            Select one
+          </option>
+          <option value="email">Email</option>
+          <option value="call">Call</option>
+          <option value="meeting">Meeting</option>
         </select>
       </div>
 
@@ -73,7 +78,21 @@ export function TouchpointForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700">Due date</label>
+        <label className="block text-sm font-medium text-slate-700">Outcome</label>
+        <p className="mt-0.5 text-xs text-slate-500">
+          What happened — any positives or negatives worth remembering next
+          time you talk to this client.
+        </p>
+        <textarea
+          name="outcome"
+          rows={6}
+          defaultValue={touchpoint?.outcome ?? ""}
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700">Next contact date</label>
         <input
           type="date"
           name="due_date"
@@ -84,26 +103,10 @@ export function TouchpointForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700">Notes</label>
-        <p className="mt-0.5 text-xs text-slate-500">
-          What was covered on the visit or review. For quarterly reviews,
-          paste meeting notes here directly (e.g. from Granola or another
-          notetaker) — related emails around this date are shown below for
-          context once this is saved.
-        </p>
-        <textarea
-          name="notes"
-          rows={6}
-          defaultValue={touchpoint?.notes ?? ""}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
-      </div>
-
-      <div>
         <label className="block text-sm font-medium text-slate-700">Next action</label>
         <p className="mt-0.5 text-xs text-slate-500">
-          What needs to happen from this visit. If set, it&apos;s tracked as
-          an open task assigned to the same person as this touchpoint.
+          What needs to happen before then. If set, it&apos;s tracked as an
+          open task assigned to the same person as this touchpoint.
         </p>
         <textarea
           name="next_action"

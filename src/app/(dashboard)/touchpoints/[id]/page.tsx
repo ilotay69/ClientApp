@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isOwner } from "@/lib/permissions";
 import { TouchpointForm } from "@/components/touchpoint-form";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge } from "@/components/badge";
@@ -22,6 +23,10 @@ export default async function TouchpointDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+
+  if (!(await isOwner(supabase))) {
+    redirect("/touchpoints");
+  }
 
   const [{ data: touchpoint }, { data: clients }, { data: members }] = await Promise.all([
     supabase.from("touchpoints").select("*, clients(name)").eq("id", id).single(),

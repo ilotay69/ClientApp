@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
       .not("assigned_to", "is", null),
     supabase
       .from("touchpoints")
-      .select("id, type, due_date, owner_id, clients(name), profiles:owner_id(email, full_name)")
+      .select(
+        "id, contact_method, due_date, owner_id, clients(name), profiles:owner_id(email, full_name)"
+      )
       .is("completed_at", null)
       .lte("due_date", today)
       .not("owner_id", "is", null),
@@ -107,7 +109,9 @@ export async function GET(request: NextRequest) {
 
   for (const t of touchpoints ?? []) {
     const clientName = (t.clients as unknown as { name: string } | null)?.name ?? "a client";
-    const label = t.type === "quarterly_review" ? "Quarterly review" : "Monthly visit";
+    const label = t.contact_method
+      ? `${t.contact_method.charAt(0).toUpperCase()}${t.contact_method.slice(1)} touchpoint`
+      : "Touchpoint";
     addItem(
       t.owner_id,
       t.profiles as unknown as { email: string; full_name: string } | null,

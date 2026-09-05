@@ -9,7 +9,6 @@ export type PermissionKey =
   | "view_team_wide"
   | "manage_clients"
   | "manage_projects"
-  | "manage_touchpoints"
   | "delete_tasks"
   | "manage_integrations"
   | "manage_sales_requests";
@@ -22,7 +21,6 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   view_team_wide: "View team-wide dashboard data",
   manage_clients: "Create, edit & delete clients",
   manage_projects: "Create, edit & delete projects",
-  manage_touchpoints: "Create, edit & delete touchpoints",
   delete_tasks: "Delete tasks",
   manage_integrations: "Configure AI providers & integrations",
   manage_sales_requests: "Create, edit & delete sales requests",
@@ -81,6 +79,27 @@ export async function requirePermission(permission: PermissionKey) {
   const supabase = await createClient();
   const me = await getMyPermissions(supabase);
   if (!me || !me.permissions.has(permission)) return null;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
+
+/** Boolean check for pages that are Owner-only regardless of
+ * role_permissions (e.g. Touchpoints) — a role check, not a permission
+ * key, since no other role can ever be granted this. */
+export async function isOwner(supabase: SupabaseClient): Promise<boolean> {
+  const me = await getMyPermissions(supabase);
+  return me?.role === "owner";
+}
+
+/** Server-action guard for Owner-only actions — same shape as
+ * requirePermission. */
+export async function requireOwner() {
+  const supabase = await createClient();
+  const me = await getMyPermissions(supabase);
+  if (!me || me.role !== "owner") return null;
 
   const {
     data: { user },

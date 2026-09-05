@@ -9,7 +9,7 @@ export type ProjectStatus =
   | "on_hold"
   | "completed"
   | "cancelled";
-export type TouchpointType = "monthly_visit" | "quarterly_review";
+export type TouchpointContactMethod = "email" | "call" | "meeting";
 export type ReminderKind = "touchpoint" | "project" | "task" | "service_check";
 
 export interface Profile {
@@ -157,10 +157,10 @@ export interface Project {
 export interface Touchpoint {
   id: string;
   client_id: string;
-  type: TouchpointType;
+  contact_method: TouchpointContactMethod | null;
   due_date: string;
   completed_at: string | null;
-  notes: string | null;
+  outcome: string | null;
   next_action: string | null;
   owner_id: string | null;
   source_client_interaction_id: string | null;

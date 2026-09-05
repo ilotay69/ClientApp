@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requirePermission } from "@/lib/permissions";
-import type { TouchpointType } from "@/lib/types";
+import { requireOwner } from "@/lib/permissions";
+import type { TouchpointContactMethod } from "@/lib/types";
 
 export type FormState = { error: string | null };
 
@@ -16,9 +16,9 @@ function emptyToNull(value: FormDataEntryValue | null) {
 function parseTouchpointFields(formData: FormData) {
   return {
     client_id: String(formData.get("client_id") ?? ""),
-    type: String(formData.get("type") ?? "monthly_visit") as TouchpointType,
+    contact_method: String(formData.get("contact_method") ?? "") as TouchpointContactMethod,
     due_date: String(formData.get("due_date") ?? ""),
-    notes: emptyToNull(formData.get("notes")),
+    outcome: emptyToNull(formData.get("outcome")),
     next_action: emptyToNull(formData.get("next_action")),
     owner_id: emptyToNull(formData.get("owner_id")),
   };
@@ -72,7 +72,7 @@ export async function createTouchpoint(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
-  if (!(await requirePermission("manage_touchpoints"))) {
+  if (!(await requireOwner())) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -83,7 +83,8 @@ export async function createTouchpoint(
 
   const fields = parseTouchpointFields(formData);
   if (!fields.client_id) return { error: "Select a client." };
-  if (!fields.due_date) return { error: "Due date is required." };
+  if (!fields.contact_method) return { error: "Select how the client was contacted." };
+  if (!fields.due_date) return { error: "Next contact date is required." };
 
   const { data, error } = await supabase
     .from("touchpoints")
@@ -115,7 +116,7 @@ export async function updateTouchpoint(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
-  if (!(await requirePermission("manage_touchpoints"))) {
+  if (!(await requireOwner())) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -124,7 +125,8 @@ export async function updateTouchpoint(
     data: { user },
   } = await supabase.auth.getUser();
   const fields = parseTouchpointFields(formData);
-  if (!fields.due_date) return { error: "Due date is required." };
+  if (!fields.contact_method) return { error: "Select how the client was contacted." };
+  if (!fields.due_date) return { error: "Next contact date is required." };
 
   const { error } = await supabase
     .from("touchpoints")
@@ -155,7 +157,7 @@ export async function toggleTouchpointComplete(
   clientId: string,
   isComplete: boolean
 ) {
-  if (!(await requirePermission("manage_touchpoints"))) return;
+  if (!(await requireOwner())) return;
 
   const supabase = await createClient();
   await supabase
@@ -169,7 +171,7 @@ export async function toggleTouchpointComplete(
 }
 
 export async function deleteTouchpoint(touchpointId: string, clientId: string) {
-  if (!(await requirePermission("manage_touchpoints"))) return;
+  if (!(await requireOwner())) return;
 
   const supabase = await createClient();
   await supabase.from("touchpoints").delete().eq("id", touchpointId);

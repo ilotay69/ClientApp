@@ -104,7 +104,7 @@ export async function generateSuggestions(
         .in("status", ["planning", "active", "on_hold"]),
       admin
         .from("touchpoints")
-        .select("type, due_date, completed_at")
+        .select("contact_method, due_date, completed_at")
         .eq("client_id", clientId)
         .order("due_date", { ascending: false })
         .limit(3),
@@ -232,7 +232,7 @@ type EmailRow = {
   type: string;
 };
 type ProjectRow = { name: string; status: string; target_end_date: string | null };
-type TouchpointRow = { type: string; due_date: string; completed_at: string | null };
+type TouchpointRow = { contact_method: string | null; due_date: string; completed_at: string | null };
 type TicketRow = {
   title: string;
   description: string | null;
@@ -298,7 +298,10 @@ function buildPrompt(
 
   const touchpointList = touchpoints.length
     ? touchpoints
-        .map((t) => `- ${t.type} due ${t.due_date}${t.completed_at ? " (completed)" : " (not completed)"}`)
+        .map(
+          (t) =>
+            `- ${t.contact_method ?? "contact"} touchpoint due ${t.due_date}${t.completed_at ? " (completed)" : " (not completed)"}`
+        )
         .join("\n")
     : "None on record.";
 

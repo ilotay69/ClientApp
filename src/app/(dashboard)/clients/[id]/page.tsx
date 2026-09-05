@@ -21,7 +21,7 @@ import { Badge, OverdueBadge } from "@/components/badge";
 import { DomainHealthPanel } from "@/components/domain-health-panel";
 import { formatDate, isOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
 import { extractDomainFromEmail } from "@/lib/domain-health";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, isOwner } from "@/lib/permissions";
 import {
   deleteClientRecord,
   removeClientContact,
@@ -68,6 +68,7 @@ export default async function ClientDetailPage({
     { data: client },
     { data: projects },
     { data: touchpoints },
+    isOwnerUser,
     { data: salesRequests },
     canManageSalesRequests,
     { data: emails },
@@ -91,9 +92,10 @@ export default async function ClientDetailPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("touchpoints")
-      .select("id, type, due_date, completed_at")
+      .select("id, contact_method, due_date, completed_at")
       .eq("client_id", id)
       .order("due_date", { ascending: false }),
+    isOwner(supabase),
     supabase
       .from("sales_requests")
       .select("id, title, stage, source")
@@ -387,32 +389,34 @@ export default async function ClientDetailPage({
                       ))}
                     </RelatedSection>
 
-                    <RelatedSection
-                      title="Touchpoints"
-                      newHref={`/touchpoints/new?client_id=${id}`}
-                      emptyText="No touchpoints scheduled."
-                    >
-                      {(touchpoints ?? []).map((t) => (
-                        <Link
-                          key={t.id}
-                          href={`/touchpoints/${t.id}`}
-                          className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
-                        >
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">
-                              {formatDate(t.due_date)}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {t.completed_at ? `Completed ${formatDate(t.completed_at)}` : "Not completed"}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {!t.completed_at && isOverdue(t.due_date) && <OverdueBadge />}
-                            <Badge value={t.type} />
-                          </div>
-                        </Link>
-                      ))}
-                    </RelatedSection>
+                    {isOwnerUser && (
+                      <RelatedSection
+                        title="Touchpoints"
+                        newHref={`/touchpoints/new?client_id=${id}`}
+                        emptyText="No touchpoints scheduled."
+                      >
+                        {(touchpoints ?? []).map((t) => (
+                          <Link
+                            key={t.id}
+                            href={`/touchpoints/${t.id}`}
+                            className="flex items-center justify-between px-5 py-2 hover:bg-slate-50"
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">
+                                {formatDate(t.due_date)}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {t.completed_at ? `Completed ${formatDate(t.completed_at)}` : "Not completed"}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {!t.completed_at && isOverdue(t.due_date) && <OverdueBadge />}
+                              {t.contact_method && <Badge value={t.contact_method} />}
+                            </div>
+                          </Link>
+                        ))}
+                      </RelatedSection>
+                    )}
 
                     <RelatedSection
                       title="Internal Sales"
