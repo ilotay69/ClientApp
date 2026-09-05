@@ -78,7 +78,7 @@ export default async function TasksPage({
     supabase.from("clients").select("id, name").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
     hasPermission(supabase, "delete_tasks"),
-    supabase.from("projects").select("id, name, clients(name)").order("name"),
+    supabase.from("projects").select("id, name, client_id, clients(name)").order("name"),
     // Unfiltered, so the client filter's own options don't shrink as other
     // filters (priority, assignee, status, mine/view) are applied.
     supabase.from("tasks").select("client_id").eq("is_personal", false).not("client_id", "is", null),
@@ -89,6 +89,7 @@ export default async function TasksPage({
   const projectSummaries = (projects ?? []).map((p) => ({
     id: p.id,
     name: p.name,
+    clientId: p.client_id,
     clientName: (p.clients as unknown as { name: string } | null)?.name ?? null,
   }));
   const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));

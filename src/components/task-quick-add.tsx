@@ -20,7 +20,7 @@ export function TaskQuickAdd({
   defaultClientId = "",
 }: {
   clients: { id: string; name: string }[];
-  projects: { id: string; name: string; clientName: string | null }[];
+  projects: { id: string; name: string; clientName: string | null; clientId: string | null }[];
   members: { id: string; full_name: string }[];
   action: (prevState: FormState, formData: FormData) => Promise<FormState>;
   /** A personal to-do: no client/project/assignee/kind fields, and never
@@ -36,6 +36,20 @@ export function TaskQuickAdd({
   const [state, formAction, pending] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
+  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId);
+
+  // Client <-> project are cross-filtered: picking a client narrows the
+  // project list to that client's projects (every project belongs to
+  // exactly one client), and picking a project narrows the client list
+  // down to (and selects) that project's own client.
+  const visibleProjects = selectedClientId
+    ? projects.filter((p) => p.clientId === selectedClientId)
+    : projects;
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const visibleClients = selectedProjectId
+    ? clients.filter((c) => c.id === selectedProject?.clientId)
+    : clients;
 
   return (
     <form
@@ -44,6 +58,8 @@ export function TaskQuickAdd({
         await formAction(formData);
         formRef.current?.reset();
         setSelectedAssignees([]);
+        setSelectedClientId(defaultClientId);
+        setSelectedProjectId(defaultProjectId);
       }}
       className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-4 lg:grid-cols-8"
     >
@@ -57,11 +73,18 @@ export function TaskQuickAdd({
       {!personal && (
         <select
           name="client_id"
-          defaultValue={defaultClientId}
+          value={selectedClientId}
+          onChange={(e) => {
+            const clientId = e.target.value;
+            setSelectedClientId(clientId);
+            if (selectedProject && selectedProject.clientId !== clientId) {
+              setSelectedProjectId("");
+            }
+          }}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">No client (internal)</option>
-          {clients.map((c) => (
+          {visibleClients.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -71,11 +94,17 @@ export function TaskQuickAdd({
       {!personal && (
         <select
           name="project_id"
-          defaultValue={defaultProjectId}
+          value={selectedProjectId}
+          onChange={(e) => {
+            const projectId = e.target.value;
+            setSelectedProjectId(projectId);
+            const project = projects.find((p) => p.id === projectId);
+            if (project?.clientId) setSelectedClientId(project.clientId);
+          }}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">No project</option>
-          {projects.map((p) => (
+          {visibleProjects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
               {p.clientName ? ` — ${p.clientName}` : ""}
