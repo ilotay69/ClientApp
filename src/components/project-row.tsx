@@ -250,7 +250,7 @@ export function ProjectRow({
             setExpanded((prev) => !prev);
           }
         }}
-        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_9rem_4rem_5rem_8rem_5rem_6.5rem_1rem] items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
+        className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_9rem_3rem_4rem_6rem_4rem_6.5rem_1rem] items-center gap-2 px-5 py-2 text-left hover:bg-slate-50"
       >
         <span className="min-w-0 truncate text-sm font-medium text-slate-900">
           {project.name}

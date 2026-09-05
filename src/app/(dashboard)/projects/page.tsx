@@ -46,6 +46,7 @@ export default async function ProjectsPage({
     .select(
       "id, name, status, client_id, quoted_hours, actual_hours, start_date, created_at, clients(name, autotask_company_id)"
     )
+    .order("name", { referencedTable: "clients" })
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
   if (status) projectsQuery = projectsQuery.eq("status", status);
