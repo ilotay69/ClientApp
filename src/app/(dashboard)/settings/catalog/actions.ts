@@ -57,41 +57,6 @@ export async function deleteServiceOffering(serviceId: string) {
   revalidatePath("/clients");
 }
 
-export async function attachClientService(
-  clientId: string,
-  _prevState: FormState,
-  formData: FormData
-): Promise<FormState> {
-  if (!(await requirePermission("manage_services"))) {
-    return { error: "You don't have permission to do that." };
-  }
-
-  const serviceId = String(formData.get("service_id") ?? "");
-  if (!serviceId) return { error: "Select a service." };
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("client_services")
-    .insert({ client_id: clientId, service_id: serviceId });
-
-  if (error) return { error: error.message };
-
-  revalidatePath(`/clients/${clientId}`);
-  return { error: null };
-}
-
-export async function detachClientService(clientId: string, serviceId: string) {
-  if (!(await requirePermission("manage_services"))) return;
-
-  const supabase = await createClient();
-  await supabase
-    .from("client_services")
-    .delete()
-    .eq("client_id", clientId)
-    .eq("service_id", serviceId);
-  revalidatePath(`/clients/${clientId}`);
-}
-
 /** Reads every client's ACTIVE Autotask contracted services (already
  * synced — nothing to set up or maintain separately) and asks the active
  * AI provider to group them into real categories (MDR, backup, etc.) and

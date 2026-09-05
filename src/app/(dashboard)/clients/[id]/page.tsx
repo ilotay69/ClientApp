@@ -19,11 +19,8 @@ import { SuggestionCard } from "@/components/suggestion-card";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { Tabs } from "@/components/tabs";
 import { Badge, OverdueBadge } from "@/components/badge";
-import { AssigneeSelect } from "@/components/assignee-select";
-import { ServiceCheckQuickAdd } from "@/components/service-check-quick-add";
-import { ClientServiceQuickAdd } from "@/components/client-service-quick-add";
 import { DomainHealthPanel } from "@/components/domain-health-panel";
-import { formatDate, isOverdue, isServiceCheckOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
+import { formatDate, isOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
 import { extractDomainFromEmail } from "@/lib/domain-health";
 import { hasPermission } from "@/lib/permissions";
 import {
@@ -52,16 +49,8 @@ import {
   unlinkClientM365Tenant,
   syncClientM365Data,
 } from "../actions";
-import {
-  addClientServiceCheck,
-  assignServiceCheck,
-  markServiceChecked,
-  removeClientServiceCheck,
-} from "../../settings/services/actions";
 import { checkDomainHealthAction } from "../../domain-health/actions";
-import { attachClientService, detachClientService } from "../../settings/catalog/actions";
 import { DeleteButton } from "@/components/delete-button";
-import { CollapsibleCard } from "@/components/collapsible-card";
 
 export const dynamic = "force-dynamic";
 
@@ -84,12 +73,7 @@ export default async function ClientDetailPage({
     canManageSalesRequests,
     { data: emails },
     { data: tasks },
-    { data: serviceChecks },
-    { data: catalog },
     { data: members },
-    { data: clientServices },
-    { data: services },
-    canManageServices,
     { data: contacts },
     { data: interactions },
     canManageClients,
@@ -130,17 +114,7 @@ export default async function ClientDetailPage({
       .eq("client_id", id)
       .not("status", "in", "(done,dismissed)")
       .order("due_date", { ascending: true, nullsFirst: false }),
-    supabase
-      .from("client_service_checks")
-      .select(
-        "id, cadence_days, last_checked_at, assigned_to, service_id, service_catalog(name, default_cadence_days)"
-      )
-      .eq("client_id", id),
-    supabase.from("service_catalog").select("id, name, default_cadence_days").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
-    supabase.from("client_services").select("service_id, services(id, name)").eq("client_id", id),
-    supabase.from("services").select("id, name").order("name"),
-    hasPermission(supabase, "manage_services"),
     supabase.from("client_contacts").select("id, name, email").eq("client_id", id).order("name"),
     supabase
       .from("client_interactions")
@@ -273,13 +247,6 @@ export default async function ClientDetailPage({
   ].sort((a, b) => (a.date < b.date ? 1 : -1));
 
   const updateAction = updateClientRecord.bind(null, id);
-  const addServiceCheckAction = addClientServiceCheck.bind(null, id);
-  const trackedServiceIds = new Set((serviceChecks ?? []).map((sc) => sc.service_id));
-  const availableCatalog = (catalog ?? []).filter((c) => !trackedServiceIds.has(c.id));
-
-  const attachServiceAction = attachClientService.bind(null, id);
-  const attachedServiceIds = new Set((clientServices ?? []).map((cs) => cs.service_id));
-  const availableServices = (services ?? []).filter((s) => !attachedServiceIds.has(s.id));
 
   return (
     <div className="space-y-8">
@@ -485,114 +452,10 @@ export default async function ClientDetailPage({
                 label: "Services & Devices",
                 content: (
                   <>
-                    <CollapsibleCard
-                      title="Services"
-                      count={(clientServices ?? []).length}
-                    >
-                      <div className="divide-y divide-slate-100">
-                        {(clientServices ?? []).map((cs) => {
-                          const svc = cs.services as unknown as { id: string; name: string } | null;
-                          return (
-                            <div
-                              key={cs.service_id}
-                              className="flex items-center justify-between gap-3 px-5 py-2"
-                            >
-                              <p className="text-sm font-medium text-slate-900">
-                                {svc?.name ?? "Service"}
-                              </p>
-                              {canManageServices && (
-                                <DeleteButton
-                                  action={detachClientService.bind(null, id, cs.service_id)}
-                                  confirmText={`Remove "${svc?.name ?? "this service"}" from ${client.name}?`}
-                                  label="Remove"
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                        {(clientServices ?? []).length === 0 && (
-                          <p className="px-5 py-4 text-sm text-slate-500">
-                            No services attached for this client yet.
-                          </p>
-                        )}
-                      </div>
-                      {canManageServices && availableServices.length > 0 && (
-                        <ClientServiceQuickAdd
-                          available={availableServices}
-                          action={attachServiceAction}
-                        />
-                      )}
-                    </CollapsibleCard>
-
                     <ClientAutotaskContractServices
                       companyId={client.autotask_company_id}
                       services={autotaskContractServices ?? []}
                     />
-
-                    <CollapsibleCard
-                      title="Service checks"
-                      count={(serviceChecks ?? []).length}
-                    >
-                      <div className="divide-y divide-slate-100">
-                        {(serviceChecks ?? []).map((sc) => {
-                          const svc = sc.service_catalog as unknown as {
-                            name: string;
-                            default_cadence_days: number;
-                          } | null;
-                          const cadence = sc.cadence_days ?? svc?.default_cadence_days ?? 90;
-                          const overdue = isServiceCheckOverdue(sc.last_checked_at, cadence);
-                          return (
-                            <div
-                              key={sc.id}
-                              className="flex items-center justify-between gap-3 px-5 py-2"
-                            >
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-slate-900">
-                                  {svc?.name ?? "Service"}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  Last checked {formatDate(sc.last_checked_at)} · every {cadence} days
-                                </p>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                {overdue && <OverdueBadge />}
-                                <AssigneeSelect
-                                  id={sc.id}
-                                  currentAssignee={sc.assigned_to}
-                                  members={members ?? []}
-                                  action={assignServiceCheck}
-                                />
-                                <form action={markServiceChecked.bind(null, sc.id, id)}>
-                                  <button
-                                    type="submit"
-                                    className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100"
-                                  >
-                                    Checked today
-                                  </button>
-                                </form>
-                                <DeleteButton
-                                  action={removeClientServiceCheck.bind(null, sc.id, id)}
-                                  confirmText={`Stop tracking "${svc?.name ?? "this service"}" for ${client.name}?`}
-                                  label="Remove"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {(serviceChecks ?? []).length === 0 && (
-                          <p className="px-5 py-4 text-sm text-slate-500">
-                            No services tracked for this client yet.
-                          </p>
-                        )}
-                      </div>
-                      {availableCatalog.length > 0 && (
-                        <ServiceCheckQuickAdd
-                          catalog={availableCatalog}
-                          members={members ?? []}
-                          action={addServiceCheckAction}
-                        />
-                      )}
-                    </CollapsibleCard>
 
                     <ClientNinjaOneDevices
                       organizationId={client.ninjaone_organization_id}
