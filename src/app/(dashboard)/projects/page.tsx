@@ -46,17 +46,28 @@ export default async function ProjectsPage({
     .select(
       "id, name, status, client_id, quoted_hours, actual_hours, start_date, created_at, clients(name, autotask_company_id)"
     )
-    .order("name", { referencedTable: "clients" })
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
   if (status) projectsQuery = projectsQuery.eq("status", status);
   if (q) projectsQuery = projectsQuery.ilike("name", `%${q}%`);
 
-  const [{ data: projects }, { data: members }, canManageProjects] = await Promise.all([
+  const [{ data: projectsData }, { data: members }, canManageProjects] = await Promise.all([
     projectsQuery,
     supabase.from("profiles").select("id, full_name").order("full_name"),
     hasPermission(supabase, "manage_projects"),
   ]);
+
+  // Postgrest's order(col, {referencedTable}) only reorders rows *within*
+  // an embedded relation — useless here since each project embeds exactly
+  // one client. Sorting by client name has to happen in JS instead. A
+  // stable sort (guaranteed by spec) preserves the DB's target_end_date
+  // order within each client, so this ends up primary: client name,
+  // secondary: target end date — without a second query.
+  const projects = [...(projectsData ?? [])].sort((a, b) => {
+    const nameA = (a.clients as unknown as { name: string } | null)?.name ?? "";
+    const nameB = (b.clients as unknown as { name: string } | null)?.name ?? "";
+    return nameA.localeCompare(nameB);
+  });
 
   // Fire-and-forget: never awaited, so a visit here never waits on
   // Autotask — see autoSyncAutotaskProjectsIfStale's own comment for why.
