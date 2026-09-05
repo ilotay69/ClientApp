@@ -45,8 +45,9 @@ export function ServiceCoverageAnalysis({
         <p className="text-xs text-slate-500">
           Pick a client to see which active Autotask contracted services other clients have that
           this one doesn&apos;t — sorted by how many other clients have it, so the strongest upsell
-          signal sorts first. Excludes Microsoft 365/Office 365 licensing (seat count and plan tier
-          vary per client, not a real gap). Exact service names, not vendor-equivalent grouping — use
+          signal sorts first. Excludes Microsoft&apos;s own per-seat cloud licensing (365, Exchange/
+          SharePoint Online, Intune, Entra ID, Power Platform, Defender, etc. — seat count and plan
+          tier vary per client, not a real gap). Exact service names, not vendor-equivalent grouping — use
           judgment on any result that&apos;s really just a different brand of something this client
           already has.
         </p>

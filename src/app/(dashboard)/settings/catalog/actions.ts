@@ -65,13 +65,64 @@ export async function getClientsForServiceGapsAction(): Promise<
 
 export type ClientServiceGap = { serviceName: string; otherClientCount: number };
 
-/** Microsoft 365/Office 365 licensing varies by client based on seat
+/** Microsoft's own per-seat cloud licensing varies by client based on seat
  * count and plan tier they've already chosen — not a missing-service
- * upsell signal the way a security tool or backup gap is, so it's
- * excluded from this comparison entirely rather than showing up as a
- * "gap" just because two clients are on different M365 SKUs. */
+ * upsell signal the way a security tool or backup gap is, so any of it
+ * is excluded from this comparison entirely rather than showing up as a
+ * "gap" just because two clients are on different Microsoft SKUs. Not
+ * every Microsoft license name contains "365" (Exchange/SharePoint
+ * Online, Intune, Entra ID, Power Platform, Defender, Windows Enterprise,
+ * Enterprise Mobility + Security, etc. don't), so this matches by known
+ * Microsoft cloud-licensing product families rather than just that one
+ * word — a maintained list, not a live lookup, so a name that genuinely
+ * doesn't match any of these still shows up as a real comparison point. */
+const MICROSOFT_LICENSE_KEYWORDS = [
+  "365",
+  "office 365",
+  "microsoft 365",
+  "m365",
+  "o365",
+  "azure ad",
+  "entra id",
+  "entra",
+  "exchange online",
+  "exchange plan",
+  "sharepoint online",
+  "onedrive for business",
+  "intune",
+  "windows enterprise",
+  "windows 10 enterprise",
+  "windows 11 enterprise",
+  "power bi",
+  "power apps",
+  "power automate",
+  "power virtual agents",
+  "power platform",
+  "visio",
+  "project online",
+  "project plan",
+  "teams phone",
+  "teams rooms",
+  "teams premium",
+  "copilot",
+  "defender for office",
+  "defender for endpoint",
+  "defender for identity",
+  "defender for cloud apps",
+  "microsoft defender",
+  "dynamics 365",
+  "viva",
+  "azure information protection",
+  "office 365 atp",
+  "advanced threat protection",
+  "enterprise mobility + security",
+  "ems e3",
+  "ems e5",
+];
+
 function isLicenseService(serviceName: string): boolean {
-  return /\b365\b/i.test(serviceName);
+  const lower = serviceName.toLowerCase();
+  return MICROSOFT_LICENSE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
 /** Deterministic, no AI: for one client, every distinct ACTIVE Autotask
