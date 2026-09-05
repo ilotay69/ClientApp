@@ -43,8 +43,6 @@ const FILTERS: { value: "all" | TimelineEntry["type"]; label: string }[] = [
   { value: "meeting", label: "Meetings" },
   { value: "check_in", label: "Check-ins" },
   { value: "document", label: "Documents" },
-  { value: "quote", label: "Quotes" },
-  { value: "review", label: "Reviews" },
 ];
 
 const TYPE_LABELS: Record<TimelineEntry["type"], string> = {
