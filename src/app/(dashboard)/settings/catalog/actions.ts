@@ -9,7 +9,7 @@ import { ymd } from "@/lib/resource-hours";
 import {
   fetchTimeEntriesForAnalysis,
   analyzeTimeEntryPatterns,
-  type ClientPatternReport,
+  type TimeEntryFinding,
 } from "@/lib/time-entry-insights";
 
 export type FormState = { error: string | null };
@@ -51,8 +51,9 @@ export async function deleteServiceOffering(serviceId: string) {
   revalidatePath("/clients");
 }
 
-/** Client list for the sales-opportunity picker — id/name only, cheap. */
-export async function getClientsForServiceGapsAction(): Promise<
+/** Client list shared by both pickers on the Analysis page (sales
+ * opportunities and ticket pattern) — id/name only, cheap. */
+export async function getClientsForAnalysisAction(): Promise<
   { id: string; name: string }[] | { error: string }
 > {
   if (!(await requirePermission("manage_services"))) {
@@ -268,21 +269,27 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
 const PATTERN_ANALYSIS_DAYS = 90;
 
 /** Fetches the last 90 days of Autotask time entries live and asks the
- * active AI provider to find recurring issues and inconsistent effort
- * across it — entirely on demand, nothing read from or written to this
+ * active AI provider to find recurring issues and inconsistent effort for
+ * ONE client — entirely on demand, nothing read from or written to this
  * app's own database beyond the existing client mappings needed to
- * attribute an entry to a client. */
-export async function analyzeTimeEntryPatternsAction(): Promise<
-  { clients: ClientPatternReport[]; entryCount: number } | { error: string }
+ * attribute an entry to a client. Scoped to a single client (picked via
+ * getClientsForAnalysisAction, same picker as Sales opportunities)
+ * rather than every client in one pass: the account-wide version's
+ * results got diluted by a hard cap on how many entries fit in one AI
+ * call, so a client with lots of other clients' noise ahead of them in
+ * the list could lose most of their own entries to that cap. */
+export async function analyzeClientTimeEntryPatternsAction(clientId: string): Promise<
+  { clientName: string; findings: TimeEntryFinding[]; entryCount: number } | { error: string }
 > {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
   }
 
   const admin = createAdminClient();
-  const [aiSettings, autotaskSettings] = await Promise.all([
+  const [aiSettings, autotaskSettings, { data: client }] = await Promise.all([
     getActiveAiSettings(admin),
     getAutotaskSettings(admin),
+    admin.from("clients").select("id, name").eq("id", clientId).single(),
   ]);
   if (!aiSettings) {
     return { error: "AI insights aren't set up yet — configure a provider under Settings → Integrations." };
@@ -290,24 +297,27 @@ export async function analyzeTimeEntryPatternsAction(): Promise<
   if (!autotaskSettings?.zoneUrl) {
     return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
   }
+  if (!client) return { error: "Client not found." };
 
   const today = new Date();
   const since = new Date(today);
   since.setUTCDate(since.getUTCDate() - PATTERN_ANALYSIS_DAYS);
 
   try {
-    const entries = await fetchTimeEntriesForAnalysis(
+    const allEntries = await fetchTimeEntriesForAnalysis(
       admin,
       autotaskSettings.credentials,
       autotaskSettings.zoneUrl,
       ymd(since),
       ymd(today)
     );
+    const entries = allEntries.filter((e) => e.clientName === client.name);
     if (entries.length === 0) {
-      return { error: "No time entries found in Autotask for the past 90 days." };
+      return { error: `No time entries found for ${client.name} in the past 90 days.` };
     }
     const clients = await analyzeTimeEntryPatterns(entries, aiSettings);
-    return { clients, entryCount: entries.length };
+    const findings = clients.find((c) => c.clientName === client.name)?.findings ?? [];
+    return { clientName: client.name, findings, entryCount: entries.length };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Analysis failed." };
   }

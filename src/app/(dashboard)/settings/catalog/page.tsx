@@ -4,9 +4,9 @@ import { ServiceCoverageAnalysis } from "@/components/service-coverage-analysis"
 import { TimeEntryPatterns } from "@/components/time-entry-patterns";
 import { hasPermission } from "@/lib/permissions";
 import {
-  getClientsForServiceGapsAction,
+  getClientsForAnalysisAction,
   getClientServiceGapsAction,
-  analyzeTimeEntryPatternsAction,
+  analyzeClientTimeEntryPatternsAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +28,14 @@ export default async function AnalysisPage() {
       </div>
 
       <ServiceCoverageAnalysis
-        fetchClientsAction={getClientsForServiceGapsAction}
+        fetchClientsAction={getClientsForAnalysisAction}
         fetchGapsAction={getClientServiceGapsAction}
       />
 
-      <TimeEntryPatterns analyzeAction={analyzeTimeEntryPatternsAction} />
+      <TimeEntryPatterns
+        fetchClientsAction={getClientsForAnalysisAction}
+        analyzeAction={analyzeClientTimeEntryPatternsAction}
+      />
     </div>
   );
 }
