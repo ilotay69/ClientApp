@@ -214,9 +214,12 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
   ]);
   if (!client) return { error: "Client not found." };
 
+  // Unfiltered — "currently has" should show everything, including the
+  // Microsoft-license/generic-hosting families excluded further down.
+  // Exclusion only narrows what counts as a real gap, never what's shown
+  // as owned.
   const active = (contractServices ?? []).filter(
-    (cs: { contract_status: string | null; service_name: string }) =>
-      cs.contract_status?.toLowerCase() === "active" && !isExcludedService(cs.service_name)
+    (cs: { contract_status: string | null }) => cs.contract_status?.toLowerCase() === "active"
   ) as { client_id: string; service_name: string }[];
 
   if (active.length === 0) {
@@ -241,6 +244,7 @@ export async function getClientServiceGapsAction(clientId: string): Promise<
   const displayNameByService = new Map<string, string>();
   for (const cs of active) {
     if (cs.client_id === clientId) continue;
+    if (isExcludedService(cs.service_name)) continue;
     const key = normalizeServiceKey(cs.service_name);
     if (!displayNameByService.has(key)) {
       displayNameByService.set(key, stripVariantTokens(cs.service_name));
