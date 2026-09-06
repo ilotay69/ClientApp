@@ -1,6 +1,7 @@
 import {
   fetchTimeEntriesInRange,
   resolveTicketCompanyIds,
+  resolveResourceNames,
   type AutotaskCredentials,
 } from "@/lib/autotask";
 
@@ -113,4 +114,79 @@ export async function fetchClientHoursSummary(
   }
 
   return [...byClient.values()].sort((a, b) => b.thisMonth - a.thisMonth);
+}
+
+export type HoursByGroupRow = { groupId: string | null; groupName: string; hours: number };
+
+/** Flexible counterpart to fetchClientHoursSummary above — an arbitrary
+ * "last N days" window instead of the fixed today/yesterday/week/month
+ * buckets, grouped by either client or resource (technician) rather than
+ * client only. Live from Autotask each time, nothing stored. */
+export async function fetchHoursByGroup(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  groupBy: "client" | "resource",
+  days: number
+): Promise<HoursByGroupRow[]> {
+  const today = new Date();
+  const since = new Date(today);
+  since.setUTCDate(since.getUTCDate() - (days - 1));
+
+  const entries = await fetchTimeEntriesInRange(creds, zoneUrl, ymd(since), ymd(today));
+
+  const byGroup = new Map<string, HoursByGroupRow>();
+
+  if (groupBy === "resource") {
+    const resourceNames = await resolveResourceNames(
+      creds,
+      zoneUrl,
+      entries.map((e) => e.resourceID)
+    );
+    for (const e of entries) {
+      const key = String(e.resourceID);
+      const row = byGroup.get(key) ?? {
+        groupId: key,
+        groupName: resourceNames.get(e.resourceID) ?? `Resource ${e.resourceID}`,
+        hours: 0,
+      };
+      row.hours += e.hoursWorked;
+      byGroup.set(key, row);
+    }
+  } else {
+    const ticketCompanyIds = await resolveTicketCompanyIds(
+      creds,
+      zoneUrl,
+      entries.map((e) => e.ticketID).filter((id): id is number => id != null)
+    );
+    const companyIds = [...new Set([...ticketCompanyIds.values()])];
+    const { data: clients } = await admin
+      .from("clients")
+      .select("id, name, autotask_company_id")
+      .in("autotask_company_id", companyIds.length > 0 ? companyIds : [-1]);
+    const clientByCompanyId = new Map<number, { id: string; name: string }>(
+      (clients ?? []).map(
+        (c: {
+          id: string;
+          name: string;
+          autotask_company_id: number;
+        }): [number, { id: string; name: string }] => [c.autotask_company_id, { id: c.id, name: c.name }]
+      )
+    );
+    for (const e of entries) {
+      const companyId = e.ticketID != null ? ticketCompanyIds.get(e.ticketID) : undefined;
+      const client = companyId != null ? clientByCompanyId.get(companyId) : undefined;
+      const key = client?.id ?? "unattributed";
+      const row = byGroup.get(key) ?? {
+        groupId: client?.id ?? null,
+        groupName: client?.name ?? "Unattributed",
+        hours: 0,
+      };
+      row.hours += e.hoursWorked;
+      byGroup.set(key, row);
+    }
+  }
+
+  return [...byGroup.values()].sort((a, b) => b.hours - a.hours);
 }
