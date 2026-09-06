@@ -53,7 +53,7 @@ export default async function HoursPage() {
             content: (
               <div className="space-y-6">
                 <ResourceHoursReport action={fetchResourceHoursAction} />
-                <HoursLookup action={fetchHoursByGroupAction} />
+                <HoursLookup key="by-client-or-resource" action={fetchHoursByGroupAction} />
               </div>
             ),
           },
@@ -65,6 +65,7 @@ export default async function HoursPage() {
             label: "Non-Billable Hours",
             content: (
               <HoursLookup
+                key="non-billable"
                 action={fetchNonBillableHoursByGroupAction}
                 title="Non-billable hours by client or resource"
                 subtitle="Hours logged as non-billable in Autotask over a range you pick — live, nothing stored."

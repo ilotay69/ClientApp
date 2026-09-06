@@ -64,6 +64,7 @@ export default async function AnalysisPage() {
             label: "Hours Trend",
             content: (
               <EntityTrendChart
+                key="hours-trend"
                 title="Hours per client, over time"
                 subtitle="Weekly hours logged for one client — rising or falling usage, at a glance."
                 entityLabel="client"
@@ -78,6 +79,7 @@ export default async function AnalysisPage() {
             label: "Resource Utilization",
             content: (
               <EntityTrendChart
+                key="resource-utilization"
                 title="Hours per resource, over time"
                 subtitle="Weekly hours logged by one resource — workload trend, over/under-utilization."
                 entityLabel="resource"
@@ -96,6 +98,7 @@ export default async function AnalysisPage() {
             label: "Ticket Volume",
             content: (
               <EntityTrendChart
+                key="ticket-volume"
                 title="Ticket volume per client, over time"
                 subtitle="Weekly count of tickets opened for one client — a rising trend on an otherwise-stable client is often the first sign of an unstable environment."
                 entityLabel="client"
