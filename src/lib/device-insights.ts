@@ -70,11 +70,11 @@ export type DeviceInsightInput = {
 // Same workstation/server classification as the Devices tab's own
 // deviceTypeLabel — each class ages on its own refresh cycle, so an age
 // check only makes sense within one class, not across all hardware.
-function isWorkstation(nodeClass: string | null): boolean {
+export function isWorkstation(nodeClass: string | null): boolean {
   if (!nodeClass) return false;
   return nodeClass.includes("WORKSTATION") || nodeClass === "MAC";
 }
-function isServer(nodeClass: string | null): boolean {
+export function isServer(nodeClass: string | null): boolean {
   if (!nodeClass) return false;
   return nodeClass.includes("SERVER") || nodeClass === "VMWARE_VM_HOST";
 }

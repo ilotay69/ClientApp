@@ -6,6 +6,11 @@ import { YesterdayTimeEntries } from "@/components/yesterday-time-entries";
 import { HoursLookup } from "@/components/hours-lookup";
 import { ContractBlockHours } from "@/components/contract-block-hours";
 import { AgingOpenTickets } from "@/components/aging-open-tickets";
+import { OfflineDevicesLookup } from "@/components/offline-devices-lookup";
+import { DiskAlertsLookup } from "@/components/disk-alerts-lookup";
+import { HardwareLifecycleLookup } from "@/components/hardware-lifecycle-lookup";
+import { AntivirusAlertsLookup } from "@/components/antivirus-alerts-lookup";
+import { MissingPatchesLookup } from "@/components/missing-patches-lookup";
 import { Tabs } from "@/components/tabs";
 import {
   fetchResourceHoursAction,
@@ -15,6 +20,14 @@ import {
   fetchContractBlockHoursAction,
   fetchAgingOpenTicketsAction,
 } from "./actions";
+import {
+  fetchOfflineDevicesAction,
+  fetchDiskAlertsAction,
+  fetchAgingHardwareAction,
+  fetchOsEolAction,
+  fetchAntivirusAlertsAction,
+  fetchMissingPatchesAction,
+} from "./ninjaone-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +78,28 @@ export default async function HoursPage() {
           {
             label: "Aging Tickets",
             content: <AgingOpenTickets action={fetchAgingOpenTicketsAction} />,
+          },
+          {
+            label: "Offline Devices",
+            content: <OfflineDevicesLookup action={fetchOfflineDevicesAction} />,
+          },
+          {
+            label: "Disk Alerts",
+            content: <DiskAlertsLookup action={fetchDiskAlertsAction} />,
+          },
+          {
+            label: "Hardware Lifecycle",
+            content: (
+              <HardwareLifecycleLookup agingAction={fetchAgingHardwareAction} eolAction={fetchOsEolAction} />
+            ),
+          },
+          {
+            label: "Antivirus",
+            content: <AntivirusAlertsLookup action={fetchAntivirusAlertsAction} />,
+          },
+          {
+            label: "Missing Patches",
+            content: <MissingPatchesLookup action={fetchMissingPatchesAction} />,
           },
         ]}
       />

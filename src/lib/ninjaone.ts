@@ -159,6 +159,67 @@ function deviceIdOf(row: Record<string, unknown>): number | null {
   return typeof id === "number" ? id : null;
 }
 
+export type NinjaOneAntivirusStatusRow = {
+  deviceId: number;
+  productName: string | null;
+  productState: string | null;
+  definitionStatus: string | null;
+};
+
+/** Antivirus status for every device in one organization, via the
+ * confirmed /v2/queries/antivirus-status report (field names verified
+ * against NinjaOne's own published OpenAPI spec: productName, productState,
+ * definitionStatus, deviceId). productState's confirmed values are
+ * "on" | "off" | "expired" | "snoozed" | "unknown" — only "on" means
+ * actively protected. */
+export async function fetchAntivirusStatusForOrganization(
+  creds: NinjaOneCredentials,
+  token: string,
+  orgId: number
+): Promise<NinjaOneAntivirusStatusRow[]> {
+  const rows = await fetchDeviceQuery(creds, token, orgId, "antivirus-status");
+  return rows
+    .map((r) => ({
+      deviceId: deviceIdOf(r),
+      productName: firstString(r, ["productName"]),
+      productState: firstString(r, ["productState"]),
+      definitionStatus: firstString(r, ["definitionStatus"]),
+    }))
+    .filter((r): r is NinjaOneAntivirusStatusRow => r.deviceId !== null);
+}
+
+export type NinjaOneOsPatchRow = {
+  deviceId: number;
+  name: string | null;
+  severity: string | null;
+  status: string | null;
+  kbNumber: string | null;
+};
+
+/** Pending/failed/rejected OS patches for every device in one organization
+ * — via the confirmed /v2/queries/os-patches report, which per NinjaOne's
+ * own spec description "Returns list of OS patches for which there were no
+ * installation attempts" (i.e. every row here is already missing, no
+ * further filtering needed). Field names (name, severity, status,
+ * kbNumber, deviceId) verified against NinjaOne's own published OpenAPI
+ * spec. */
+export async function fetchPendingOsPatchesForOrganization(
+  creds: NinjaOneCredentials,
+  token: string,
+  orgId: number
+): Promise<NinjaOneOsPatchRow[]> {
+  const rows = await fetchDeviceQuery(creds, token, orgId, "os-patches");
+  return rows
+    .map((r) => ({
+      deviceId: deviceIdOf(r),
+      name: firstString(r, ["name"]),
+      severity: firstString(r, ["severity"]),
+      status: firstString(r, ["status"]),
+      kbNumber: firstString(r, ["kbNumber"]),
+    }))
+    .filter((r): r is NinjaOneOsPatchRow => r.deviceId !== null);
+}
+
 /** Devices for one organization, via the confirmed df=org=<id> filter
  * syntax, enriched with OS/hardware/last-user info from the bulk "queries"
  * reports above — all org-wide calls, not one per device. Base device
