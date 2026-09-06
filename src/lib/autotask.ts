@@ -1094,3 +1094,54 @@ export async function fetchQuotesForCompany(
 export function buildAutotaskQuoteUrl(webZoneUrl: string, quoteId: number): string {
   return `${webZoneUrl.replace(/\/$/, "")}/opportunity/quotes/quote.asp?QuoteID=${quoteId}`;
 }
+
+export type AutotaskTicketCreatedRow = { id: number; createDate: string };
+
+/** Every ticket created for one company in a date range, regardless of
+ * current status — unlike fetchOpenTicketsForCompany (open tickets only,
+ * single page), this is for a volume-over-time trend, so a since-closed
+ * ticket still needs to count in the week it was opened. Paginated: a
+ * busy client over several months can exceed one page. */
+export async function fetchTicketsCreatedForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number,
+  sinceISO: string,
+  untilISO: string
+): Promise<AutotaskTicketCreatedRow[]> {
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "eq", field: "companyID", value: companyId },
+      { op: "gte", field: "createDate", value: sinceISO },
+      { op: "lte", field: "createDate", value: untilISO },
+    ],
+  })) as { id: number; createDate: string }[];
+  return items.map((t) => ({ id: t.id, createDate: t.createDate }));
+}
+
+export type AutotaskActiveResource = { id: number; name: string };
+
+/** Every active (non-terminated) Resource — for a resource picker, not a
+ * per-id lookup like resolveResourceNames. Some Autotask API Users lack
+ * read access to this entity (a per-tenant security-level setting, same
+ * caveat resolveResourceNames already documents) — swallowed here too,
+ * returning whatever succeeded rather than failing the whole page. */
+export async function fetchActiveResources(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<AutotaskActiveResource[]> {
+  try {
+    const items = (await autotaskQueryAllPages(creds, zoneUrl, "Resources", {
+      filter: [{ op: "eq", field: "isActive", value: true }],
+    })) as { id: number; firstName?: string; lastName?: string; userName?: string }[];
+    return items
+      .map((r) => ({
+        id: r.id,
+        name: [r.firstName, r.lastName].filter(Boolean).join(" ") || r.userName || `Resource ${r.id}`,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (err) {
+    console.error("Autotask active Resources lookup failed", err);
+    return [];
+  }
+}
