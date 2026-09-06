@@ -37,9 +37,9 @@ type NavItem = {
 
 const LINKS_BEFORE_TOUCHPOINTS: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: IconGrid },
-  { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
   { href: "/clients", label: "Clients", icon: IconBriefcase },
   { href: "/projects", label: "Projects", icon: IconFolder },
+  { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
 ];
 const LINKS_AFTER_TOUCHPOINTS: NavItem[] = [
   { href: "/sales-requests", label: "Internal Sales", icon: IconTag },

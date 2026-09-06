@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
 import { RefreshInsightsButton } from "@/components/refresh-insights-button";
-import { SuggestionCard } from "@/components/suggestion-card";
+import { ClientInsightParagraph } from "@/components/client-insight-paragraph";
 import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { hasPermission } from "@/lib/permissions";
 
@@ -29,7 +29,6 @@ export default async function DashboardPage() {
     { data: activeProjects },
     { data: suggestions },
     { data: serviceChecks },
-    { data: members },
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -62,7 +61,6 @@ export default async function DashboardPage() {
     supabase
       .from("client_service_checks")
       .select("id, cadence_days, last_checked_at, clients(name), service_catalog(name, default_cadence_days)"),
-    supabase.from("profiles").select("id, full_name"),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -93,16 +91,14 @@ export default async function DashboardPage() {
 
       <Section title="Insights" emptyText="No open insights right now." action={<RefreshInsightsButton />}>
         {(suggestions ?? []).map((s) => (
-          <SuggestionCard
+          <ClientInsightParagraph
             key={s.id}
             id={s.id}
             clientId={s.client_id}
             clientName={(s.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
-            kind={s.kind}
             summary={s.summary}
             detail={s.detail}
             priority={s.priority}
-            members={members ?? []}
           />
         ))}
       </Section>
