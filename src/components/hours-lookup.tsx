@@ -11,8 +11,12 @@ function hrs(n: number): string {
 
 export function HoursLookup({
   action,
+  title = "Hours by client or resource",
+  subtitle = "Total hours logged in Autotask over a range you pick — live, nothing stored.",
 }: {
   action: (groupBy: "client" | "resource", days: number) => Promise<Result>;
+  title?: string;
+  subtitle?: string;
 }) {
   const [groupBy, setGroupBy] = useState<"client" | "resource">("client");
   const [days, setDays] = useState(7);
@@ -29,10 +33,8 @@ export function HoursLookup({
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-5 py-2">
-        <h2 className="text-sm font-semibold text-slate-900">Hours by client or resource</h2>
-        <p className="text-xs text-slate-500">
-          Total hours logged in Autotask over a range you pick — live, nothing stored.
-        </p>
+        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-5 py-2">

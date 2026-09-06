@@ -253,3 +253,78 @@ export async function fetchHoursByGroup(
 
   return [...byGroup.values()].sort((a, b) => b.hours - a.hours);
 }
+
+/** Same "last N days" / group-by-client-or-resource shape as
+ * fetchHoursByGroup, restricted to entries flagged isNonBillable — surfaces
+ * where non-billable time is concentrated (a resource, or a client getting
+ * free work) rather than filtering it out of view like the billing-facing
+ * reports do. */
+export async function fetchNonBillableHoursByGroup(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  groupBy: "client" | "resource",
+  days: number
+): Promise<HoursByGroupRow[]> {
+  const today = new Date();
+  const since = new Date(today);
+  since.setUTCDate(since.getUTCDate() - (days - 1));
+
+  const allEntries = await fetchTimeEntriesInRange(creds, zoneUrl, ymd(since), ymd(today));
+  const entries = allEntries.filter((e) => e.isNonBillable);
+
+  const byGroup = new Map<string, HoursByGroupRow>();
+
+  if (groupBy === "resource") {
+    const resourceNames = await resolveResourceNames(
+      creds,
+      zoneUrl,
+      entries.map((e) => e.resourceID)
+    );
+    for (const e of entries) {
+      const key = String(e.resourceID);
+      const row = byGroup.get(key) ?? {
+        groupId: key,
+        groupName: resourceNames.get(e.resourceID) ?? `Resource ${e.resourceID}`,
+        hours: 0,
+      };
+      row.hours += e.hoursWorked;
+      byGroup.set(key, row);
+    }
+  } else {
+    const ticketCompanyIds = await resolveTicketCompanyIds(
+      creds,
+      zoneUrl,
+      entries.map((e) => e.ticketID).filter((id): id is number => id != null)
+    );
+    const companyIds = [...new Set([...ticketCompanyIds.values()])];
+    const { data: clients } = await admin
+      .from("clients")
+      .select("id, name, autotask_company_id")
+      .in("autotask_company_id", companyIds.length > 0 ? companyIds : [-1]);
+    const clientByCompanyId = new Map<number, { id: string; name: string }>(
+      (clients ?? []).map(
+        (c: {
+          id: string;
+          name: string;
+          autotask_company_id: number;
+        }): [number, { id: string; name: string }] => [c.autotask_company_id, { id: c.id, name: c.name }]
+      )
+    );
+    for (const e of entries) {
+      const companyId = e.ticketID != null ? ticketCompanyIds.get(e.ticketID) : undefined;
+      const client = companyId != null ? clientByCompanyId.get(companyId) : undefined;
+      const key = client?.id ?? "unattributed";
+      const row = byGroup.get(key) ?? {
+        groupId: client?.id ?? null,
+        groupName: client?.name ?? "Unattributed",
+        hours: 0,
+      };
+      row.hours += e.hoursWorked;
+      byGroup.set(key, row);
+    }
+  }
+
+  return [...byGroup.values()].sort((a, b) => b.hours - a.hours);
+}

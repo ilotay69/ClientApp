@@ -639,6 +639,8 @@ export type AutotaskTimeEntryRange = {
   ticketID: number | null;
   taskID: number | null;
   summaryNotes: string | null;
+  contractID: number | null;
+  isNonBillable: boolean;
 };
 
 /** Account-wide time entries in a date range, across every resource and
@@ -672,6 +674,8 @@ export async function fetchTimeEntriesInRange(
     ticketID?: number;
     taskID?: number;
     summaryNotes?: string;
+    contractID?: number;
+    isNonBillable?: boolean;
   };
   return (items as RawTimeEntry[])
     .filter((e) => e.hoursWorked != null)
@@ -683,7 +687,135 @@ export async function fetchTimeEntriesInRange(
       ticketID: e.ticketID ?? null,
       taskID: e.taskID ?? null,
       summaryNotes: e.summaryNotes ?? null,
+      contractID: e.contractID ?? null,
+      isNonBillable: e.isNonBillable ?? false,
     }));
+}
+
+export type AutotaskContractBlock = {
+  id: number;
+  contractID: number;
+  hours: number;
+  startDate: string;
+  endDate: string;
+};
+
+/** Contract Blocks currently in effect (today falls within startDate/
+ * endDate) — the prepaid-hours allotment for a Block Hours contract.
+ * Account-wide, not scoped to one company: the caller maps contractID ->
+ * company via fetchContractsByIds below. There's no "hours used" field on
+ * this entity (confirmed against Autotask's own field reference) —
+ * consumption has to be computed from TimeEntries.contractID separately. */
+export async function fetchActiveContractBlocks(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<AutotaskContractBlock[]> {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "ContractBlocks", {
+    filter: [
+      { op: "lte", field: "startDate", value: todayStr },
+      { op: "gte", field: "endDate", value: todayStr },
+    ],
+  })) as { id: number; contractID: number; hours?: number; startDate: string; endDate: string }[];
+
+  return items
+    .filter((b) => b.hours != null)
+    .map((b) => ({
+      id: b.id,
+      contractID: b.contractID,
+      hours: b.hours as number,
+      startDate: b.startDate,
+      endDate: b.endDate,
+    }));
+}
+
+export type AutotaskContractSummary = { id: number; contractName: string; companyID: number };
+
+const CONTRACT_LOOKUP_CHUNK_SIZE = 200;
+
+/** Batched lookup for Contracts by id (chunked the same way
+ * resolveTicketCompanyIds is, for the same reason — a long "in" filter
+ * can 404 on a URL-length limit). Used to map a Contract Block's
+ * contractID to the client it belongs to. */
+export async function fetchContractsByIds(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  contractIds: number[]
+): Promise<AutotaskContractSummary[]> {
+  const uniqueIds = [...new Set(contractIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return [];
+
+  const results: AutotaskContractSummary[] = [];
+  for (let i = 0; i < uniqueIds.length; i += CONTRACT_LOOKUP_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + CONTRACT_LOOKUP_CHUNK_SIZE);
+    try {
+      const items = (await autotaskQueryAllPages(creds, zoneUrl, "Contracts", {
+        filter: [{ op: "in", field: "id", value: chunk }],
+      })) as { id: number; contractName?: string; companyID: number }[];
+      for (const c of items) {
+        results.push({ id: c.id, contractName: c.contractName ?? `Contract ${c.id}`, companyID: c.companyID });
+      }
+    } catch (err) {
+      console.error(
+        `Autotask Contracts lookup failed for a batch of ${chunk.length} contracts`,
+        err
+      );
+    }
+  }
+  return results;
+}
+
+type RawOpenTicket = {
+  id: number;
+  title: string;
+  companyID: number;
+  queueID?: number;
+  assignedResourceID?: number;
+  dueDateTime?: string;
+  createDate?: string;
+};
+
+export type AutotaskOpenTicketRow = {
+  id: number;
+  title: string;
+  companyID: number;
+  queueName: string | null;
+  assignedResourceName: string | null;
+  dueDate: string | null;
+  createdAt: string | null;
+};
+
+/** Every open ticket account-wide (completedDate is null), not scoped to
+ * one company like fetchOpenTicketsForCompany — used for an aging/overdue
+ * view across the whole book of business. Paginated: a healthy MSP's
+ * total open-ticket count can exceed one page easily. */
+export async function fetchAllOpenTickets(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  labels: PicklistLabelMaps
+): Promise<AutotaskOpenTicketRow[]> {
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+    filter: [{ op: "notExist", field: "completedDate" }],
+  })) as RawOpenTicket[];
+
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    items.map((t) => t.assignedResourceID).filter((id): id is number => id != null)
+  );
+
+  return items.map((t) => ({
+    id: t.id,
+    title: t.title,
+    companyID: t.companyID,
+    queueName: t.queueID != null ? (labels.queue.get(t.queueID) ?? String(t.queueID)) : null,
+    assignedResourceName:
+      t.assignedResourceID != null
+        ? (resourceNames.get(t.assignedResourceID) ?? `Resource ${t.assignedResourceID}`)
+        : null,
+    dueDate: t.dueDateTime ?? null,
+    createdAt: t.createDate ?? null,
+  }));
 }
 
 /** Batched companyID lookup for Tickets referenced by id from time entries

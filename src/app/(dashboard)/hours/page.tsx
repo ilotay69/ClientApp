@@ -4,11 +4,16 @@ import { hasPermission } from "@/lib/permissions";
 import { ResourceHoursReport } from "@/components/resource-hours-report";
 import { YesterdayTimeEntries } from "@/components/yesterday-time-entries";
 import { HoursLookup } from "@/components/hours-lookup";
+import { ContractBlockHours } from "@/components/contract-block-hours";
+import { AgingOpenTickets } from "@/components/aging-open-tickets";
 import { Tabs } from "@/components/tabs";
 import {
   fetchResourceHoursAction,
   fetchYesterdayTimeEntriesAction,
   fetchHoursByGroupAction,
+  fetchNonBillableHoursByGroupAction,
+  fetchContractBlockHoursAction,
+  fetchAgingOpenTicketsAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +47,24 @@ export default async function HoursPage() {
           {
             label: "Yesterday's Entries",
             content: <YesterdayTimeEntries action={fetchYesterdayTimeEntriesAction} />,
+          },
+          {
+            label: "Non-Billable Hours",
+            content: (
+              <HoursLookup
+                action={fetchNonBillableHoursByGroupAction}
+                title="Non-billable hours by client or resource"
+                subtitle="Hours logged as non-billable in Autotask over a range you pick — live, nothing stored."
+              />
+            ),
+          },
+          {
+            label: "Block Hours",
+            content: <ContractBlockHours action={fetchContractBlockHoursAction} />,
+          },
+          {
+            label: "Aging Tickets",
+            content: <AgingOpenTickets action={fetchAgingOpenTicketsAction} />,
           },
         ]}
       />

@@ -6,12 +6,15 @@ import { getAutotaskSettings } from "@/lib/autotask-settings";
 import {
   fetchResourceHoursSummary,
   fetchHoursByGroup,
+  fetchNonBillableHoursByGroup,
   lastBusinessDayBefore,
   ymd,
   type ResourceHoursRow,
   type HoursByGroupRow,
 } from "@/lib/resource-hours";
 import { fetchTimeEntriesForAnalysis, type TimeEntryForAnalysis } from "@/lib/time-entry-insights";
+import { fetchContractBlockHours, type ContractBlockHoursRow } from "@/lib/contract-hours";
+import { fetchAgingOpenTickets, type AgingTicketRow } from "@/lib/ticket-aging";
 
 /** Live from Autotask, on demand — not synced/stored anywhere, since "hours
  * worked today" is only ever meaningful as of right now, not as a cached
@@ -102,5 +105,85 @@ export async function fetchYesterdayTimeEntriesAction(): Promise<
     return { entries };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load time entries." };
+  }
+}
+
+/** Non-billable hours, grouped by client or resource, over the last N days
+ * — same flexible shape as fetchHoursByGroupAction, restricted to entries
+ * flagged isNonBillable in Autotask. */
+export async function fetchNonBillableHoursByGroupAction(
+  groupBy: "client" | "resource",
+  days: number
+): Promise<{ rows: HoursByGroupRow[] } | { error: string }> {
+  if (!(await requirePermission("manage_team"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const clampedDays = Math.min(Math.max(Math.trunc(days) || 1, 1), MAX_LOOKUP_DAYS);
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const rows = await fetchNonBillableHoursByGroup(
+      admin,
+      settings.credentials,
+      settings.zoneUrl,
+      groupBy,
+      clampedDays
+    );
+    return { rows };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load hours." };
+  }
+}
+
+/** Prepaid/block hours remaining for every currently-active Contract Block
+ * account-wide — purchased vs. used vs. remaining, sorted so clients
+ * closest to running out surface first. */
+export async function fetchContractBlockHoursAction(): Promise<
+  { rows: ContractBlockHoursRow[] } | { error: string }
+> {
+  if (!(await requirePermission("manage_team"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const rows = await fetchContractBlockHours(admin, settings.credentials, settings.zoneUrl);
+    return { rows };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load contract block hours." };
+  }
+}
+
+/** Every open ticket account-wide, oldest/overdue first — for spotting
+ * tickets that have sat too long or blown past their due date. */
+export async function fetchAgingOpenTicketsAction(): Promise<
+  { rows: AgingTicketRow[] } | { error: string }
+> {
+  if (!(await requirePermission("manage_team"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const rows = await fetchAgingOpenTickets(admin, settings.credentials, settings.zoneUrl);
+    return { rows };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load open tickets." };
   }
 }
