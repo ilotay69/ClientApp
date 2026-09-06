@@ -29,30 +29,13 @@ export function lastBusinessDayBefore(date: Date): Date {
   return d;
 }
 
-/** One Autotask call covering the whole range needed (the month, extended
- * back further if "yesterday" — the last business day — falls in the
- * previous month, e.g. checking this on the 1st or 2nd), then each entry
- * is bucketed into today/yesterday/this week/this month by comparing its
- * own date against these boundaries — cheaper than four separate range
- * queries. Boundaries are UTC calendar dates, same
+/** Shared by fetchClientHoursSummary/fetchResourceHoursSummary below — the
+ * today/yesterday/this-week/this-month boundaries are identical either
+ * way, only the grouping differs. Boundaries are UTC calendar dates, same
  * "today = new Date().toISOString().slice(0,10)" convention already used
- * elsewhere in this app (e.g. task due-date defaults), not a new one.
- *
- * Grouped by client rather than resource — a time entry carries no
- * client/company reference of its own, so each one is attributed via its
- * ticket's companyID (resolved directly from Autotask, batched) mapped to
- * a client through this app's own clients.autotask_company_id. An entry
- * with no ticket or an unmapped company is grouped under "Unattributed"
- * rather than dropped. */
-export async function fetchClientHoursSummary(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
-  creds: AutotaskCredentials,
-  zoneUrl: string
-): Promise<ClientHoursRow[]> {
-  const now = new Date();
+ * elsewhere in this app (e.g. task due-date defaults), not a new one. */
+function computeHourBoundaries(now: Date) {
   const todayStr = ymd(now);
-
   const yesterdayStr = ymd(lastBusinessDayBefore(now));
 
   // Week starts Monday.
@@ -66,6 +49,32 @@ export async function fetchClientHoursSummary(
 
   // Whichever is earlier — "yesterday" can fall in the previous month.
   const fetchSinceStr = yesterdayStr < monthStartStr ? yesterdayStr : monthStartStr;
+
+  return { todayStr, yesterdayStr, weekStartStr, monthStartStr, fetchSinceStr };
+}
+
+/** One Autotask call covering the whole range needed, then each entry is
+ * bucketed into today/yesterday/this week/this month by comparing its own
+ * date against the shared boundaries above — cheaper than four separate
+ * range queries.
+ *
+ * Grouped by client rather than resource — a time entry carries no
+ * client/company reference of its own, so each one is attributed via its
+ * ticket's companyID (resolved directly from Autotask, batched) mapped to
+ * a client through this app's own clients.autotask_company_id. An entry
+ * with no ticket or an unmapped company is grouped under "Unattributed"
+ * rather than dropped. Used by the Reports CSV export
+ * (src/app/api/reports/hours/route.ts) — a client-facing/billing view,
+ * unlike fetchResourceHoursSummary below which is per-technician. */
+export async function fetchClientHoursSummary(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<ClientHoursRow[]> {
+  const now = new Date();
+  const { todayStr, yesterdayStr, weekStartStr, monthStartStr, fetchSinceStr } =
+    computeHourBoundaries(now);
 
   const entries = await fetchTimeEntriesInRange(creds, zoneUrl, fetchSinceStr, todayStr);
 
@@ -114,6 +123,60 @@ export async function fetchClientHoursSummary(
   }
 
   return [...byClient.values()].sort((a, b) => b.thisMonth - a.thisMonth);
+}
+
+export type ResourceHoursRow = {
+  resourceId: string | null;
+  resourceName: string;
+  today: number;
+  yesterday: number;
+  thisWeek: number;
+  thisMonth: number;
+};
+
+/** Same shape and boundaries as fetchClientHoursSummary, grouped by
+ * resource (technician) instead of client — this is what the Lookups
+ * page's "Hours worked (Autotask)" widget actually shows, despite the
+ * component being named ResourceHoursReport. */
+export async function fetchResourceHoursSummary(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<ResourceHoursRow[]> {
+  const now = new Date();
+  const { todayStr, yesterdayStr, weekStartStr, monthStartStr, fetchSinceStr } =
+    computeHourBoundaries(now);
+
+  const entries = await fetchTimeEntriesInRange(creds, zoneUrl, fetchSinceStr, todayStr);
+
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    entries.map((e) => e.resourceID)
+  );
+
+  const byResource = new Map<string, ResourceHoursRow>();
+  for (const e of entries) {
+    const day = e.dateWorked.slice(0, 10);
+    const key = String(e.resourceID);
+    const row = byResource.get(key) ?? {
+      resourceId: key,
+      resourceName: resourceNames.get(e.resourceID) ?? `Resource ${e.resourceID}`,
+      today: 0,
+      yesterday: 0,
+      thisWeek: 0,
+      thisMonth: 0,
+    };
+    // thisMonth is guarded explicitly now — the fetch range can start
+    // earlier than the month (see fetchSinceStr above) when "yesterday"
+    // falls in the previous month.
+    if (day >= monthStartStr) row.thisMonth += e.hoursWorked;
+    if (day >= weekStartStr) row.thisWeek += e.hoursWorked;
+    if (day === todayStr) row.today += e.hoursWorked;
+    if (day === yesterdayStr) row.yesterday += e.hoursWorked;
+    byResource.set(key, row);
+  }
+
+  return [...byResource.values()].sort((a, b) => b.thisMonth - a.thisMonth);
 }
 
 export type HoursByGroupRow = { groupId: string | null; groupName: string; hours: number };
