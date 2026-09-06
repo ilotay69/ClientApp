@@ -17,8 +17,8 @@ export default async function DomainHealthPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Domain Health</h1>
-        <p className="mt-1 text-sm text-slate-500">Domain checks, plus a launch point for other standalone tools.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Tools</h1>
+        <p className="mt-1 text-sm text-slate-500">Standalone utilities, not tied to a client or project.</p>
       </div>
 
       <Tabs

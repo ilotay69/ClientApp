@@ -94,21 +94,6 @@ export function SidebarNav({
     ...LINKS_AFTER_TOUCHPOINTS,
   ];
 
-  // Standalone utilities, not tied to a client/project workflow — more land
-  // here over time.
-  const TOOLS_LINKS: NavItem[] = [
-    ...(canViewDomainHealth
-      ? [
-          {
-            href: "/domain-health",
-            label: "Domain Health",
-            icon: IconGlobe,
-            ownerOnly: domainHealthOwnerOnly,
-          },
-        ]
-      : []),
-  ];
-
   const settingsLinks: NavItem[] = [
     ...(canManageTeam
       ? [{ href: "/team", label: "Team", icon: IconUsers, ownerOnly: teamOwnerOnly }]
@@ -127,6 +112,18 @@ export function SidebarNav({
     // its own link — the mailbox connection is per-user and ungated, unlike
     // the Integrations page, which requires manage_integrations.
     { href: "/settings/mail", label: "Mailbox", icon: IconMail },
+    // Domain Health + CG Watcher, behind one tabbed page — standalone
+    // utilities, not tied to a client/project workflow.
+    ...(canViewDomainHealth
+      ? [
+          {
+            href: "/domain-health",
+            label: "Tools",
+            icon: IconGlobe,
+            ownerOnly: domainHealthOwnerOnly,
+          },
+        ]
+      : []),
   ];
 
   const insightsLinks: NavItem[] = [
@@ -185,15 +182,6 @@ export function SidebarNav({
       <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
         <div className="space-y-0.5">{MAIN_LINKS.map(renderLink)}</div>
 
-        {TOOLS_LINKS.length > 0 && (
-          <div>
-            <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
-              Tools
-            </p>
-            <div className="space-y-0.5">{TOOLS_LINKS.map(renderLink)}</div>
-          </div>
-        )}
-
         {insightsLinks.length > 0 && (
           <div>
             <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
@@ -206,7 +194,7 @@ export function SidebarNav({
         {settingsLinks.length > 0 && (
           <div>
             <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
-              Settings
+              Settings &amp; Tools
             </p>
             <div className="space-y-0.5">{settingsLinks.map(renderLink)}</div>
           </div>
