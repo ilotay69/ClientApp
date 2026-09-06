@@ -107,7 +107,7 @@ export default async function AnalysisPage() {
                 seriesName="Tickets"
                 color="#8b5cf6"
                 chartType="bar"
-                valueFormat={(v) => v.toFixed(0)}
+                valueUnit="count"
               />
             ),
           },

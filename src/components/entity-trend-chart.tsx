@@ -7,10 +7,21 @@ import type { WeeklyPoint } from "@/lib/client-hours-trend";
 type EntitiesResult = { id: string; name: string }[] | { error: string };
 type TrendResult = { points: WeeklyPoint[] } | { error: string };
 
+const VALUE_FORMATTERS = {
+  hours: (v: number) => v.toFixed(1),
+  count: (v: number) => v.toFixed(0),
+} as const;
+
 /** Shared "pick a client (or resource), see a weekly trend" shape —
  * covers hours-per-client, ticket-volume-per-client, and
  * hours-per-resource, which differ only in which entity is picked, the
- * chart type, and how a value is formatted. */
+ * chart type, and how a value is formatted. valueUnit is a string, not a
+ * function, on purpose: this component is rendered from a Server
+ * Component (the Analysis page), and React forbids passing a plain
+ * function as a prop across that server -> client boundary (only Server
+ * Actions or serializable values survive it) — passing one here crashed
+ * the whole page whenever the Ticket Volume tab, the one usage that
+ * needed a non-default formatter, was rendered. */
 export function EntityTrendChart({
   title,
   subtitle,
@@ -20,7 +31,7 @@ export function EntityTrendChart({
   seriesName,
   color,
   chartType = "line",
-  valueFormat = (v) => v.toFixed(1),
+  valueUnit = "hours",
   defaultWeeks = 12,
 }: {
   title: string;
@@ -31,7 +42,7 @@ export function EntityTrendChart({
   seriesName: string;
   color: string;
   chartType?: "line" | "bar";
-  valueFormat?: (v: number) => string;
+  valueUnit?: keyof typeof VALUE_FORMATTERS;
   defaultWeeks?: number;
 }) {
   const [entities, setEntities] = useState<{ id: string; name: string }[] | null>(null);
@@ -114,7 +125,7 @@ export function EntityTrendChart({
         <TrendChart
           series={[{ name: seriesName, color, points: result.points }]}
           type={chartType}
-          valueFormat={valueFormat}
+          valueFormat={VALUE_FORMATTERS[valueUnit]}
         />
       )}
     </div>
