@@ -20,7 +20,9 @@ export function YesterdayTimeEntries({
         setError(result.error);
         setEntries(null);
       } else {
-        setEntries(result.entries);
+        setEntries(
+          [...result.entries].sort((a, b) => a.resourceName.localeCompare(b.resourceName))
+        );
       }
     });
   };
