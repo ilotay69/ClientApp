@@ -2,7 +2,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { toCsv, csvResponse } from "@/lib/csv";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
-import { fetchClientHoursSummary } from "@/lib/resource-hours";
+import { buildHoursSummaryReport } from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
 
@@ -26,17 +26,12 @@ export async function GET() {
     });
   }
 
-  let rows;
+  let headers, rows;
   try {
-    rows = await fetchClientHoursSummary(admin, settings.credentials, settings.zoneUrl);
+    ({ headers, rows } = await buildHoursSummaryReport(admin, settings.credentials, settings.zoneUrl));
   } catch (err) {
     return new Response(err instanceof Error ? err.message : "Failed to load hours.", { status: 500 });
   }
 
-  const csv = toCsv(
-    ["Client", "Today", "Yesterday", "This week", "This month"],
-    rows.map((r) => [r.clientName, r.today.toFixed(1), r.yesterday.toFixed(1), r.thisWeek.toFixed(1), r.thisMonth.toFixed(1)])
-  );
-
-  return csvResponse("hours-summary.csv", csv);
+  return csvResponse("hours-summary.csv", toCsv(headers, rows));
 }
