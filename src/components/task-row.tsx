@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { Badge, OverdueBadge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
 import { InlineTextEdit, InlineSelectEdit } from "@/components/task-field-editor";
+import { TaskAssigneeEditor } from "@/components/task-assignee-editor";
 import { formatDate, isOverdue } from "@/lib/format";
 import { IconChevronDown } from "@/components/icons";
 import type { FormState, TaskNote } from "@/app/(dashboard)/tasks/actions";
@@ -35,9 +36,12 @@ export function TaskRow({
   task,
   clientName,
   assigneeNames,
+  assigneeIds,
+  members,
   canDelete,
   statusOptions,
   updateFieldAction,
+  updateAssigneesAction,
   deleteAction,
   fetchNotesAction,
   addNoteAction,
@@ -45,9 +49,12 @@ export function TaskRow({
   task: TaskRowData;
   clientName: string | null;
   assigneeNames: string;
+  assigneeIds: string[];
+  members: { id: string; full_name: string }[];
   canDelete: boolean;
   statusOptions: { value: string; label: string }[];
   updateFieldAction: (taskId: string, field: string, value: string) => Promise<void>;
+  updateAssigneesAction: (taskId: string, assigneeIds: string[]) => Promise<void>;
   deleteAction: () => Promise<void>;
   fetchNotesAction: (taskId: string) => Promise<{ notes: TaskNote[] } | { error: string }>;
   addNoteAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
@@ -137,6 +144,18 @@ export function TaskRow({
           <div>
             <InlineTextEdit taskId={task.id} field="title" value={task.title} action={updateFieldAction} />
           </div>
+
+          {!task.is_personal && (
+            <div>
+              <FieldLabel>Assigned to</FieldLabel>
+              <TaskAssigneeEditor
+                taskId={task.id}
+                members={members}
+                initialAssigneeIds={assigneeIds}
+                action={updateAssigneesAction}
+              />
+            </div>
+          )}
 
           <div>
             <FieldLabel>Notes</FieldLabel>

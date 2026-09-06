@@ -9,6 +9,7 @@ import {
   createTask,
   deleteTask,
   updateTaskField,
+  setTaskAssignees,
   getTaskNotesAction,
   addTaskNote,
 } from "./actions";
@@ -260,9 +261,12 @@ export default async function TasksPage({
               task={t as TaskRowData}
               clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
               assigneeNames={assigneeNames}
+              assigneeIds={assigneeIds}
+              members={members ?? []}
               canDelete={canDeleteTasks}
               statusOptions={statusOptionsFor(t.status)}
               updateFieldAction={updateFieldAction}
+              updateAssigneesAction={setTaskAssignees}
               deleteAction={deleteTask.bind(null, t.id)}
               fetchNotesAction={getTaskNotesAction}
               addNoteAction={addTaskNote.bind(null, t.id)}
@@ -345,9 +349,12 @@ export default async function TasksPage({
             task={{ ...t, project_id: null } as TaskRowData}
             clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
             assigneeNames=""
+            assigneeIds={[]}
+            members={[]}
             canDelete
             statusOptions={statusOptionsFor(t.status)}
             updateFieldAction={updateFieldAction}
+            updateAssigneesAction={setTaskAssignees}
             deleteAction={deleteTask.bind(null, t.id)}
             fetchNotesAction={getTaskNotesAction}
             addNoteAction={addTaskNote.bind(null, t.id)}
