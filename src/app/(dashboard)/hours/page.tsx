@@ -11,6 +11,12 @@ import { DiskAlertsLookup } from "@/components/disk-alerts-lookup";
 import { HardwareLifecycleLookup } from "@/components/hardware-lifecycle-lookup";
 import { AntivirusAlertsLookup } from "@/components/antivirus-alerts-lookup";
 import { MissingPatchesLookup } from "@/components/missing-patches-lookup";
+import { SecureScoreRollup } from "@/components/secure-score-rollup";
+import { LicenseUtilizationRollup } from "@/components/license-utilization-rollup";
+import { MfaGapsRollup } from "@/components/mfa-gaps-rollup";
+import { InactiveAccountsRollup } from "@/components/inactive-accounts-rollup";
+import { PrivilegedRolesRollup } from "@/components/privileged-roles-rollup";
+import { MailboxUsageRollup } from "@/components/mailbox-usage-rollup";
 import { Tabs } from "@/components/tabs";
 import {
   fetchResourceHoursAction,
@@ -28,6 +34,14 @@ import {
   fetchAntivirusAlertsAction,
   fetchMissingPatchesAction,
 } from "./ninjaone-actions";
+import {
+  fetchSecureScoreRollupAction,
+  fetchLicenseUtilizationRollupAction,
+  fetchMfaGapsRollupAction,
+  fetchInactiveAccountsRollupAction,
+  fetchPrivilegedRolesRollupAction,
+  fetchMailboxUsageRollupAction,
+} from "./m365-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +115,30 @@ export default async function HoursPage() {
           {
             label: "Missing Patches",
             content: <MissingPatchesLookup action={fetchMissingPatchesAction} />,
+          },
+          {
+            label: "Secure Score",
+            content: <SecureScoreRollup action={fetchSecureScoreRollupAction} />,
+          },
+          {
+            label: "License Utilization",
+            content: <LicenseUtilizationRollup action={fetchLicenseUtilizationRollupAction} />,
+          },
+          {
+            label: "MFA Gaps",
+            content: <MfaGapsRollup action={fetchMfaGapsRollupAction} />,
+          },
+          {
+            label: "Inactive Accounts",
+            content: <InactiveAccountsRollup action={fetchInactiveAccountsRollupAction} />,
+          },
+          {
+            label: "Privileged Roles",
+            content: <PrivilegedRolesRollup action={fetchPrivilegedRolesRollupAction} />,
+          },
+          {
+            label: "Mailbox Storage",
+            content: <MailboxUsageRollup action={fetchMailboxUsageRollupAction} />,
           },
         ]}
       />
