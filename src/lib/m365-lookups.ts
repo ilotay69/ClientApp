@@ -11,9 +11,11 @@ import {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-type ConfiguredClient = { clientId: string; clientName: string; settings: M365ClientSettings };
+export type ConfiguredClient = { clientId: string; clientName: string; settings: M365ClientSettings };
 
-async function fetchConfiguredM365Clients(admin: Admin): Promise<ConfiguredClient[]> {
+/** Every client with M365 credentials configured — exported so
+ * m365-itdr.ts can reuse this same query instead of duplicating it. */
+export async function fetchConfiguredM365Clients(admin: Admin): Promise<ConfiguredClient[]> {
   const { data } = await admin
     .from("m365_client_credentials")
     .select(

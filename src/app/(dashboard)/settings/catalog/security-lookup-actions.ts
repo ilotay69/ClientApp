@@ -4,53 +4,86 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { getHuntressSettings } from "@/lib/huntress-settings";
 import { fetchHuntressAgentAlerts, type HuntressAgentAlertRow } from "@/lib/huntress-lookups";
+import { fetchRecentHuntressSiemLogs, type HuntressSiemLogRow } from "@/lib/huntress";
+import { fetchItdrRows, type ItdrUserRow } from "@/lib/m365-itdr";
+import type { ClientLookupError } from "@/lib/m365-lookups";
 
-export type SecurityType = "edr" | "sat" | "itdr";
+export type SecurityType = "edr" | "sat" | "itdr" | "siem";
 
-export type SecurityLookupResult = { rows: HuntressAgentAlertRow[] } | { error: string };
+export type SecurityLookupResult =
+  | { type: "edr"; rows: HuntressAgentAlertRow[] }
+  | { type: "itdr"; rows: ItdrUserRow[]; errors: ClientLookupError[] }
+  | { type: "siem"; rows: HuntressSiemLogRow[] }
+  | { error: string };
 
-/** clientId === "" means every client (account-wide). Only EDR (Huntress)
- * is wired up so far — SAT (Wizer) and ITDR (Microsoft 365) return a
- * plain "not built yet" message rather than guessing at data that isn't
- * confirmed/ready. */
-export async function getSecurityLookupAction(
-  type: SecurityType,
-  clientId: string
-): Promise<SecurityLookupResult> {
+const SIEM_WINDOW_HOURS = 24;
+
+/** clientId === "" means every client (account-wide). EDR and SIEM are
+ * both Huntress (single shared account, no per-client credential
+ * differences). ITDR is Microsoft 365, which already has per-client
+ * credentials, so "one client" vs "all clients" naturally maps to one
+ * tenant vs looping every configured tenant. SAT has no confirmed data
+ * source at all — Huntress's full public API (checked every tag: Agents,
+ * Identities, Signals, Incident Reports, SIEM, Escalations, Reseller,
+ * Remote Access, ...) has nothing training/awareness-related, so this
+ * returns an honest gap rather than fabricating something. */
+export async function getSecurityLookupAction(type: SecurityType, clientId: string): Promise<SecurityLookupResult> {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
   }
 
-  if (type !== "edr") {
+  const admin = createAdminClient();
+
+  if (type === "sat") {
     return {
-      error: `${type.toUpperCase()} isn't wired up yet — EDR (Huntress) is the only category built so far.`,
+      error:
+        "No Huntress endpoint exists for security awareness training data — checked their full public API (every tag: Agents, Identities, Signals, Incident Reports, SIEM, Escalations, Reseller, Remote Access) and found nothing training/awareness-related. If Huntress SAT data is available through a different account or portal, let me know and I'll dig into that specifically.",
     };
   }
 
-  const admin = createAdminClient();
+  if (type === "edr") {
+    const settings = await getHuntressSettings(admin);
+    if (!settings) {
+      return { error: "Huntress isn't connected yet — set it up under Settings → Integrations." };
+    }
+    try {
+      if (!clientId) {
+        return { type: "edr", rows: await fetchHuntressAgentAlerts(settings) };
+      }
+      const { data: client } = await admin
+        .from("clients")
+        .select("huntress_organization_id")
+        .eq("id", clientId)
+        .maybeSingle();
+      if (!client?.huntress_organization_id) {
+        return {
+          error: "This client isn't linked to a Huntress organization yet — map it from the client's own page.",
+        };
+      }
+      return { type: "edr", rows: await fetchHuntressAgentAlerts(settings, client.huntress_organization_id) };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Failed to load EDR data." };
+    }
+  }
+
+  if (type === "itdr") {
+    try {
+      const { rows, errors } = await fetchItdrRows(admin, clientId || null);
+      return { type: "itdr", rows, errors };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Failed to load ITDR data." };
+    }
+  }
+
+  // type === "siem"
   const settings = await getHuntressSettings(admin);
   if (!settings) {
     return { error: "Huntress isn't connected yet — set it up under Settings → Integrations." };
   }
-
   try {
-    if (!clientId) {
-      return { rows: await fetchHuntressAgentAlerts(settings) };
-    }
-
-    const { data: client } = await admin
-      .from("clients")
-      .select("huntress_organization_id")
-      .eq("id", clientId)
-      .maybeSingle();
-    if (!client?.huntress_organization_id) {
-      return {
-        error: "This client isn't linked to a Huntress organization yet — map it from the client's own page.",
-      };
-    }
-
-    return { rows: await fetchHuntressAgentAlerts(settings, client.huntress_organization_id) };
+    const rows = await fetchRecentHuntressSiemLogs(settings, SIEM_WINDOW_HOURS);
+    return { type: "siem", rows };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Failed to load EDR data." };
+    return { error: err instanceof Error ? err.message : "Failed to load SIEM data." };
   }
 }

@@ -30,7 +30,7 @@ import {
   type NinjaOneOrganization,
 } from "@/lib/ninjaone";
 import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
-import { fetchHuntressOrganizations, type HuntressOrganization } from "@/lib/huntress";
+import { fetchHuntressOrganizations, fetchHuntressAgents, type HuntressOrganization, type HuntressAgent } from "@/lib/huntress";
 import { getHuntressSettings } from "@/lib/huntress-settings";
 import {
   fetchLicenseSummaryForTenant,
@@ -809,6 +809,39 @@ export async function unlinkClientHuntressOrganization(clientId: string): Promis
   const supabase = await createClient();
   await supabase.from("clients").update({ huntress_organization_id: null }).eq("id", clientId);
   revalidatePath(`/clients/${clientId}`);
+}
+
+/** Live from Huntress, on demand — unlike NinjaOne/M365 there's no sync
+ * job or local table for Huntress yet, so this always calls out fresh
+ * rather than reading stored data. */
+export async function fetchClientHuntressAgentsAction(
+  clientId: string
+): Promise<{ agents: HuntressAgent[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getHuntressSettings(admin);
+  if (!settings) {
+    return { error: "Huntress isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("huntress_organization_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client?.huntress_organization_id) {
+    return { error: 'This client isn\'t linked to a Huntress organization yet — use "Link to Huntress" above.' };
+  }
+
+  try {
+    const agents = await fetchHuntressAgents(settings, client.huntress_organization_id);
+    return { agents };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load Huntress agents." };
+  }
 }
 
 /** On-demand device sync for a single mapped client — same replace-on-

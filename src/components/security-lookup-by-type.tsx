@@ -1,13 +1,79 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { ClientLookupErrors } from "@/components/client-lookup-errors";
 import type { SecurityType, SecurityLookupResult } from "@/app/(dashboard)/settings/catalog/security-lookup-actions";
 
-const TYPES: { value: SecurityType; label: string; available: boolean }[] = [
-  { value: "edr", label: "EDR", available: true },
-  { value: "sat", label: "SAT", available: false },
-  { value: "itdr", label: "ITDR", available: false },
+const TYPES: { value: SecurityType; label: string }[] = [
+  { value: "edr", label: "EDR" },
+  { value: "sat", label: "SAT" },
+  { value: "itdr", label: "ITDR" },
+  { value: "siem", label: "SIEM" },
 ];
+
+/** EDR (Huntress agent alerts) and ITDR (M365 identity risk) rows both
+ * boil down to the same shape once flattened: one entity, which
+ * client/org it belongs to, and a list of issue tags — so one render
+ * path covers both instead of two near-identical tables. */
+function EntityIssuesTable({ rows }: { rows: { entity: string; scope: string; issues: string[] }[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50">
+          <tr>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">Entity</th>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">Client / Org</th>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">Issues</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td className="px-5 py-2 text-slate-900">{r.entity}</td>
+              <td className="px-5 py-2 text-slate-700">{r.scope}</td>
+              <td className="px-5 py-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {r.issues.map((issue, j) => (
+                    <span key={j} className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                      {issue}
+                    </span>
+                  ))}
+                </div>
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={3} className="px-5 py-4 text-center text-slate-500">
+                No issues found for this selection.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** SIEM rows are raw ECS-field objects whose keys depend entirely on the
+ * query that produced them — no fixed schema to build a real table
+ * against, so each row is shown as compact key: value text instead. */
+function SiemLogList({ rows }: { rows: Record<string, unknown>[] }) {
+  return (
+    <div className="max-h-[32rem] divide-y divide-slate-100 overflow-y-auto">
+      {rows.map((row, i) => (
+        <div key={i} className="px-5 py-2 font-mono text-xs text-slate-700">
+          {Object.entries(row).map(([key, value]) => (
+            <div key={key}>
+              <span className="text-slate-400">{key}:</span> {String(value)}
+            </div>
+          ))}
+        </div>
+      ))}
+      {rows.length === 0 && <p className="px-5 py-4 text-center text-sm text-slate-500">No log rows returned.</p>}
+    </div>
+  );
+}
 
 export function SecurityLookupByType({
   fetchClientsAction,
@@ -44,6 +110,7 @@ export function SecurityLookupByType({
         <h2 className="text-sm font-semibold text-slate-900">Security coverage by type</h2>
         <p className="text-xs text-slate-500">
           Pick a category and a client (or All clients) — live from each vendor, nothing stored.
+          {type === "siem" && " SIEM is account-wide only for now — no confirmed way to filter by client yet."}
         </p>
       </div>
 
@@ -62,7 +129,6 @@ export function SecurityLookupByType({
               }`}
             >
               {t.label}
-              {!t.available && <span className="ml-1 text-xs opacity-70">(soon)</span>}
             </button>
           ))}
         </div>
@@ -75,7 +141,7 @@ export function SecurityLookupByType({
               setClientId(e.target.value);
               setResult(null);
             }}
-            disabled={!clients}
+            disabled={!clients || type === "siem"}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-60"
           >
             <option value="">{clients ? "All clients" : "Loading clients…"}</option>
@@ -99,46 +165,26 @@ export function SecurityLookupByType({
 
       {result && "error" in result && <p className="px-5 py-4 text-sm text-red-600">{result.error}</p>}
 
-      {result && !("error" in result) && (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-5 py-2 text-left font-medium text-slate-500">Host</th>
-                <th className="px-5 py-2 text-left font-medium text-slate-500">Organization</th>
-                <th className="px-5 py-2 text-left font-medium text-slate-500">Issues</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {result.rows.map((r) => (
-                <tr key={r.agentId}>
-                  <td className="px-5 py-2 text-slate-900">{r.hostname}</td>
-                  <td className="px-5 py-2 text-slate-700">{r.organizationName}</td>
-                  <td className="px-5 py-2">
-                    <div className="flex flex-wrap gap-1.5">
-                      {r.issues.map((issue, i) => (
-                        <span
-                          key={i}
-                          className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
-                        >
-                          {issue}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {result.rows.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-5 py-4 text-center text-slate-500">
-                    No issues found for this selection.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      {result && !("error" in result) && result.type === "edr" && (
+        <EntityIssuesTable
+          rows={result.rows.map((r) => ({ entity: r.hostname, scope: r.organizationName, issues: r.issues }))}
+        />
       )}
+
+      {result && !("error" in result) && result.type === "itdr" && (
+        <>
+          <ClientLookupErrors errors={result.errors} />
+          <EntityIssuesTable
+            rows={result.rows.map((r) => ({
+              entity: `${r.displayName} (${r.userPrincipalName})`,
+              scope: r.clientName,
+              issues: r.issues,
+            }))}
+          />
+        </>
+      )}
+
+      {result && !("error" in result) && result.type === "siem" && <SiemLogList rows={result.rows} />}
     </div>
   );
 }

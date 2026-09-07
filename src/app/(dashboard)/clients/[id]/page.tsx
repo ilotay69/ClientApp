@@ -11,6 +11,7 @@ import { ClientNinjaOneDevices } from "@/components/client-ninjaone-devices";
 import { SyncNinjaOneButton } from "@/components/sync-ninjaone-button";
 import { NinjaOneMappingButton } from "@/components/ninjaone-mapping-button";
 import { HuntressMappingButton } from "@/components/huntress-mapping-button";
+import { ClientHuntressAgents } from "@/components/client-huntress-agents";
 import { ClientM365Licenses } from "@/components/client-m365-licenses";
 import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
 import { SyncM365Button } from "@/components/sync-m365-button";
@@ -45,6 +46,7 @@ import {
   searchHuntressOrganizationsAction,
   linkClientHuntressOrganization,
   unlinkClientHuntressOrganization,
+  fetchClientHuntressAgentsAction,
   saveM365ClientCredentialsAction,
   testM365ClientConnectionAction,
   unlinkClientM365Tenant,
@@ -203,6 +205,7 @@ export default async function ClientDetailPage({
   const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
   const linkHuntressAction = linkClientHuntressOrganization.bind(null, id);
   const unlinkHuntressAction = unlinkClientHuntressOrganization.bind(null, id);
+  const fetchHuntressAgentsAction = fetchClientHuntressAgentsAction.bind(null, id);
   const saveM365Action = saveM365ClientCredentialsAction.bind(null, id);
   const testM365Action = testM365ClientConnectionAction.bind(null, id);
   const unlinkM365Action = unlinkClientM365Tenant.bind(null, id);
@@ -481,6 +484,11 @@ export default async function ClientDetailPage({
                     <ClientNinjaOneDevices
                       organizationId={client.ninjaone_organization_id}
                       devices={ninjaOneDevices ?? []}
+                    />
+
+                    <ClientHuntressAgents
+                      organizationId={client.huntress_organization_id}
+                      action={fetchHuntressAgentsAction}
                     />
 
                     <ClientM365Licenses

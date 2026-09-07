@@ -34,6 +34,22 @@ async function huntressGet(creds: HuntressCredentials, path: string) {
   return res.json();
 }
 
+async function huntressPost(creds: HuntressCredentials, path: string, body: unknown) {
+  const res = await fetch(`https://api.huntress.io/v1${path}`, {
+    method: "POST",
+    headers: { ...huntressHeaders(creds), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    if (res.status === 404) {
+      throw new Error("SIEM query isn't enabled for this Huntress account.");
+    }
+    throw new Error(`Huntress API request failed (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
 const PAGE_SAFETY_CAP = 20;
 
 /** Shared pagination loop — every Huntress list endpoint nests its next
@@ -195,4 +211,61 @@ export async function fetchHuntressIncidentReportsByStatus(
     sentAt: i.sent_at ?? null,
     statusUpdatedAt: i.status_updated_at ?? null,
   }));
+}
+
+export type HuntressSiemLogRow = Record<string, unknown>;
+
+const SIEM_PAGE_SAFETY_CAP = 5;
+
+/** Executes an ESQL query against Huntress's SIEM log store — confirmed
+ * against Huntress's own OpenAPI spec (POST /v1/siem/query, body {esql,
+ * range_start, range_end, page_token?}, response {logs, pagination}).
+ * This is a real add-on feature that isn't enabled for every Huntress
+ * account (a 404 specifically means "not enabled here", not "wrong
+ * request" — huntressPost turns that into a clear message). Log rows are
+ * plain Elastic Common Schema objects (field names like `event.provider`,
+ * `host.hostname` — whatever the query's own column selection returns),
+ * so this returns them as-is rather than mapping to a fixed shape the way
+ * every other Huntress fetcher does; there's no fixed schema to map to. */
+export async function fetchHuntressSiemLogs(
+  creds: HuntressCredentials,
+  esql: string,
+  rangeStartIso: string,
+  rangeEndIso: string
+): Promise<HuntressSiemLogRow[]> {
+  const rows: HuntressSiemLogRow[] = [];
+  let pageToken: string | undefined;
+
+  for (let page = 0; page < SIEM_PAGE_SAFETY_CAP; page++) {
+    const json: { logs?: HuntressSiemLogRow[]; pagination?: { next_page_token?: string } } = await huntressPost(
+      creds,
+      "/siem/query",
+      { esql, range_start: rangeStartIso, range_end: rangeEndIso, ...(pageToken ? { page_token: pageToken } : {}) }
+    );
+    rows.push(...(json.logs ?? []));
+    const nextToken = json.pagination?.next_page_token;
+    if (!nextToken) break;
+    pageToken = nextToken;
+  }
+
+  return rows;
+}
+
+/** A safe, generic default query — recent log activity, newest first.
+ * Huntress's own docs only confirm the query must start with `FROM logs`
+ * and that `@timestamp` is the standard ECS timestamp field; there's no
+ * confirmed way to filter by organization/client from the one documented
+ * example, so this is intentionally account-wide only for now. */
+export async function fetchRecentHuntressSiemLogs(
+  creds: HuntressCredentials,
+  hours: number
+): Promise<HuntressSiemLogRow[]> {
+  const rangeEnd = new Date();
+  const rangeStart = new Date(rangeEnd.getTime() - hours * 3_600_000);
+  return fetchHuntressSiemLogs(
+    creds,
+    "FROM logs | SORT @timestamp DESC | LIMIT 200",
+    rangeStart.toISOString(),
+    rangeEnd.toISOString()
+  );
 }
