@@ -12,6 +12,8 @@ import { testHuduConnection, type HuduCredentials } from "@/lib/hudu";
 import { getHuduSettings } from "@/lib/hudu-settings";
 import { testHuntressConnection, type HuntressCredentials } from "@/lib/huntress";
 import { getHuntressSettings } from "@/lib/huntress-settings";
+import { testBitdefenderConnection, type BitdefenderCredentials } from "@/lib/bitdefender";
+import { getBitdefenderSettings } from "@/lib/bitdefender-settings";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -354,6 +356,64 @@ export async function testHuntressConnectionAction(): Promise<{ ok: boolean; mes
   }
 
   const result = await testHuntressConnection(settings satisfies HuntressCredentials);
+  if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
+  return { ok: true, message: "Connected — credentials are working." };
+}
+
+/** Upserts the singleton Bitdefender GravityZone credentials row. The key
+ * is write-only, same leave-blank-to-keep pattern as every other
+ * integration here. */
+export async function saveBitdefenderSettings(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const region = String(formData.get("region") ?? "").trim();
+  const apiKey = emptyToUndefined(formData.get("api_key"));
+
+  if (!region) {
+    return { error: "Region is required.", success: null };
+  }
+
+  const admin = createAdminClient();
+  const existing = await getBitdefenderSettings(admin);
+  const effectiveApiKey = apiKey ?? existing?.apiKey;
+  if (!effectiveApiKey) {
+    return { error: "An API key is required for first-time setup.", success: null };
+  }
+
+  const payload: { id: true; region: string; updated_by: string; api_key?: string } = {
+    id: true,
+    region,
+    updated_by: user.id,
+  };
+  if (apiKey) payload.api_key = apiKey;
+
+  const { error } = await admin.from("bitdefender_settings").upsert(payload, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}
+
+/** Tests the currently-saved Bitdefender credentials — doesn't persist
+ * anything, just reports whether they work. */
+export async function testBitdefenderConnectionAction(): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getBitdefenderSettings(admin);
+  if (!settings) {
+    return { ok: false, message: "Save your Bitdefender credentials first." };
+  }
+
+  const result = await testBitdefenderConnection(settings satisfies BitdefenderCredentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
 }
