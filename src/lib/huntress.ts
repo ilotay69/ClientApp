@@ -251,21 +251,30 @@ export async function fetchHuntressSiemLogs(
   return rows;
 }
 
-/** A safe, minimal default query — Huntress's own docs only confirm a
- * query must start with `FROM logs` and that results are capped at 200
- * rows per page automatically, so this omits everything else rather than
- * guess at more ESQL syntax. `SORT` was tried first and rejected with
- * "SORT is not supported in this context" (a real 422 from Huntress, not
- * a request-shape bug) — their /siem/query endpoint apparently supports
- * a restricted ESQL dialect, not the full Elasticsearch ES|QL language,
- * so ordering/filtering beyond `FROM logs` needs to be confirmed command
- * by command rather than assumed. There's also no confirmed way to filter
- * by organization/client, so this is account-wide only for now. */
+/** With no column selection, `FROM logs` alone returns every available
+ * ECS field per row (confirmed by Huntress's own docs) — technically
+ * data, but so wide and mostly-empty per event type that it reads as
+ * useless. Huntress's own documented example response used exactly
+ * these four fields (uuid, event.provider, host.hostname, message), and
+ * their docs explicitly name `KEEP` as the column-selection mechanism —
+ * unlike `SORT`, which they've already confirmed isn't supported, `KEEP`
+ * is named directly in their own text, so it's a much safer bet. `SORT`
+ * stays out for the same reason it was removed before: a real 422,
+ * "SORT is not supported in this context" — their /siem/query endpoint
+ * runs a restricted ESQL dialect, not full Elasticsearch ES|QL, so
+ * nothing beyond what's explicitly documented should be assumed to work.
+ * There's also no confirmed way to filter by organization/client, so
+ * this is account-wide only for now. */
 export async function fetchRecentHuntressSiemLogs(
   creds: HuntressCredentials,
   hours: number
 ): Promise<HuntressSiemLogRow[]> {
   const rangeEnd = new Date();
   const rangeStart = new Date(rangeEnd.getTime() - hours * 3_600_000);
-  return fetchHuntressSiemLogs(creds, "FROM logs", rangeStart.toISOString(), rangeEnd.toISOString());
+  return fetchHuntressSiemLogs(
+    creds,
+    "FROM logs | KEEP @timestamp, uuid, event.provider, host.hostname, message",
+    rangeStart.toISOString(),
+    rangeEnd.toISOString()
+  );
 }
