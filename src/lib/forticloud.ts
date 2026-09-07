@@ -108,3 +108,80 @@ export async function testForticloudConnection(
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
   }
 }
+
+const ASSET_MGMT_HOST = "https://support.fortinet.com/ES/api/registration/v3";
+
+export type ForticloudEntitlement = {
+  type: string | null;
+  levelDescription: string | null;
+  startDate: string | null;
+  endDate: string | null;
+};
+
+export type ForticloudProduct = {
+  serialNumber: string;
+  productModel: string;
+  registrationDate: string | null;
+  isDecommissioned: boolean;
+  description: string | null;
+  productModelEoS: string | null;
+  entitlements: ForticloudEntitlement[];
+};
+
+/** Every registered device (hardware or virtual) on this FortiCloud
+ * account, with its support/license entitlements and hardware End-of-
+ * Support date — confirmed against Fortinet's own FortiCare Registration
+ * API v3 client library (POST /products/list on
+ * support.fortinet.com/ES/api/registration/v3, a different host entirely
+ * from the OAuth token endpoint). Needs a token minted for the
+ * "assetmanagement" service specifically, not "iam" — a token scoped to
+ * the wrong service is a real, separate failure mode from bad
+ * credentials. `expireBefore` is actually an entitlement-expiration
+ * filter, not a no-op — Fortinet's own client library passes "now + 100
+ * years" to mean "don't filter anything out," which this mirrors, since
+ * the point here is the full inventory, not a pre-filtered one. */
+export async function fetchForticloudProducts(creds: ForticloudCredentials): Promise<ForticloudProduct[]> {
+  const token = await fetchForticloudToken(creds, "assetmanagement");
+  const expireBefore = new Date();
+  expireBefore.setFullYear(expireBefore.getFullYear() + 100);
+
+  const res = await fetch(`${ASSET_MGMT_HOST}/products/list`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ serialNumber: null, expireBefore: expireBefore.toISOString() }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`FortiCloud products request failed (${res.status}): ${text}`);
+  }
+
+  type RawEntitlement = { type?: string; levelDesc?: string; startDate?: string; endDate?: string };
+  type RawAsset = {
+    serialNumber: string;
+    productModel: string;
+    registrationDate?: string;
+    isDecommissioned?: boolean;
+    description?: string;
+    productModelEoS?: string;
+    entitlements?: RawEntitlement[];
+  };
+  const json = (await res.json()) as { error?: string; message?: string; assets?: RawAsset[] };
+  if (json.error && !json.assets) {
+    throw new Error(`FortiCloud products request did not succeed: ${json.message ?? json.error}`);
+  }
+
+  return (json.assets ?? []).map((a) => ({
+    serialNumber: a.serialNumber,
+    productModel: a.productModel,
+    registrationDate: a.registrationDate ?? null,
+    isDecommissioned: a.isDecommissioned ?? false,
+    description: a.description ?? null,
+    productModelEoS: a.productModelEoS ?? null,
+    entitlements: (a.entitlements ?? []).map((e) => ({
+      type: e.type ?? null,
+      levelDescription: e.levelDesc ?? null,
+      startDate: e.startDate ?? null,
+      endDate: e.endDate ?? null,
+    })),
+  }));
+}

@@ -3,15 +3,19 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { getBitdefenderSettings } from "@/lib/bitdefender-settings";
+import type { ForticloudCredentials } from "@/lib/forticloud";
 import {
   buildClientRosterReport,
   buildDeviceInventoryReport,
   buildOpenTicketsReport,
   buildHoursSummaryReport,
+  buildForticloudDevicesReport,
+  buildBitdefenderEndpointsReport,
   type ReportCell,
 } from "@/lib/reports";
 
-export type ReportKey = "clients" | "devices" | "tickets" | "hours";
+export type ReportKey = "clients" | "devices" | "tickets" | "hours" | "forticloud" | "bitdefender_endpoints";
 
 export type ReportPreview = {
   headers: string[];
@@ -40,13 +44,31 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
       data = await buildDeviceInventoryReport(supabase);
     } else if (key === "tickets") {
       data = await buildOpenTicketsReport(supabase);
-    } else {
+    } else if (key === "hours") {
       const admin = createAdminClient();
       const settings = await getAutotaskSettings(admin);
       if (!settings?.zoneUrl) {
         return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
       }
       data = await buildHoursSummaryReport(admin, settings.credentials, settings.zoneUrl);
+    } else if (key === "forticloud") {
+      const admin = createAdminClient();
+      const { data: rows } = await admin.from("forticloud_accounts").select("label, api_user, api_password");
+      if (!rows || rows.length === 0) {
+        return { error: "No FortiCloud accounts configured yet — add one under Settings → Integrations." };
+      }
+      const accounts = rows.map((r) => ({
+        label: r.label,
+        creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
+      }));
+      data = await buildForticloudDevicesReport(accounts);
+    } else {
+      const admin = createAdminClient();
+      const settings = await getBitdefenderSettings(admin);
+      if (!settings) {
+        return { error: "Bitdefender GravityZone isn't connected yet — set it up under Settings → Integrations." };
+      }
+      data = await buildBitdefenderEndpointsReport(settings);
     }
 
     return {

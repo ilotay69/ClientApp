@@ -37,6 +37,20 @@ const DEVICE_INVENTORY: ReportDefinition = {
     "Every NinjaOne-synced device across all clients — OS, status, hardware age. As current as each client's last NinjaOne sync.",
 };
 
+const FORTICLOUD_DEVICES: ReportDefinition = {
+  key: "forticloud",
+  downloadHref: "/api/reports/forticloud",
+  title: "FortiCloud devices",
+  description: "Every registered device across every FortiCloud account, live — support/license status and hardware end-of-support date.",
+};
+
+const BITDEFENDER_ENDPOINTS: ReportDefinition = {
+  key: "bitdefender_endpoints",
+  downloadHref: "/api/reports/bitdefender",
+  title: "Bitdefender endpoints",
+  description: "Every protected endpoint across every company, live — OS, last successful scan, and agent update status.",
+};
+
 export default async function ReportsPage() {
   const supabase = await createClient();
   if (!(await hasPermission(supabase, "view_team_wide"))) {
@@ -82,6 +96,24 @@ export default async function ReportsPage() {
               {
                 label: DEVICE_INVENTORY.title,
                 content: <ReportPreviewPanel report={DEVICE_INVENTORY} previewAction={getReportPreviewAction} />,
+              },
+            ],
+          },
+          {
+            group: "FortiCloud",
+            tabs: [
+              {
+                label: FORTICLOUD_DEVICES.title,
+                content: <ReportPreviewPanel report={FORTICLOUD_DEVICES} previewAction={getReportPreviewAction} />,
+              },
+            ],
+          },
+          {
+            group: "Bitdefender",
+            tabs: [
+              {
+                label: BITDEFENDER_ENDPOINTS.title,
+                content: <ReportPreviewPanel report={BITDEFENDER_ENDPOINTS} previewAction={getReportPreviewAction} />,
               },
             ],
           },

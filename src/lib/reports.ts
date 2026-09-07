@@ -1,6 +1,10 @@
 import { formatDate, humanizeLabel } from "@/lib/format";
 import { fetchClientHoursSummary } from "@/lib/resource-hours";
 import type { AutotaskCredentials } from "@/lib/autotask";
+import { fetchForticloudDeviceInventory } from "@/lib/forticloud-lookups";
+import type { ForticloudCredentials } from "@/lib/forticloud";
+import { fetchGravityZoneEndpointInventory } from "@/lib/bitdefender-lookups";
+import type { BitdefenderCredentials } from "@/lib/bitdefender";
 
 export type ReportCell = string | number | boolean | null | undefined;
 export type ReportData = { headers: string[]; rows: ReportCell[][] };
@@ -138,5 +142,42 @@ export async function buildHoursSummaryReport(
   return {
     headers: ["Client", "Today", "Yesterday", "This week", "This month"],
     rows: rows.map((r) => [r.clientName, r.today.toFixed(1), r.yesterday.toFixed(1), r.thisWeek.toFixed(1), r.thisMonth.toFixed(1)]),
+  };
+}
+
+/** Live from every FortiCloud account on file — same fetcher as the
+ * FortiCloud Devices lookup, not stored anywhere. */
+export async function buildForticloudDevicesReport(
+  accounts: { label: string; creds: ForticloudCredentials }[]
+): Promise<ReportData> {
+  const rows = await fetchForticloudDeviceInventory(accounts);
+  return {
+    headers: ["Account", "Model", "Serial", "Description", "Support status", "Support ends", "Hardware EoS"],
+    rows: rows.map((r) => [
+      r.accountLabel,
+      r.productModel,
+      r.serialNumber,
+      r.description,
+      humanizeLabel(r.supportStatus),
+      r.supportEndDate ? formatDate(r.supportEndDate) : null,
+      r.eosDate ? formatDate(r.eosDate) : null,
+    ]),
+  };
+}
+
+/** Live from GravityZone across every company visible to the partner key —
+ * same fetcher as the Bitdefender Endpoints lookup, not stored anywhere. */
+export async function buildBitdefenderEndpointsReport(creds: BitdefenderCredentials): Promise<ReportData> {
+  const rows = await fetchGravityZoneEndpointInventory(creds);
+  return {
+    headers: ["Company", "Endpoint", "OS", "IP", "Agent", "Last scan"],
+    rows: rows.map((r) => [
+      r.companyName,
+      r.endpointName,
+      r.os,
+      r.ip,
+      r.productOutdated ? "Needs update" : "Up to date",
+      r.lastScanDate ? formatDate(r.lastScanDate) : null,
+    ]),
   };
 }

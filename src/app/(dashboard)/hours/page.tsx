@@ -22,6 +22,7 @@ import { HuntressOpenIncidents } from "@/components/huntress-open-incidents";
 import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
 import { BitdefenderEndpoints } from "@/components/bitdefender-endpoints";
 import { BitdefenderOpenIncidents } from "@/components/bitdefender-open-incidents";
+import { ForticloudDevices } from "@/components/forticloud-devices";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import {
   fetchResourceHoursAction,
@@ -53,6 +54,7 @@ import {
   fetchHuntressSiemLogsAction,
 } from "./huntress-actions";
 import { fetchGravityZoneEndpointsAction, fetchGravityZoneOpenIncidentsAction } from "./bitdefender-actions";
+import { fetchForticloudDevicesAction } from "./forticloud-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -193,6 +195,15 @@ export default async function HoursPage() {
               {
                 label: "Bitdefender Incidents",
                 content: <BitdefenderOpenIncidents action={fetchGravityZoneOpenIncidentsAction} />,
+              },
+            ],
+          },
+          {
+            group: "FortiCloud",
+            tabs: [
+              {
+                label: "FortiCloud Devices",
+                content: <ForticloudDevices action={fetchForticloudDevicesAction} />,
               },
             ],
           },
