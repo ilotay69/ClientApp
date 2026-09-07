@@ -30,6 +30,8 @@ import {
   type NinjaOneOrganization,
 } from "@/lib/ninjaone";
 import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
+import { fetchHuntressOrganizations, type HuntressOrganization } from "@/lib/huntress";
+import { getHuntressSettings } from "@/lib/huntress-settings";
 import {
   fetchLicenseSummaryForTenant,
   fetchSecureScoreGapsForTenant,
@@ -764,6 +766,48 @@ export async function unlinkClientNinjaOneOrganization(clientId: string): Promis
   const supabase = await createClient();
   await supabase.from("clients").update({ ninjaone_organization_id: null }).eq("id", clientId);
   await supabase.from("ninjaone_devices").delete().eq("client_id", clientId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+/** No confirmed name-search query param on Huntress's /organizations
+ * endpoint either — same defensive approach as NinjaOne's search:
+ * fetch the (typically short) full list and filter client-side. */
+export async function searchHuntressOrganizationsAction(
+  query: string
+): Promise<{ organizations: HuntressOrganization[] } | { error: string }> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!query.trim()) return { organizations: [] };
+
+  const admin = createAdminClient();
+  const settings = await getHuntressSettings(admin);
+  if (!settings) {
+    return { error: "Huntress isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const organizations = await fetchHuntressOrganizations(settings);
+    const needle = query.trim().toLowerCase();
+    return { organizations: organizations.filter((o) => o.name.toLowerCase().includes(needle)) };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Huntress search failed." };
+  }
+}
+
+export async function linkClientHuntressOrganization(clientId: string, organizationId: number): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("clients").update({ huntress_organization_id: organizationId }).eq("id", clientId);
+  revalidatePath(`/clients/${clientId}`);
+}
+
+export async function unlinkClientHuntressOrganization(clientId: string): Promise<void> {
+  if (!(await requirePermission("manage_clients"))) return;
+
+  const supabase = await createClient();
+  await supabase.from("clients").update({ huntress_organization_id: null }).eq("id", clientId);
   revalidatePath(`/clients/${clientId}`);
 }
 

@@ -35,8 +35,14 @@ const OFFLINE_WARN_HOURS = 24;
  * 30/90 days) since Huntress's EDR agents check in far more frequently —
  * a day of silence from an actively-monitored endpoint is a real signal,
  * not just a quiet device. */
-export async function fetchHuntressAgentAlerts(creds: HuntressCredentials): Promise<HuntressAgentAlertRow[]> {
-  const [orgs, agents] = await Promise.all([fetchHuntressOrganizations(creds), fetchHuntressAgents(creds)]);
+export async function fetchHuntressAgentAlerts(
+  creds: HuntressCredentials,
+  organizationId?: number
+): Promise<HuntressAgentAlertRow[]> {
+  const [orgs, agents] = await Promise.all([
+    fetchHuntressOrganizations(creds),
+    fetchHuntressAgents(creds, organizationId),
+  ]);
   const orgNameById = new Map(orgs.map((o) => [o.id, o.name]));
   const now = Date.now();
 

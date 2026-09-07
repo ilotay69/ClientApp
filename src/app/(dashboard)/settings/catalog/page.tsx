@@ -5,6 +5,7 @@ import { TimeEntryPatterns } from "@/components/time-entry-patterns";
 import { EntityTrendChart } from "@/components/entity-trend-chart";
 import { ResourceClientPairsTable } from "@/components/resource-client-pairs-table";
 import { ContractBurndownChart } from "@/components/contract-burndown-chart";
+import { SecurityLookupByType } from "@/components/security-lookup-by-type";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
 import {
@@ -21,6 +22,7 @@ import {
   getActiveBlockOptionsAction,
   getContractBurndownAction,
 } from "./trend-actions";
+import { getSecurityLookupAction } from "./security-lookup-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +119,15 @@ export default async function AnalysisPage() {
               <ContractBurndownChart
                 fetchBlocksAction={getActiveBlockOptionsAction}
                 fetchBurndownAction={getContractBurndownAction}
+              />
+            ),
+          },
+          {
+            label: "Security by Type",
+            content: (
+              <SecurityLookupByType
+                fetchClientsAction={getClientsForAnalysisAction}
+                lookupAction={getSecurityLookupAction}
               />
             ),
           },

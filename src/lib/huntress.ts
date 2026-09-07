@@ -105,11 +105,16 @@ export type HuntressAgent = {
   firewallStatus: string | null;
 };
 
-/** Every agent (protected endpoint) account-wide — field names confirmed
- * against Huntress's own OpenAPI spec's Agent definition. Not scoped to
- * one organization; the caller maps organizationId to a name via
+/** Every agent (protected endpoint) — account-wide by default, or scoped
+ * to one organization via the confirmed `organization_id` filter param
+ * (for a per-client lookup once a client is mapped to a Huntress
+ * organization). Field names confirmed against Huntress's own OpenAPI
+ * spec's Agent definition. The caller maps organizationId to a name via
  * fetchHuntressOrganizations. */
-export async function fetchHuntressAgents(creds: HuntressCredentials): Promise<HuntressAgent[]> {
+export async function fetchHuntressAgents(
+  creds: HuntressCredentials,
+  organizationId?: number
+): Promise<HuntressAgent[]> {
   type RawAgent = {
     id: number;
     organization_id: number;
@@ -123,7 +128,8 @@ export async function fetchHuntressAgents(creds: HuntressCredentials): Promise<H
     defender_substatus?: string;
     firewall_status?: string;
   };
-  const agents = await huntressGetAllPages<RawAgent>(creds, "/agents", {}, "agents");
+  const extraParams = organizationId != null ? { organization_id: String(organizationId) } : {};
+  const agents = await huntressGetAllPages<RawAgent>(creds, "/agents", extraParams, "agents");
   return agents.map((a) => ({
     id: a.id,
     organizationId: a.organization_id,
