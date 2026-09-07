@@ -20,7 +20,7 @@ import { MailboxUsageRollup } from "@/components/mailbox-usage-rollup";
 import { HuntressAgentAlerts } from "@/components/huntress-agent-alerts";
 import { HuntressOpenIncidents } from "@/components/huntress-open-incidents";
 import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
-import { Tabs } from "@/components/tabs";
+import { GroupedTabs } from "@/components/grouped-tabs";
 import {
   fetchResourceHoursAction,
   fetchYesterdayTimeEntriesAction,
@@ -68,97 +68,117 @@ export default async function HoursPage() {
         </p>
       </div>
 
-      <Tabs
-        tabs={[
+      <GroupedTabs
+        groups={[
           {
-            label: "Resource Hours",
-            content: (
-              <div className="space-y-6">
-                <ResourceHoursReport action={fetchResourceHoursAction} />
-                <HoursLookup key="by-client-or-resource" action={fetchHoursByGroupAction} />
-              </div>
-            ),
+            group: "Autotask",
+            tabs: [
+              {
+                label: "Resource Hours",
+                content: (
+                  <div className="space-y-6">
+                    <ResourceHoursReport action={fetchResourceHoursAction} />
+                    <HoursLookup key="by-client-or-resource" action={fetchHoursByGroupAction} />
+                  </div>
+                ),
+              },
+              {
+                label: "Yesterday's Entries",
+                content: <YesterdayTimeEntries action={fetchYesterdayTimeEntriesAction} />,
+              },
+              {
+                label: "Non-Billable Hours",
+                content: (
+                  <HoursLookup
+                    key="non-billable"
+                    action={fetchNonBillableHoursByGroupAction}
+                    title="Non-billable hours by client or resource"
+                    subtitle="Hours logged as non-billable in Autotask over a range you pick — live, nothing stored."
+                  />
+                ),
+              },
+              {
+                label: "Block Hours",
+                content: <ContractBlockHours action={fetchContractBlockHoursAction} />,
+              },
+              {
+                label: "Aging Tickets",
+                content: <AgingOpenTickets action={fetchAgingOpenTicketsAction} />,
+              },
+            ],
           },
           {
-            label: "Yesterday's Entries",
-            content: <YesterdayTimeEntries action={fetchYesterdayTimeEntriesAction} />,
+            group: "NinjaOne",
+            tabs: [
+              {
+                label: "Offline Devices",
+                content: <OfflineDevicesLookup action={fetchOfflineDevicesAction} />,
+              },
+              {
+                label: "Disk Alerts",
+                content: <DiskAlertsLookup action={fetchDiskAlertsAction} />,
+              },
+              {
+                label: "Hardware Lifecycle",
+                content: (
+                  <HardwareLifecycleLookup agingAction={fetchAgingHardwareAction} eolAction={fetchOsEolAction} />
+                ),
+              },
+              {
+                label: "Antivirus",
+                content: <AntivirusAlertsLookup action={fetchAntivirusAlertsAction} />,
+              },
+              {
+                label: "Missing Patches",
+                content: <MissingPatchesLookup action={fetchMissingPatchesAction} />,
+              },
+            ],
           },
           {
-            label: "Non-Billable Hours",
-            content: (
-              <HoursLookup
-                key="non-billable"
-                action={fetchNonBillableHoursByGroupAction}
-                title="Non-billable hours by client or resource"
-                subtitle="Hours logged as non-billable in Autotask over a range you pick — live, nothing stored."
-              />
-            ),
+            group: "Microsoft 365",
+            tabs: [
+              {
+                label: "Secure Score",
+                content: <SecureScoreRollup action={fetchSecureScoreRollupAction} />,
+              },
+              {
+                label: "License Utilization",
+                content: <LicenseUtilizationRollup action={fetchLicenseUtilizationRollupAction} />,
+              },
+              {
+                label: "MFA Gaps",
+                content: <MfaGapsRollup action={fetchMfaGapsRollupAction} />,
+              },
+              {
+                label: "Inactive Accounts",
+                content: <InactiveAccountsRollup action={fetchInactiveAccountsRollupAction} />,
+              },
+              {
+                label: "Privileged Roles",
+                content: <PrivilegedRolesRollup action={fetchPrivilegedRolesRollupAction} />,
+              },
+              {
+                label: "Mailbox Storage",
+                content: <MailboxUsageRollup action={fetchMailboxUsageRollupAction} />,
+              },
+            ],
           },
           {
-            label: "Block Hours",
-            content: <ContractBlockHours action={fetchContractBlockHoursAction} />,
-          },
-          {
-            label: "Aging Tickets",
-            content: <AgingOpenTickets action={fetchAgingOpenTicketsAction} />,
-          },
-          {
-            label: "Offline Devices",
-            content: <OfflineDevicesLookup action={fetchOfflineDevicesAction} />,
-          },
-          {
-            label: "Disk Alerts",
-            content: <DiskAlertsLookup action={fetchDiskAlertsAction} />,
-          },
-          {
-            label: "Hardware Lifecycle",
-            content: (
-              <HardwareLifecycleLookup agingAction={fetchAgingHardwareAction} eolAction={fetchOsEolAction} />
-            ),
-          },
-          {
-            label: "Antivirus",
-            content: <AntivirusAlertsLookup action={fetchAntivirusAlertsAction} />,
-          },
-          {
-            label: "Missing Patches",
-            content: <MissingPatchesLookup action={fetchMissingPatchesAction} />,
-          },
-          {
-            label: "Secure Score",
-            content: <SecureScoreRollup action={fetchSecureScoreRollupAction} />,
-          },
-          {
-            label: "License Utilization",
-            content: <LicenseUtilizationRollup action={fetchLicenseUtilizationRollupAction} />,
-          },
-          {
-            label: "MFA Gaps",
-            content: <MfaGapsRollup action={fetchMfaGapsRollupAction} />,
-          },
-          {
-            label: "Inactive Accounts",
-            content: <InactiveAccountsRollup action={fetchInactiveAccountsRollupAction} />,
-          },
-          {
-            label: "Privileged Roles",
-            content: <PrivilegedRolesRollup action={fetchPrivilegedRolesRollupAction} />,
-          },
-          {
-            label: "Mailbox Storage",
-            content: <MailboxUsageRollup action={fetchMailboxUsageRollupAction} />,
-          },
-          {
-            label: "Huntress Agents",
-            content: <HuntressAgentAlerts action={fetchHuntressAgentAlertsAction} />,
-          },
-          {
-            label: "Huntress Incidents",
-            content: <HuntressOpenIncidents action={fetchHuntressOpenIncidentsAction} />,
-          },
-          {
-            label: "Huntress SIEM",
-            content: <HuntressSiemLogs action={fetchHuntressSiemLogsAction} />,
+            group: "Huntress",
+            tabs: [
+              {
+                label: "Huntress Agents",
+                content: <HuntressAgentAlerts action={fetchHuntressAgentAlertsAction} />,
+              },
+              {
+                label: "Huntress Incidents",
+                content: <HuntressOpenIncidents action={fetchHuntressOpenIncidentsAction} />,
+              },
+              {
+                label: "Huntress SIEM",
+                content: <HuntressSiemLogs action={fetchHuntressSiemLogsAction} />,
+              },
+            ],
           },
         ]}
       />

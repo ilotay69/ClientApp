@@ -6,7 +6,7 @@ import { EntityTrendChart } from "@/components/entity-trend-chart";
 import { ResourceClientPairsTable } from "@/components/resource-client-pairs-table";
 import { ContractBurndownChart } from "@/components/contract-burndown-chart";
 import { SecurityLookupByType } from "@/components/security-lookup-by-type";
-import { Tabs } from "@/components/tabs";
+import { GroupedTabs } from "@/components/grouped-tabs";
 import { hasPermission } from "@/lib/permissions";
 import {
   getClientsForAnalysisAction,
@@ -42,94 +42,104 @@ export default async function AnalysisPage() {
         </p>
       </div>
 
-      <Tabs
-        tabs={[
+      <GroupedTabs
+        groups={[
           {
-            label: "Sales opportunities",
-            content: (
-              <ServiceCoverageAnalysis
-                fetchClientsAction={getClientsForAnalysisAction}
-                fetchGapsAction={getClientServiceGapsAction}
-              />
-            ),
+            group: "Autotask",
+            tabs: [
+              {
+                label: "Sales opportunities",
+                content: (
+                  <ServiceCoverageAnalysis
+                    fetchClientsAction={getClientsForAnalysisAction}
+                    fetchGapsAction={getClientServiceGapsAction}
+                  />
+                ),
+              },
+              {
+                label: "Ticket Pattern",
+                content: (
+                  <TimeEntryPatterns
+                    fetchClientsAction={getClientsForAnalysisAction}
+                    analyzeAction={analyzeClientTimeEntryPatternsAction}
+                  />
+                ),
+              },
+              {
+                label: "Hours Trend",
+                content: (
+                  <EntityTrendChart
+                    key="hours-trend"
+                    title="Hours per client, over time"
+                    subtitle="Weekly hours logged for one client — rising or falling usage, at a glance."
+                    entityLabel="client"
+                    fetchEntitiesAction={getClientsForAnalysisAction}
+                    fetchTrendAction={getClientHoursTrendAction}
+                    seriesName="Hours"
+                    color="#066ab5"
+                  />
+                ),
+              },
+              {
+                label: "Resource Utilization",
+                content: (
+                  <EntityTrendChart
+                    key="resource-utilization"
+                    title="Hours per resource, over time"
+                    subtitle="Weekly hours logged by one resource — workload trend, over/under-utilization."
+                    entityLabel="resource"
+                    fetchEntitiesAction={getResourcesForAnalysisAction}
+                    fetchTrendAction={getResourceHoursTrendAction}
+                    seriesName="Hours"
+                    color="#10b981"
+                  />
+                ),
+              },
+              {
+                label: "Resource/Client Pairs",
+                content: <ResourceClientPairsTable action={getResourceClientPairsAction} />,
+              },
+              {
+                label: "Ticket Volume",
+                content: (
+                  <EntityTrendChart
+                    key="ticket-volume"
+                    title="Ticket volume per client, over time"
+                    subtitle="Weekly count of tickets opened for one client — a rising trend on an otherwise-stable client is often the first sign of an unstable environment."
+                    entityLabel="client"
+                    fetchEntitiesAction={getClientsForAnalysisAction}
+                    fetchTrendAction={getTicketVolumeTrendAction}
+                    seriesName="Tickets"
+                    color="#8b5cf6"
+                    chartType="bar"
+                    valueUnit="count"
+                  />
+                ),
+              },
+              {
+                label: "Block Burn-down",
+                content: (
+                  <ContractBurndownChart
+                    fetchBlocksAction={getActiveBlockOptionsAction}
+                    fetchBurndownAction={getContractBurndownAction}
+                  />
+                ),
+              },
+            ],
           },
           {
-            label: "Ticket Pattern",
-            content: (
-              <TimeEntryPatterns
-                fetchClientsAction={getClientsForAnalysisAction}
-                analyzeAction={analyzeClientTimeEntryPatternsAction}
-              />
-            ),
-          },
-          {
-            label: "Hours Trend",
-            content: (
-              <EntityTrendChart
-                key="hours-trend"
-                title="Hours per client, over time"
-                subtitle="Weekly hours logged for one client — rising or falling usage, at a glance."
-                entityLabel="client"
-                fetchEntitiesAction={getClientsForAnalysisAction}
-                fetchTrendAction={getClientHoursTrendAction}
-                seriesName="Hours"
-                color="#066ab5"
-              />
-            ),
-          },
-          {
-            label: "Resource Utilization",
-            content: (
-              <EntityTrendChart
-                key="resource-utilization"
-                title="Hours per resource, over time"
-                subtitle="Weekly hours logged by one resource — workload trend, over/under-utilization."
-                entityLabel="resource"
-                fetchEntitiesAction={getResourcesForAnalysisAction}
-                fetchTrendAction={getResourceHoursTrendAction}
-                seriesName="Hours"
-                color="#10b981"
-              />
-            ),
-          },
-          {
-            label: "Resource/Client Pairs",
-            content: <ResourceClientPairsTable action={getResourceClientPairsAction} />,
-          },
-          {
-            label: "Ticket Volume",
-            content: (
-              <EntityTrendChart
-                key="ticket-volume"
-                title="Ticket volume per client, over time"
-                subtitle="Weekly count of tickets opened for one client — a rising trend on an otherwise-stable client is often the first sign of an unstable environment."
-                entityLabel="client"
-                fetchEntitiesAction={getClientsForAnalysisAction}
-                fetchTrendAction={getTicketVolumeTrendAction}
-                seriesName="Tickets"
-                color="#8b5cf6"
-                chartType="bar"
-                valueUnit="count"
-              />
-            ),
-          },
-          {
-            label: "Block Burn-down",
-            content: (
-              <ContractBurndownChart
-                fetchBlocksAction={getActiveBlockOptionsAction}
-                fetchBurndownAction={getContractBurndownAction}
-              />
-            ),
-          },
-          {
-            label: "Security by Type",
-            content: (
-              <SecurityLookupByType
-                fetchClientsAction={getClientsForAnalysisAction}
-                lookupAction={getSecurityLookupAction}
-              />
-            ),
+            group: "Security",
+            tabs: [
+              {
+                label: "Security by Type",
+                content: (
+                  <SecurityLookupByType
+                    fetchClientsAction={getClientsForAnalysisAction}
+                    lookupAction={getSecurityLookupAction}
+                  />
+                ),
+              },
+            ],
           },
         ]}
       />
