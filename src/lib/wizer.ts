@@ -80,3 +80,54 @@ export async function fetchWizerCustomers(creds: WizerCredentials): Promise<Wize
 
   return customers;
 }
+
+export type WizerMetrics = {
+  usersTotal: number;
+  usersRegistered: number;
+  usersNotRegistered: number;
+  trainingCompleted: number;
+  trainingAssigned: number;
+  trainingInProgress: number;
+  trainingNotStarted: number;
+  gamingCompleted: number;
+  gamingAssigned: number;
+  phishingParticipated: number;
+  phishingClicked: number;
+  phishingReported: number;
+};
+
+/** One company's rollup across training, gaming, and phishing simulation
+ * — confirmed against Wizer's own readme.io reference (GET
+ * /reports/metrics?companyId=, a single call that covers everything this
+ * app needs for a per-company SAT-style summary, unlike the separate
+ * per-campaign dashboard endpoints). This is the same endpoint that
+ * doubles nicely as "the" data source for security awareness training —
+ * confirming SAT genuinely belongs to Wizer rather than Huntress, which
+ * has no training concept at all. */
+export async function fetchWizerMetrics(creds: WizerCredentials, companyId: string): Promise<WizerMetrics> {
+  type RawMetrics = {
+    users?: { registered?: number; notRegistered?: number; total?: number };
+    training?: { summary?: { completed?: number; assigned?: number; inProgress?: number; notStarted?: number } };
+    gaming?: { summary?: { completed?: number; assigned?: number; notStarted?: number } };
+    phishing?: { summary?: { participated?: number; clicked?: number; reported?: number } };
+  };
+  const json: RawMetrics = await wizerGet(
+    creds,
+    `/reports/metrics?companyId=${encodeURIComponent(companyId)}`
+  );
+
+  return {
+    usersTotal: json.users?.total ?? 0,
+    usersRegistered: json.users?.registered ?? 0,
+    usersNotRegistered: json.users?.notRegistered ?? 0,
+    trainingCompleted: json.training?.summary?.completed ?? 0,
+    trainingAssigned: json.training?.summary?.assigned ?? 0,
+    trainingInProgress: json.training?.summary?.inProgress ?? 0,
+    trainingNotStarted: json.training?.summary?.notStarted ?? 0,
+    gamingCompleted: json.gaming?.summary?.completed ?? 0,
+    gamingAssigned: json.gaming?.summary?.assigned ?? 0,
+    phishingParticipated: json.phishing?.summary?.participated ?? 0,
+    phishingClicked: json.phishing?.summary?.clicked ?? 0,
+    phishingReported: json.phishing?.summary?.reported ?? 0,
+  };
+}

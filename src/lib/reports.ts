@@ -5,6 +5,8 @@ import { fetchForticloudDeviceInventory } from "@/lib/forticloud-lookups";
 import type { ForticloudCredentials } from "@/lib/forticloud";
 import { fetchGravityZoneEndpointInventory } from "@/lib/bitdefender-lookups";
 import type { BitdefenderCredentials } from "@/lib/bitdefender";
+import { fetchWizerCompanyMetrics } from "@/lib/wizer-lookups";
+import type { WizerCredentials } from "@/lib/wizer";
 
 export type ReportCell = string | number | boolean | null | undefined;
 export type ReportData = { headers: string[]; rows: ReportCell[][] };
@@ -178,6 +180,34 @@ export async function buildBitdefenderEndpointsReport(creds: BitdefenderCredenti
       r.ip,
       r.productOutdated ? "Needs update" : "Up to date",
       r.lastScanDate ? formatDate(r.lastScanDate) : null,
+    ]),
+  };
+}
+
+/** Live across every Wizer customer company — same fetcher as the Wizer
+ * Training & Phishing lookup, not stored anywhere. */
+export async function buildWizerMetricsReport(creds: WizerCredentials): Promise<ReportData> {
+  const rows = await fetchWizerCompanyMetrics(creds);
+  return {
+    headers: [
+      "Company",
+      "Users registered",
+      "Users total",
+      "Training completed",
+      "Training assigned",
+      "Phishing participated",
+      "Phishing clicked",
+      "Phishing reported",
+    ],
+    rows: rows.map((r) => [
+      r.companyName,
+      r.usersRegistered,
+      r.usersTotal,
+      r.trainingCompleted,
+      r.trainingAssigned,
+      r.phishingParticipated,
+      r.phishingClicked,
+      r.phishingReported,
     ]),
   };
 }

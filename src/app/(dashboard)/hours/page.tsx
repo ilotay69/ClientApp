@@ -23,6 +23,7 @@ import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
 import { BitdefenderEndpoints } from "@/components/bitdefender-endpoints";
 import { BitdefenderOpenIncidents } from "@/components/bitdefender-open-incidents";
 import { ForticloudDevices } from "@/components/forticloud-devices";
+import { WizerTrainingMetrics } from "@/components/wizer-training-metrics";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import {
   fetchResourceHoursAction,
@@ -55,6 +56,7 @@ import {
 } from "./huntress-actions";
 import { fetchGravityZoneEndpointsAction, fetchGravityZoneOpenIncidentsAction } from "./bitdefender-actions";
 import { fetchForticloudDevicesAction } from "./forticloud-actions";
+import { fetchWizerCompanyMetricsAction } from "./wizer-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -204,6 +206,15 @@ export default async function HoursPage() {
               {
                 label: "FortiCloud Devices",
                 content: <ForticloudDevices action={fetchForticloudDevicesAction} />,
+              },
+            ],
+          },
+          {
+            group: "Wizer",
+            tabs: [
+              {
+                label: "Training & Phishing",
+                content: <WizerTrainingMetrics action={fetchWizerCompanyMetricsAction} />,
               },
             ],
           },

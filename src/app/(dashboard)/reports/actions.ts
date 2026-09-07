@@ -4,6 +4,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { getBitdefenderSettings } from "@/lib/bitdefender-settings";
+import { getWizerSettings } from "@/lib/wizer-settings";
 import type { ForticloudCredentials } from "@/lib/forticloud";
 import {
   buildClientRosterReport,
@@ -12,10 +13,18 @@ import {
   buildHoursSummaryReport,
   buildForticloudDevicesReport,
   buildBitdefenderEndpointsReport,
+  buildWizerMetricsReport,
   type ReportCell,
 } from "@/lib/reports";
 
-export type ReportKey = "clients" | "devices" | "tickets" | "hours" | "forticloud" | "bitdefender_endpoints";
+export type ReportKey =
+  | "clients"
+  | "devices"
+  | "tickets"
+  | "hours"
+  | "forticloud"
+  | "bitdefender_endpoints"
+  | "wizer_metrics";
 
 export type ReportPreview = {
   headers: string[];
@@ -62,13 +71,20 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
         creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
       }));
       data = await buildForticloudDevicesReport(accounts);
-    } else {
+    } else if (key === "bitdefender_endpoints") {
       const admin = createAdminClient();
       const settings = await getBitdefenderSettings(admin);
       if (!settings) {
         return { error: "Bitdefender GravityZone isn't connected yet — set it up under Settings → Integrations." };
       }
       data = await buildBitdefenderEndpointsReport(settings);
+    } else {
+      const admin = createAdminClient();
+      const settings = await getWizerSettings(admin);
+      if (!settings) {
+        return { error: "Wizer isn't connected yet — set it up under Settings → Integrations." };
+      }
+      data = await buildWizerMetricsReport(settings);
     }
 
     return {

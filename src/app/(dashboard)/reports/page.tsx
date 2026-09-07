@@ -51,6 +51,13 @@ const BITDEFENDER_ENDPOINTS: ReportDefinition = {
   description: "Every protected endpoint across every company, live — OS, last successful scan, and agent update status.",
 };
 
+const WIZER_METRICS: ReportDefinition = {
+  key: "wizer_metrics",
+  downloadHref: "/api/reports/wizer",
+  title: "Wizer training metrics",
+  description: "Training completion and phishing simulation results per company, live.",
+};
+
 export default async function ReportsPage() {
   const supabase = await createClient();
   if (!(await hasPermission(supabase, "view_team_wide"))) {
@@ -114,6 +121,15 @@ export default async function ReportsPage() {
               {
                 label: BITDEFENDER_ENDPOINTS.title,
                 content: <ReportPreviewPanel report={BITDEFENDER_ENDPOINTS} previewAction={getReportPreviewAction} />,
+              },
+            ],
+          },
+          {
+            group: "Wizer",
+            tabs: [
+              {
+                label: WIZER_METRICS.title,
+                content: <ReportPreviewPanel report={WIZER_METRICS} previewAction={getReportPreviewAction} />,
               },
             ],
           },
