@@ -10,6 +10,8 @@ import { testNinjaOneConnection, type NinjaOneCredentials } from "@/lib/ninjaone
 import { getNinjaOneSettings } from "@/lib/ninjaone-settings";
 import { testHuduConnection, type HuduCredentials } from "@/lib/hudu";
 import { getHuduSettings } from "@/lib/hudu-settings";
+import { testHuntressConnection, type HuntressCredentials } from "@/lib/huntress";
+import { getHuntressSettings } from "@/lib/huntress-settings";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -296,6 +298,62 @@ export async function testHuduConnectionAction(): Promise<{ ok: boolean; message
   }
 
   const result = await testHuduConnection(settings satisfies HuduCredentials);
+  if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
+  return { ok: true, message: "Connected — credentials are working." };
+}
+
+/** Upserts the singleton Huntress credentials row. Both key and secret are
+ * write-only and independently optional on an update — same
+ * leave-blank-to-keep pattern as every other integration here — but both
+ * are required together on first-time setup. */
+export async function saveHuntressSettings(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const apiKey = emptyToUndefined(formData.get("api_key"));
+  const apiSecret = emptyToUndefined(formData.get("api_secret"));
+
+  const admin = createAdminClient();
+  const existing = await getHuntressSettings(admin);
+  const effectiveApiKey = apiKey ?? existing?.apiKey;
+  const effectiveApiSecret = apiSecret ?? existing?.apiSecret;
+  if (!effectiveApiKey || !effectiveApiSecret) {
+    return { error: "Both an API key and API secret are required for first-time setup.", success: null };
+  }
+
+  const payload: { id: true; updated_by: string; api_key?: string; api_secret?: string } = {
+    id: true,
+    updated_by: user.id,
+  };
+  if (apiKey) payload.api_key = apiKey;
+  if (apiSecret) payload.api_secret = apiSecret;
+
+  const { error } = await admin.from("huntress_settings").upsert(payload, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}
+
+/** Tests the currently-saved Huntress credentials — doesn't persist
+ * anything, just reports whether they work. */
+export async function testHuntressConnectionAction(): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getHuntressSettings(admin);
+  if (!settings) {
+    return { ok: false, message: "Save your Huntress credentials first." };
+  }
+
+  const result = await testHuntressConnection(settings satisfies HuntressCredentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
 }

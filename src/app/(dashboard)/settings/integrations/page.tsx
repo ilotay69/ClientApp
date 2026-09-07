@@ -6,6 +6,7 @@ import { AiProviderSettingsForm } from "@/components/ai-provider-settings-form";
 import { AutotaskSettingsForm } from "@/components/autotask-settings-form";
 import { NinjaOneSettingsForm } from "@/components/ninjaone-settings-form";
 import { HuduSettingsForm } from "@/components/hudu-settings-form";
+import { HuntressSettingsForm } from "@/components/huntress-settings-form";
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
 import { Tabs } from "@/components/tabs";
 import {
@@ -17,6 +18,8 @@ import {
   testNinjaOneConnectionAction,
   saveHuduSettings,
   testHuduConnectionAction,
+  saveHuntressSettings,
+  testHuntressConnectionAction,
   saveSalesNotificationSettings,
 } from "./actions";
 
@@ -39,22 +42,29 @@ export default async function IntegrationsSettingsPage({
   // Admin client — these tables have no RLS policy for authenticated users
   // at all, so a request-scoped client would always get zero rows back.
   const admin = createAdminClient();
-  const [{ data: rows }, { data: autotaskRow }, { data: ninjaOneRow }, { data: huduRow }, { data: salesNotifyRow }] =
-    await Promise.all([
-      admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
-      admin
-        .from("autotask_settings")
-        .select("username, secret, integration_code, zone_url")
-        .eq("id", true)
-        .maybeSingle(),
-      admin
-        .from("ninjaone_settings")
-        .select("region, client_id, client_secret")
-        .eq("id", true)
-        .maybeSingle(),
-      admin.from("hudu_settings").select("base_url, api_key").eq("id", true).maybeSingle(),
-      admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
-    ]);
+  const [
+    { data: rows },
+    { data: autotaskRow },
+    { data: ninjaOneRow },
+    { data: huduRow },
+    { data: huntressRow },
+    { data: salesNotifyRow },
+  ] = await Promise.all([
+    admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
+    admin
+      .from("autotask_settings")
+      .select("username, secret, integration_code, zone_url")
+      .eq("id", true)
+      .maybeSingle(),
+    admin
+      .from("ninjaone_settings")
+      .select("region, client_id, client_secret")
+      .eq("id", true)
+      .maybeSingle(),
+    admin.from("hudu_settings").select("base_url, api_key").eq("id", true).maybeSingle(),
+    admin.from("huntress_settings").select("api_key, api_secret").eq("id", true).maybeSingle(),
+    admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
+  ]);
 
   type ProviderRow = {
     provider: AiProvider;
@@ -147,6 +157,16 @@ export default async function IntegrationsSettingsPage({
                 currentBaseUrl={huduRow?.base_url ?? null}
                 saveAction={saveHuduSettings}
                 testAction={testHuduConnectionAction}
+              />
+            ),
+          },
+          {
+            label: "Huntress",
+            content: (
+              <HuntressSettingsForm
+                hasCredentials={Boolean(huntressRow?.api_key && huntressRow?.api_secret)}
+                saveAction={saveHuntressSettings}
+                testAction={testHuntressConnectionAction}
               />
             ),
           },
