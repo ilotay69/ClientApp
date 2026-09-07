@@ -1,5 +1,5 @@
 import {
-  findFolderIdByDisplayName,
+  listFolderIdsRecursive,
   fetchMessagesInFolder,
   type MailboxSnapshotMessage,
 } from "@/lib/microsoft-graph";
@@ -9,15 +9,49 @@ import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection } from "@/lib/types";
 import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
-const LOOKBACK_DAYS = 30;
-// Scope is intentionally narrow: Inbox, a custom "Active Inbox" triage
-// folder (if the user has one), and Sent Items — everything else
-// (subfolders, Deleted Items, Junk, etc.) is ignored entirely.
-const ACTIVE_INBOX_FOLDER_NAME = "Active Inbox";
+export const DEFAULT_LOOKBACK_DAYS = 30;
+export const MAX_LOOKBACK_DAYS = 90;
+// Scope: Inbox and Sent Items, plus every subfolder under each (Deleted
+// Items, Junk, Drafts, and Conversation History are still excluded — none
+// of those represent "live" client conversation).
+const ROOT_FOLDERS = ["inbox", "sentitems"];
 // Bounds the AI prompt size — the most-overdue threads (the ones that
 // matter most) go in first; anything past this cap only gets the plain
 // deterministic sentence, not an AI-written one.
 const MAX_DIGEST_THREADS = 40;
+
+// Heuristic, not a real classifier — Graph doesn't expose a "this is a
+// newsletter" signal, so this matches on sender address/display name
+// patterns that are overwhelmingly automated mail (notifications,
+// newsletters, alerts) rather than a real person writing to you. A
+// message that happens to come from an address containing one of these
+// substrings but is genuinely a person (rare) would be excluded too —
+// an acceptable false-positive rate for what this is (a noise filter for
+// a digest, not a security control).
+const NOISE_SENDER_PATTERNS = [
+  "noreply",
+  "no-reply",
+  "donotreply",
+  "do-not-reply",
+  "notification",
+  "notifications",
+  "newsletter",
+  "newsletters",
+  "digest",
+  "alert",
+  "alerts",
+  "mailer-daemon",
+  "postmaster",
+  "updates@",
+  "news@",
+  "marketing@",
+];
+
+function isLikelyNoise(message: MailboxSnapshotMessage): boolean {
+  const from = message.from?.emailAddress?.address?.toLowerCase() ?? "";
+  const fromName = message.from?.emailAddress?.name?.toLowerCase() ?? "";
+  return NOISE_SENDER_PATTERNS.some((p) => from.includes(p) || fromName.includes(p));
+}
 
 type DigestThread = {
   subject: string;
@@ -33,6 +67,19 @@ export type MailboxReviewResult = {
   suggestedActions: string[];
   aiAvailable: boolean;
   hitPageCap: boolean;
+  focusIgnored: boolean;
+};
+
+export type MailboxReviewOptions = {
+  /** Clamped to [1, MAX_LOOKBACK_DAYS] by the caller-facing action, but
+   * clamped again here defensively since this function is also callable
+   * directly. */
+  lookbackDays?: number;
+  /** Free-text description of what the user wants analyzed — if omitted,
+   * falls back to the original "who's waiting on whom" reply-tracking
+   * digest. Only honored when an AI provider is configured; if not,
+   * `focusIgnored` comes back true so the caller can say so. */
+  focus?: string;
 };
 
 function daysLabel(days: number) {
@@ -54,24 +101,29 @@ function deterministicNarrative(thread: DigestThread): string {
 export async function reviewMailbox(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
-  connection: MailConnection
+  connection: MailConnection,
+  options: MailboxReviewOptions = {}
 ): Promise<MailboxReviewResult> {
+  const lookbackDays = Math.min(Math.max(Math.trunc(options.lookbackDays ?? DEFAULT_LOOKBACK_DAYS), 1), MAX_LOOKBACK_DAYS);
+  const focus = options.focus?.trim() || null;
+
   const accessToken = await getValidAccessToken(admin, connection);
-  const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const activeInboxId = await findFolderIdByDisplayName(accessToken, ACTIVE_INBOX_FOLDER_NAME);
+  const folderIds = new Set<string>();
+  for (const root of ROOT_FOLDERS) {
+    for (const id of await listFolderIdsRecursive(accessToken, root)) folderIds.add(id);
+  }
 
-  const folderFetches = [
-    fetchMessagesInFolder(accessToken, "inbox", since),
-    fetchMessagesInFolder(accessToken, "sentitems", since),
-    ...(activeInboxId ? [fetchMessagesInFolder(accessToken, activeInboxId, since)] : []),
-  ];
-  const results = await Promise.all(folderFetches);
+  const results = await Promise.all([...folderIds].map((id) => fetchMessagesInFolder(accessToken, id, since)));
 
   const hitPageCap = results.some((r) => r.hitPageCap);
   const byId = new Map<string, MailboxSnapshotMessage>();
   for (const r of results) {
-    for (const m of r.messages) byId.set(m.id, m);
+    for (const m of r.messages) {
+      if (isLikelyNoise(m)) continue;
+      byId.set(m.id, m);
+    }
   }
 
   // One entry per conversation — the latest message determines who's
@@ -112,11 +164,16 @@ export async function reviewMailbox(
   const aiSettings = await getActiveAiSettings(admin);
   let narrative = threads.map(deterministicNarrative);
   let suggestedActions: string[] = [];
+  // A custom focus needs an AI provider to actually honor it — the
+  // deterministic fallback only knows how to write the fixed
+  // "who's waiting on whom" sentence, so a focus with no provider
+  // configured is silently ignored rather than pretended-to.
+  const focusIgnored = Boolean(focus) && !aiSettings;
 
   if (aiSettings) {
     const bounded = threads.slice(0, MAX_DIGEST_THREADS);
     try {
-      const result = await callMailboxReviewAi(bounded, aiSettings);
+      const result = await callMailboxReviewAi(bounded, lookbackDays, focus, aiSettings);
       if (result.narrative.length > 0) narrative = result.narrative;
       suggestedActions = result.suggestedActions;
     } catch (err) {
@@ -131,6 +188,7 @@ export async function reviewMailbox(
     suggestedActions,
     aiAvailable: Boolean(aiSettings),
     hitPageCap,
+    focusIgnored,
   };
 }
 
@@ -157,7 +215,7 @@ const TOOL_SCHEMA = {
   required: ["narrative", "suggested_actions"],
 } as const;
 
-function buildDigestPrompt(threads: DigestThread[]) {
+function buildDigestPrompt(threads: DigestThread[], lookbackDays: number, focus: string | null) {
   const lines = threads
     .map(
       (t) =>
@@ -165,9 +223,13 @@ function buildDigestPrompt(threads: DigestThread[]) {
     )
     .join("\n");
 
-  return `You're writing a short daily mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${LOOKBACK_DAYS} days (Inbox and Sent Items only), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message.
+  const instruction = focus
+    ? `The user specifically asked for this: "${focus}" — write the briefing to answer that, using only the threads below. If none of the threads below are relevant to what they asked, say so plainly instead of forcing an answer. Still give a short, prioritized list of concrete next actions for today.`
+    : `Write one sentence per thread worth mentioning, ordered most urgent first, in the exact style of these examples: "Please get back to Jordan — he asked about the renewal pricing 6 days ago." / "You still haven't heard back from Attilio on the quote you sent 12 days ago." Don't invent detail beyond what's shown. Then give a short, prioritized list of concrete actions for today.`;
 
-Write one sentence per thread worth mentioning, ordered most urgent first, in the exact style of these examples: "Please get back to Jordan — he asked about the renewal pricing 6 days ago." / "You still haven't heard back from Attilio on the quote you sent 12 days ago." Don't invent detail beyond what's shown. Then give a short, prioritized list of concrete actions for today.
+  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days (Inbox, Sent Items, and every subfolder under each — automated notifications/newsletters/alerts already filtered out), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message.
+
+${instruction}
 
 Threads:
 ${lines || "None."}
@@ -177,9 +239,11 @@ Use the ${TOOL_NAME} tool.`;
 
 async function callMailboxReviewAi(
   threads: DigestThread[],
+  lookbackDays: number,
+  focus: string | null,
   settings: ActiveAiSettings
 ): Promise<{ narrative: string[]; suggestedActions: string[] }> {
-  const prompt = buildDigestPrompt(threads);
+  const prompt = buildDigestPrompt(threads, lookbackDays, focus);
   const parsed =
     settings.provider === "openai"
       ? await callOpenAiTool(prompt, settings.apiKey, settings.model)

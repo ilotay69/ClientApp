@@ -2,19 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { reviewMailbox, type MailboxReviewResult } from "@/lib/mailbox-review";
+import { reviewMailbox, MAX_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS, type MailboxReviewResult } from "@/lib/mailbox-review";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
 
 /** Live read of the signed-in user's own connected mailbox — nothing here
  * is persisted (no email content is written to any table); the result is
- * only ever returned to the button that triggered it. */
+ * only ever returned to the button that triggered it. `days` and `focus`
+ * come from the form (see MailboxReviewPanel) — `days` is clamped again
+ * here defensively even though the input already caps at 90, since form
+ * data can't be trusted just because the input has a max attribute. */
 export async function reviewMyMailbox(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's signature
   _prevState: MailboxReviewState,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's signature
-  _formData: FormData
+  formData: FormData
 ): Promise<MailboxReviewState> {
   const supabase = await createClient();
   const {
@@ -36,8 +38,12 @@ export async function reviewMyMailbox(
     };
   }
 
+  const rawDays = Number(formData.get("days"));
+  const lookbackDays = Number.isFinite(rawDays) && rawDays > 0 ? Math.min(Math.trunc(rawDays), MAX_LOOKBACK_DAYS) : DEFAULT_LOOKBACK_DAYS;
+  const focus = String(formData.get("focus") ?? "").trim() || undefined;
+
   try {
-    const result = await reviewMailbox(admin, connection as MailConnection);
+    const result = await reviewMailbox(admin, connection as MailConnection, { lookbackDays, focus });
     return { error: null, result };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Mailbox review failed.", result: null };

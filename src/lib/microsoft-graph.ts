@@ -198,6 +198,37 @@ export async function findFolderIdByDisplayName(
   return inboxChildren.find((f) => f.displayName.toLowerCase() === target)?.id ?? null;
 }
 
+const FOLDER_TREE_SAFETY_CAP = 100;
+
+/**
+ * Walks a folder and every descendant folder (subfolders can nest
+ * arbitrarily deep in Outlook), returning every folder id found —
+ * `rootFolderId` accepts Graph's well-known folder names ("inbox",
+ * "sentitems") as well as a real folder id, since both work identically
+ * against /mailFolders/{id}/childFolders. Breadth-first with a safety cap
+ * so one pathological folder tree can't turn a single review click into
+ * hundreds of Graph calls.
+ */
+export async function listFolderIdsRecursive(accessToken: string, rootFolderId: string): Promise<string[]> {
+  const ids: string[] = [rootFolderId];
+  const queue: string[] = [rootFolderId];
+
+  while (queue.length > 0 && ids.length < FOLDER_TREE_SAFETY_CAP) {
+    const current = queue.shift()!;
+    const children = await listMailFolders(
+      accessToken,
+      `https://graph.microsoft.com/v1.0/me/mailFolders/${current}/childFolders?$top=100`
+    );
+    for (const child of children) {
+      if (ids.length >= FOLDER_TREE_SAFETY_CAP) break;
+      ids.push(child.id);
+      queue.push(child.id);
+    }
+  }
+
+  return ids;
+}
+
 /**
  * Fetches messages from one specific folder only — used for the live,
  * non-persisted mailbox review, which is scoped to a small, explicit set
