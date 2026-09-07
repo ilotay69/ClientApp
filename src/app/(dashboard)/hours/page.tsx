@@ -20,6 +20,8 @@ import { MailboxUsageRollup } from "@/components/mailbox-usage-rollup";
 import { HuntressAgentAlerts } from "@/components/huntress-agent-alerts";
 import { HuntressOpenIncidents } from "@/components/huntress-open-incidents";
 import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
+import { BitdefenderEndpoints } from "@/components/bitdefender-endpoints";
+import { BitdefenderOpenIncidents } from "@/components/bitdefender-open-incidents";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import {
   fetchResourceHoursAction,
@@ -50,6 +52,7 @@ import {
   fetchHuntressOpenIncidentsAction,
   fetchHuntressSiemLogsAction,
 } from "./huntress-actions";
+import { fetchGravityZoneEndpointsAction, fetchGravityZoneOpenIncidentsAction } from "./bitdefender-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +180,19 @@ export default async function HoursPage() {
               {
                 label: "Huntress SIEM",
                 content: <HuntressSiemLogs action={fetchHuntressSiemLogsAction} />,
+              },
+            ],
+          },
+          {
+            group: "Bitdefender",
+            tabs: [
+              {
+                label: "Bitdefender Endpoints",
+                content: <BitdefenderEndpoints action={fetchGravityZoneEndpointsAction} />,
+              },
+              {
+                label: "Bitdefender Incidents",
+                content: <BitdefenderOpenIncidents action={fetchGravityZoneOpenIncidentsAction} />,
               },
             ],
           },
