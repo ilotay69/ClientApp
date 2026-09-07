@@ -186,6 +186,9 @@ export interface MailConnection {
   expires_at: string;
   connected_at: string;
   last_synced_at: string | null;
+  review_subfolder: string | null;
+  review_excludes: string | null;
+  review_lookback_days: number | null;
 }
 
 export interface EmailLink {

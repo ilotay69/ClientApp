@@ -1,5 +1,5 @@
 import {
-  listFolderIdsRecursive,
+  findFolderIdByDisplayName,
   fetchMessagesInFolder,
   type MailboxSnapshotMessage,
 } from "@/lib/microsoft-graph";
@@ -11,9 +11,12 @@ import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
 export const DEFAULT_LOOKBACK_DAYS = 30;
 export const MAX_LOOKBACK_DAYS = 90;
-// Scope: Inbox and Sent Items, plus every subfolder under each (Deleted
-// Items, Junk, Drafts, and Conversation History are still excluded — none
-// of those represent "live" client conversation).
+// Scope: Inbox and Sent Items always, plus one specific named folder if
+// the user asked for one — not every subfolder recursively (that version
+// tripped Graph's per-mailbox concurrency limit on a real mailbox and was
+// slow even once fixed; a named folder is both cheaper and lets the user
+// point at exactly the triage folder that matters instead of scanning
+// everything under Inbox).
 const ROOT_FOLDERS = ["inbox", "sentitems"];
 // Bounds the AI prompt size — the most-overdue threads (the ones that
 // matter most) go in first; anything past this cap only gets the plain
@@ -27,7 +30,8 @@ const MAX_DIGEST_THREADS = 40;
 // message that happens to come from an address containing one of these
 // substrings but is genuinely a person (rare) would be excluded too —
 // an acceptable false-positive rate for what this is (a noise filter for
-// a digest, not a security control).
+// a digest, not a security control). The user's own typed exclude terms
+// (see isExcludedByUserTerms) are additional to this, not a replacement.
 const NOISE_SENDER_PATTERNS = [
   "noreply",
   "no-reply",
@@ -53,6 +57,27 @@ function isLikelyNoise(message: MailboxSnapshotMessage): boolean {
   return NOISE_SENDER_PATTERNS.some((p) => from.includes(p) || fromName.includes(p));
 }
 
+/** Parses the user's raw "what to exclude" text (comma or newline
+ * separated, e.g. "notifications, CG Helpdesk, billing@vendor.com") into
+ * lowercased terms, matched against sender address, sender display name,
+ * and subject — broader than the built-in noise filter's sender-only
+ * match, since a term like a helpdesk's name is often more recognizable
+ * in the display name or subject than the raw address. */
+function parseExcludeTerms(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split(/[,\n]/)
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isExcludedByUserTerms(message: MailboxSnapshotMessage, terms: string[]): boolean {
+  if (terms.length === 0) return false;
+  const from = message.from?.emailAddress?.address?.toLowerCase() ?? "";
+  const fromName = message.from?.emailAddress?.name?.toLowerCase() ?? "";
+  const subject = (message.subject ?? "").toLowerCase();
+  return terms.some((t) => from.includes(t) || fromName.includes(t) || subject.includes(t));
+}
+
 type DigestThread = {
   subject: string;
   contact: string;
@@ -68,6 +93,9 @@ export type MailboxReviewResult = {
   aiAvailable: boolean;
   hitPageCap: boolean;
   focusIgnored: boolean;
+  /** True when a subfolder name was given but no folder with that exact
+   * name (top-level, or under Inbox) could be found. */
+  subfolderNotFound: boolean;
 };
 
 export type MailboxReviewOptions = {
@@ -80,6 +108,11 @@ export type MailboxReviewOptions = {
    * digest. Only honored when an AI provider is configured; if not,
    * `focusIgnored` comes back true so the caller can say so. */
   focus?: string;
+  /** One specific folder's exact display name to scan in addition to
+   * Inbox and Sent Items — not a recursive walk. */
+  subfolder?: string;
+  /** Raw "what to exclude" text — see parseExcludeTerms. */
+  excludeTerms?: string;
 };
 
 function daysLabel(days: number) {
@@ -106,20 +139,23 @@ export async function reviewMailbox(
 ): Promise<MailboxReviewResult> {
   const lookbackDays = Math.min(Math.max(Math.trunc(options.lookbackDays ?? DEFAULT_LOOKBACK_DAYS), 1), MAX_LOOKBACK_DAYS);
   const focus = options.focus?.trim() || null;
+  const excludeTerms = parseExcludeTerms(options.excludeTerms);
 
   const accessToken = await getValidAccessToken(admin, connection);
   const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const folderIds = new Set<string>();
-  for (const root of ROOT_FOLDERS) {
-    for (const id of await listFolderIdsRecursive(accessToken, root)) folderIds.add(id);
-  }
+  const subfolderName = options.subfolder?.trim() || null;
+  const subfolderId = subfolderName ? await findFolderIdByDisplayName(accessToken, subfolderName) : null;
+  const subfolderNotFound = Boolean(subfolderName) && !subfolderId;
 
-  // Sequential, not Promise.all — fetching every subfolder concurrently
+  const folderIds = new Set<string>(ROOT_FOLDERS);
+  if (subfolderId) folderIds.add(subfolderId);
+
+  // Sequential, not Promise.all — fetching several folders concurrently
   // trips Graph's per-mailbox concurrency limit ("ApplicationThrottled" /
-  // MailboxConcurrency, a real 429 hit once folder scope widened beyond a
-  // small fixed set). graphFetch still retries individual 429s, but
-  // avoiding the pile-up in the first place is the real fix.
+  // MailboxConcurrency, a real 429 hit once this scanned more than a
+  // couple of fixed folders. graphFetch still retries individual 429s,
+  // but avoiding the pile-up in the first place is the real fix.
   let hitPageCap = false;
   const byId = new Map<string, MailboxSnapshotMessage>();
   for (const id of folderIds) {
@@ -127,6 +163,7 @@ export async function reviewMailbox(
     if (r.hitPageCap) hitPageCap = true;
     for (const m of r.messages) {
       if (isLikelyNoise(m)) continue;
+      if (isExcludedByUserTerms(m, excludeTerms)) continue;
       byId.set(m.id, m);
     }
   }
@@ -194,6 +231,7 @@ export async function reviewMailbox(
     aiAvailable: Boolean(aiSettings),
     hitPageCap,
     focusIgnored,
+    subfolderNotFound,
   };
 }
 
@@ -232,7 +270,7 @@ function buildDigestPrompt(threads: DigestThread[], lookbackDays: number, focus:
     ? `The user specifically asked for this: "${focus}" — write the briefing to answer that, using only the threads below. If none of the threads below are relevant to what they asked, say so plainly instead of forcing an answer. Still give a short, prioritized list of concrete next actions for today.`
     : `Write one sentence per thread worth mentioning, ordered most urgent first, in the exact style of these examples: "Please get back to Jordan — he asked about the renewal pricing 6 days ago." / "You still haven't heard back from Attilio on the quote you sent 12 days ago." Don't invent detail beyond what's shown. Then give a short, prioritized list of concrete actions for today.`;
 
-  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days (Inbox, Sent Items, and every subfolder under each — automated notifications/newsletters/alerts already filtered out), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message.
+  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days (Inbox and Sent Items, plus any specific folder they asked to include — automated notifications/newsletters/alerts and anything they asked to exclude are already filtered out), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message.
 
 ${instruction}
 

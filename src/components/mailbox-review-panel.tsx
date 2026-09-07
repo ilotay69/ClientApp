@@ -12,9 +12,17 @@ const FOCUS_PLACEHOLDER = `What do you want to know? For example:
 "Find any client complaints or escalations."
 Leave blank for the default: who's waiting on whom, most overdue first.`;
 
-export function MailboxReviewPanel() {
+export function MailboxReviewPanel({
+  initialDays = 30,
+  initialSubfolder = "",
+  initialExcludes = "",
+}: {
+  initialDays?: number;
+  initialSubfolder?: string;
+  initialExcludes?: string;
+}) {
   const [state, formAction, pending] = useActionState(reviewMyMailbox, initialState);
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(initialDays);
   const result = state.result;
 
   return (
@@ -22,8 +30,9 @@ export function MailboxReviewPanel() {
       <div className="border-b border-slate-200 px-5 py-3">
         <h2 className="text-sm font-semibold text-slate-900">Mailbox review</h2>
         <p className="text-xs text-slate-500">
-          Live read of Inbox, Sent Items, and their subfolders — nothing here is saved. Automated
-          notifications, newsletters, and alerts are filtered out automatically.
+          Live read of Inbox and Sent Items (plus a folder of your choice, below) — nothing here is
+          saved except these settings. Automated notifications, newsletters, and alerts are
+          filtered out automatically, on top of anything you exclude yourself.
         </p>
 
         <form action={formAction} className="mt-3 space-y-2">
@@ -33,6 +42,28 @@ export function MailboxReviewPanel() {
             placeholder={FOCUS_PLACEHOLDER}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
           />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="block text-xs text-slate-600">
+              Also scan this folder (optional)
+              <input
+                type="text"
+                name="subfolder"
+                defaultValue={initialSubfolder}
+                placeholder="e.g. Active Inbox"
+                className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm placeholder:text-slate-400"
+              />
+            </label>
+            <label className="block text-xs text-slate-600">
+              Exclude senders/subjects containing (optional)
+              <input
+                type="text"
+                name="excludes"
+                defaultValue={initialExcludes}
+                placeholder="e.g. CG Helpdesk, billing, no-reply"
+                className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm placeholder:text-slate-400"
+              />
+            </label>
+          </div>
           <div className="flex items-center justify-between gap-3">
             <label className="flex items-center gap-2 text-xs text-slate-600">
               Look back
@@ -72,6 +103,13 @@ export function MailboxReviewPanel() {
       {result && (
         <div className="space-y-5 px-5 py-4">
           <p className="text-xs text-slate-500">{result.mailboxEmail}</p>
+
+          {result.subfolderNotFound && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Couldn&apos;t find a folder with that exact name (checked top-level folders and Inbox&apos;s
+              direct subfolders) — only Inbox and Sent Items were scanned this time.
+            </p>
+          )}
 
           {result.narrative.length === 0 ? (
             <p className="text-sm text-slate-500">Nothing pending — you&apos;re all caught up.</p>
