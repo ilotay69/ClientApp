@@ -128,7 +128,8 @@ export async function fetchHuntressAgents(
     defender_substatus?: string;
     firewall_status?: string;
   };
-  const extraParams = organizationId != null ? { organization_id: String(organizationId) } : {};
+  const extraParams: Record<string, string> = {};
+  if (organizationId != null) extraParams.organization_id = String(organizationId);
   const agents = await huntressGetAllPages<RawAgent>(creds, "/agents", extraParams, "agents");
   return agents.map((a) => ({
     id: a.id,
