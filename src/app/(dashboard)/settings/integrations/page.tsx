@@ -9,6 +9,7 @@ import { HuduSettingsForm } from "@/components/hudu-settings-form";
 import { HuntressSettingsForm } from "@/components/huntress-settings-form";
 import { BitdefenderSettingsForm } from "@/components/bitdefender-settings-form";
 import { WizerSettingsForm } from "@/components/wizer-settings-form";
+import { NordLayerSettingsForm } from "@/components/nordlayer-settings-form";
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
 import { Tabs } from "@/components/tabs";
 import {
@@ -26,6 +27,8 @@ import {
   testBitdefenderConnectionAction,
   saveWizerSettings,
   testWizerConnectionAction,
+  saveNordLayerSettings,
+  testNordLayerConnectionAction,
   saveSalesNotificationSettings,
 } from "./actions";
 
@@ -56,6 +59,7 @@ export default async function IntegrationsSettingsPage({
     { data: huntressRow },
     { data: bitdefenderRow },
     { data: wizerRow },
+    { data: nordLayerRow },
     { data: salesNotifyRow },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
@@ -73,6 +77,7 @@ export default async function IntegrationsSettingsPage({
     admin.from("huntress_settings").select("api_key, api_secret").eq("id", true).maybeSingle(),
     admin.from("bitdefender_settings").select("region, api_key").eq("id", true).maybeSingle(),
     admin.from("wizer_settings").select("api_key").eq("id", true).maybeSingle(),
+    admin.from("nordlayer_settings").select("api_key").eq("id", true).maybeSingle(),
     admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
   ]);
 
@@ -198,6 +203,16 @@ export default async function IntegrationsSettingsPage({
                 hasCredentials={Boolean(wizerRow?.api_key)}
                 saveAction={saveWizerSettings}
                 testAction={testWizerConnectionAction}
+              />
+            ),
+          },
+          {
+            label: "NordLayer",
+            content: (
+              <NordLayerSettingsForm
+                hasCredentials={Boolean(nordLayerRow?.api_key)}
+                saveAction={saveNordLayerSettings}
+                testAction={testNordLayerConnectionAction}
               />
             ),
           },

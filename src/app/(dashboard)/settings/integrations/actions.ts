@@ -16,6 +16,8 @@ import { testBitdefenderConnection, type BitdefenderCredentials } from "@/lib/bi
 import { getBitdefenderSettings } from "@/lib/bitdefender-settings";
 import { testWizerConnection, type WizerCredentials } from "@/lib/wizer";
 import { getWizerSettings } from "@/lib/wizer-settings";
+import { testNordLayerConnection, type NordLayerCredentials } from "@/lib/nordlayer";
+import { getNordLayerSettings } from "@/lib/nordlayer-settings";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -464,6 +466,55 @@ export async function testWizerConnectionAction(): Promise<{ ok: boolean; messag
   }
 
   const result = await testWizerConnection(settings satisfies WizerCredentials);
+  if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
+  return { ok: true, message: "Connected — credentials are working." };
+}
+
+/** Upserts the singleton NordLayer credentials row. The key is
+ * write-only, same leave-blank-to-keep pattern as every other
+ * integration here. */
+export async function saveNordLayerSettings(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const apiKey = emptyToUndefined(formData.get("api_key"));
+
+  const admin = createAdminClient();
+  const existing = await getNordLayerSettings(admin);
+  const effectiveApiKey = apiKey ?? existing?.apiKey;
+  if (!effectiveApiKey) {
+    return { error: "An API key is required for first-time setup.", success: null };
+  }
+
+  const payload: { id: true; updated_by: string; api_key?: string } = {
+    id: true,
+    updated_by: user.id,
+  };
+  if (apiKey) payload.api_key = apiKey;
+
+  const { error } = await admin.from("nordlayer_settings").upsert(payload, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}
+
+/** Tests the currently-saved NordLayer credentials — doesn't persist
+ * anything, just reports whether they work. */
+export async function testNordLayerConnectionAction(): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getNordLayerSettings(admin);
+  if (!settings) {
+    return { ok: false, message: "Save your NordLayer credentials first." };
+  }
+
+  const result = await testNordLayerConnection(settings satisfies NordLayerCredentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
 }
