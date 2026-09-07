@@ -3,30 +3,28 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { getHuntressSettings } from "@/lib/huntress-settings";
-import { fetchHuntressAgentAlerts, type HuntressAgentAlertRow } from "@/lib/huntress-lookups";
-import { fetchRecentHuntressSiemLogs, type HuntressSiemLogRow } from "@/lib/huntress";
+import { fetchHuntressAgentsFull, type HuntressAgentRow } from "@/lib/huntress-lookups";
 import { fetchItdrRows, type ItdrUserRow } from "@/lib/m365-itdr";
 import type { ClientLookupError } from "@/lib/m365-lookups";
 
-export type SecurityType = "edr" | "sat" | "itdr" | "siem";
+export type SecurityType = "edr" | "sat" | "itdr";
 
 export type SecurityLookupResult =
-  | { type: "edr"; rows: HuntressAgentAlertRow[] }
+  | { type: "edr"; rows: HuntressAgentRow[] }
   | { type: "itdr"; rows: ItdrUserRow[]; errors: ClientLookupError[] }
-  | { type: "siem"; rows: HuntressSiemLogRow[] }
   | { error: string };
 
-const SIEM_WINDOW_HOURS = 24;
-
-/** clientId === "" means every client (account-wide). EDR and SIEM are
- * both Huntress (single shared account, no per-client credential
- * differences). ITDR is Microsoft 365, which already has per-client
+/** clientId === "" means every client (account-wide). EDR is Huntress
+ * (single shared account, scoped by organization filter when one client
+ * is picked). ITDR is Microsoft 365, which already has per-client
  * credentials, so "one client" vs "all clients" naturally maps to one
  * tenant vs looping every configured tenant. SAT has no confirmed data
  * source at all — Huntress's full public API (checked every tag: Agents,
  * Identities, Signals, Incident Reports, SIEM, Escalations, Reseller,
- * Remote Access, ...) has nothing training/awareness-related, so this
- * returns an honest gap rather than fabricating something. */
+ * Remote Access) has nothing training/awareness-related, so this returns
+ * an honest gap rather than fabricating something. (SIEM moved to its
+ * own Lookups tab — it can't be filtered by client yet, so it didn't fit
+ * this picker's per-client shape.) */
 export async function getSecurityLookupAction(type: SecurityType, clientId: string): Promise<SecurityLookupResult> {
   if (!(await requirePermission("manage_services"))) {
     return { error: "You don't have permission to do that." };
@@ -48,7 +46,7 @@ export async function getSecurityLookupAction(type: SecurityType, clientId: stri
     }
     try {
       if (!clientId) {
-        return { type: "edr", rows: await fetchHuntressAgentAlerts(settings) };
+        return { type: "edr", rows: await fetchHuntressAgentsFull(settings) };
       }
       const { data: client } = await admin
         .from("clients")
@@ -60,30 +58,17 @@ export async function getSecurityLookupAction(type: SecurityType, clientId: stri
           error: "This client isn't linked to a Huntress organization yet — map it from the client's own page.",
         };
       }
-      return { type: "edr", rows: await fetchHuntressAgentAlerts(settings, client.huntress_organization_id) };
+      return { type: "edr", rows: await fetchHuntressAgentsFull(settings, client.huntress_organization_id) };
     } catch (err) {
       return { error: err instanceof Error ? err.message : "Failed to load EDR data." };
     }
   }
 
-  if (type === "itdr") {
-    try {
-      const { rows, errors } = await fetchItdrRows(admin, clientId || null);
-      return { type: "itdr", rows, errors };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : "Failed to load ITDR data." };
-    }
-  }
-
-  // type === "siem"
-  const settings = await getHuntressSettings(admin);
-  if (!settings) {
-    return { error: "Huntress isn't connected yet — set it up under Settings → Integrations." };
-  }
+  // type === "itdr"
   try {
-    const rows = await fetchRecentHuntressSiemLogs(settings, SIEM_WINDOW_HOURS);
-    return { type: "siem", rows };
+    const { rows, errors } = await fetchItdrRows(admin, clientId || null);
+    return { type: "itdr", rows, errors };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Failed to load SIEM data." };
+    return { error: err instanceof Error ? err.message : "Failed to load ITDR data." };
   }
 }

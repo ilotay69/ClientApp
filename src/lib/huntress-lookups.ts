@@ -76,6 +76,51 @@ export async function fetchHuntressAgentAlerts(
   return rows.sort((a, b) => (b.daysSinceCallback ?? Infinity) - (a.daysSinceCallback ?? Infinity));
 }
 
+export type HuntressAgentRow = {
+  agentId: number;
+  hostname: string;
+  organizationName: string;
+  platform: string | null;
+  os: string | null;
+  version: string | null;
+  edrVersion: string | null;
+  lastCallbackAt: string | null;
+  defenderStatus: string | null;
+  firewallStatus: string | null;
+};
+
+/** Every agent, full detail — not filtered to problems, unlike
+ * fetchHuntressAgentAlerts. For a per-client investigative view (Security
+ * by Type's EDR tab), where "nothing to show" for a healthy environment
+ * reads as broken, not as good news — the full inventory is the more
+ * useful default there, with fetchHuntressAgentAlerts reserved for a
+ * quick account-wide "what needs attention" scan. */
+export async function fetchHuntressAgentsFull(
+  creds: HuntressCredentials,
+  organizationId?: number
+): Promise<HuntressAgentRow[]> {
+  const [orgs, agents] = await Promise.all([
+    fetchHuntressOrganizations(creds),
+    fetchHuntressAgents(creds, organizationId),
+  ]);
+  const orgNameById = new Map(orgs.map((o) => [o.id, o.name]));
+
+  return agents
+    .map((a) => ({
+      agentId: a.id,
+      hostname: a.hostname,
+      organizationName: orgNameById.get(a.organizationId) ?? "Unknown organization",
+      platform: a.platform,
+      os: a.os,
+      version: a.version,
+      edrVersion: a.edrVersion,
+      lastCallbackAt: a.lastCallbackAt,
+      defenderStatus: a.defenderStatus,
+      firewallStatus: a.firewallStatus,
+    }))
+    .sort((a, b) => a.hostname.localeCompare(b.hostname));
+}
+
 export type HuntressOpenIncidentRow = {
   incidentId: number;
   organizationName: string;

@@ -19,6 +19,7 @@ import { PrivilegedRolesRollup } from "@/components/privileged-roles-rollup";
 import { MailboxUsageRollup } from "@/components/mailbox-usage-rollup";
 import { HuntressAgentAlerts } from "@/components/huntress-agent-alerts";
 import { HuntressOpenIncidents } from "@/components/huntress-open-incidents";
+import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
 import { Tabs } from "@/components/tabs";
 import {
   fetchResourceHoursAction,
@@ -44,7 +45,11 @@ import {
   fetchPrivilegedRolesRollupAction,
   fetchMailboxUsageRollupAction,
 } from "./m365-actions";
-import { fetchHuntressAgentAlertsAction, fetchHuntressOpenIncidentsAction } from "./huntress-actions";
+import {
+  fetchHuntressAgentAlertsAction,
+  fetchHuntressOpenIncidentsAction,
+  fetchHuntressSiemLogsAction,
+} from "./huntress-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +155,10 @@ export default async function HoursPage() {
           {
             label: "Huntress Incidents",
             content: <HuntressOpenIncidents action={fetchHuntressOpenIncidentsAction} />,
+          },
+          {
+            label: "Huntress SIEM",
+            content: <HuntressSiemLogs action={fetchHuntressSiemLogsAction} />,
           },
         ]}
       />
