@@ -57,17 +57,20 @@ async function gravityZoneCall<T>(
 }
 
 /** Confirms the credentials actually work via one cheap authenticated
- * call. getCompaniesList is a Partners-product-only method (per
- * Bitdefender's own docs, it returns empty on a Cloud Solutions-tier
- * account rather than erroring) — since this integration is set up as one
- * shared partner-level key, that's the right tier to expect, and this
- * also happens to double as the first real proof the "list every client
- * company" call works, not just that a request went through. */
+ * call. getCompaniesList lives under the Network API module (confirmed
+ * against Bitdefender's own live docs — its breadcrumb is Public API >
+ * Network, not Companies, despite the method name), and is a
+ * Partners-product-only method (per Bitdefender's own docs, it returns
+ * empty on a Cloud Solutions-tier account rather than erroring) — since
+ * this integration is set up as one shared partner-level key, that's the
+ * right tier to expect, and this also happens to double as the first real
+ * proof the "list every client company" call works, not just that a
+ * request went through. */
 export async function testBitdefenderConnection(
   creds: BitdefenderCredentials
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await gravityZoneCall(creds, "companies", "getCompaniesList");
+    await gravityZoneCall(creds, "network", "getCompaniesList");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Unknown error" };
@@ -83,6 +86,6 @@ export type BitdefenderCompany = { id: string; name: string };
  * ninjaone_organization_id/autotask_company_id play for their own
  * integrations. */
 export async function fetchGravityZoneCompanies(creds: BitdefenderCredentials): Promise<BitdefenderCompany[]> {
-  const result = await gravityZoneCall<BitdefenderCompany[]>(creds, "companies", "getCompaniesList");
+  const result = await gravityZoneCall<BitdefenderCompany[]>(creds, "network", "getCompaniesList");
   return result ?? [];
 }
