@@ -2,39 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { generateSuggestions } from "@/lib/suggestions";
-import { getActiveAiSettings } from "@/lib/ai/settings";
 import { reviewMailbox, type MailboxReviewResult } from "@/lib/mailbox-review";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
-
-export type RefreshState = { error: string | null; summary: string | null };
-
-export async function refreshInsights(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's signature
-  _prevState: RefreshState,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's signature
-  _formData: FormData
-): Promise<RefreshState> {
-  const admin = createAdminClient();
-
-  if (!(await getActiveAiSettings(admin))) {
-    return {
-      error: "AI insights aren't set up yet — configure a provider and API key on the AI Settings page.",
-      summary: null,
-    };
-  }
-
-  try {
-    const result = await generateSuggestions(admin, { maxClients: 10 });
-    revalidatePath("/dashboard");
-    return {
-      error: null,
-      summary: `Checked ${result.clientsConsidered} client${result.clientsConsidered === 1 ? "" : "s"} with recent email activity, found ${result.created} new insight${result.created === 1 ? "" : "s"}.`,
-    };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Refresh failed.", summary: null };
-  }
-}
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
 

@@ -2,8 +2,6 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
-import { RefreshInsightsButton } from "@/components/refresh-insights-button";
-import { ClientInsightParagraph } from "@/components/client-insight-paragraph";
 import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { hasPermission } from "@/lib/permissions";
 
@@ -27,7 +25,6 @@ export default async function DashboardPage() {
     { data: allOpenTasks },
     { data: dueTouchpoints },
     { data: activeProjects },
-    { data: suggestions },
     { data: serviceChecks },
   ] = await Promise.all([
     supabase
@@ -51,13 +48,6 @@ export default async function DashboardPage() {
       .select("id, name, status, target_end_date, clients(name)")
       .in("status", ["planning", "active", "on_hold"])
       .order("target_end_date", { ascending: true, nullsFirst: false }),
-    supabase
-      .from("suggestions")
-      .select("id, client_id, kind, summary, detail, priority, clients(name)")
-      .eq("status", "open")
-      .order("priority", { ascending: true })
-      .order("created_at", { ascending: false })
-      .limit(15),
     supabase
       .from("client_service_checks")
       .select("id, cadence_days, last_checked_at, clients(name), service_catalog(name, default_cadence_days)"),
@@ -88,20 +78,6 @@ export default async function DashboardPage() {
           {me?.full_name ? ` — hey ${me.full_name.split(" ")[0]}` : ""}.
         </p>
       </div>
-
-      <Section title="Insights" emptyText="No open insights right now." action={<RefreshInsightsButton />}>
-        {(suggestions ?? []).map((s) => (
-          <ClientInsightParagraph
-            key={s.id}
-            id={s.id}
-            clientId={s.client_id}
-            clientName={(s.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
-            summary={s.summary}
-            detail={s.detail}
-            priority={s.priority}
-          />
-        ))}
-      </Section>
 
       <MailboxReviewPanel />
 
