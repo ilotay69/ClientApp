@@ -10,6 +10,8 @@ import { HuntressSettingsForm } from "@/components/huntress-settings-form";
 import { BitdefenderSettingsForm } from "@/components/bitdefender-settings-form";
 import { WizerSettingsForm } from "@/components/wizer-settings-form";
 import { NordLayerSettingsForm } from "@/components/nordlayer-settings-form";
+import { NordPassSettingsForm } from "@/components/nordpass-settings-form";
+import { ForticloudAccountsPanel } from "@/components/forticloud-accounts-panel";
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
 import { Tabs } from "@/components/tabs";
 import {
@@ -29,8 +31,15 @@ import {
   testWizerConnectionAction,
   saveNordLayerSettings,
   testNordLayerConnectionAction,
+  saveNordPassSettings,
   saveSalesNotificationSettings,
 } from "./actions";
+import {
+  listForticloudAccountsAction,
+  addForticloudAccountAction,
+  deleteForticloudAccountAction,
+  testForticloudAccountAction,
+} from "./forticloud-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +69,7 @@ export default async function IntegrationsSettingsPage({
     { data: bitdefenderRow },
     { data: wizerRow },
     { data: nordLayerRow },
+    { data: nordPassRow },
     { data: salesNotifyRow },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
@@ -78,6 +88,7 @@ export default async function IntegrationsSettingsPage({
     admin.from("bitdefender_settings").select("region, api_key").eq("id", true).maybeSingle(),
     admin.from("wizer_settings").select("api_key").eq("id", true).maybeSingle(),
     admin.from("nordlayer_settings").select("api_key").eq("id", true).maybeSingle(),
+    admin.from("nordpass_settings").select("private_key").eq("id", true).maybeSingle(),
     admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
   ]);
 
@@ -213,6 +224,26 @@ export default async function IntegrationsSettingsPage({
                 hasCredentials={Boolean(nordLayerRow?.api_key)}
                 saveAction={saveNordLayerSettings}
                 testAction={testNordLayerConnectionAction}
+              />
+            ),
+          },
+          {
+            label: "NordPass Business",
+            content: (
+              <NordPassSettingsForm
+                hasCredentials={Boolean(nordPassRow?.private_key)}
+                saveAction={saveNordPassSettings}
+              />
+            ),
+          },
+          {
+            label: "FortiCloud",
+            content: (
+              <ForticloudAccountsPanel
+                listAction={listForticloudAccountsAction}
+                addAction={addForticloudAccountAction}
+                deleteAction={deleteForticloudAccountAction}
+                testAction={testForticloudAccountAction}
               />
             ),
           },

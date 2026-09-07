@@ -18,6 +18,7 @@ import { testWizerConnection, type WizerCredentials } from "@/lib/wizer";
 import { getWizerSettings } from "@/lib/wizer-settings";
 import { testNordLayerConnection, type NordLayerCredentials } from "@/lib/nordlayer";
 import { getNordLayerSettings } from "@/lib/nordlayer-settings";
+import { getNordPassSettings } from "@/lib/nordpass-settings";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -517,6 +518,37 @@ export async function testNordLayerConnectionAction(): Promise<{ ok: boolean; me
   const result = await testNordLayerConnection(settings satisfies NordLayerCredentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
+}
+
+/** Upserts the singleton NordPass credentials row. No test-connection
+ * action pairs with this yet — see supabase/052_nordpass_integration.sql
+ * for why. */
+export async function saveNordPassSettings(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const privateKey = emptyToUndefined(formData.get("private_key"));
+
+  const admin = createAdminClient();
+  const existing = await getNordPassSettings(admin);
+  const effectiveKey = privateKey ?? existing?.privateKey;
+  if (!effectiveKey) {
+    return { error: "A private key is required for first-time setup.", success: null };
+  }
+
+  const payload: { id: true; updated_by: string; private_key?: string } = {
+    id: true,
+    updated_by: user.id,
+  };
+  if (privateKey) payload.private_key = privateKey;
+
+  const { error } = await admin.from("nordpass_settings").upsert(payload, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
 }
 
 export async function saveSalesNotificationSettings(
