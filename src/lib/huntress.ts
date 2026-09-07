@@ -251,21 +251,21 @@ export async function fetchHuntressSiemLogs(
   return rows;
 }
 
-/** A safe, generic default query — recent log activity, newest first.
- * Huntress's own docs only confirm the query must start with `FROM logs`
- * and that `@timestamp` is the standard ECS timestamp field; there's no
- * confirmed way to filter by organization/client from the one documented
- * example, so this is intentionally account-wide only for now. */
+/** A safe, minimal default query — Huntress's own docs only confirm a
+ * query must start with `FROM logs` and that results are capped at 200
+ * rows per page automatically, so this omits everything else rather than
+ * guess at more ESQL syntax. `SORT` was tried first and rejected with
+ * "SORT is not supported in this context" (a real 422 from Huntress, not
+ * a request-shape bug) — their /siem/query endpoint apparently supports
+ * a restricted ESQL dialect, not the full Elasticsearch ES|QL language,
+ * so ordering/filtering beyond `FROM logs` needs to be confirmed command
+ * by command rather than assumed. There's also no confirmed way to filter
+ * by organization/client, so this is account-wide only for now. */
 export async function fetchRecentHuntressSiemLogs(
   creds: HuntressCredentials,
   hours: number
 ): Promise<HuntressSiemLogRow[]> {
   const rangeEnd = new Date();
   const rangeStart = new Date(rangeEnd.getTime() - hours * 3_600_000);
-  return fetchHuntressSiemLogs(
-    creds,
-    "FROM logs | SORT @timestamp DESC | LIMIT 200",
-    rangeStart.toISOString(),
-    rangeEnd.toISOString()
-  );
+  return fetchHuntressSiemLogs(creds, "FROM logs", rangeStart.toISOString(), rangeEnd.toISOString());
 }
