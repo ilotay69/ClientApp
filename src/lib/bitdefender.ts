@@ -128,15 +128,20 @@ export type BitdefenderEndpoint = {
   lastScanDate: string | null;
 };
 
-/** Every endpoint under one company — confirmed via GravityZone's own docs
- * to live at network/computers (not plain "network"), bulk + paginated
- * (unlike getManagedEndpointDetails, which takes one endpointId per call —
- * an N+1 risk this app avoids the same way it avoids per-agent Huntress
- * detail calls). Bulk listing doesn't carry malware/signature status —
- * those fields only exist on the single-endpoint detail call — but
- * productOutdated (agent needs an update) and the last successful scan
- * date are both available in bulk and are the useful "needs attention"
- * signals at this scale. */
+/** Every endpoint under one company — bulk + paginated (unlike
+ * getManagedEndpointDetails, which takes one endpointId per call — an N+1
+ * risk this app avoids the same way it avoids per-agent Huntress detail
+ * calls). The on-premises Control Center docs describe a "computers" vs
+ * "virtualmachines" service suffix for this method (network/computers),
+ * but that split is on-premises-only — the cloud Partners API's own
+ * Network category page lists a single flat URL
+ * (CONTROL_CENTER_APIs_ACCESS_URL/v1.0/jsonrpc/network, no suffix) for
+ * every Network method including this one; the suffixed form 404s against
+ * the cloud gateway (confirmed against a real request). Bulk listing
+ * doesn't carry malware/signature status — those fields only exist on the
+ * single-endpoint detail call — but productOutdated (agent needs an
+ * update) and the last successful scan date are both available in bulk
+ * and are the useful "needs attention" signals at this scale. */
 export async function fetchGravityZoneEndpoints(
   creds: BitdefenderCredentials,
   companyId: string
@@ -149,7 +154,7 @@ export async function fetchGravityZoneEndpoints(
     productOutdated?: boolean;
     lastSuccessfulScan?: { date?: string };
   };
-  const items = await gravityZonePaginate<RawEndpoint>(creds, "network/computers", "getEndpointsList", {
+  const items = await gravityZonePaginate<RawEndpoint>(creds, "network", "getEndpointsList", {
     parentId: companyId,
     isManaged: true,
     filters: { depth: { allItemsRecursively: true } },
