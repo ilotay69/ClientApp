@@ -254,17 +254,17 @@ export async function fetchHuntressSiemLogs(
 /** With no column selection, `FROM logs` alone returns every available
  * ECS field per row (confirmed by Huntress's own docs) — technically
  * data, but so wide and mostly-empty per event type that it reads as
- * useless. Huntress's own documented example response used exactly
- * these four fields (uuid, event.provider, host.hostname, message), and
- * their docs explicitly name `KEEP` as the column-selection mechanism —
- * unlike `SORT`, which they've already confirmed isn't supported, `KEEP`
- * is named directly in their own text, so it's a much safer bet. `SORT`
- * stays out for the same reason it was removed before: a real 422,
- * "SORT is not supported in this context" — their /siem/query endpoint
- * runs a restricted ESQL dialect, not full Elasticsearch ES|QL, so
- * nothing beyond what's explicitly documented should be assumed to work.
- * There's also no confirmed way to filter by organization/client, so
- * this is account-wide only for now. */
+ * useless, hence the KEEP clause (named directly in their docs as the
+ * column-selection mechanism, unlike SORT, which 422s with "not
+ * supported in this context").
+ *
+ * KEEP alone still 413'd with "Query exceeded memory limit" — a 24-hour,
+ * account-wide, un-LIMIT-ed scan is apparently too much for their
+ * backend to hold before returning anything, regardless of how few
+ * columns are kept. Two changes to fix that: a much narrower default
+ * window (1 hour, not 24), and LIMIT reintroduced — LIMIT itself was
+ * never actually rejected, only SORT was; it was removed earlier purely
+ * out of caution, not because Huntress said no to it. */
 export async function fetchRecentHuntressSiemLogs(
   creds: HuntressCredentials,
   hours: number
@@ -273,7 +273,7 @@ export async function fetchRecentHuntressSiemLogs(
   const rangeStart = new Date(rangeEnd.getTime() - hours * 3_600_000);
   return fetchHuntressSiemLogs(
     creds,
-    "FROM logs | KEEP @timestamp, uuid, event.provider, host.hostname, message",
+    "FROM logs | KEEP @timestamp, uuid, event.provider, host.hostname, message | LIMIT 100",
     rangeStart.toISOString(),
     rangeEnd.toISOString()
   );

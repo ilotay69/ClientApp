@@ -30,7 +30,7 @@ export function HuntressSiemLogs({
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Huntress SIEM logs</h2>
           <p className="text-xs text-slate-500">
-            Last 24 hours of log activity, account-wide — this is an add-on feature, not enabled on
+            Last hour of log activity, account-wide (capped at 100 rows) — this is an add-on feature, not enabled on
             every Huntress plan. No confirmed way to filter by client yet.
           </p>
         </div>

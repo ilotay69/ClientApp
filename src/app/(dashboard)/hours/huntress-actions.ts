@@ -11,7 +11,9 @@ import {
 } from "@/lib/huntress-lookups";
 import { fetchRecentHuntressSiemLogs, type HuntressSiemLogRow } from "@/lib/huntress";
 
-const SIEM_WINDOW_HOURS = 24;
+// Shrunk from 24 to 1 hour — a 24-hour, account-wide, un-LIMIT-ed scan
+// 413'd with "Query exceeded memory limit" (see huntress.ts).
+const SIEM_WINDOW_HOURS = 1;
 
 export async function fetchHuntressAgentAlertsAction(): Promise<
   { rows: HuntressAgentAlertRow[] } | { error: string }
