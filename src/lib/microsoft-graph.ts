@@ -4,6 +4,26 @@
 const AUTHORITY = () =>
   `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`;
 
+const THROTTLE_MAX_RETRIES = 3;
+
+/**
+ * Fetches a Graph URL with retry-with-backoff on 429 ("ApplicationThrottled"
+ * / MailboxConcurrency limit, a real error hit once mailbox review started
+ * walking many subfolders) — honors the Retry-After header when Graph sends
+ * one, otherwise backs off a couple seconds. Every Graph GET in this file
+ * that can run inside a loop over many folders/pages goes through this,
+ * since any of them can be the one that trips the limit.
+ */
+async function graphFetch(url: string, accessToken: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (res.status !== 429 || attempt >= THROTTLE_MAX_RETRIES) return res;
+
+    const retryAfterSeconds = Number(res.headers.get("Retry-After")) || 2;
+    await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+  }
+}
+
 /** Scopes requested for the "connect my mailbox" flow (not the login flow). */
 export const MAIL_SCOPES = "openid offline_access User.Read Mail.Read";
 
@@ -98,9 +118,7 @@ export async function fetchRecentMessages(
   let pages = 0;
 
   while (url && pages < maxPages) {
-    const res: Response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res: Response = await graphFetch(url, accessToken);
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Microsoft Graph request failed (${res.status}): ${text}`);
@@ -139,9 +157,7 @@ export async function fetchFlaggedMessages(
   let pages = 0;
 
   while (url && pages < maxPages) {
-    const res: Response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res: Response = await graphFetch(url, accessToken);
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Microsoft Graph flagged-messages request failed (${res.status}): ${text}`);
@@ -164,7 +180,7 @@ export type MailboxSnapshotMessage = GraphMessage & {
 type MailFolderSummary = { id: string; displayName: string };
 
 async function listMailFolders(accessToken: string, url: string): Promise<MailFolderSummary[]> {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const res = await graphFetch(url, accessToken);
   if (!res.ok) {
     throw new Error(`Failed to list mail folders (${res.status})`);
   }
@@ -258,9 +274,7 @@ export async function fetchMessagesInFolder(
   let pages = 0;
 
   while (url && pages < maxPages) {
-    const res: Response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res: Response = await graphFetch(url, accessToken);
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Microsoft Graph request failed (${res.status}): ${text}`);

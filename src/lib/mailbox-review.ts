@@ -115,11 +115,16 @@ export async function reviewMailbox(
     for (const id of await listFolderIdsRecursive(accessToken, root)) folderIds.add(id);
   }
 
-  const results = await Promise.all([...folderIds].map((id) => fetchMessagesInFolder(accessToken, id, since)));
-
-  const hitPageCap = results.some((r) => r.hitPageCap);
+  // Sequential, not Promise.all — fetching every subfolder concurrently
+  // trips Graph's per-mailbox concurrency limit ("ApplicationThrottled" /
+  // MailboxConcurrency, a real 429 hit once folder scope widened beyond a
+  // small fixed set). graphFetch still retries individual 429s, but
+  // avoiding the pile-up in the first place is the real fix.
+  let hitPageCap = false;
   const byId = new Map<string, MailboxSnapshotMessage>();
-  for (const r of results) {
+  for (const id of folderIds) {
+    const r = await fetchMessagesInFolder(accessToken, id, since);
+    if (r.hitPageCap) hitPageCap = true;
     for (const m of r.messages) {
       if (isLikelyNoise(m)) continue;
       byId.set(m.id, m);
