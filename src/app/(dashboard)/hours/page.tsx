@@ -17,6 +17,8 @@ import { MfaGapsRollup } from "@/components/mfa-gaps-rollup";
 import { InactiveAccountsRollup } from "@/components/inactive-accounts-rollup";
 import { PrivilegedRolesRollup } from "@/components/privileged-roles-rollup";
 import { MailboxUsageRollup } from "@/components/mailbox-usage-rollup";
+import { HuntressAgentAlerts } from "@/components/huntress-agent-alerts";
+import { HuntressOpenIncidents } from "@/components/huntress-open-incidents";
 import { Tabs } from "@/components/tabs";
 import {
   fetchResourceHoursAction,
@@ -42,6 +44,7 @@ import {
   fetchPrivilegedRolesRollupAction,
   fetchMailboxUsageRollupAction,
 } from "./m365-actions";
+import { fetchHuntressAgentAlertsAction, fetchHuntressOpenIncidentsAction } from "./huntress-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -139,6 +142,14 @@ export default async function HoursPage() {
           {
             label: "Mailbox Storage",
             content: <MailboxUsageRollup action={fetchMailboxUsageRollupAction} />,
+          },
+          {
+            label: "Huntress Agents",
+            content: <HuntressAgentAlerts action={fetchHuntressAgentAlertsAction} />,
+          },
+          {
+            label: "Huntress Incidents",
+            content: <HuntressOpenIncidents action={fetchHuntressOpenIncidentsAction} />,
           },
         ]}
       />
