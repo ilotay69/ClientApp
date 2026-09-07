@@ -13,7 +13,7 @@ import { NordLayerSettingsForm } from "@/components/nordlayer-settings-form";
 import { NordPassSettingsForm } from "@/components/nordpass-settings-form";
 import { ForticloudAccountsPanel } from "@/components/forticloud-accounts-panel";
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
-import { Tabs } from "@/components/tabs";
+import { GroupedTabs } from "@/components/grouped-tabs";
 import {
   saveAiProviderSettings,
   setActiveAiProvider,
@@ -125,136 +125,151 @@ export default async function IntegrationsSettingsPage({
         </div>
       )}
 
-      <Tabs
-        tabs={[
+      <GroupedTabs
+        groups={[
           {
-            label: "AI Providers",
-            content: (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {PROVIDERS.map((provider) => {
-                  const row = byProvider.get(provider);
-                  return (
-                    <AiProviderSettingsForm
-                      key={provider}
-                      provider={provider}
-                      label={AI_PROVIDER_LABELS[provider]}
-                      defaultModel={AI_PROVIDER_DEFAULT_MODELS[provider]}
-                      hasKey={Boolean(row?.api_key)}
-                      isActive={Boolean(row?.is_active)}
-                      currentModel={row?.model ?? null}
-                      saveAction={saveAiProviderSettings.bind(null, provider)}
-                      activateAction={setActiveAiProvider}
-                    />
-                  );
-                })}
-              </div>
-            ),
+            group: "Core Tools",
+            tabs: [
+              {
+                label: "AI Providers",
+                content: (
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    {PROVIDERS.map((provider) => {
+                      const row = byProvider.get(provider);
+                      return (
+                        <AiProviderSettingsForm
+                          key={provider}
+                          provider={provider}
+                          label={AI_PROVIDER_LABELS[provider]}
+                          defaultModel={AI_PROVIDER_DEFAULT_MODELS[provider]}
+                          hasKey={Boolean(row?.api_key)}
+                          isActive={Boolean(row?.is_active)}
+                          currentModel={row?.model ?? null}
+                          saveAction={saveAiProviderSettings.bind(null, provider)}
+                          activateAction={setActiveAiProvider}
+                        />
+                      );
+                    })}
+                  </div>
+                ),
+              },
+              {
+                label: "Autotask",
+                content: (
+                  <AutotaskSettingsForm
+                    hasCredentials={Boolean(autotaskRow?.username && autotaskRow?.secret)}
+                    zoneUrl={autotaskRow?.zone_url ?? null}
+                    currentUsername={autotaskRow?.username ?? null}
+                    currentIntegrationCode={autotaskRow?.integration_code ?? null}
+                    saveAction={saveAutotaskSettings}
+                    testAction={testAutotaskConnectionAction}
+                  />
+                ),
+              },
+              {
+                label: "NinjaOne",
+                content: (
+                  <NinjaOneSettingsForm
+                    hasCredentials={Boolean(ninjaOneRow?.client_id && ninjaOneRow?.client_secret)}
+                    currentRegion={ninjaOneRow?.region ?? null}
+                    currentClientId={ninjaOneRow?.client_id ?? null}
+                    saveAction={saveNinjaOneSettings}
+                    testAction={testNinjaOneConnectionAction}
+                  />
+                ),
+              },
+              {
+                label: "Hudu",
+                content: (
+                  <HuduSettingsForm
+                    hasCredentials={Boolean(huduRow?.base_url && huduRow?.api_key)}
+                    currentBaseUrl={huduRow?.base_url ?? null}
+                    saveAction={saveHuduSettings}
+                    testAction={testHuduConnectionAction}
+                  />
+                ),
+              },
+            ],
           },
           {
-            label: "Autotask",
-            content: (
-              <AutotaskSettingsForm
-                hasCredentials={Boolean(autotaskRow?.username && autotaskRow?.secret)}
-                zoneUrl={autotaskRow?.zone_url ?? null}
-                currentUsername={autotaskRow?.username ?? null}
-                currentIntegrationCode={autotaskRow?.integration_code ?? null}
-                saveAction={saveAutotaskSettings}
-                testAction={testAutotaskConnectionAction}
-              />
-            ),
+            group: "Security Vendors",
+            tabs: [
+              {
+                label: "Huntress",
+                content: (
+                  <HuntressSettingsForm
+                    hasCredentials={Boolean(huntressRow?.api_key && huntressRow?.api_secret)}
+                    saveAction={saveHuntressSettings}
+                    testAction={testHuntressConnectionAction}
+                  />
+                ),
+              },
+              {
+                label: "Bitdefender GravityZone",
+                content: (
+                  <BitdefenderSettingsForm
+                    hasCredentials={Boolean(bitdefenderRow?.api_key)}
+                    currentRegion={bitdefenderRow?.region ?? null}
+                    saveAction={saveBitdefenderSettings}
+                    testAction={testBitdefenderConnectionAction}
+                  />
+                ),
+              },
+              {
+                label: "Wizer",
+                content: (
+                  <WizerSettingsForm
+                    hasCredentials={Boolean(wizerRow?.api_key)}
+                    saveAction={saveWizerSettings}
+                    testAction={testWizerConnectionAction}
+                  />
+                ),
+              },
+              {
+                label: "NordLayer",
+                content: (
+                  <NordLayerSettingsForm
+                    hasCredentials={Boolean(nordLayerRow?.api_key)}
+                    saveAction={saveNordLayerSettings}
+                    testAction={testNordLayerConnectionAction}
+                  />
+                ),
+              },
+              {
+                label: "NordPass Business",
+                content: (
+                  <NordPassSettingsForm
+                    hasCredentials={Boolean(nordPassRow?.private_key)}
+                    saveAction={saveNordPassSettings}
+                  />
+                ),
+              },
+              {
+                label: "FortiCloud",
+                content: (
+                  <ForticloudAccountsPanel
+                    listAction={listForticloudAccountsAction}
+                    addAction={addForticloudAccountAction}
+                    deleteAction={deleteForticloudAccountAction}
+                    testAction={testForticloudAccountAction}
+                  />
+                ),
+              },
+            ],
           },
           {
-            label: "NinjaOne",
-            content: (
-              <NinjaOneSettingsForm
-                hasCredentials={Boolean(ninjaOneRow?.client_id && ninjaOneRow?.client_secret)}
-                currentRegion={ninjaOneRow?.region ?? null}
-                currentClientId={ninjaOneRow?.client_id ?? null}
-                saveAction={saveNinjaOneSettings}
-                testAction={testNinjaOneConnectionAction}
-              />
-            ),
-          },
-          {
-            label: "Hudu",
-            content: (
-              <HuduSettingsForm
-                hasCredentials={Boolean(huduRow?.base_url && huduRow?.api_key)}
-                currentBaseUrl={huduRow?.base_url ?? null}
-                saveAction={saveHuduSettings}
-                testAction={testHuduConnectionAction}
-              />
-            ),
-          },
-          {
-            label: "Huntress",
-            content: (
-              <HuntressSettingsForm
-                hasCredentials={Boolean(huntressRow?.api_key && huntressRow?.api_secret)}
-                saveAction={saveHuntressSettings}
-                testAction={testHuntressConnectionAction}
-              />
-            ),
-          },
-          {
-            label: "Bitdefender GravityZone",
-            content: (
-              <BitdefenderSettingsForm
-                hasCredentials={Boolean(bitdefenderRow?.api_key)}
-                currentRegion={bitdefenderRow?.region ?? null}
-                saveAction={saveBitdefenderSettings}
-                testAction={testBitdefenderConnectionAction}
-              />
-            ),
-          },
-          {
-            label: "Wizer",
-            content: (
-              <WizerSettingsForm
-                hasCredentials={Boolean(wizerRow?.api_key)}
-                saveAction={saveWizerSettings}
-                testAction={testWizerConnectionAction}
-              />
-            ),
-          },
-          {
-            label: "NordLayer",
-            content: (
-              <NordLayerSettingsForm
-                hasCredentials={Boolean(nordLayerRow?.api_key)}
-                saveAction={saveNordLayerSettings}
-                testAction={testNordLayerConnectionAction}
-              />
-            ),
-          },
-          {
-            label: "NordPass Business",
-            content: (
-              <NordPassSettingsForm
-                hasCredentials={Boolean(nordPassRow?.private_key)}
-                saveAction={saveNordPassSettings}
-              />
-            ),
-          },
-          {
-            label: "FortiCloud",
-            content: (
-              <ForticloudAccountsPanel
-                listAction={listForticloudAccountsAction}
-                addAction={addForticloudAccountAction}
-                deleteAction={deleteForticloudAccountAction}
-                testAction={testForticloudAccountAction}
-              />
-            ),
-          },
-          {
-            label: "Internal Sales",
-            content: (
-              <SalesNotificationSettingsForm
-                currentRepEmail={salesNotifyRow?.rep_email ?? null}
-                saveAction={saveSalesNotificationSettings}
-              />
-            ),
+            group: "Notifications",
+            tabs: [
+              {
+                label: "Internal Sales",
+                content: (
+                  <SalesNotificationSettingsForm
+                    currentRepEmail={salesNotifyRow?.rep_email ?? null}
+                    saveAction={saveSalesNotificationSettings}
+                  />
+                ),
+              },
+            ],
           },
         ]}
       />
