@@ -266,3 +266,62 @@ export async function updateSuggestionStatus(id: string, status: SuggestionStatu
   await admin.from("suggestions").update({ status }).eq("id", id);
   revalidatePath("/dashboard");
 }
+
+export type SnapshotPreviewRow = {
+  id: string;
+  receivedAt: string;
+  fromName: string | null;
+  fromEmail: string | null;
+  subject: string | null;
+};
+
+export type SnapshotPreview = {
+  rows: SnapshotPreviewRow[];
+  totalCount: number;
+  oldestReceivedAt: string | null;
+};
+
+const SNAPSHOT_PREVIEW_LIMIT = 200;
+
+/** Raw contents of the signed-in user's own mailbox snapshot — date,
+ * sender, subject only, most recent first — so it's possible to see
+ * directly how much history has actually synced instead of inferring it
+ * from analysis results. `totalCount` and `oldestReceivedAt` answer "how
+ * far back are we" even when there's more than fits in one preview page. */
+export async function fetchMySnapshotPreview(): Promise<SnapshotPreview | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const admin = createAdminClient();
+  const [{ data: rows, error, count }, { data: oldestRow }] = await Promise.all([
+    admin
+      .from("mailbox_snapshot_messages")
+      .select("id, received_at, from_name, from_email, subject", { count: "exact" })
+      .eq("user_id", user.id)
+      .order("received_at", { ascending: false })
+      .limit(SNAPSHOT_PREVIEW_LIMIT),
+    admin
+      .from("mailbox_snapshot_messages")
+      .select("received_at")
+      .eq("user_id", user.id)
+      .order("received_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (error) return { error: error.message };
+
+  return {
+    rows: (rows ?? []).map((r) => ({
+      id: r.id,
+      receivedAt: r.received_at,
+      fromName: r.from_name,
+      fromEmail: r.from_email,
+      subject: r.subject,
+    })),
+    totalCount: count ?? 0,
+    oldestReceivedAt: oldestRow?.received_at ?? null,
+  };
+}

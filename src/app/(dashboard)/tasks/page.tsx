@@ -4,6 +4,7 @@ import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
 import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
+import { MailboxSnapshotPreview } from "@/components/mailbox-snapshot-preview";
 import { UpcomingAppointments } from "@/components/upcoming-appointments";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
@@ -20,6 +21,7 @@ import {
   dismissAppointmentType,
   clearDismissedAppointmentTypes,
   fetchMySnapshotSenders,
+  fetchMySnapshotPreview,
 } from "../dashboard/actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
@@ -318,6 +320,8 @@ export default async function TasksPage({
         initialNeverStore={mailPrefs?.sync_excluded_senders ?? ""}
         fetchSendersAction={fetchMySnapshotSenders}
       />
+
+      <MailboxSnapshotPreview action={fetchMySnapshotPreview} />
 
       <UpcomingAppointments
         action={fetchMyUpcomingAppointments}
