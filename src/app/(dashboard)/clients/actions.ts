@@ -732,7 +732,7 @@ export async function refreshClientInsightsAction(
   // Service-role below, and this one spends money (AI provider calls), so an
   // unguarded version is both a data-exposure and a billing problem.
   if (!(await requireStaff())) {
-    return { error: "You don't have permission to do that." };
+    return { error: "You don't have permission to do that.", summary: null };
   }
 
   const admin = createAdminClient();
