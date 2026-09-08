@@ -26,7 +26,7 @@ export type SecurityLookupResult =
  * own Lookups tab — it can't be filtered by client yet, so it didn't fit
  * this picker's per-client shape.) */
 export async function getSecurityLookupAction(type: SecurityType, clientId: string): Promise<SecurityLookupResult> {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
 

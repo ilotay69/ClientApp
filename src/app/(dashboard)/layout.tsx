@@ -25,12 +25,17 @@ export default async function DashboardLayout({
   }
 
   const me = await getMyPermissions(supabase);
-  const canManageServices = me?.permissions.has("manage_services") ?? false;
   const canManageIntegrations = me?.permissions.has("manage_integrations") ?? false;
   const canManageTeam = me?.permissions.has("manage_team") ?? false;
   const canViewReports = me?.permissions.has("view_team_wide") ?? false;
   const canManageTouchpoints = me?.permissions.has("manage_touchpoints") ?? false;
   const canViewDomainHealth = me?.permissions.has("view_domain_health") ?? false;
+  const canViewLookups = me?.permissions.has("view_lookups") ?? false;
+  const canViewAnalysis = me?.permissions.has("view_analysis") ?? false;
+  const canViewDashboard = me?.permissions.has("view_dashboard") ?? false;
+  const canViewClients = me?.permissions.has("view_clients") ?? false;
+  const canViewProjects = me?.permissions.has("view_projects") ?? false;
+  const canViewSalesRequests = me?.permissions.has("view_sales_requests") ?? false;
 
   const [teamOwnerOnly, integrationsOwnerOnly, touchpointsOwnerOnly, domainHealthOwnerOnly] =
     await Promise.all([
@@ -44,12 +49,17 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-slate-50">
       <SidebarNav
         userLabel={profile?.full_name ?? user?.email ?? ""}
-        canManageServices={canManageServices}
         canManageIntegrations={canManageIntegrations}
         canManageTeam={canManageTeam}
         canViewReports={canViewReports}
         canManageTouchpoints={canManageTouchpoints}
         canViewDomainHealth={canViewDomainHealth}
+        canViewLookups={canViewLookups}
+        canViewAnalysis={canViewAnalysis}
+        canViewDashboard={canViewDashboard}
+        canViewClients={canViewClients}
+        canViewProjects={canViewProjects}
+        canViewSalesRequests={canViewSalesRequests}
         teamOwnerOnly={teamOwnerOnly}
         integrationsOwnerOnly={integrationsOwnerOnly}
         touchpointsOwnerOnly={touchpointsOwnerOnly}

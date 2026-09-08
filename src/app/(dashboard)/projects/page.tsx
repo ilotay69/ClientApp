@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { FilterLink, filterHref } from "@/components/filter-link";
@@ -40,6 +41,10 @@ export default async function ProjectsPage({
 }) {
   const { status, q, showCompleted } = await searchParams;
   const supabase = await createClient();
+
+  if (!(await hasPermission(supabase, "view_projects"))) {
+    redirect("/dashboard");
+  }
 
   let projectsQuery = supabase
     .from("projects")

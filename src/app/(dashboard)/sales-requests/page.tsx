@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { SalesRequestQuickAdd } from "@/components/sales-request-quick-add";
@@ -46,6 +47,10 @@ export default async function SalesRequestsPage({
       : [];
 
   const supabase = await createClient();
+
+  if (!(await hasPermission(supabase, "view_sales_requests"))) {
+    redirect("/dashboard");
+  }
 
   const [{ data: clients }, { data: members }, { data: requestClientRows }, canManage] =
     await Promise.all([

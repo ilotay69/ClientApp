@@ -13,7 +13,7 @@ import {
 export async function fetchGravityZoneEndpointsAction(): Promise<
   { rows: BitdefenderEndpointRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -31,7 +31,7 @@ export async function fetchGravityZoneEndpointsAction(): Promise<
 export async function fetchGravityZoneOpenIncidentsAction(): Promise<
   { rows: BitdefenderOpenIncidentRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();

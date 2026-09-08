@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function AnalysisPage() {
   const supabase = await createClient();
 
-  if (!(await hasPermission(supabase, "manage_services"))) {
+  if (!(await hasPermission(supabase, "view_analysis"))) {
     redirect("/dashboard");
   }
 

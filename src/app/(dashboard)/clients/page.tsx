@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { SearchBox } from "@/components/search-box";
@@ -12,6 +13,11 @@ export default async function ClientsPage({
 }) {
   const { q } = await searchParams;
   const supabase = await createClient();
+
+  if (!(await hasPermission(supabase, "view_clients"))) {
+    redirect("/dashboard");
+  }
+
   const [{ data: clients }, canManageClients] = await Promise.all([
     q
       ? supabase.from("clients").select("id, name").ilike("name", `%${q}%`).order("name")

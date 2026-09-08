@@ -26,7 +26,7 @@ import {
 export async function fetchOfflineDevicesAction(): Promise<
   { rows: OfflineDeviceRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -38,7 +38,7 @@ export async function fetchOfflineDevicesAction(): Promise<
 }
 
 export async function fetchDiskAlertsAction(): Promise<{ rows: DiskAlertRow[] } | { error: string }> {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -52,7 +52,7 @@ export async function fetchDiskAlertsAction(): Promise<{ rows: DiskAlertRow[] } 
 export async function fetchAgingHardwareAction(): Promise<
   { rows: AgingHardwareRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -64,7 +64,7 @@ export async function fetchAgingHardwareAction(): Promise<
 }
 
 export async function fetchOsEolAction(): Promise<{ rows: OsEolRow[] } | { error: string }> {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -81,7 +81,7 @@ export async function fetchOsEolAction(): Promise<{ rows: OsEolRow[] } | { error
 export async function fetchAntivirusAlertsAction(): Promise<
   { rows: AntivirusAlertRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -100,7 +100,7 @@ export async function fetchAntivirusAlertsAction(): Promise<
 export async function fetchMissingPatchesAction(): Promise<
   { rows: MissingPatchRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();

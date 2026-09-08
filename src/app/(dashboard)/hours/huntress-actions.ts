@@ -14,7 +14,7 @@ import { fetchHuntressSiemLogs, type HuntressSiemLogRow } from "@/lib/huntress";
 export async function fetchHuntressAgentAlertsAction(): Promise<
   { rows: HuntressAgentAlertRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -32,7 +32,7 @@ export async function fetchHuntressAgentAlertsAction(): Promise<
 export async function fetchHuntressOpenIncidentsAction(): Promise<
   { rows: HuntressOpenIncidentRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -63,7 +63,7 @@ export async function fetchHuntressSiemLogsAction(
   esql: string,
   minutesBack: number
 ): Promise<{ rows: HuntressSiemLogRow[] } | { error: string }> {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   if (!esql.trim().toUpperCase().startsWith("FROM LOGS")) {

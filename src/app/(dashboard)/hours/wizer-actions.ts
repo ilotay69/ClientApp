@@ -8,7 +8,7 @@ import { fetchWizerCompanyMetrics, type WizerCompanyMetricsRow } from "@/lib/wiz
 export async function fetchWizerCompanyMetricsAction(): Promise<
   { rows: WizerCompanyMetricsRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();

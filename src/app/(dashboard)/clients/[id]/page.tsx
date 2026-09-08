@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
@@ -66,6 +66,11 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+
+  if (!(await hasPermission(supabase, "view_clients"))) {
+    redirect("/dashboard");
+  }
+
   const {
     data: { user: currentUser },
   } = await supabase.auth.getUser();

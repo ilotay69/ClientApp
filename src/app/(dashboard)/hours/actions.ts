@@ -22,7 +22,7 @@ import { fetchAgingOpenTickets, type AgingTicketRow } from "@/lib/ticket-aging";
 export async function fetchResourceHoursAction(): Promise<
   { rows: ResourceHoursRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -49,7 +49,7 @@ export async function fetchHoursByGroupAction(
   groupBy: "client" | "resource",
   days: number
 ): Promise<{ rows: HoursByGroupRow[] } | { error: string }> {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -82,7 +82,7 @@ export async function fetchHoursByGroupAction(
 export async function fetchYesterdayTimeEntriesAction(): Promise<
   { entries: TimeEntryForAnalysis[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -115,7 +115,7 @@ export async function fetchNonBillableHoursByGroupAction(
   groupBy: "client" | "resource",
   days: number
 ): Promise<{ rows: HoursByGroupRow[] } | { error: string }> {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -147,7 +147,7 @@ export async function fetchNonBillableHoursByGroupAction(
 export async function fetchContractBlockHoursAction(): Promise<
   { rows: ContractBlockHoursRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -170,7 +170,7 @@ export async function fetchContractBlockHoursAction(): Promise<
 export async function fetchAgingOpenTicketsAction(): Promise<
   { rows: AgingTicketRow[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
 

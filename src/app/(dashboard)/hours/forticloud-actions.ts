@@ -6,7 +6,7 @@ import { fetchForticloudDeviceInventory, type ForticloudDeviceRow } from "@/lib/
 import type { ForticloudCredentials } from "@/lib/forticloud";
 
 export async function fetchForticloudDevicesAction(): Promise<{ rows: ForticloudDeviceRow[] } | { error: string }> {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
 

@@ -35,24 +35,19 @@ type NavItem = {
   ownerOnly?: boolean;
 };
 
-const LINKS_BEFORE_TOUCHPOINTS: NavItem[] = [
-  { href: "/dashboard", label: "Overview", icon: IconGrid },
-  { href: "/clients", label: "Clients", icon: IconBriefcase },
-  { href: "/projects", label: "Projects", icon: IconFolder },
-  { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
-];
-const LINKS_AFTER_TOUCHPOINTS: NavItem[] = [
-  { href: "/sales-requests", label: "Internal Sales", icon: IconTag },
-];
-
 export function SidebarNav({
   userLabel,
-  canManageServices,
   canManageIntegrations,
   canManageTeam,
   canViewReports,
   canManageTouchpoints,
   canViewDomainHealth,
+  canViewLookups,
+  canViewAnalysis,
+  canViewDashboard,
+  canViewClients,
+  canViewProjects,
+  canViewSalesRequests,
   teamOwnerOnly,
   integrationsOwnerOnly,
   touchpointsOwnerOnly,
@@ -60,12 +55,17 @@ export function SidebarNav({
   signOutAction,
 }: {
   userLabel: string;
-  canManageServices: boolean;
   canManageIntegrations: boolean;
   canManageTeam: boolean;
   canViewReports: boolean;
   canManageTouchpoints: boolean;
   canViewDomainHealth: boolean;
+  canViewLookups: boolean;
+  canViewAnalysis: boolean;
+  canViewDashboard: boolean;
+  canViewClients: boolean;
+  canViewProjects: boolean;
+  canViewSalesRequests: boolean;
   /** True only while no non-Owner role has been granted the permission —
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
@@ -77,10 +77,15 @@ export function SidebarNav({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Touchpoints is a relationship-contact log gated by manage_touchpoints —
-  // no point linking to a page that'll just redirect back out.
+  // Every link here is gated by its own view_* (or manage_*) permission —
+  // Tasks is the one exception, always shown, since "My To-Do" (a
+  // signed-in user's own list) is always visible even without
+  // view_team_tasks; only the "Team Tasks" tab inside that page is gated.
   const MAIN_LINKS: NavItem[] = [
-    ...LINKS_BEFORE_TOUCHPOINTS,
+    ...(canViewDashboard ? [{ href: "/dashboard", label: "Overview", icon: IconGrid }] : []),
+    ...(canViewClients ? [{ href: "/clients", label: "Clients", icon: IconBriefcase }] : []),
+    ...(canViewProjects ? [{ href: "/projects", label: "Projects", icon: IconFolder }] : []),
+    { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
     ...(canManageTouchpoints
       ? [
           {
@@ -91,7 +96,9 @@ export function SidebarNav({
           },
         ]
       : []),
-    ...LINKS_AFTER_TOUCHPOINTS,
+    ...(canViewSalesRequests
+      ? [{ href: "/sales-requests", label: "Internal Sales", icon: IconTag }]
+      : []),
   ];
 
   const settingsLinks: NavItem[] = [
@@ -127,9 +134,9 @@ export function SidebarNav({
   ];
 
   const insightsLinks: NavItem[] = [
-    ...(canManageTeam ? [{ href: "/hours", label: "Lookups", icon: IconClock }] : []),
+    ...(canViewLookups ? [{ href: "/hours", label: "Lookups", icon: IconClock }] : []),
     ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
-    ...(canManageServices
+    ...(canViewAnalysis
       ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
       : []),
   ];

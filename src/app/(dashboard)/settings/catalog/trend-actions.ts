@@ -26,7 +26,7 @@ function clampWeeks(weeks: number): number {
 export async function getResourcesForAnalysisAction(): Promise<
   { id: string; name: string }[] | { error: string }
 > {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -46,7 +46,7 @@ export async function getClientHoursTrendAction(
   clientId: string,
   weeks: number
 ): Promise<{ points: WeeklyPoint[] } | { error: string }> {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -66,7 +66,7 @@ export async function getResourceHoursTrendAction(
   resourceId: string,
   weeks: number
 ): Promise<{ points: WeeklyPoint[] } | { error: string }> {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -89,7 +89,7 @@ const MAX_LOOKUP_DAYS = 365;
 export async function getResourceClientPairsAction(
   days: number
 ): Promise<{ rows: ResourceClientPairRow[] } | { error: string }> {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -110,7 +110,7 @@ export async function getTicketVolumeTrendAction(
   clientId: string,
   weeks: number
 ): Promise<{ points: WeeklyPoint[] } | { error: string }> {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -130,7 +130,7 @@ export async function getTicketVolumeTrendAction(
 export async function getActiveBlockOptionsAction(): Promise<
   { blocks: BlockOption[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -149,7 +149,7 @@ export async function getActiveBlockOptionsAction(): Promise<
 export async function getContractBurndownAction(
   blockId: number
 ): Promise<{ points: WeeklyPoint[]; purchased: number; clientName: string } | { error: string }> {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();

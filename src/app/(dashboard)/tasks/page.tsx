@@ -107,6 +107,7 @@ export default async function TasksPage({
     { data: clients },
     { data: members },
     canDeleteTasks,
+    canViewTeamTasks,
     { data: projects },
     { data: taskClientRows },
     { data: todoTaskClientRows },
@@ -115,6 +116,7 @@ export default async function TasksPage({
     supabase.from("clients").select("id, name").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
     hasPermission(supabase, "delete_tasks"),
+    hasPermission(supabase, "view_team_tasks"),
     supabase.from("projects").select("id, name, client_id, clients(name)").order("name"),
     // Unfiltered, so the client filter's own options don't shrink as other
     // filters (priority, assignee, status, mine/view) are applied.
@@ -395,6 +397,14 @@ export default async function TasksPage({
       </div>
     </div>
   );
+
+  // My To-Do is always visible — it's the signed-in user's own list. Team
+  // Tasks (the full team-wide list) only shows for roles granted
+  // view_team_tasks; without it, My To-Do is the only tab, so it's shown
+  // directly rather than as a single-tab Tabs component.
+  if (!canViewTeamTasks) {
+    return myToDoList;
+  }
 
   return (
     <Tabs

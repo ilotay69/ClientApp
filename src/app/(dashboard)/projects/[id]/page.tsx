@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/permissions";
 import { ProjectForm } from "@/components/project-form";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge, OverdueBadge } from "@/components/badge";
@@ -16,6 +17,10 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+
+  if (!(await hasPermission(supabase, "view_projects"))) {
+    redirect("/dashboard");
+  }
 
   const [{ data: project }, { data: clients }, { data: tasks }] = await Promise.all([
     supabase.from("projects").select("*, clients(name)").eq("id", id).single(),

@@ -21,7 +21,7 @@ import {
 export async function fetchSecureScoreRollupAction(): Promise<
   { rows: SecureScoreRollupRow[]; errors: ClientLookupError[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   try {
@@ -34,7 +34,7 @@ export async function fetchSecureScoreRollupAction(): Promise<
 export async function fetchLicenseUtilizationRollupAction(): Promise<
   { rows: LicenseUtilizationRow[]; errors: ClientLookupError[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   try {
@@ -47,7 +47,7 @@ export async function fetchLicenseUtilizationRollupAction(): Promise<
 export async function fetchMfaGapsRollupAction(): Promise<
   { rows: MfaGapRow[]; errors: ClientLookupError[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   try {
@@ -60,7 +60,7 @@ export async function fetchMfaGapsRollupAction(): Promise<
 export async function fetchInactiveAccountsRollupAction(): Promise<
   { rows: InactiveAccountRow[]; errors: ClientLookupError[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   try {
@@ -73,7 +73,7 @@ export async function fetchInactiveAccountsRollupAction(): Promise<
 export async function fetchPrivilegedRolesRollupAction(): Promise<
   { rows: PrivilegedRoleRollupRow[]; errors: ClientLookupError[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   try {
@@ -86,7 +86,7 @@ export async function fetchPrivilegedRolesRollupAction(): Promise<
 export async function fetchMailboxUsageRollupAction(): Promise<
   { rows: MailboxUsageRollupRow[]; errors: ClientLookupError[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_team"))) {
+  if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
   try {

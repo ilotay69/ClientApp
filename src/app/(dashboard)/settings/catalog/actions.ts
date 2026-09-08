@@ -56,7 +56,7 @@ export async function deleteServiceOffering(serviceId: string) {
 export async function getClientsForAnalysisAction(): Promise<
   { id: string; name: string }[] | { error: string }
 > {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
@@ -202,7 +202,7 @@ function normalizeServiceKey(name: string): string {
 export async function getClientServiceGapsAction(clientId: string): Promise<
   { clientName: string; has: string[]; gaps: ClientServiceGap[] } | { error: string }
 > {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
 
@@ -281,7 +281,7 @@ const PATTERN_ANALYSIS_DAYS = 90;
 export async function analyzeClientTimeEntryPatternsAction(clientId: string): Promise<
   { clientName: string; findings: TimeEntryFinding[]; entryCount: number } | { error: string }
 > {
-  if (!(await requirePermission("manage_services"))) {
+  if (!(await requirePermission("view_analysis"))) {
     return { error: "You don't have permission to do that." };
   }
 

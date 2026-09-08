@@ -13,11 +13,27 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: me }, canSeeTeamWide, canManageTouchpoints] = await Promise.all([
+  const [{ data: me }, canViewDashboard, canSeeTeamWide, canManageTouchpoints] = await Promise.all([
     supabase.from("profiles").select("role, full_name").eq("id", user?.id ?? "").single(),
+    hasPermission(supabase, "view_dashboard"),
     hasPermission(supabase, "view_team_wide"),
     hasPermission(supabase, "manage_touchpoints"),
   ]);
+
+  // Every other gated page falls back to /dashboard on missing
+  // permission — this page can't do the same (that would loop), so it
+  // shows an inline notice instead of redirecting anywhere.
+  if (!canViewDashboard) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h1 className="text-lg font-semibold text-slate-900">No access</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          You don&apos;t have permission to view the Overview dashboard. Ask an Owner to grant it
+          from Team → Roles &amp; permissions.
+        </p>
+      </div>
+    );
+  }
 
   const [
     { data: myTasks },
