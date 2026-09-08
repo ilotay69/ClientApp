@@ -21,8 +21,8 @@ export function UpcomingAppointments({
   clearDismissedAction,
 }: {
   action: () => Promise<{ appointments: UpcomingAppointment[]; dismissedCount: number } | { error: string }>;
-  dismissAction: (subject: string) => Promise<void>;
-  clearDismissedAction: () => Promise<void>;
+  dismissAction: (subject: string) => Promise<{ error?: string }>;
+  clearDismissedAction: () => Promise<{ error?: string }>;
 }) {
   const [appointments, setAppointments] = useState<UpcomingAppointment[] | null>(null);
   const [dismissedCount, setDismissedCount] = useState(0);
@@ -47,7 +47,12 @@ export function UpcomingAppointments({
   const dismiss = (subject: string) => {
     const key = normalize(subject);
     startWork(async () => {
-      await dismissAction(subject);
+      const result = await dismissAction(subject);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setError(null);
       setAppointments((prev) => (prev ? prev.filter((a) => normalize(a.subject) !== key) : prev));
       setDismissedCount((c) => c + 1);
     });
@@ -55,7 +60,12 @@ export function UpcomingAppointments({
 
   const clearExceptions = () => {
     startWork(async () => {
-      await clearDismissedAction();
+      const result = await clearDismissedAction();
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setError(null);
       setDismissedCount(0);
       load();
     });

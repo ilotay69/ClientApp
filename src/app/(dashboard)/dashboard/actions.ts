@@ -160,44 +160,66 @@ export async function fetchMyUpcomingAppointments(): Promise<
 /** Hides every appointment whose subject normalizes to match `subject`,
  * going forward — a simple per-user allowlist-by-exclusion, not tied to
  * any specific calendar event id (an id would only ever match one
- * occurrence, not "this kind of meeting" generally). */
-export async function dismissAppointmentType(subject: string): Promise<void> {
+ * occurrence, not "this kind of meeting" generally). Returns an error
+ * string on failure instead of silently no-op'ing — a missing
+ * dismissed_appointment_subjects column (migration not yet run) used to
+ * fail here invisibly, which looked exactly like "dismiss doesn't
+ * persist" from the UI side. */
+export async function dismissAppointmentType(subject: string): Promise<{ error?: string }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return { error: "Not signed in." };
 
   const admin = createAdminClient();
-  const { data: connection } = await admin
+  const { data: connection, error: readError } = await admin
     .from("mail_connections")
     .select("dismissed_appointment_subjects")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!connection) return;
+  if (readError) {
+    console.error("dismissAppointmentType: failed to read mail_connections", readError);
+    return { error: `Couldn't save — ${readError.message}` };
+  }
+  if (!connection) return { error: "Connect your mailbox first on the Mailbox settings page." };
 
   const normalized = normalizeAppointmentSubject(subject);
   const current: string[] = connection.dismissed_appointment_subjects ?? [];
-  if (current.includes(normalized)) return;
+  if (current.includes(normalized)) return {};
 
-  await admin
+  const { error: writeError } = await admin
     .from("mail_connections")
     .update({ dismissed_appointment_subjects: [...current, normalized] })
     .eq("user_id", user.id);
+  if (writeError) {
+    console.error("dismissAppointmentType: failed to write mail_connections", writeError);
+    return { error: `Couldn't save — ${writeError.message}` };
+  }
 
   revalidatePath("/tasks");
+  return {};
 }
 
-export async function clearDismissedAppointmentTypes(): Promise<void> {
+export async function clearDismissedAppointmentTypes(): Promise<{ error?: string }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return { error: "Not signed in." };
 
   const admin = createAdminClient();
-  await admin.from("mail_connections").update({ dismissed_appointment_subjects: [] }).eq("user_id", user.id);
+  const { error } = await admin
+    .from("mail_connections")
+    .update({ dismissed_appointment_subjects: [] })
+    .eq("user_id", user.id);
+  if (error) {
+    console.error("clearDismissedAppointmentTypes: failed to write mail_connections", error);
+    return { error: `Couldn't clear — ${error.message}` };
+  }
+
   revalidatePath("/tasks");
+  return {};
 }
 
 export async function updateSuggestionStatus(id: string, status: SuggestionStatus) {
