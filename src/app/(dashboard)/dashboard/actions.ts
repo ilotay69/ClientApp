@@ -3,22 +3,26 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { reviewMailbox, MAX_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS, type MailboxReviewResult } from "@/lib/mailbox-review";
+import { purgeSnapshotMessagesFromSenders } from "@/lib/mailbox-snapshot";
 import { getValidAccessToken } from "@/lib/mail-sync";
 import { fetchUpcomingEvents } from "@/lib/microsoft-graph";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
 
-/** Live read of the signed-in user's own connected mailbox — nothing here
- * is persisted except the two preference fields below (excludes,
- * days-back), never email content. `days`/`focus`/`excludes` come from
- * the form (see MailboxReviewPanel) — `days` is clamped again here
+/** Reads the signed-in user's own mailbox snapshot (see mailbox-review.ts)
+ * — nothing here writes email content beyond what the background sync
+ * already stores. `days`/`focus`/`excludes`/`neverStore` come from the
+ * form (see MailboxReviewPanel) — `days` is clamped again here
  * defensively even though the input already caps at 90, since form data
- * can't be trusted just because the input has a max attribute. The
- * excludes/days are saved back to this user's own mail_connections row on
- * every run, so the form comes back pre-filled next time (the free-text
- * `focus` question is deliberately NOT remembered — it's a one-off query,
- * not a standing preference). */
+ * can't be trusted just because the input has a max attribute.
+ * excludes/days/neverStore are saved back to this user's own
+ * mail_connections row on every run, so the form comes back pre-filled
+ * next time (the free-text `focus` question is deliberately NOT
+ * remembered — it's a one-off query, not a standing preference).
+ * Updating `neverStore` also immediately purges any already-stored
+ * snapshot rows matching the new list — it wouldn't mean much as a
+ * "don't store this" setting if it only applied going forward. */
 export async function reviewMyMailbox(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's signature
   _prevState: MailboxReviewState,
@@ -48,21 +52,25 @@ export async function reviewMyMailbox(
   const lookbackDays = Number.isFinite(rawDays) && rawDays > 0 ? Math.min(Math.trunc(rawDays), MAX_LOOKBACK_DAYS) : DEFAULT_LOOKBACK_DAYS;
   const focus = String(formData.get("focus") ?? "").trim() || undefined;
   const excludeTerms = String(formData.get("excludes") ?? "").trim();
+  const neverStore = String(formData.get("neverStore") ?? "").trim();
 
   await admin
     .from("mail_connections")
     .update({
       review_excludes: excludeTerms || null,
       review_lookback_days: lookbackDays,
+      sync_excluded_senders: neverStore || null,
     })
     .eq("user_id", user.id);
 
+  await purgeSnapshotMessagesFromSenders(admin, user.id, neverStore);
+
   try {
-    const result = await reviewMailbox(admin, connection as MailConnection, {
-      lookbackDays,
-      focus,
-      excludeTerms: excludeTerms || undefined,
-    });
+    const result = await reviewMailbox(
+      admin,
+      { ...connection, sync_excluded_senders: neverStore || null } as MailConnection,
+      { lookbackDays, focus, excludeTerms: excludeTerms || undefined }
+    );
     return { error: null, result };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Mailbox review failed.", result: null };

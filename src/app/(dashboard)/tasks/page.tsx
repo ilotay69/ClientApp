@@ -122,7 +122,7 @@ export default async function TasksPage({
     supabase.from("tasks").select("client_id").eq("is_personal", true).not("client_id", "is", null),
     supabase
       .from("mail_connections")
-      .select("review_excludes, review_lookback_days")
+      .select("review_excludes, review_lookback_days, sync_excluded_senders")
       .eq("user_id", user?.id ?? "")
       .maybeSingle(),
   ]);
@@ -312,6 +312,7 @@ export default async function TasksPage({
       <MailboxReviewPanel
         initialDays={mailPrefs?.review_lookback_days ?? 30}
         initialExcludes={mailPrefs?.review_excludes ?? ""}
+        initialNeverStore={mailPrefs?.sync_excluded_senders ?? ""}
       />
 
       <UpcomingAppointments

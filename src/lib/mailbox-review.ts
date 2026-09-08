@@ -1,13 +1,8 @@
-import {
-  fetchMailboxWideMessages,
-  getExcludedSystemFolderIds,
-  type MailboxSnapshotMessage,
-} from "@/lib/microsoft-graph";
-import { getValidAccessToken } from "@/lib/mail-sync";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { ActiveAiSettings } from "@/lib/ai";
-import type { MailConnection } from "@/lib/types";
+import type { MailConnection, MailboxSnapshotMessageRow } from "@/lib/types";
 import { assertAsciiHeaderValue } from "@/lib/ascii-check";
+import { syncMailboxSnapshot } from "@/lib/mailbox-snapshot";
 
 export const DEFAULT_LOOKBACK_DAYS = 30;
 export const MAX_LOOKBACK_DAYS = 90;
@@ -44,9 +39,9 @@ const NOISE_SENDER_PATTERNS = [
   "marketing@",
 ];
 
-function isLikelyNoise(message: MailboxSnapshotMessage): boolean {
-  const from = message.from?.emailAddress?.address?.toLowerCase() ?? "";
-  const fromName = message.from?.emailAddress?.name?.toLowerCase() ?? "";
+function isLikelyNoise(message: MailboxSnapshotMessageRow): boolean {
+  const from = message.from_email?.toLowerCase() ?? "";
+  const fromName = message.from_name?.toLowerCase() ?? "";
   return NOISE_SENDER_PATTERNS.some((p) => from.includes(p) || fromName.includes(p));
 }
 
@@ -55,7 +50,10 @@ function isLikelyNoise(message: MailboxSnapshotMessage): boolean {
  * lowercased terms, matched against sender address, sender display name,
  * and subject — broader than the built-in noise filter's sender-only
  * match, since a term like a helpdesk's name is often more recognizable
- * in the display name or subject than the raw address. */
+ * in the display name or subject than the raw address. This only affects
+ * what shows up in an analysis — the mailbox snapshot is still stored;
+ * for senders that should never even be stored, see
+ * mail_connections.sync_excluded_senders instead. */
 function parseExcludeTerms(raw: string | null | undefined): string[] {
   return (raw ?? "")
     .split(/[,\n]/)
@@ -63,10 +61,10 @@ function parseExcludeTerms(raw: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-function isExcludedByUserTerms(message: MailboxSnapshotMessage, terms: string[]): boolean {
+function isExcludedByUserTerms(message: MailboxSnapshotMessageRow, terms: string[]): boolean {
   if (terms.length === 0) return false;
-  const from = message.from?.emailAddress?.address?.toLowerCase() ?? "";
-  const fromName = message.from?.emailAddress?.name?.toLowerCase() ?? "";
+  const from = message.from_email?.toLowerCase() ?? "";
+  const fromName = message.from_name?.toLowerCase() ?? "";
   const subject = (message.subject ?? "").toLowerCase();
   return terms.some((t) => from.includes(t) || fromName.includes(t) || subject.includes(t));
 }
@@ -84,8 +82,12 @@ export type MailboxReviewResult = {
   narrative: string[];
   suggestedActions: string[];
   aiAvailable: boolean;
-  hitPageCap: boolean;
   focusIgnored: boolean;
+  /** When the local snapshot was last refreshed (see mailbox-snapshot.ts)
+   * — this replaces the old "live scan hit its page cap" notice, since
+   * the review no longer talks to Graph directly at all; freshness is
+   * about the background sync's own cadence now, not this call. */
+  syncedAsOf: string | null;
 };
 
 export type MailboxReviewOptions = {
@@ -114,10 +116,12 @@ function deterministicNarrative(thread: DigestThread): string {
     : `Please get back to ${thread.contact} about "${thread.subject}" — they wrote ${daysLabel(thread.daysPending)} ago.`;
 }
 
-/** Live, read-only mailbox review — fetches from Graph, computes in
- * memory, and returns the result directly. Nothing here writes email
- * content to any table; the only persistence is the token refresh already
- * inside getValidAccessToken (OAuth bookkeeping, not email data). */
+/** Reads the signed-in user's local mailbox snapshot (see
+ * mailbox-snapshot.ts) — no live Graph calls happen here at all anymore;
+ * a background cron keeps the snapshot fresh every ~30 minutes. The one
+ * exception is a user's very first ever review: if they've never been
+ * synced yet, this bootstraps with one inline sync so the first click
+ * isn't just empty while waiting on the next cron run. */
 export async function reviewMailbox(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -128,26 +132,22 @@ export async function reviewMailbox(
   const focus = options.focus?.trim() || null;
   const excludeTerms = parseExcludeTerms(options.excludeTerms);
 
-  const accessToken = await getValidAccessToken(admin, connection);
+  let syncedAsOf = connection.snapshot_synced_at;
+  if (!syncedAsOf) {
+    await syncMailboxSnapshot(admin, connection);
+    syncedAsOf = new Date().toISOString();
+  }
+
   const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
+  const { data: rows } = await admin
+    .from("mailbox_snapshot_messages")
+    .select("*")
+    .eq("user_id", connection.user_id)
+    .gte("received_at", since)
+    .order("received_at", { ascending: true });
 
-  // One mailbox-wide call, not one call per folder — this is what
-  // actually fixes "I filed the reply into a subfolder and now it looks
-  // unread/pending": the earlier per-folder scan only ever saw messages
-  // in whichever folders it was told to check, so a thread's real latest
-  // message (wherever the user has since filed it) was invisible if it
-  // moved outside that set. /me/messages already covers every folder in
-  // one paginated, sequential call — cheaper and more correct than
-  // enumerating folders individually, and it's what avoided the earlier
-  // concurrency-limit throttling too.
-  const [excludedFolderIds, { messages, hitPageCap }] = await Promise.all([
-    getExcludedSystemFolderIds(accessToken),
-    fetchMailboxWideMessages(accessToken, since),
-  ]);
-
-  const byId = new Map<string, MailboxSnapshotMessage>();
-  for (const m of messages) {
-    if (excludedFolderIds.has(m.parentFolderId)) continue;
+  const byId = new Map<string, MailboxSnapshotMessageRow>();
+  for (const m of (rows ?? []) as MailboxSnapshotMessageRow[]) {
     if (isLikelyNoise(m)) continue;
     if (isExcludedByUserTerms(m, excludeTerms)) continue;
     byId.set(m.id, m);
@@ -155,11 +155,11 @@ export async function reviewMailbox(
 
   // One entry per conversation — the latest message determines who's
   // waiting on whom right now.
-  const latestByThread = new Map<string, MailboxSnapshotMessage>();
+  const latestByThread = new Map<string, MailboxSnapshotMessageRow>();
   for (const m of byId.values()) {
-    const existing = latestByThread.get(m.conversationId);
-    if (!existing || m.receivedDateTime > existing.receivedDateTime) {
-      latestByThread.set(m.conversationId, m);
+    const existing = latestByThread.get(m.conversation_id);
+    if (!existing || m.received_at > existing.received_at) {
+      latestByThread.set(m.conversation_id, m);
     }
   }
 
@@ -168,22 +168,17 @@ export async function reviewMailbox(
 
   const threads: DigestThread[] = [];
   for (const m of latestByThread.values()) {
-    const fromAddress = m.from?.emailAddress?.address?.toLowerCase() ?? "";
+    const fromAddress = m.from_email?.toLowerCase() ?? "";
     const isFromMe = fromAddress === myEmail;
-    const daysPending = Math.max(
-      0,
-      Math.floor((now - new Date(m.receivedDateTime).getTime()) / (24 * 60 * 60 * 1000))
-    );
-    const contact = isFromMe
-      ? m.toRecipients?.[0]?.emailAddress?.name ?? m.toRecipients?.[0]?.emailAddress?.address ?? "Unknown"
-      : m.from?.emailAddress?.name ?? m.from?.emailAddress?.address ?? "Unknown";
+    const daysPending = Math.max(0, Math.floor((now - new Date(m.received_at).getTime()) / (24 * 60 * 60 * 1000)));
+    const contact = isFromMe ? m.to_name ?? m.to_email ?? "Unknown" : m.from_name ?? m.from_email ?? "Unknown";
 
     threads.push({
       subject: m.subject || "(no subject)",
       contact,
       direction: isFromMe ? "awaiting_them" : "awaiting_you",
       daysPending,
-      snippet: (m.bodyPreview ?? "").slice(0, 200),
+      snippet: (m.body_preview ?? "").slice(0, 200),
     });
   }
   threads.sort((a, b) => b.daysPending - a.daysPending);
@@ -214,8 +209,8 @@ export async function reviewMailbox(
     narrative,
     suggestedActions,
     aiAvailable: Boolean(aiSettings),
-    hitPageCap,
     focusIgnored,
+    syncedAsOf,
   };
 }
 

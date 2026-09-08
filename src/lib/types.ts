@@ -189,6 +189,27 @@ export interface MailConnection {
   review_excludes: string | null;
   review_lookback_days: number | null;
   dismissed_appointment_subjects: string[];
+  snapshot_synced_at: string | null;
+  sync_excluded_senders: string | null;
+}
+
+export interface MailboxSnapshotMessageRow {
+  id: string;
+  user_id: string;
+  graph_message_id: string;
+  conversation_id: string;
+  subject: string | null;
+  from_name: string | null;
+  from_email: string | null;
+  to_name: string | null;
+  to_email: string | null;
+  received_at: string;
+  sent_at: string | null;
+  web_link: string | null;
+  body_preview: string | null;
+  parent_folder_id: string | null;
+  is_flagged: boolean;
+  synced_at: string;
 }
 
 export interface EmailLink {

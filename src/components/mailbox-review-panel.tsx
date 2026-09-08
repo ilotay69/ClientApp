@@ -15,9 +15,11 @@ Leave blank for the default: who's waiting on whom, most overdue first.`;
 export function MailboxReviewPanel({
   initialDays = 30,
   initialExcludes = "",
+  initialNeverStore = "",
 }: {
   initialDays?: number;
   initialExcludes?: string;
+  initialNeverStore?: string;
 }) {
   const [state, formAction, pending] = useActionState(reviewMyMailbox, initialState);
   const [days, setDays] = useState(initialDays);
@@ -28,9 +30,10 @@ export function MailboxReviewPanel({
       <div className="border-b border-slate-200 px-5 py-3">
         <h2 className="text-sm font-semibold text-slate-900">Mailbox review</h2>
         <p className="text-xs text-slate-500">
-          Live read of your whole mailbox (Deleted Items, Junk, and Drafts excluded) — nothing
-          here is saved except these settings. Automated notifications, newsletters, and alerts
-          are filtered out automatically, on top of anything you exclude yourself below.
+          Reads from a local copy of your mailbox (Deleted Items, Junk, and Drafts excluded) kept
+          in sync roughly every 30 minutes — not a live scan each time. Automated notifications,
+          newsletters, and alerts are filtered out automatically, on top of anything you exclude
+          yourself below.
         </p>
 
         <form action={formAction} className="mt-3 space-y-2">
@@ -41,12 +44,23 @@ export function MailboxReviewPanel({
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
           />
           <label className="block text-xs text-slate-600">
-            Exclude senders/subjects containing (optional)
+            Exclude senders/subjects containing (optional) — hides matches from this analysis only
             <input
               type="text"
               name="excludes"
               defaultValue={initialExcludes}
               placeholder="e.g. CG Helpdesk, billing, no-reply"
+              className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm placeholder:text-slate-400"
+            />
+          </label>
+          <label className="block text-xs text-slate-600">
+            Never store emails from (optional) — these are never saved to the local copy at all,
+            and any already stored are deleted immediately when you save
+            <input
+              type="text"
+              name="neverStore"
+              defaultValue={initialNeverStore}
+              placeholder="e.g. personal@gmail.com, hr@cgtechnologies.com"
               className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm placeholder:text-slate-400"
             />
           </label>
@@ -138,12 +152,10 @@ export function MailboxReviewPanel({
             )
           )}
 
-          {result.hitPageCap && (
-            <p className="text-xs text-slate-400">
-              Based on the most recent messages from the last {days} day{days === 1 ? "" : "s"} — your
-              mailbox has more than this scan could cover in one pass.
-            </p>
-          )}
+          <p className="text-xs text-slate-400">
+            Based on your last {days} day{days === 1 ? "" : "s"}, synced{" "}
+            {result.syncedAsOf ? new Date(result.syncedAsOf).toLocaleString() : "just now"}.
+          </p>
         </div>
       )}
     </div>
