@@ -12,16 +12,22 @@ const FOCUS_PLACEHOLDER = `What do you want to know? For example:
 "Find any client complaints or escalations."
 Leave blank for the default: who's waiting on whom, most overdue first.`;
 
-/** Appends `email` to a comma-separated field's current text, unless it's
- * already in there (case-insensitive) — so repeatedly picking the same
- * sender from the dropdown doesn't pile up duplicates. */
-function addTerm(current: string, email: string): string {
+/** Appends any of `emails` not already present (case-insensitive) to a
+ * comma-separated field's current text — so adding an already-listed
+ * sender again is a no-op instead of a duplicate. */
+function addTerms(current: string, emails: string[]): string {
   const terms = current
     .split(/[,\n]/)
     .map((t) => t.trim())
     .filter(Boolean);
-  if (terms.some((t) => t.toLowerCase() === email.toLowerCase())) return current;
-  return terms.length > 0 ? `${terms.join(", ")}, ${email}` : email;
+  const existing = new Set(terms.map((t) => t.toLowerCase()));
+  for (const email of emails) {
+    if (!existing.has(email.toLowerCase())) {
+      terms.push(email);
+      existing.add(email.toLowerCase());
+    }
+  }
+  return terms.join(", ");
 }
 
 function SenderPicker({
@@ -30,12 +36,12 @@ function SenderPicker({
   onAddNeverStore,
 }: {
   fetchSendersAction: () => Promise<{ senders: SnapshotSender[] } | { error: string }>;
-  onAddExclude: (email: string) => void;
-  onAddNeverStore: (email: string) => void;
+  onAddExclude: (emails: string[]) => void;
+  onAddNeverStore: (emails: string[]) => void;
 }) {
   const [senders, setSenders] = useState<SnapshotSender[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState("");
+  const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, startLoad] = useTransition();
 
   const load = () => {
@@ -46,8 +52,17 @@ function SenderPicker({
         setError(result.error);
       } else {
         setSenders(result.senders);
-        setSelected(result.senders[0]?.email ?? "");
+        setChecked(new Set());
       }
+    });
+  };
+
+  const toggle = (email: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
     });
   };
 
@@ -69,32 +84,49 @@ function SenderPicker({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <select
-        value={selected}
-        onChange={(e) => setSelected(e.target.value)}
-        className="max-w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
-      >
+    <div className="rounded-md border border-slate-200 p-2">
+      <div className="max-h-40 space-y-1 overflow-y-auto pr-1">
         {senders.map((s) => (
-          <option key={s.email} value={s.email}>
-            {s.name ? `${s.name} <${s.email}>` : s.email} ({s.count})
-          </option>
+          <label key={s.email} className="flex items-center gap-2 text-xs text-slate-700">
+            <input
+              type="checkbox"
+              checked={checked.has(s.email)}
+              onChange={() => toggle(s.email)}
+              className="rounded border-slate-300"
+            />
+            <span className="truncate">
+              {s.name ? `${s.name} <${s.email}>` : s.email} ({s.count})
+            </span>
+          </label>
         ))}
-      </select>
-      <button
-        type="button"
-        onClick={() => selected && onAddExclude(selected)}
-        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
-      >
-        + Exclude from analysis
-      </button>
-      <button
-        type="button"
-        onClick={() => selected && onAddNeverStore(selected)}
-        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
-      >
-        + Never store
-      </button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+        <span className="text-xs text-slate-500">{checked.size} selected</span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={checked.size === 0}
+            onClick={() => {
+              onAddExclude([...checked]);
+              setChecked(new Set());
+            }}
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+          >
+            + Exclude from analysis
+          </button>
+          <button
+            type="button"
+            disabled={checked.size === 0}
+            onClick={() => {
+              onAddNeverStore([...checked]);
+              setChecked(new Set());
+            }}
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+          >
+            + Never store
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -137,8 +169,8 @@ export function MailboxReviewPanel({
 
           <SenderPicker
             fetchSendersAction={fetchSendersAction}
-            onAddExclude={(email) => setExcludes((prev) => addTerm(prev, email))}
-            onAddNeverStore={(email) => setNeverStore((prev) => addTerm(prev, email))}
+            onAddExclude={(emails) => setExcludes((prev) => addTerms(prev, emails))}
+            onAddNeverStore={(emails) => setNeverStore((prev) => addTerms(prev, emails))}
           />
 
           <label className="block text-xs text-slate-600">
