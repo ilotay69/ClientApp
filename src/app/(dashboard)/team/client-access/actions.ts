@@ -112,6 +112,21 @@ export async function createPortalUser(
     .maybeSingle();
   if (!client) return fail("That client no longer exists.");
 
+  // handle_new_user() (the trigger on auth.users) decides the new profile's
+  // role and client_id — but the `app_metadata` parameter passed to
+  // createUser() below does NOT reliably reach raw_app_meta_data in this
+  // project: confirmed via Postgres Logs that it arrives containing only
+  // GoTrue's own provider/providers fields, nothing the app passed in. This
+  // table (supabase/067) is the reliable replacement — the trigger reads it
+  // by email instead, and removes its own row once consumed.
+  const { error: pendingError } = await admin
+    .from("pending_account_provisions")
+    .upsert({ email, client_id: clientId, staff_role: null });
+  if (pendingError) {
+    console.error("createPortalUser: failed to stage pending provision", pendingError);
+    return fail("Could not create the portal login.");
+  }
+
   // 16 hex chars (~64 bits). Handed over out of band, then replaced by the
   // client the first time they sign in.
   const tempPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
@@ -121,14 +136,12 @@ export async function createPortalUser(
     password: tempPassword,
     email_confirm: true,
     user_metadata: { full_name: fullName },
-    // app_metadata, not user_metadata: only the admin API can set it, and the
-    // signed-in user cannot rewrite it via auth.updateUser({ data }). This is
-    // what handle_new_user reads to create the profile as role='client' with
-    // this client_id already set — see supabase/064_client_tenancy.sql.
-    app_metadata: { portal_client_id: clientId },
   });
 
   if (createError || !created.user) {
+    // Best-effort cleanup — otherwise the row sits until a future attempt for
+    // this same email overwrites it, which is harmless but confusing.
+    await admin.from("pending_account_provisions").delete().eq("email", email);
     return fail(createError?.message ?? "Could not create the portal login.");
   }
 

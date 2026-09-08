@@ -48,28 +48,38 @@ export async function addTeamMember(
     return { error: "Pick a staff role.", createdPassword: null };
   }
 
+  const admin = createAdminClient();
+
+  // handle_new_user() (the auth.users trigger) decides the new profile's
+  // role — passing it via `app_metadata` on createUser() below turned out not
+  // to reach raw_app_meta_data reliably in this project (confirmed via
+  // Postgres Logs: it arrives containing only GoTrue's own provider fields,
+  // nothing the app passed in). Without this, anyone created here as anything
+  // other than 'tech' on an @cgtechnologies.com address was silently created
+  // as 'tech' regardless of the role picked, and anyone on a non-CG address
+  // was rejected outright. This table (supabase/067) is the reliable
+  // replacement — the trigger reads it by email instead.
+  const { error: pendingError } = await admin
+    .from("pending_account_provisions")
+    .upsert({ email, staff_role: role, client_id: null });
+  if (pendingError) {
+    console.error("addTeamMember: failed to stage pending provision", pendingError);
+    return { error: "Could not create the team member.", createdPassword: null };
+  }
+
   // 12 hex chars (~48 bits of entropy) — a temporary password the owner
   // hands to the new member out of band; not meant to be long-lived.
   const tempPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
 
-  const admin = createAdminClient();
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
     password: tempPassword,
     email_confirm: true,
     user_metadata: { full_name: fullName },
-    // The role travels in app_metadata, which only the admin API can set —
-    // unlike user_metadata, which is caller-supplied at signup and
-    // self-rewritable afterwards via auth.updateUser({data}). The new-user
-    // trigger (supabase/063) reads it and the profile is *born* with the right
-    // role, so there's no longer a window where a failed follow-up UPDATE
-    // leaves someone holding a role nobody chose. It's also what tells the
-    // trigger this account was deliberately provisioned, which is how a staff
-    // member on a non-CG email address gets in at all now.
-    app_metadata: { staff_role: role },
   });
 
   if (createError || !created.user) {
+    await admin.from("pending_account_provisions").delete().eq("email", email);
     return { error: createError?.message ?? "Could not create user.", createdPassword: null };
   }
 
