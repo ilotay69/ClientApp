@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
+import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
 import {
@@ -102,6 +103,7 @@ export default async function TasksPage({
     { data: projects },
     { data: taskClientRows },
     { data: todoTaskClientRows },
+    { data: mailPrefs },
   ] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
     supabase.from("profiles").select("id, full_name").order("full_name"),
@@ -112,6 +114,11 @@ export default async function TasksPage({
     supabase.from("tasks").select("client_id").eq("is_personal", false).not("client_id", "is", null),
     // RLS already scopes this to the current user's own personal tasks.
     supabase.from("tasks").select("client_id").eq("is_personal", true).not("client_id", "is", null),
+    supabase
+      .from("mail_connections")
+      .select("review_subfolder, review_excludes, review_lookback_days")
+      .eq("user_id", user?.id ?? "")
+      .maybeSingle(),
   ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const taskClientIds = new Set((taskClientRows ?? []).map((r) => r.client_id));
@@ -295,6 +302,12 @@ export default async function TasksPage({
           they&apos;re tied to work in this app.
         </p>
       </div>
+
+      <MailboxReviewPanel
+        initialDays={mailPrefs?.review_lookback_days ?? 30}
+        initialSubfolder={mailPrefs?.review_subfolder ?? ""}
+        initialExcludes={mailPrefs?.review_excludes ?? ""}
+      />
 
       <TaskFilterBar
         clients={todoFilterClients}

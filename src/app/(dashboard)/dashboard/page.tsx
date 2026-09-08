@@ -2,7 +2,6 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
-import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
@@ -14,15 +13,10 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: me }, canSeeTeamWide, canManageTouchpoints, { data: mailPrefs }] = await Promise.all([
+  const [{ data: me }, canSeeTeamWide, canManageTouchpoints] = await Promise.all([
     supabase.from("profiles").select("role, full_name").eq("id", user?.id ?? "").single(),
     hasPermission(supabase, "view_team_wide"),
     hasPermission(supabase, "manage_touchpoints"),
-    supabase
-      .from("mail_connections")
-      .select("review_subfolder, review_excludes, review_lookback_days")
-      .eq("user_id", user?.id ?? "")
-      .maybeSingle(),
   ]);
 
   const [
@@ -83,12 +77,6 @@ export default async function DashboardPage() {
           {me?.full_name ? ` — hey ${me.full_name.split(" ")[0]}` : ""}.
         </p>
       </div>
-
-      <MailboxReviewPanel
-        initialDays={mailPrefs?.review_lookback_days ?? 30}
-        initialSubfolder={mailPrefs?.review_subfolder ?? ""}
-        initialExcludes={mailPrefs?.review_excludes ?? ""}
-      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="My open tasks" value={myTasks?.length ?? 0} href="/tasks?mine=1" />
