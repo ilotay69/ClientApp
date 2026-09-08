@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
-import { reviewMyMailbox, type MailboxReviewState, type SnapshotSender } from "@/app/(dashboard)/dashboard/actions";
+import {
+  reviewMyMailbox,
+  type MailboxReviewState,
+  type SnapshotSender,
+} from "@/app/(dashboard)/dashboard/actions";
+
+function narrativeKey(conversationId: string, graphMessageId: string): string {
+  return `${conversationId}:${graphMessageId}`;
+}
 
 const initialState: MailboxReviewState = { error: null, result: null };
 
@@ -136,17 +144,65 @@ export function MailboxReviewPanel({
   initialExcludes = "",
   initialNeverStore = "",
   fetchSendersAction,
+  dismissThreadAction,
+  clearDismissedThreadsAction,
 }: {
   initialDays?: number;
   initialExcludes?: string;
   initialNeverStore?: string;
   fetchSendersAction: () => Promise<{ senders: SnapshotSender[] } | { error: string }>;
+  dismissThreadAction: (conversationId: string, graphMessageId: string) => Promise<{ error?: string }>;
+  clearDismissedThreadsAction: () => Promise<{ error?: string }>;
 }) {
-  const [state, formAction, pending] = useActionState(reviewMyMailbox, initialState);
+  const [state, rawFormAction, pending] = useActionState(reviewMyMailbox, initialState);
   const [days, setDays] = useState(initialDays);
   const [excludes, setExcludes] = useState(initialExcludes);
   const [neverStore, setNeverStore] = useState(initialNeverStore);
+  const [locallyDismissed, setLocallyDismissed] = useState<Set<string>>(new Set());
+  const [dismissError, setDismissError] = useState<string | null>(null);
+  const [clearNotice, setClearNotice] = useState<string | null>(null);
+  const [working, startWork] = useTransition();
   const result = state.result;
+
+  // A fresh analysis run starts with a clean slate — the new result's own
+  // narrative already reflects whatever was dismissed server-side before
+  // this run started.
+  const formAction = (formData: FormData) => {
+    setLocallyDismissed(new Set());
+    setDismissError(null);
+    setClearNotice(null);
+    return rawFormAction(formData);
+  };
+
+  const visibleNarrative = result
+    ? result.narrative.filter((item) => !locallyDismissed.has(narrativeKey(item.conversationId, item.graphMessageId)))
+    : [];
+  const dismissedCount = (result?.dismissedThreadCount ?? 0) + locallyDismissed.size;
+
+  const dismiss = (conversationId: string, graphMessageId: string) => {
+    startWork(async () => {
+      const res = await dismissThreadAction(conversationId, graphMessageId);
+      if (res.error) {
+        setDismissError(res.error);
+        return;
+      }
+      setDismissError(null);
+      setLocallyDismissed((prev) => new Set(prev).add(narrativeKey(conversationId, graphMessageId)));
+    });
+  };
+
+  const clearExceptions = () => {
+    startWork(async () => {
+      const res = await clearDismissedThreadsAction();
+      if (res.error) {
+        setDismissError(res.error);
+        return;
+      }
+      setDismissError(null);
+      setLocallyDismissed(new Set());
+      setClearNotice("Exceptions cleared — click “Analyze my mailbox” again to see them.");
+    });
+  };
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -236,19 +292,47 @@ export function MailboxReviewPanel({
         <div className="space-y-5 px-5 py-4">
           <p className="text-xs text-slate-500">{result.mailboxEmail}</p>
 
-          {result.narrative.length === 0 ? (
-            <p className="text-sm text-slate-500">Nothing pending — you&apos;re all caught up.</p>
+          {dismissError && <p className="text-sm text-red-600">{dismissError}</p>}
+          {clearNotice && <p className="text-sm text-emerald-700">{clearNotice}</p>}
+
+          {visibleNarrative.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              Nothing pending — you&apos;re all caught up
+              {dismissedCount > 0 ? " (after your dismissed recommendations)" : ""}.
+            </p>
           ) : (
             <ul className="space-y-2">
-              {result.narrative.map((sentence, i) => (
+              {visibleNarrative.map((item) => (
                 <li
-                  key={i}
-                  className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+                  key={narrativeKey(item.conversationId, item.graphMessageId)}
+                  className="flex items-start justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-800"
                 >
-                  {sentence}
+                  <span>{item.text}</span>
+                  <button
+                    type="button"
+                    onClick={() => dismiss(item.conversationId, item.graphMessageId)}
+                    disabled={working}
+                    title="Don't show this recommendation again, unless this thread gets a new reply"
+                    className="shrink-0 text-xs text-slate-400 hover:text-red-600 disabled:opacity-60"
+                  >
+                    Dismiss
+                  </button>
                 </li>
               ))}
             </ul>
+          )}
+
+          {dismissedCount > 0 && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={clearExceptions}
+                disabled={working}
+                className="text-xs text-slate-500 underline hover:text-slate-700 disabled:opacity-60"
+              >
+                Clear exceptions ({dismissedCount})
+              </button>
+            </div>
           )}
 
           {result.suggestedActions.length > 0 && (

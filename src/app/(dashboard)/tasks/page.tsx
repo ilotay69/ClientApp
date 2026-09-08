@@ -24,6 +24,8 @@ import {
   fetchMySnapshotSenders,
   fetchMySnapshotPreview,
   syncMyMailboxNow,
+  dismissMailboxThread,
+  clearDismissedMailboxThreads,
 } from "../dashboard/actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
@@ -323,6 +325,8 @@ export default async function TasksPage({
         initialExcludes={mailPrefs?.review_excludes ?? ""}
         initialNeverStore={mailPrefs?.sync_excluded_senders ?? ""}
         fetchSendersAction={fetchMySnapshotSenders}
+        dismissThreadAction={dismissMailboxThread}
+        clearDismissedThreadsAction={clearDismissedMailboxThreads}
       />
 
       <MailboxSnapshotPreview action={fetchMySnapshotPreview} />

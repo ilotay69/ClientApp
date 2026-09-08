@@ -70,6 +70,8 @@ function isExcludedByUserTerms(message: MailboxSnapshotMessageRow, terms: string
 }
 
 type DigestThread = {
+  conversationId: string;
+  graphMessageId: string;
   subject: string;
   contact: string;
   direction: "awaiting_you" | "awaiting_them";
@@ -77,12 +79,27 @@ type DigestThread = {
   snippet: string;
 };
 
+/** One narrative line paired with the thread it's about — carrying
+ * conversationId/graphMessageId through (not just plain text) is what
+ * lets a "Dismiss" button target the exact thread state that produced
+ * this line, so a later genuinely-new reply on that same conversation
+ * isn't silently suppressed too (see dismissMailboxThread). */
+export type MailboxNarrativeItem = {
+  text: string;
+  conversationId: string;
+  graphMessageId: string;
+};
+
 export type MailboxReviewResult = {
   mailboxEmail: string;
-  narrative: string[];
+  narrative: MailboxNarrativeItem[];
   suggestedActions: string[];
   aiAvailable: boolean;
   focusIgnored: boolean;
+  /** How many threads are currently hidden by a standing dismissal —
+   * drives the "Clear exceptions" control the same way it does for
+   * appointments. */
+  dismissedThreadCount: number;
   /** When the local snapshot was last refreshed (see mailbox-snapshot.ts)
    * — this replaces the old "live scan hit its page cap" notice, since
    * the review no longer talks to Graph directly at all; freshness is
@@ -110,10 +127,12 @@ function daysLabel(days: number) {
 
 /** Plain, no-AI-needed phrasing — always available as a fallback, and the
  * only path when no provider is configured. */
-function deterministicNarrative(thread: DigestThread): string {
-  return thread.direction === "awaiting_them"
-    ? `Waiting on ${thread.contact} to reply about "${thread.subject}" — you followed up ${daysLabel(thread.daysPending)} ago.`
-    : `Please get back to ${thread.contact} about "${thread.subject}" — they wrote ${daysLabel(thread.daysPending)} ago.`;
+function deterministicNarrative(thread: DigestThread): MailboxNarrativeItem {
+  const text =
+    thread.direction === "awaiting_them"
+      ? `Waiting on ${thread.contact} to reply about "${thread.subject}" — you followed up ${daysLabel(thread.daysPending)} ago.`
+      : `Please get back to ${thread.contact} about "${thread.subject}" — they wrote ${daysLabel(thread.daysPending)} ago.`;
+  return { text, conversationId: thread.conversationId, graphMessageId: thread.graphMessageId };
 }
 
 /** Reads the signed-in user's local mailbox snapshot (see
@@ -169,17 +188,40 @@ export async function reviewMailbox(
     }
   }
 
+  // A dismissal targets one specific (conversation, message) pair — if
+  // that conversation has since gotten a genuinely new reply, its latest
+  // message no longer matches what was dismissed, so it resurfaces
+  // automatically instead of staying hidden forever.
+  const { data: dismissedRows } = await admin
+    .from("dismissed_mailbox_threads")
+    .select("conversation_id, dismissed_message_id")
+    .eq("user_id", connection.user_id);
+  const dismissedKeys = new Set(
+    (dismissedRows ?? []).map(
+      (d: { conversation_id: string; dismissed_message_id: string }) =>
+        `${d.conversation_id}:${d.dismissed_message_id}`
+    )
+  );
+
   const myEmail = connection.mailbox_email.toLowerCase();
   const now = Date.now();
 
+  let dismissedThreadCount = 0;
   const threads: DigestThread[] = [];
   for (const m of latestByThread.values()) {
+    if (dismissedKeys.has(`${m.conversation_id}:${m.graph_message_id}`)) {
+      dismissedThreadCount += 1;
+      continue;
+    }
+
     const fromAddress = m.from_email?.toLowerCase() ?? "";
     const isFromMe = fromAddress === myEmail;
     const daysPending = Math.max(0, Math.floor((now - new Date(m.received_at).getTime()) / (24 * 60 * 60 * 1000)));
     const contact = isFromMe ? m.to_name ?? m.to_email ?? "Unknown" : m.from_name ?? m.from_email ?? "Unknown";
 
     threads.push({
+      conversationId: m.conversation_id,
+      graphMessageId: m.graph_message_id,
       subject: m.subject || "(no subject)",
       contact,
       direction: isFromMe ? "awaiting_them" : "awaiting_you",
@@ -216,6 +258,7 @@ export async function reviewMailbox(
     suggestedActions,
     aiAvailable: Boolean(aiSettings),
     focusIgnored,
+    dismissedThreadCount,
     syncedAsOf,
   };
 }
@@ -229,10 +272,22 @@ const TOOL_SCHEMA = {
     narrative: {
       type: "array",
       items: {
-        type: "string",
-        description:
-          "One natural, second-person sentence describing what's pending on a single thread — reference the actual topic when the preview reveals it, e.g. \"You still need to send Attilio the quote he asked for 12 days ago\" rather than a generic \"reply to Attilio\". Skip a thread only if it's clearly trivial or already resolved-sounding.",
+        type: "object",
+        properties: {
+          thread_number: {
+            type: "integer",
+            description: "The [N] number of the thread this sentence is about, from the Threads list below.",
+          },
+          sentence: {
+            type: "string",
+            description:
+              "One natural, second-person sentence describing what's pending on this thread — reference the actual topic when the preview reveals it, e.g. \"You still need to send Attilio the quote he asked for 12 days ago\" rather than a generic \"reply to Attilio\".",
+          },
+        },
+        required: ["thread_number", "sentence"],
       },
+      description:
+        "One entry per thread worth mentioning — skip a thread only if it's clearly trivial or already resolved-sounding. Every entry must reference a real thread_number from the list below.",
     },
     suggested_actions: {
       type: "array",
@@ -246,8 +301,8 @@ const TOOL_SCHEMA = {
 function buildDigestPrompt(threads: DigestThread[], lookbackDays: number, focus: string | null) {
   const lines = threads
     .map(
-      (t) =>
-        `- [${t.direction === "awaiting_you" ? "awaiting your reply" : "awaiting their reply"}, ${daysLabel(t.daysPending)}] "${t.subject}" with ${t.contact}: ${t.snippet || "(no preview)"}`
+      (t, i) =>
+        `[${i + 1}] [${t.direction === "awaiting_you" ? "awaiting your reply" : "awaiting their reply"}, ${daysLabel(t.daysPending)}] "${t.subject}" with ${t.contact}: ${t.snippet || "(no preview)"}`
     )
     .join("\n");
 
@@ -255,7 +310,7 @@ function buildDigestPrompt(threads: DigestThread[], lookbackDays: number, focus:
     ? `The user specifically asked for this: "${focus}" — write the briefing to answer that, using only the threads below. If none of the threads below are relevant to what they asked, say so plainly instead of forcing an answer. Still give a short, prioritized list of concrete next actions for today.`
     : `Write one sentence per thread worth mentioning, ordered most urgent first, in the exact style of these examples: "Please get back to Jordan — he asked about the renewal pricing 6 days ago." / "You still haven't heard back from Attilio on the quote you sent 12 days ago." Don't invent detail beyond what's shown. Then give a short, prioritized list of concrete actions for today.`;
 
-  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days across their whole mailbox (Deleted Items, Junk, and Drafts excluded — automated notifications/newsletters/alerts and anything they asked to exclude are already filtered out too), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message.
+  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days across their whole mailbox (Deleted Items, Junk, and Drafts excluded — automated notifications/newsletters/alerts and anything they asked to exclude are already filtered out too), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message. Each thread has a [N] number — reference it via thread_number in your response so each sentence can be traced back to its thread.
 
 ${instruction}
 
@@ -270,15 +325,26 @@ async function callMailboxReviewAi(
   lookbackDays: number,
   focus: string | null,
   settings: ActiveAiSettings
-): Promise<{ narrative: string[]; suggestedActions: string[] }> {
+): Promise<{ narrative: MailboxNarrativeItem[]; suggestedActions: string[] }> {
   const prompt = buildDigestPrompt(threads, lookbackDays, focus);
   const parsed =
     settings.provider === "openai"
       ? await callOpenAiTool(prompt, settings.apiKey, settings.model)
       : await callAnthropicTool(prompt, settings.apiKey, settings.model);
 
+  const rawNarrative = Array.isArray(parsed?.narrative) ? parsed.narrative : [];
+  const narrative: MailboxNarrativeItem[] = [];
+  for (const item of rawNarrative) {
+    const thread = threads[(item?.thread_number ?? 0) - 1];
+    // A thread_number outside the list (a model slip) is dropped rather
+    // than guessed at — a dismiss button pointing at the wrong thread
+    // would be worse than one sentence going missing.
+    if (!thread || typeof item?.sentence !== "string") continue;
+    narrative.push({ text: item.sentence, conversationId: thread.conversationId, graphMessageId: thread.graphMessageId });
+  }
+
   return {
-    narrative: Array.isArray(parsed?.narrative) ? parsed.narrative : [],
+    narrative,
     suggestedActions: Array.isArray(parsed?.suggested_actions) ? parsed.suggested_actions : [],
   };
 }

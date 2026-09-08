@@ -359,3 +359,56 @@ export async function syncMyMailboxNow(): Promise<{ ok: boolean; message: string
     return { ok: false, message: err instanceof Error ? err.message : "Sync failed." };
   }
 }
+
+/** Hides one mailbox-review recommendation going forward — keyed to the
+ * exact (conversation, message) pair it was about, so a later genuinely
+ * new reply on that same thread isn't silently suppressed too (see
+ * reviewMailbox's dismissedKeys filtering). Upserts rather than inserts:
+ * dismissing an already-dismissed conversation again (now pointing at a
+ * newer message) just moves the dismissal forward. */
+export async function dismissMailboxThread(
+  conversationId: string,
+  graphMessageId: string
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("dismissed_mailbox_threads").upsert(
+    {
+      user_id: user.id,
+      conversation_id: conversationId,
+      dismissed_message_id: graphMessageId,
+      dismissed_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,conversation_id" }
+  );
+  if (error) {
+    console.error("dismissMailboxThread: failed to write dismissed_mailbox_threads", error);
+    return { error: `Couldn't save — ${error.message}` };
+  }
+
+  revalidatePath("/tasks");
+  return {};
+}
+
+export async function clearDismissedMailboxThreads(): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("dismissed_mailbox_threads").delete().eq("user_id", user.id);
+  if (error) {
+    console.error("clearDismissedMailboxThreads: failed to delete dismissed_mailbox_threads", error);
+    return { error: `Couldn't clear — ${error.message}` };
+  }
+
+  revalidatePath("/tasks");
+  return {};
+}
