@@ -1,7 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { getHuntressSettings } from "@/lib/huntress-settings";
-import { fetchHuntressAgentsFull, type HuntressAgentRow } from "@/lib/huntress";
+// fetchHuntressAgents rather than huntress-lookups' fetchHuntressAgentsFull:
+// that wrapper additionally fetches EVERY Huntress organization just to
+// resolve a display name, which we already know here — so it's an extra API
+// call, and one that reaches across other clients' orgs to make it.
+import { fetchHuntressAgents, type HuntressAgent } from "@/lib/huntress";
 import {
   fetchContractsForCompany,
   fetchContractBlocksForContractsInRange,
@@ -389,7 +393,7 @@ export async function fetchPortalSecureScore(
 // ---------------------------------------------------------------------------
 
 export type PortalHuntress = {
-  agents: HuntressAgentRow[];
+  agents: HuntressAgent[];
   linked: boolean;
   error: string | null;
 };
@@ -397,7 +401,7 @@ export type PortalHuntress = {
 export async function fetchPortalHuntress(session: PortalSession): Promise<PortalHuntress> {
   const orgId = session.client.huntressOrganizationId;
   // A null mapping means "hide the panel" — never "fetch unfiltered", which
-  // is what omitting the argument to fetchHuntressAgentsFull would do, and
+  // is what omitting the argument to fetchHuntressAgents would do, and
   // would hand this client every other client's agents.
   if (orgId == null) return { agents: [], linked: false, error: null };
 
@@ -406,7 +410,7 @@ export async function fetchPortalHuntress(session: PortalSession): Promise<Porta
   if (!creds) return { agents: [], linked: true, error: "Not available right now." };
 
   try {
-    return { agents: await fetchHuntressAgentsFull(creds, orgId), linked: true, error: null };
+    return { agents: await fetchHuntressAgents(creds, orgId), linked: true, error: null };
   } catch (err) {
     console.error("fetchPortalHuntress failed", err);
     return { agents: [], linked: true, error: "Not available right now." };

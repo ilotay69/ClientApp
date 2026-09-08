@@ -127,7 +127,7 @@ export default async function PortalSecurityPage({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {huntress.agents.map((a) => (
-                      <tr key={a.agentId}>
+                      <tr key={a.id}>
                         <td className="px-5 py-2 font-medium text-slate-900">{a.hostname}</td>
                         <td className="px-5 py-2 text-slate-600">
                           {a.os ?? a.platform ?? "—"}
