@@ -82,13 +82,22 @@ export type UpcomingAppointment = {
 
 const APPOINTMENTS_WINDOW_DAYS = 14;
 
+/** "Type" of appointment = its subject, normalized — dismissing one
+ * occurrence of a recurring meeting (or anything sharing that exact
+ * subject) hides all of them, not just that one instance. */
+function normalizeAppointmentSubject(subject: string): string {
+  return subject.trim().toLowerCase();
+}
+
 /** Live read of the signed-in user's own calendar, next 2 weeks —
  * requires Calendars.Read, added to MAIL_SCOPES after some mailboxes were
  * already connected under the old scope list, so a connection made before
  * that change will fail here until reconnected (Settings → Mailbox →
- * Connect again). Nothing here is persisted. */
+ * Connect again). Nothing here is persisted except the dismissed-subjects
+ * list (see dismissAppointmentType/clearDismissedAppointmentTypes) — never
+ * event content. */
 export async function fetchMyUpcomingAppointments(): Promise<
-  { appointments: UpcomingAppointment[] } | { error: string }
+  { appointments: UpcomingAppointment[]; dismissedCount: number } | { error: string }
 > {
   const supabase = await createClient();
   const {
@@ -107,6 +116,8 @@ export async function fetchMyUpcomingAppointments(): Promise<
     return { error: "Connect your mailbox first on the Mailbox settings page." };
   }
 
+  const dismissed = new Set(connection.dismissed_appointment_subjects ?? []);
+
   try {
     const accessToken = await getValidAccessToken(admin, connection as MailConnection);
     const now = new Date();
@@ -114,16 +125,19 @@ export async function fetchMyUpcomingAppointments(): Promise<
     const events = await fetchUpcomingEvents(accessToken, now.toISOString(), until.toISOString());
 
     return {
-      appointments: events.map((e) => ({
-        id: e.id,
-        subject: e.subject || "(no subject)",
-        startIso: e.start.dateTime,
-        endIso: e.end.dateTime,
-        isAllDay: Boolean(e.isAllDay),
-        location: e.location?.displayName || null,
-        organizerName: e.organizer?.emailAddress?.name ?? e.organizer?.emailAddress?.address ?? null,
-        webLink: e.webLink ?? null,
-      })),
+      appointments: events
+        .filter((e) => !dismissed.has(normalizeAppointmentSubject(e.subject || "")))
+        .map((e) => ({
+          id: e.id,
+          subject: e.subject || "(no subject)",
+          startIso: e.start.dateTime,
+          endIso: e.end.dateTime,
+          isAllDay: Boolean(e.isAllDay),
+          location: e.location?.displayName || null,
+          organizerName: e.organizer?.emailAddress?.name ?? e.organizer?.emailAddress?.address ?? null,
+          webLink: e.webLink ?? null,
+        })),
+      dismissedCount: dismissed.size,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load appointments.";
@@ -133,6 +147,49 @@ export async function fetchMyUpcomingAppointments(): Promise<
         : message,
     };
   }
+}
+
+/** Hides every appointment whose subject normalizes to match `subject`,
+ * going forward — a simple per-user allowlist-by-exclusion, not tied to
+ * any specific calendar event id (an id would only ever match one
+ * occurrence, not "this kind of meeting" generally). */
+export async function dismissAppointmentType(subject: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const admin = createAdminClient();
+  const { data: connection } = await admin
+    .from("mail_connections")
+    .select("dismissed_appointment_subjects")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!connection) return;
+
+  const normalized = normalizeAppointmentSubject(subject);
+  const current: string[] = connection.dismissed_appointment_subjects ?? [];
+  if (current.includes(normalized)) return;
+
+  await admin
+    .from("mail_connections")
+    .update({ dismissed_appointment_subjects: [...current, normalized] })
+    .eq("user_id", user.id);
+
+  revalidatePath("/tasks");
+}
+
+export async function clearDismissedAppointmentTypes(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const admin = createAdminClient();
+  await admin.from("mail_connections").update({ dismissed_appointment_subjects: [] }).eq("user_id", user.id);
+  revalidatePath("/tasks");
 }
 
 export async function updateSuggestionStatus(id: string, status: SuggestionStatus) {

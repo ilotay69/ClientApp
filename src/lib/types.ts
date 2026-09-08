@@ -188,6 +188,7 @@ export interface MailConnection {
   last_synced_at: string | null;
   review_excludes: string | null;
   review_lookback_days: number | null;
+  dismissed_appointment_subjects: string[];
 }
 
 export interface EmailLink {

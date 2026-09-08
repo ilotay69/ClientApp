@@ -15,7 +15,11 @@ import {
   getTaskNotesAction,
   addTaskNote,
 } from "./actions";
-import { fetchMyUpcomingAppointments } from "../dashboard/actions";
+import {
+  fetchMyUpcomingAppointments,
+  dismissAppointmentType,
+  clearDismissedAppointmentTypes,
+} from "../dashboard/actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
@@ -310,7 +314,11 @@ export default async function TasksPage({
         initialExcludes={mailPrefs?.review_excludes ?? ""}
       />
 
-      <UpcomingAppointments action={fetchMyUpcomingAppointments} />
+      <UpcomingAppointments
+        action={fetchMyUpcomingAppointments}
+        dismissAction={dismissAppointmentType}
+        clearDismissedAction={clearDismissedAppointmentTypes}
+      />
 
       <TaskFilterBar
         clients={todoFilterClients}
