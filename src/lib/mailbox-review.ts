@@ -1,6 +1,6 @@
 import {
-  findFolderIdByDisplayName,
-  fetchMessagesInFolder,
+  fetchMailboxWideMessages,
+  getExcludedSystemFolderIds,
   type MailboxSnapshotMessage,
 } from "@/lib/microsoft-graph";
 import { getValidAccessToken } from "@/lib/mail-sync";
@@ -11,13 +11,6 @@ import { assertAsciiHeaderValue } from "@/lib/ascii-check";
 
 export const DEFAULT_LOOKBACK_DAYS = 30;
 export const MAX_LOOKBACK_DAYS = 90;
-// Scope: Inbox and Sent Items always, plus one specific named folder if
-// the user asked for one — not every subfolder recursively (that version
-// tripped Graph's per-mailbox concurrency limit on a real mailbox and was
-// slow even once fixed; a named folder is both cheaper and lets the user
-// point at exactly the triage folder that matters instead of scanning
-// everything under Inbox).
-const ROOT_FOLDERS = ["inbox", "sentitems"];
 // Bounds the AI prompt size — the most-overdue threads (the ones that
 // matter most) go in first; anything past this cap only gets the plain
 // deterministic sentence, not an AI-written one.
@@ -93,9 +86,6 @@ export type MailboxReviewResult = {
   aiAvailable: boolean;
   hitPageCap: boolean;
   focusIgnored: boolean;
-  /** True when a subfolder name was given but no folder with that exact
-   * name (top-level, or under Inbox) could be found. */
-  subfolderNotFound: boolean;
 };
 
 export type MailboxReviewOptions = {
@@ -108,9 +98,6 @@ export type MailboxReviewOptions = {
    * digest. Only honored when an AI provider is configured; if not,
    * `focusIgnored` comes back true so the caller can say so. */
   focus?: string;
-  /** One specific folder's exact display name to scan in addition to
-   * Inbox and Sent Items — not a recursive walk. */
-  subfolder?: string;
   /** Raw "what to exclude" text — see parseExcludeTerms. */
   excludeTerms?: string;
 };
@@ -144,28 +131,26 @@ export async function reviewMailbox(
   const accessToken = await getValidAccessToken(admin, connection);
   const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
 
-  const subfolderName = options.subfolder?.trim() || null;
-  const subfolderId = subfolderName ? await findFolderIdByDisplayName(accessToken, subfolderName) : null;
-  const subfolderNotFound = Boolean(subfolderName) && !subfolderId;
+  // One mailbox-wide call, not one call per folder — this is what
+  // actually fixes "I filed the reply into a subfolder and now it looks
+  // unread/pending": the earlier per-folder scan only ever saw messages
+  // in whichever folders it was told to check, so a thread's real latest
+  // message (wherever the user has since filed it) was invisible if it
+  // moved outside that set. /me/messages already covers every folder in
+  // one paginated, sequential call — cheaper and more correct than
+  // enumerating folders individually, and it's what avoided the earlier
+  // concurrency-limit throttling too.
+  const [excludedFolderIds, { messages, hitPageCap }] = await Promise.all([
+    getExcludedSystemFolderIds(accessToken),
+    fetchMailboxWideMessages(accessToken, since),
+  ]);
 
-  const folderIds = new Set<string>(ROOT_FOLDERS);
-  if (subfolderId) folderIds.add(subfolderId);
-
-  // Sequential, not Promise.all — fetching several folders concurrently
-  // trips Graph's per-mailbox concurrency limit ("ApplicationThrottled" /
-  // MailboxConcurrency, a real 429 hit once this scanned more than a
-  // couple of fixed folders. graphFetch still retries individual 429s,
-  // but avoiding the pile-up in the first place is the real fix.
-  let hitPageCap = false;
   const byId = new Map<string, MailboxSnapshotMessage>();
-  for (const id of folderIds) {
-    const r = await fetchMessagesInFolder(accessToken, id, since);
-    if (r.hitPageCap) hitPageCap = true;
-    for (const m of r.messages) {
-      if (isLikelyNoise(m)) continue;
-      if (isExcludedByUserTerms(m, excludeTerms)) continue;
-      byId.set(m.id, m);
-    }
+  for (const m of messages) {
+    if (excludedFolderIds.has(m.parentFolderId)) continue;
+    if (isLikelyNoise(m)) continue;
+    if (isExcludedByUserTerms(m, excludeTerms)) continue;
+    byId.set(m.id, m);
   }
 
   // One entry per conversation — the latest message determines who's
@@ -231,7 +216,6 @@ export async function reviewMailbox(
     aiAvailable: Boolean(aiSettings),
     hitPageCap,
     focusIgnored,
-    subfolderNotFound,
   };
 }
 
@@ -270,7 +254,7 @@ function buildDigestPrompt(threads: DigestThread[], lookbackDays: number, focus:
     ? `The user specifically asked for this: "${focus}" — write the briefing to answer that, using only the threads below. If none of the threads below are relevant to what they asked, say so plainly instead of forcing an answer. Still give a short, prioritized list of concrete next actions for today.`
     : `Write one sentence per thread worth mentioning, ordered most urgent first, in the exact style of these examples: "Please get back to Jordan — he asked about the renewal pricing 6 days ago." / "You still haven't heard back from Attilio on the quote you sent 12 days ago." Don't invent detail beyond what's shown. Then give a short, prioritized list of concrete actions for today.`;
 
-  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days (Inbox and Sent Items, plus any specific folder they asked to include — automated notifications/newsletters/alerts and anything they asked to exclude are already filtered out), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message.
+  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days across their whole mailbox (Deleted Items, Junk, and Drafts excluded — automated notifications/newsletters/alerts and anything they asked to exclude are already filtered out too), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message.
 
 ${instruction}
 

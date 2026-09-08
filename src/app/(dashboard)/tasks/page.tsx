@@ -4,6 +4,7 @@ import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
 import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
+import { UpcomingAppointments } from "@/components/upcoming-appointments";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
 import {
@@ -14,6 +15,7 @@ import {
   getTaskNotesAction,
   addTaskNote,
 } from "./actions";
+import { fetchMyUpcomingAppointments } from "../dashboard/actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
@@ -116,7 +118,7 @@ export default async function TasksPage({
     supabase.from("tasks").select("client_id").eq("is_personal", true).not("client_id", "is", null),
     supabase
       .from("mail_connections")
-      .select("review_subfolder, review_excludes, review_lookback_days")
+      .select("review_excludes, review_lookback_days")
       .eq("user_id", user?.id ?? "")
       .maybeSingle(),
   ]);
@@ -305,9 +307,10 @@ export default async function TasksPage({
 
       <MailboxReviewPanel
         initialDays={mailPrefs?.review_lookback_days ?? 30}
-        initialSubfolder={mailPrefs?.review_subfolder ?? ""}
         initialExcludes={mailPrefs?.review_excludes ?? ""}
       />
+
+      <UpcomingAppointments action={fetchMyUpcomingAppointments} />
 
       <TaskFilterBar
         clients={todoFilterClients}

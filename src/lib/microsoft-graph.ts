@@ -24,8 +24,14 @@ async function graphFetch(url: string, accessToken: string): Promise<Response> {
   }
 }
 
-/** Scopes requested for the "connect my mailbox" flow (not the login flow). */
-export const MAIL_SCOPES = "openid offline_access User.Read Mail.Read";
+/** Scopes requested for the "connect my mailbox" flow (not the login flow).
+ * Adding Calendars.Read here only affects NEW connections — an existing
+ * mail_connections row was consented under the old, narrower scope list,
+ * and Microsoft won't silently grant a scope that was never consented to
+ * just because this constant changed. Anyone who connected before this
+ * scope was added needs to reconnect (Settings → Mailbox → Connect again)
+ * to actually get calendar access. */
+export const MAIL_SCOPES = "openid offline_access User.Read Mail.Read Calendars.Read";
 
 export function buildAuthorizeUrl(redirectUri: string, state: string) {
   const url = new URL(`${AUTHORITY()}/oauth2/v2.0/authorize`);
@@ -177,59 +183,22 @@ export type MailboxSnapshotMessage = GraphMessage & {
   sentDateTime?: string;
 };
 
-type MailFolderSummary = { id: string; displayName: string };
-
-async function listMailFolders(accessToken: string, url: string): Promise<MailFolderSummary[]> {
-  const res = await graphFetch(url, accessToken);
-  if (!res.ok) {
-    throw new Error(`Failed to list mail folders (${res.status})`);
-  }
-  const json = await res.json();
-  return json.value ?? [];
-}
-
 /**
- * Finds a folder by its exact display name (case-insensitive) — checks
- * top-level folders first, then Inbox's child folders (the common place
- * for a custom triage folder like "Active Inbox"). Returns null if not
- * found rather than throwing, since this folder is optional.
+ * Fetches every message mailbox-wide (every folder at once, not one
+ * folder at a time) — used by the mailbox review. A per-folder scan
+ * misses a thread's true latest message once the user files it away into
+ * whatever folder they use for "already handled" mail; /me/messages
+ * covers the entire mailbox in one paginated call, so nothing gets missed
+ * just because it moved. Pulls conversationId/parentFolderId too, so the
+ * caller can group into threads and exclude system folders (see
+ * getExcludedSystemFolderIds) by id.
  */
-export async function findFolderIdByDisplayName(
+export async function fetchMailboxWideMessages(
   accessToken: string,
-  displayName: string
-): Promise<string | null> {
-  const target = displayName.toLowerCase();
-
-  const topLevel = await listMailFolders(
-    accessToken,
-    "https://graph.microsoft.com/v1.0/me/mailFolders?$top=100"
-  );
-  const topMatch = topLevel.find((f) => f.displayName.toLowerCase() === target);
-  if (topMatch) return topMatch.id;
-
-  const inboxChildren = await listMailFolders(
-    accessToken,
-    "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/childFolders?$top=100"
-  );
-  return inboxChildren.find((f) => f.displayName.toLowerCase() === target)?.id ?? null;
-}
-
-/**
- * Fetches messages from one specific folder only — used for the live,
- * non-persisted mailbox review, which is scoped to a small, explicit set
- * of folders (Inbox, Sent Items, a named custom folder) rather than the
- * whole mailbox. `folder` is either a well-known name Graph accepts
- * directly ("inbox", "sentitems") or a folder id from
- * findFolderIdByDisplayName. Pulls conversationId/parentFolderId too, so
- * the caller can group messages into threads.
- */
-export async function fetchMessagesInFolder(
-  accessToken: string,
-  folder: string,
   sinceIso: string,
-  maxPages = 5
+  maxPages = 10
 ): Promise<{ messages: MailboxSnapshotMessage[]; hitPageCap: boolean }> {
-  const base = new URL(`https://graph.microsoft.com/v1.0/me/mailFolders/${folder}/messages`);
+  const base = new URL("https://graph.microsoft.com/v1.0/me/messages");
   base.searchParams.set(
     "$select",
     "id,subject,from,toRecipients,receivedDateTime,sentDateTime,webLink,bodyPreview,conversationId,parentFolderId"
@@ -255,6 +224,73 @@ export async function fetchMessagesInFolder(
   }
 
   return { messages, hitPageCap: Boolean(url) };
+}
+
+// Folders that never represent "live" client conversation — resolved to
+// real folder ids once per review (a mailbox-wide message carries only
+// its parentFolderId, not a folder name), so messages in these are
+// excluded regardless of how old or new they are. Conversation History is
+// a hidden system folder some mailboxes don't have at all; a missing
+// folder is silently skipped rather than treated as an error.
+const SYSTEM_EXCLUDED_FOLDER_NAMES = ["deleteditems", "junkemail", "drafts", "conversationhistory", "outbox"];
+
+export async function getExcludedSystemFolderIds(accessToken: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (const name of SYSTEM_EXCLUDED_FOLDER_NAMES) {
+    const res = await graphFetch(`https://graph.microsoft.com/v1.0/me/mailFolders/${name}`, accessToken);
+    if (!res.ok) continue;
+    const json = await res.json();
+    if (json.id) ids.add(json.id);
+  }
+  return ids;
+}
+
+export type GraphEvent = {
+  id: string;
+  subject: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  isAllDay?: boolean;
+  location?: { displayName?: string };
+  organizer?: { emailAddress?: { name?: string; address?: string } };
+  webLink?: string;
+};
+
+/**
+ * Every calendar occurrence between startIso and endIso — uses
+ * calendarView, not /me/events: events would return a recurring series'
+ * master definition once, not each actual occurrence that falls in the
+ * window, which is what "what's on my calendar this week" actually needs.
+ */
+export async function fetchUpcomingEvents(
+  accessToken: string,
+  startIso: string,
+  endIso: string,
+  maxPages = 5
+): Promise<GraphEvent[]> {
+  const base = new URL("https://graph.microsoft.com/v1.0/me/calendarView");
+  base.searchParams.set("startDateTime", startIso);
+  base.searchParams.set("endDateTime", endIso);
+  base.searchParams.set("$select", "id,subject,start,end,isAllDay,location,organizer,webLink");
+  base.searchParams.set("$top", "50");
+
+  let url: string | null = base.toString();
+  const events: GraphEvent[] = [];
+  let pages = 0;
+
+  while (url && pages < maxPages) {
+    const res: Response = await graphFetch(url, accessToken);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Microsoft Graph calendar request failed (${res.status}): ${text}`);
+    }
+    const json = await res.json();
+    events.push(...(json.value ?? []));
+    url = json["@odata.nextLink"] ?? null;
+    pages += 1;
+  }
+
+  return events.sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
 }
 
 export async function fetchMailboxEmail(accessToken: string): Promise<string> {
