@@ -187,9 +187,18 @@ export async function sendPortalPasswordReset(
 
   // Sent through the ordinary (anon) client because that's the flow that
   // emails the user a recovery link; the admin API has no "send reset" call.
+  //
+  // redirectTo goes through /auth/callback, not straight to /portal: the
+  // recovery link Supabase emails carries a one-time CODE that has to be
+  // exchanged for an actual session before anyone is signed in as this user
+  // — /auth/callback already does exactly that exchange for the Azure
+  // sign-in flow. Pointing redirectTo at /portal directly (the first version
+  // of this) skipped that exchange entirely, so clicking the email link
+  // never signed the recipient in as them at all — it just served whatever
+  // session the browser already had.
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
-    redirectTo: `${resolveAppUrl()}/portal`,
+    redirectTo: `${resolveAppUrl()}/auth/callback?next=${encodeURIComponent("/portal/reset-password")}`,
   });
   if (error) {
     console.error("sendPortalPasswordReset failed", error);
