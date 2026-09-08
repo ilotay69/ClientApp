@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { reviewMailbox, MAX_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS, type MailboxReviewResult } from "@/lib/mailbox-review";
-import { purgeSnapshotMessagesFromSenders } from "@/lib/mailbox-snapshot";
+import { purgeSnapshotMessagesFromSenders, syncMailboxSnapshot } from "@/lib/mailbox-snapshot";
 import { getValidAccessToken } from "@/lib/mail-sync";
 import { fetchUpcomingEvents } from "@/lib/microsoft-graph";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
@@ -324,4 +324,38 @@ export async function fetchMySnapshotPreview(): Promise<SnapshotPreview | { erro
     totalCount: count ?? 0,
     oldestReceivedAt: oldestRow?.received_at ?? null,
   };
+}
+
+/** Manually triggers a snapshot sync for the signed-in user's own mailbox
+ * right now, instead of waiting for the next ~30-minute cron run — the
+ * exact same function the cron itself calls, not a separate lighter-weight
+ * path, so a slow first-ever sync (see INITIAL_BACKFILL_DAYS) is still
+ * slow here too; this just lets someone trigger it on demand rather than
+ * waiting. */
+export async function syncMyMailboxNow(): Promise<{ ok: boolean; message: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Not signed in." };
+
+  const admin = createAdminClient();
+  const { data: connection } = await admin
+    .from("mail_connections")
+    .select("*")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!connection) {
+    return { ok: false, message: "Connect your mailbox first on the Mailbox settings page." };
+  }
+
+  try {
+    const result = await syncMailboxSnapshot(admin, connection as MailConnection);
+    return {
+      ok: true,
+      message: `Synced — ${result.upserted} new/updated, ${result.skipped} skipped (excluded), ${result.pruned} pruned.`,
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Sync failed." };
+  }
 }

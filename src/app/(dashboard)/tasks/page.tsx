@@ -5,6 +5,7 @@ import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
 import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { MailboxSnapshotPreview } from "@/components/mailbox-snapshot-preview";
+import { SyncMailboxButton } from "@/components/sync-mailbox-button";
 import { UpcomingAppointments } from "@/components/upcoming-appointments";
 import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
@@ -22,6 +23,7 @@ import {
   clearDismissedAppointmentTypes,
   fetchMySnapshotSenders,
   fetchMySnapshotPreview,
+  syncMyMailboxNow,
 } from "../dashboard/actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
@@ -313,6 +315,8 @@ export default async function TasksPage({
           they&apos;re tied to work in this app.
         </p>
       </div>
+
+      <SyncMailboxButton action={syncMyMailboxNow} />
 
       <MailboxReviewPanel
         initialDays={mailPrefs?.review_lookback_days ?? 30}
