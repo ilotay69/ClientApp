@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useActionState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn, type AuthState } from "./actions";
 import { MicrosoftSignInButton } from "@/components/microsoft-sign-in-button";
@@ -18,7 +17,9 @@ export default function LoginPage() {
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/dashboard";
+  // "/" is the role router — it sends staff to the dashboard and a portal
+  // login to the portal, so this default doesn't have to know which is which.
+  const next = searchParams.get("next") ?? "/";
   const [state, formAction, pending] = useActionState(signIn, initialState);
 
   return (
@@ -80,10 +81,7 @@ function LoginForm() {
         </form>
 
         <p className="mt-4 text-center text-sm text-slate-500">
-          New team member?{" "}
-          <Link href="/sign-up" className="font-medium text-slate-900 underline">
-            Create an account
-          </Link>
+          Need an account? Ask an Owner to create one for you.
         </p>
       </div>
     </div>

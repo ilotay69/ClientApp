@@ -44,6 +44,18 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
 
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];
 
+/** The roles that belong to CG staff. Deliberately an allowlist and not
+ * "everything except 'client'": a role added later is locked out of the whole
+ * staff app until it's named here on purpose. Mirrors public.is_staff() in
+ * the database — keep the two in step. */
+export const STAFF_ROLES = ["owner", "manager", "tech", "sales_rep"] as const;
+
+export type StaffRole = (typeof STAFF_ROLES)[number];
+
+export function isStaffRole(role: UserRole | null | undefined): role is StaffRole {
+  return !!role && (STAFF_ROLES as readonly string[]).includes(role);
+}
+
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /** Computes the signed-in user's role and granted permission set. 'owner'
@@ -62,6 +74,20 @@ export async function getMyPermissions(
 
   if (me.role === "owner") {
     return { userId: user.id, role: "owner", permissions: new Set(ALL_PERMISSION_KEYS) };
+  }
+
+  // A client-portal login holds no staff permission, ever. That was already
+  // true in practice, but only because nothing seeds role_permissions rows for
+  // 'client' — an accident, not a boundary. Make it explicit, so the seed
+  // idiom used in 060 (`select role, ... from role_permissions where
+  // permission = '<existing>'`, which copies rows for whatever roles exist)
+  // can never quietly hand a permission to a customer.
+  if (!isStaffRole(me.role as UserRole)) {
+    return {
+      userId: user.id,
+      role: me.role as UserRole,
+      permissions: new Set<PermissionKey>(),
+    };
   }
 
   const { data: rows } = await supabase
@@ -95,6 +121,28 @@ export async function requirePermission(permission: PermissionKey) {
   const supabase = await createClient();
   const me = await getMyPermissions(supabase);
   if (!me || !me.permissions.has(permission)) return null;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
+
+/** Server-action guard for "any CG staff member, regardless of permission".
+ *
+ * Server Actions are POST endpoints: they run before, and independently of,
+ * any layout or page render, so a layout redirect does NOT gate them. Anything
+ * that reaches a service-role client — which bypasses RLS entirely — needs its
+ * own check at the top of the action, and the ones that read whatever
+ * `clientId` the caller passed need it most.
+ *
+ * Use this for actions with no natural permission key (a sync trigger, a
+ * lookup helper). Anything with a real permission should still use
+ * requirePermission, which is strictly stronger. */
+export async function requireStaff() {
+  const supabase = await createClient();
+  const me = await getMyPermissions(supabase);
+  if (!me || !isStaffRole(me.role)) return null;
 
   const {
     data: { user },

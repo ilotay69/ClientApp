@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getMyPermissions, isStaffRole } from "@/lib/permissions";
 import { buildAuthorizeUrl } from "@/lib/microsoft-graph";
 import { resolveAppUrl } from "@/lib/app-url";
 
@@ -22,6 +23,16 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return NextResponse.redirect(new URL("/login", appUrl));
+  }
+
+  // Staff only. Routes under /api are exempt from the auth gate in
+  // src/lib/supabase/middleware.ts, so this is the only check there is — and
+  // without it a client-portal login could connect their own mailbox, which
+  // would then get ingested into CG's database and run through CG's AI
+  // provider on CG's bill by the mailbox-review actions.
+  const me = await getMyPermissions(supabase);
+  if (!isStaffRole(me?.role)) {
+    return NextResponse.redirect(new URL("/", appUrl));
   }
 
   const state = crypto.randomUUID();

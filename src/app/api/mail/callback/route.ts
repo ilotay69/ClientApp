@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { getMyPermissions, isStaffRole } from "@/lib/permissions";
 import { exchangeCodeForTokens, fetchMailboxEmail } from "@/lib/microsoft-graph";
 import { resolveAppUrl } from "@/lib/app-url";
 
@@ -27,6 +28,13 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.redirect(`${origin}/login`);
+  }
+
+  // Same staff-only gate as /api/mail/connect — checked again here because
+  // this route is reachable directly, not only via that one.
+  const me = await getMyPermissions(supabase);
+  if (!isStaffRole(me?.role)) {
+    return NextResponse.redirect(`${origin}/`);
   }
 
   try {

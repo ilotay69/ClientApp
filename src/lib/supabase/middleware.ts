@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/sign-up", "/auth"];
+const PUBLIC_PATHS = ["/login", "/auth"];
 
 /**
  * Refreshes the Supabase auth session on every request and redirects
@@ -46,8 +46,12 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // "/" rather than "/dashboard": src/app/page.tsx is the role router, so a
+  // client-portal login lands in the portal instead of bouncing through the
+  // staff tree first. Deliberately no role lookup here — this runs on every
+  // request, and a database query in middleware is the thing we're avoiding.
   if (user && isPublicPath) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return response;

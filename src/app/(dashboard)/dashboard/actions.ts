@@ -6,6 +6,7 @@ import { reviewMailbox, MAX_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS, type MailboxRe
 import { purgeSnapshotMessagesFromSenders, syncMailboxSnapshot } from "@/lib/mailbox-snapshot";
 import { getValidAccessToken } from "@/lib/mail-sync";
 import { fetchUpcomingEvents } from "@/lib/microsoft-graph";
+import { requireStaff } from "@/lib/permissions";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
@@ -262,6 +263,9 @@ export async function clearDismissedAppointmentTypes(): Promise<{ error?: string
 }
 
 export async function updateSuggestionStatus(id: string, status: SuggestionStatus) {
+  // Service-role write with a caller-supplied id — RLS can't gate this one.
+  if (!(await requireStaff())) return;
+
   const admin = createAdminClient();
   await admin.from("suggestions").update({ status }).eq("id", id);
   revalidatePath("/dashboard");

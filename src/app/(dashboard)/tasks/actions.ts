@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getResendClient, buildTaskAssignedEmail } from "@/lib/resend";
 import { formatDate } from "@/lib/format";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, requireStaff } from "@/lib/permissions";
 import type { TaskKind, TaskPriority } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -141,6 +141,8 @@ export async function createTask(
 
 /** Replaces the full assignee set for a task and emails anyone newly added. */
 export async function setTaskAssignees(taskId: string, assigneeIds: string[]) {
+  if (!(await requireStaff())) return;
+
   const supabase = await createClient();
 
   const { data: current } = await supabase
@@ -195,6 +197,7 @@ const NULLABLE_TASK_FIELDS: readonly string[] = [
  * generic `action` prop shape the editor components expect. */
 export async function updateTaskField(taskId: string, field: string, value: string) {
   if (!(EDITABLE_TASK_FIELDS as readonly string[]).includes(field)) return;
+  if (!(await requireStaff())) return;
   const supabase = await createClient();
 
   const nextValue = NULLABLE_TASK_FIELDS.includes(field) ? value.trim() || null : value;
@@ -222,6 +225,8 @@ export type TaskNote = {
 export async function getTaskNotesAction(
   taskId: string
 ): Promise<{ notes: TaskNote[] } | { error: string }> {
+  if (!(await requireStaff())) return { error: "You don't have permission to do that." };
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("task_notes")

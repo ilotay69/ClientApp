@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { requirePermission, hasPermission } from "@/lib/permissions";
+import { requirePermission, requireStaff, hasPermission } from "@/lib/permissions";
 import { generateSuggestions } from "@/lib/suggestions";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import {
@@ -260,6 +260,8 @@ export async function uploadClientDocument(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requireStaff())) return { error: "You don't have permission to do that." };
+
   const result = await uploadInteractionDocument(clientId, null, category, formData);
   if (!result.error) revalidatePath(`/clients/${clientId}`);
   return result;
@@ -274,6 +276,8 @@ export async function uploadProjectDocument(
   _prevState: FormState,
   formData: FormData
 ): Promise<FormState> {
+  if (!(await requireStaff())) return { error: "You don't have permission to do that." };
+
   const result = await uploadInteractionDocument(clientId, projectId, "document", formData);
   if (!result.error) revalidatePath("/projects");
   return result;
@@ -296,6 +300,15 @@ export type AutotaskQuoteOption = {
 export async function listAutotaskQuotesForClientAction(
   clientId: string
 ): Promise<{ quotes: AutotaskQuoteOption[] } | { error: string }> {
+  // Guard first, before the service-role client. `clientId` is caller-supplied
+  // and this reads through the admin client, which bypasses RLS — so without
+  // this line anyone with any session could POST this action (Server Actions
+  // are POST endpoints; no layout or page render gates them) and read any
+  // company's Autotask quotes.
+  if (!(await requireStaff())) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const admin = createAdminClient();
   const { data: client } = await admin
     .from("clients")
@@ -699,6 +712,12 @@ export async function refreshClientInsightsAction(
   _prevState: RefreshClientInsightsState,
   _formData: FormData
 ): Promise<RefreshClientInsightsState> {
+  // Service-role below, and this one spends money (AI provider calls), so an
+  // unguarded version is both a data-exposure and a billing problem.
+  if (!(await requireStaff())) {
+    return { error: "You don't have permission to do that." };
+  }
+
   const admin = createAdminClient();
 
   if (!(await getActiveAiSettings(admin))) {
@@ -1032,6 +1051,8 @@ const AUTO_SYNC_THROTTLE_MS = 60 * 60 * 1000;
  * just scoped to one client's timestamp instead of one org-wide one since
  * this syncs a single client rather than every mapped client at once. */
 export async function autoSyncClientNinjaOneIfStale(clientId: string): Promise<void> {
+  if (!(await requireStaff())) return;
+
   const admin = createAdminClient();
   const { data: client } = await admin
     .from("clients")
@@ -1074,6 +1095,8 @@ export async function autoSyncClientNinjaOneIfStale(clientId: string): Promise<v
 /** Same throttled background pattern as autoSyncClientNinjaOneIfStale,
  * for M365 licenses/Secure Score gaps. */
 export async function autoSyncClientM365IfStale(clientId: string): Promise<void> {
+  if (!(await requireStaff())) return;
+
   const admin = createAdminClient();
   const { data: client } = await admin
     .from("clients")

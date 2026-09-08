@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { requirePermission, hasPermission } from "@/lib/permissions";
+import { requirePermission, requireStaff, hasPermission } from "@/lib/permissions";
 import { syncAllProjectSlaProjects } from "@/lib/autotask-sync";
 import type { ProjectStatus } from "@/lib/types";
 
@@ -157,6 +157,8 @@ const AUTO_SYNC_THROTTLE_MS = 30 * 60 * 1000;
  * several people opening the page in the same window don't each kick off
  * their own sync. */
 export async function autoSyncAutotaskProjectsIfStale(): Promise<void> {
+  if (!(await requireStaff())) return;
+
   const admin = createAdminClient();
   const { data: settings } = await admin
     .from("autotask_settings")
@@ -194,6 +196,8 @@ export type ProjectTask = {
 export async function getProjectTasksAction(
   projectId: string
 ): Promise<{ tasks: ProjectTask[] } | { error: string }> {
+  if (!(await requireStaff())) return { error: "You don't have permission to do that." };
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tasks")
@@ -229,6 +233,8 @@ export type ProjectQuoteLogEntry = {
 export async function getProjectQuoteLogAction(
   projectId: string
 ): Promise<{ entries: ProjectQuoteLogEntry[] } | { error: string }> {
+  if (!(await requireStaff())) return { error: "You don't have permission to do that." };
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("client_interactions")
@@ -262,6 +268,8 @@ export type ProjectNote = {
 export async function getProjectNotesAction(
   projectId: string
 ): Promise<{ notes: ProjectNote[] } | { error: string }> {
+  if (!(await requireStaff())) return { error: "You don't have permission to do that." };
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("project_notes")
@@ -319,6 +327,8 @@ export type ProjectDocument = {
 export async function getProjectDocumentsAction(
   projectId: string
 ): Promise<{ documents: ProjectDocument[] } | { error: string }> {
+  if (!(await requireStaff())) return { error: "You don't have permission to do that." };
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("client_interactions")

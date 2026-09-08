@@ -2,7 +2,11 @@
 // If the schema changes, update these to match (or generate them with
 // `supabase gen types typescript` once the Supabase CLI is linked to the project).
 
-export type UserRole = "owner" | "manager" | "tech" | "sales_rep";
+/** 'client' is a customer's read-only portal login, NOT a staff role — it
+ * holds no permissions and is barred from the whole staff app. Use
+ * isStaffRole() from @/lib/permissions rather than comparing against it
+ * directly. */
+export type UserRole = "owner" | "manager" | "tech" | "sales_rep" | "client";
 export type ProjectStatus =
   | "planning"
   | "active"

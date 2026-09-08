@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requirePermission, type PermissionKey } from "@/lib/permissions";
+import { requirePermission, isStaffRole, type PermissionKey } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 
 export async function updateRolePermission(
@@ -13,6 +13,13 @@ export async function updateRolePermission(
   // Owner is hardcoded to full access in app code — never a table row, so
   // there's nothing to toggle.
   if (role === "owner") return {};
+  // `role` is a Server Action argument, so the UserRole type is a
+  // compile-time claim only. A client-portal login must never acquire a
+  // permission; the role_permissions check constraint refuses this too, but
+  // failing here gives a clear message instead of a Postgres error.
+  if (!isStaffRole(role)) {
+    return { error: "Permissions can only be granted to staff roles." };
+  }
   if (!(await requirePermission("manage_roles"))) {
     return { error: "You don't have permission to do that." };
   }
