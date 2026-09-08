@@ -12,6 +12,12 @@ export const SNAPSHOT_RETENTION_DAYS = 90;
 // — a higher page cap here (vs the smaller default used elsewhere) is safe
 // because this only runs on a schedule, not on every interactive click.
 const BACKFILL_MAX_PAGES = 60;
+// Batched, not one row per round trip — a 90-day first-ever backfill can
+// easily be 1,000+ messages, and upserting them one at a time turned a
+// few Graph pages into thousands of sequential Supabase calls, which is
+// what actually made a first-time "Analyze my mailbox" click feel slow
+// (not the Graph fetch itself).
+const UPSERT_CHUNK_SIZE = 200;
 
 /** Parses a raw "never store senders" string (comma or newline separated)
  * into lowercased terms, matched against sender address and display name
@@ -56,9 +62,26 @@ export async function syncMailboxSnapshot(
 
   const senderTerms = parseSenderTerms(connection.sync_excluded_senders);
 
-  let upserted = 0;
   let skipped = 0;
   let latestReceivedAt = since;
+  const now = new Date().toISOString();
+  const rowsToUpsert: {
+    user_id: string;
+    graph_message_id: string;
+    conversation_id: string;
+    subject: string;
+    from_name: string | null;
+    from_email: string | null;
+    to_name: string | null;
+    to_email: string | null;
+    received_at: string;
+    sent_at: string | null;
+    web_link: string;
+    body_preview: string;
+    parent_folder_id: string;
+    is_flagged: boolean;
+    synced_at: string;
+  }[] = [];
 
   for (const m of messages) {
     if (m.receivedDateTime > latestReceivedAt) latestReceivedAt = m.receivedDateTime;
@@ -68,27 +91,32 @@ export async function syncMailboxSnapshot(
       continue;
     }
 
-    const { error } = await admin.from("mailbox_snapshot_messages").upsert(
-      {
-        user_id: connection.user_id,
-        graph_message_id: m.id,
-        conversation_id: m.conversationId,
-        subject: m.subject,
-        from_name: m.from?.emailAddress?.name ?? null,
-        from_email: m.from?.emailAddress?.address ?? null,
-        to_name: m.toRecipients?.[0]?.emailAddress?.name ?? null,
-        to_email: m.toRecipients?.[0]?.emailAddress?.address ?? null,
-        received_at: m.receivedDateTime,
-        sent_at: m.sentDateTime ?? null,
-        web_link: m.webLink,
-        body_preview: (m.bodyPreview ?? "").slice(0, 500),
-        parent_folder_id: m.parentFolderId,
-        is_flagged: m.flag?.flagStatus === "flagged",
-        synced_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,graph_message_id" }
-    );
-    if (!error) upserted += 1;
+    rowsToUpsert.push({
+      user_id: connection.user_id,
+      graph_message_id: m.id,
+      conversation_id: m.conversationId,
+      subject: m.subject,
+      from_name: m.from?.emailAddress?.name ?? null,
+      from_email: m.from?.emailAddress?.address ?? null,
+      to_name: m.toRecipients?.[0]?.emailAddress?.name ?? null,
+      to_email: m.toRecipients?.[0]?.emailAddress?.address ?? null,
+      received_at: m.receivedDateTime,
+      sent_at: m.sentDateTime ?? null,
+      web_link: m.webLink,
+      body_preview: (m.bodyPreview ?? "").slice(0, 500),
+      parent_folder_id: m.parentFolderId,
+      is_flagged: m.flag?.flagStatus === "flagged",
+      synced_at: now,
+    });
+  }
+
+  let upserted = 0;
+  for (let i = 0; i < rowsToUpsert.length; i += UPSERT_CHUNK_SIZE) {
+    const chunk = rowsToUpsert.slice(i, i + UPSERT_CHUNK_SIZE);
+    const { error } = await admin
+      .from("mailbox_snapshot_messages")
+      .upsert(chunk, { onConflict: "user_id,graph_message_id" });
+    if (!error) upserted += chunk.length;
   }
 
   const cutoffIso = new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
