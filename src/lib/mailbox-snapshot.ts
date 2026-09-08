@@ -7,14 +7,21 @@ import { getValidAccessToken } from "@/lib/mail-sync";
 import type { MailConnection } from "@/lib/types";
 
 export const SNAPSHOT_RETENTION_DAYS = 90;
-// A first-ever sync backfills the full retention window in one run, which
-// can mean far more messages than a routine 30-minute incremental catch-up
-// — a higher page cap here (vs the smaller default used elsewhere) is safe
-// because this only runs on a schedule, not on every interactive click.
-const BACKFILL_MAX_PAGES = 60;
-// Batched, not one row per round trip — a 90-day first-ever backfill can
-// easily be 1,000+ messages, and upserting them one at a time turned a
-// few Graph pages into thousands of sequential Supabase calls, which is
+// A first-ever sync only backfills a short recent window, not the full
+// 90-day retention window — a 90-day backfill was still slow even after
+// batching the upserts, just from the sheer number of Graph pages a busy
+// mailbox needs. Every sync after the first is incremental (since the
+// last checkpoint), and that checkpoint only ever advances forward — so
+// the stored history grows a day at a time and naturally reaches the
+// full 90 days on its own after about 90 - INITIAL_BACKFILL_DAYS days of
+// normal operation, without ever needing a slow bulk catch-up.
+const INITIAL_BACKFILL_DAYS = 7;
+// A first-ever sync's window is much smaller now (see above), so this
+// cap is sized for that, not a full 90-day backfill.
+const BACKFILL_MAX_PAGES = 20;
+// Batched, not one row per round trip — even a smaller backfill can be
+// a few hundred messages, and upserting them one at a time turned a
+// few Graph pages into hundreds of sequential Supabase calls, which was
 // what actually made a first-time "Analyze my mailbox" click feel slow
 // (not the Graph fetch itself).
 const UPSERT_CHUNK_SIZE = 200;
@@ -39,10 +46,11 @@ function matchesSenderTerms(message: GraphSnapshotMessage, terms: string[]): boo
 }
 
 /** Syncs one user's mailbox snapshot: fetches everything mailbox-wide
- * since the last checkpoint (or the full retention window on a first
- * run), drops system folders and never-store senders, upserts the rest,
- * then prunes anything older than the retention window and advances the
- * checkpoint. Returns counts for the cron's own log/response. */
+ * since the last checkpoint (or a short recent window on a first run —
+ * see INITIAL_BACKFILL_DAYS), drops system folders and never-store
+ * senders, upserts the rest, then prunes anything older than the 90-day
+ * retention window and advances the checkpoint. Returns counts for the
+ * cron's own log/response. */
 export async function syncMailboxSnapshot(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -52,7 +60,7 @@ export async function syncMailboxSnapshot(
 
   const since =
     connection.snapshot_synced_at ??
-    new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    new Date(Date.now() - INITIAL_BACKFILL_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const isFirstSync = !connection.snapshot_synced_at;
 
   const [excludedFolderIds, { messages }] = await Promise.all([
