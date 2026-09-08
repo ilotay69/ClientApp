@@ -118,26 +118,34 @@ export async function syncMailboxSnapshot(
     });
   }
 
+  // Errors here throw rather than being swallowed — a missing table (a
+  // migration not yet run) would otherwise let this "succeed" having
+  // stored nothing, then advance the checkpoint anyway below, which
+  // would make the gap permanent (the next sync starts from "now",
+  // never re-fetching what silently failed to save this time).
   let upserted = 0;
   for (let i = 0; i < rowsToUpsert.length; i += UPSERT_CHUNK_SIZE) {
     const chunk = rowsToUpsert.slice(i, i + UPSERT_CHUNK_SIZE);
     const { error } = await admin
       .from("mailbox_snapshot_messages")
       .upsert(chunk, { onConflict: "user_id,graph_message_id" });
-    if (!error) upserted += chunk.length;
+    if (error) throw new Error(`Failed to save mailbox snapshot: ${error.message}`);
+    upserted += chunk.length;
   }
 
   const cutoffIso = new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { count: pruned } = await admin
+  const { count: pruned, error: pruneError } = await admin
     .from("mailbox_snapshot_messages")
     .delete({ count: "exact" })
     .eq("user_id", connection.user_id)
     .lt("received_at", cutoffIso);
+  if (pruneError) throw new Error(`Failed to prune mailbox snapshot: ${pruneError.message}`);
 
-  await admin
+  const { error: checkpointError } = await admin
     .from("mail_connections")
     .update({ snapshot_synced_at: latestReceivedAt })
     .eq("user_id", connection.user_id);
+  if (checkpointError) throw new Error(`Failed to update sync checkpoint: ${checkpointError.message}`);
 
   return { upserted, skipped, pruned: pruned ?? 0 };
 }

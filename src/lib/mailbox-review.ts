@@ -139,12 +139,18 @@ export async function reviewMailbox(
   }
 
   const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
-  const { data: rows } = await admin
+  const { data: rows, error: readError } = await admin
     .from("mailbox_snapshot_messages")
     .select("*")
     .eq("user_id", connection.user_id)
     .gte("received_at", since)
     .order("received_at", { ascending: true });
+  if (readError) {
+    // A missing table/column (a migration not yet run) or any other DB
+    // failure would otherwise look identical to "genuinely no rows" —
+    // surface it instead of silently reporting "nothing pending."
+    throw new Error(`Failed to read mailbox snapshot: ${readError.message}`);
+  }
 
   const byId = new Map<string, MailboxSnapshotMessageRow>();
   for (const m of (rows ?? []) as MailboxSnapshotMessageRow[]) {
