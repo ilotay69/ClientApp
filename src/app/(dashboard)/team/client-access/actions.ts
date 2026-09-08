@@ -29,7 +29,7 @@ export async function listPortalUsers(): Promise<PortalUserRow[]> {
   const admin = createAdminClient();
   const { data: profiles, error } = await admin
     .from("profiles")
-    .select("id, full_name, email, created_at, client_id, clients(name)")
+    .select("id, full_name, email, created_at, client_id")
     .eq("role", "client")
     .order("created_at", { ascending: false });
 
@@ -38,17 +38,34 @@ export async function listPortalUsers(): Promise<PortalUserRow[]> {
     return [];
   }
 
+  type ProfileRow = {
+    id: string;
+    full_name: string;
+    email: string;
+    created_at: string;
+    client_id: string;
+  };
+  const rows0 = (profiles ?? []) as ProfileRow[];
+
+  // A plain second query rather than PostgREST's embedded-resource syntax
+  // (`.select("...client_id, clients(name)")`) — that syntax depends on
+  // PostgREST having reloaded its schema cache after profiles.client_id's
+  // foreign key was added (064), which isn't guaranteed right after running a
+  // migration by hand in the SQL editor. Matches how the rest of this
+  // codebase already joins across tables (e.g. contract-hours.ts).
+  const clientIds = [...new Set(rows0.map((p) => p.client_id).filter(Boolean))];
+  const { data: clients } =
+    clientIds.length > 0
+      ? await admin.from("clients").select("id, name").in("id", clientIds)
+      : { data: [] as { id: string; name: string }[] };
+  const clientNameById = new Map(
+    ((clients ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name])
+  );
+
   // MFA status and last sign-in live on the auth user, not the profile, so
   // they have to be read per user through the admin API.
   const rows = await Promise.all(
-    (profiles ?? []).map(async (p: {
-      id: string;
-      full_name: string;
-      email: string;
-      created_at: string;
-      client_id: string;
-      clients: { name: string } | { name: string }[] | null;
-    }): Promise<PortalUserRow> => {
+    rows0.map(async (p: ProfileRow): Promise<PortalUserRow> => {
       let mfaEnrolled = false;
       let lastSignInAt: string | null = null;
       try {
@@ -61,13 +78,12 @@ export async function listPortalUsers(): Promise<PortalUserRow[]> {
         console.error(`listPortalUsers: could not read auth user ${p.id}`, err);
       }
 
-      const client = Array.isArray(p.clients) ? p.clients[0] : p.clients;
       return {
         id: p.id,
         fullName: p.full_name,
         email: p.email,
         clientId: p.client_id,
-        clientName: client?.name ?? "Unknown client",
+        clientName: clientNameById.get(p.client_id) ?? "Unknown client",
         createdAt: p.created_at,
         mfaEnrolled,
         lastSignInAt,
