@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import type { PermissionKey } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 
@@ -20,7 +20,7 @@ export function PermissionMatrix({
   labels: Record<PermissionKey, string>;
   /** enabled permission keys per editable role */
   grants: Record<"manager" | "tech" | "sales_rep", Set<PermissionKey>>;
-  action: (role: UserRole, permission: PermissionKey, enabled: boolean) => Promise<void>;
+  action: (role: UserRole, permission: PermissionKey, enabled: boolean) => Promise<{ error?: string }>;
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -69,28 +69,47 @@ export function PermissionMatrix({
 function PermissionCheckbox({
   role,
   permission,
-  checked,
+  checked: initialChecked,
   action,
 }: {
   role: UserRole;
   permission: PermissionKey;
   checked: boolean;
-  action: (role: UserRole, permission: PermissionKey, enabled: boolean) => Promise<void>;
+  action: (role: UserRole, permission: PermissionKey, enabled: boolean) => Promise<{ error?: string }>;
 }) {
   const [isPending, startTransition] = useTransition();
+  // Controlled, not defaultChecked — a defaultChecked input reflects
+  // whatever the user clicked, forever, whether or not the save behind
+  // it actually succeeded. This reverts on a failed save instead of
+  // silently looking like it worked.
+  const [checked, setChecked] = useState(initialChecked);
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <input
-      type="checkbox"
-      defaultChecked={checked}
-      disabled={isPending}
-      onChange={(e) => {
-        const enabled = e.target.checked;
-        startTransition(() => {
-          action(role, permission, enabled);
-        });
-      }}
-      className="h-4 w-4 rounded border-slate-300 disabled:opacity-60"
-    />
+    <div className="flex flex-col items-center gap-0.5">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={isPending}
+        onChange={(e) => {
+          const enabled = e.target.checked;
+          setChecked(enabled);
+          setError(null);
+          startTransition(async () => {
+            const result = await action(role, permission, enabled);
+            if (result?.error) {
+              setChecked(!enabled);
+              setError(result.error);
+            }
+          });
+        }}
+        className="h-4 w-4 rounded border-slate-300 disabled:opacity-60"
+      />
+      {error && (
+        <span title={error} className="max-w-20 text-center text-[10px] leading-tight text-red-600">
+          Save failed
+        </span>
+      )}
+    </div>
   );
 }
