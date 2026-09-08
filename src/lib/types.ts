@@ -21,6 +21,10 @@ export interface Profile {
   full_name: string;
   email: string;
   role: UserRole;
+  /** Which client this portal login belongs to. Non-null exactly when
+   * role === 'client' — the database enforces both directions (see the
+   * profiles_client_id_matches_role constraint in 064). */
+  client_id: string | null;
   created_at: string;
 }
 
@@ -35,6 +39,10 @@ export interface Client {
   autotask_company_id: number | null;
   ninjaone_organization_id: number | null;
   m365_tenant_id: string | null;
+  huntress_organization_id: number | null;
+  forticloud_account_id: string | null;
+  ninjaone_last_synced_at: string | null;
+  m365_last_synced_at: string | null;
   created_at: string;
   updated_at: string;
 }

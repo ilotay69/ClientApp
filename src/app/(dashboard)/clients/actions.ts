@@ -47,7 +47,24 @@ export async function deleteClientRecord(clientId: string) {
   if (!(await requirePermission("manage_clients"))) return;
 
   const supabase = await createClient();
-  await supabase.from("clients").delete().eq("id", clientId);
+  const { error } = await supabase.from("clients").delete().eq("id", clientId);
+
+  if (error) {
+    // This used to be unchecked, and then redirect unconditionally — so a
+    // refused delete looked exactly like a successful one. It became
+    // reachable when profiles.client_id was added with `on delete restrict`
+    // (supabase/064): a client with a portal login can't be deleted until
+    // that login is removed, which is the point of restrict — losing the
+    // profile would leave a live credential with no way to revoke it.
+    // DeleteButton takes a `() => Promise<void>`, so the message comes back
+    // through the URL rather than an action result.
+    const message =
+      error.code === "23503"
+        ? "This client still has a portal login. Remove it under Team → Client access first."
+        : error.message;
+    redirect(`/clients/${clientId}?deleteError=${encodeURIComponent(message)}`);
+  }
+
   revalidatePath("/clients");
   redirect("/clients");
 }

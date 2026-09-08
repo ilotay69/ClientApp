@@ -61,10 +61,16 @@ export const dynamic = "force-dynamic";
 
 export default async function ClientDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ deleteError?: string }>;
 }) {
   const { id } = await params;
+  // Set by deleteClientRecord when the delete was refused — most often
+  // because the client still has a portal login (see supabase/064's
+  // `on delete restrict`).
+  const { deleteError } = await searchParams;
   const supabase = await createClient();
 
   if (!(await hasPermission(supabase, "view_clients"))) {
@@ -277,6 +283,11 @@ export default async function ClientDetailPage({
 
   return (
     <div className="space-y-8">
+      {deleteError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {deleteError}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <Link href="/clients" className="text-sm text-slate-500 hover:underline">

@@ -20,10 +20,16 @@ export default async function TeamPage() {
     redirect("/dashboard");
   }
   const canManageRoles = await hasPermission(supabase, "manage_roles");
+  const canManageClientAccess = await hasPermission(supabase, "manage_client_access");
 
   const { data: members } = await supabase
     .from("profiles")
     .select("id, full_name, email, role, created_at")
+    // Client-portal logins are not team members and must not appear in this
+    // list — the RoleSelect beside each row would offer to turn a customer
+    // into staff (updateMemberRole refuses, but it shouldn't be offered).
+    // They're managed on their own screen: Team -> Client access.
+    .neq("role", "client")
     .order("created_at");
 
   return (
@@ -36,14 +42,24 @@ export default async function TeamPage() {
             here — there is no self-serve sign-up.
           </p>
         </div>
-        {canManageRoles && (
-          <Link
-            href="/team/roles"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
-          >
-            Manage permissions →
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {canManageClientAccess && (
+            <Link
+              href="/team/client-access"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+            >
+              Client access →
+            </Link>
+          )}
+          {canManageRoles && (
+            <Link
+              href="/team/roles"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+            >
+              Manage permissions →
+            </Link>
+          )}
+        </div>
       </div>
 
       <AddTeamMemberForm action={addTeamMember} />

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/login/actions";
 import { getMyPermissions, isPermissionOwnerOnly } from "@/lib/permissions";
@@ -23,6 +24,13 @@ export default async function DashboardLayout({
       .single();
     profile = data;
   }
+
+  // A client-portal login has no business anywhere in the staff tree. This is
+  // defence in depth, not the boundary: a layout renders in parallel with the
+  // page beneath it, so the page's own queries may still run before this
+  // redirect wins the response. The boundary is 065's RLS (a client's reads
+  // return nothing) plus requireStaff() on the server actions.
+  if (profile?.role === "client") redirect("/portal");
 
   const me = await getMyPermissions(supabase);
   const canManageIntegrations = me?.permissions.has("manage_integrations") ?? false;

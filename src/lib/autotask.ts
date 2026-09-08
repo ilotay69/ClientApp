@@ -765,6 +765,130 @@ export async function fetchContractsByIds(
   return results;
 }
 
+/** Every Contract belonging to one company, whatever its status.
+ *
+ * Deliberately unlike fetchContractServicesForCompany, which keeps only
+ * contracts whose status label is exactly "active" — that's right for "what
+ * is this client paying for today", but it makes any view of a *past* month
+ * come back empty once a contract has ended. The client portal steps
+ * backwards through months, so it needs the unfiltered list and decides
+ * relevance by date instead. */
+export async function fetchContractsForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number
+): Promise<AutotaskContractSummary[]> {
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "Contracts", {
+    filter: [{ op: "eq", field: "companyID", value: companyId }],
+  })) as { id: number; contractName?: string; companyID: number }[];
+
+  return items.map((c) => ({
+    id: c.id,
+    contractName: c.contractName ?? `Contract ${c.id}`,
+    companyID: c.companyID,
+  }));
+}
+
+/** Contract blocks belonging to the given contracts that OVERLAP a date
+ * range, i.e. `startDate <= to and endDate >= from`.
+ *
+ * fetchActiveContractBlocks hardcodes today into both bounds, so it can only
+ * ever answer "what's live right now" — ask it about last month and it
+ * returns nothing. Parameterising the bounds as an overlap test is what makes
+ * stepping backwards and forwards through months possible. Scoped to specific
+ * contract ids so a portal request never pulls another client's blocks back
+ * in the first place. */
+export async function fetchContractBlocksForContractsInRange(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  contractIds: number[],
+  fromISO: string,
+  toISO: string
+): Promise<AutotaskContractBlock[]> {
+  const uniqueIds = [...new Set(contractIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return [];
+
+  const blocks: AutotaskContractBlock[] = [];
+  for (let i = 0; i < uniqueIds.length; i += CONTRACT_LOOKUP_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + CONTRACT_LOOKUP_CHUNK_SIZE);
+    const items = (await autotaskQueryAllPages(creds, zoneUrl, "ContractBlocks", {
+      filter: [
+        { op: "in", field: "contractID", value: chunk },
+        { op: "lte", field: "startDate", value: toISO },
+        { op: "gte", field: "endDate", value: fromISO },
+      ],
+    })) as { id: number; contractID: number; hours?: number; startDate: string; endDate: string }[];
+
+    for (const b of items) {
+      if (b.hours == null) continue;
+      blocks.push({
+        id: b.id,
+        contractID: b.contractID,
+        hours: b.hours,
+        startDate: b.startDate,
+        endDate: b.endDate,
+      });
+    }
+  }
+  return blocks;
+}
+
+/** Time entries in a date range, restricted to specific contracts.
+ *
+ * TimeEntries carries no companyID of its own, so contractID is how per-client
+ * consumption gets scoped. The alternative — fetchTimeEntriesInRange, which is
+ * account-wide — would mean pulling every client's time to display one
+ * client's, which is both slow and a payload waiting to leak. */
+export async function fetchTimeEntriesForContracts(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  contractIds: number[],
+  sinceISO: string,
+  untilISO: string
+): Promise<AutotaskTimeEntryRange[]> {
+  const uniqueIds = [...new Set(contractIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return [];
+
+  type RawTimeEntry = {
+    id: number;
+    resourceID: number;
+    hoursWorked?: number;
+    dateWorked: string;
+    ticketID?: number;
+    taskID?: number;
+    summaryNotes?: string;
+    contractID?: number;
+    isNonBillable?: boolean;
+  };
+
+  const entries: AutotaskTimeEntryRange[] = [];
+  for (let i = 0; i < uniqueIds.length; i += CONTRACT_LOOKUP_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + CONTRACT_LOOKUP_CHUNK_SIZE);
+    const items = (await autotaskQueryAllPages(creds, zoneUrl, "TimeEntries", {
+      filter: [
+        { op: "in", field: "contractID", value: chunk },
+        { op: "gte", field: "dateWorked", value: sinceISO },
+        { op: "lte", field: "dateWorked", value: untilISO },
+      ],
+    })) as RawTimeEntry[];
+
+    for (const e of items) {
+      entries.push({
+        id: e.id,
+        resourceID: e.resourceID,
+        hoursWorked: e.hoursWorked ?? 0,
+        dateWorked: e.dateWorked,
+        ticketID: e.ticketID ?? null,
+        taskID: e.taskID ?? null,
+        summaryNotes: e.summaryNotes ?? null,
+        contractID: e.contractID ?? null,
+        isNonBillable: e.isNonBillable ?? false,
+      });
+    }
+  }
+  return entries;
+}
+
 type RawOpenTicket = {
   id: number;
   title: string;
