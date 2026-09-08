@@ -19,6 +19,7 @@ import {
   fetchMyUpcomingAppointments,
   dismissAppointmentType,
   clearDismissedAppointmentTypes,
+  fetchMySnapshotSenders,
 } from "../dashboard/actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
@@ -313,6 +314,7 @@ export default async function TasksPage({
         initialDays={mailPrefs?.review_lookback_days ?? 30}
         initialExcludes={mailPrefs?.review_excludes ?? ""}
         initialNeverStore={mailPrefs?.sync_excluded_senders ?? ""}
+        fetchSendersAction={fetchMySnapshotSenders}
       />
 
       <UpcomingAppointments

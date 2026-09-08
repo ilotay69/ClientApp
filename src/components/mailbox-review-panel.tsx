@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
-import { reviewMyMailbox, type MailboxReviewState } from "@/app/(dashboard)/dashboard/actions";
+import { useActionState, useState, useTransition } from "react";
+import { reviewMyMailbox, type MailboxReviewState, type SnapshotSender } from "@/app/(dashboard)/dashboard/actions";
 
 const initialState: MailboxReviewState = { error: null, result: null };
 
@@ -12,17 +12,108 @@ const FOCUS_PLACEHOLDER = `What do you want to know? For example:
 "Find any client complaints or escalations."
 Leave blank for the default: who's waiting on whom, most overdue first.`;
 
+/** Appends `email` to a comma-separated field's current text, unless it's
+ * already in there (case-insensitive) — so repeatedly picking the same
+ * sender from the dropdown doesn't pile up duplicates. */
+function addTerm(current: string, email: string): string {
+  const terms = current
+    .split(/[,\n]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (terms.some((t) => t.toLowerCase() === email.toLowerCase())) return current;
+  return terms.length > 0 ? `${terms.join(", ")}, ${email}` : email;
+}
+
+function SenderPicker({
+  fetchSendersAction,
+  onAddExclude,
+  onAddNeverStore,
+}: {
+  fetchSendersAction: () => Promise<{ senders: SnapshotSender[] } | { error: string }>;
+  onAddExclude: (email: string) => void;
+  onAddNeverStore: (email: string) => void;
+}) {
+  const [senders, setSenders] = useState<SnapshotSender[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState("");
+  const [loading, startLoad] = useTransition();
+
+  const load = () => {
+    setError(null);
+    startLoad(async () => {
+      const result = await fetchSendersAction();
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        setSenders(result.senders);
+        setSelected(result.senders[0]?.email ?? "");
+      }
+    });
+  };
+
+  if (!senders) {
+    return (
+      <button
+        type="button"
+        onClick={load}
+        disabled={loading}
+        className="text-xs text-brand underline hover:text-brand-dark disabled:opacity-60"
+      >
+        {loading ? "Loading senders…" : error ? "Retry loading senders" : "Pick from senders in your mailbox"}
+      </button>
+    );
+  }
+
+  if (senders.length === 0) {
+    return <p className="text-xs text-slate-400">No senders found yet in your synced mailbox.</p>;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        className="max-w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+      >
+        {senders.map((s) => (
+          <option key={s.email} value={s.email}>
+            {s.name ? `${s.name} <${s.email}>` : s.email} ({s.count})
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={() => selected && onAddExclude(selected)}
+        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+      >
+        + Exclude from analysis
+      </button>
+      <button
+        type="button"
+        onClick={() => selected && onAddNeverStore(selected)}
+        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+      >
+        + Never store
+      </button>
+    </div>
+  );
+}
+
 export function MailboxReviewPanel({
   initialDays = 30,
   initialExcludes = "",
   initialNeverStore = "",
+  fetchSendersAction,
 }: {
   initialDays?: number;
   initialExcludes?: string;
   initialNeverStore?: string;
+  fetchSendersAction: () => Promise<{ senders: SnapshotSender[] } | { error: string }>;
 }) {
   const [state, formAction, pending] = useActionState(reviewMyMailbox, initialState);
   const [days, setDays] = useState(initialDays);
+  const [excludes, setExcludes] = useState(initialExcludes);
+  const [neverStore, setNeverStore] = useState(initialNeverStore);
   const result = state.result;
 
   return (
@@ -43,12 +134,20 @@ export function MailboxReviewPanel({
             placeholder={FOCUS_PLACEHOLDER}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
           />
+
+          <SenderPicker
+            fetchSendersAction={fetchSendersAction}
+            onAddExclude={(email) => setExcludes((prev) => addTerm(prev, email))}
+            onAddNeverStore={(email) => setNeverStore((prev) => addTerm(prev, email))}
+          />
+
           <label className="block text-xs text-slate-600">
             Exclude senders/subjects containing (optional) — hides matches from this analysis only
             <input
               type="text"
               name="excludes"
-              defaultValue={initialExcludes}
+              value={excludes}
+              onChange={(e) => setExcludes(e.target.value)}
               placeholder="e.g. CG Helpdesk, billing, no-reply"
               className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm placeholder:text-slate-400"
             />
@@ -59,7 +158,8 @@ export function MailboxReviewPanel({
             <input
               type="text"
               name="neverStore"
-              defaultValue={initialNeverStore}
+              value={neverStore}
+              onChange={(e) => setNeverStore(e.target.value)}
               placeholder="e.g. personal@gmail.com, hr@cgtechnologies.com"
               className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm placeholder:text-slate-400"
             />

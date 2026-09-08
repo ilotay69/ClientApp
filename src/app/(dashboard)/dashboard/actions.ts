@@ -77,6 +77,45 @@ export async function reviewMyMailbox(
   }
 }
 
+export type SnapshotSender = { email: string; name: string | null; count: number };
+
+/** Every distinct sender currently in the signed-in user's own mailbox
+ * snapshot, with how many stored messages came from them — sorted most
+ * frequent first, since a frequent sender (a newsletter, a helpdesk, a
+ * notification account) is the most likely candidate to actually want
+ * excluded. Supabase's JS client has no GROUP BY, so this fetches the raw
+ * (email, name) pairs and aggregates in memory — fine at this scale (at
+ * most 90 days of one mailbox). */
+export async function fetchMySnapshotSenders(): Promise<{ senders: SnapshotSender[] } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const admin = createAdminClient();
+  const { data: rows, error } = await admin
+    .from("mailbox_snapshot_messages")
+    .select("from_email, from_name")
+    .eq("user_id", user.id)
+    .not("from_email", "is", null);
+  if (error) return { error: error.message };
+
+  const byEmail = new Map<string, SnapshotSender>();
+  for (const r of (rows ?? []) as { from_email: string; from_name: string | null }[]) {
+    const key = r.from_email.toLowerCase();
+    const existing = byEmail.get(key);
+    if (existing) {
+      existing.count += 1;
+      if (!existing.name && r.from_name) existing.name = r.from_name;
+    } else {
+      byEmail.set(key, { email: r.from_email, name: r.from_name, count: 1 });
+    }
+  }
+
+  return { senders: [...byEmail.values()].sort((a, b) => b.count - a.count) };
+}
+
 export type UpcomingAppointment = {
   id: string;
   subject: string;
