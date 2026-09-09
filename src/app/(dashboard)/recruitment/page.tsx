@@ -37,6 +37,7 @@ export default async function RecruitmentPage({
     big_firm?: string;
     min_years?: string;
     working?: string;
+    no_resume?: string;
   }>;
 }) {
   const supabase = await createClient();
@@ -50,6 +51,7 @@ export default async function RecruitmentPage({
     big_firm: bigFirmParam,
     min_years: minYearsParam,
     working: workingParam,
+    no_resume: noResumeParam,
   } = await searchParams;
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
@@ -57,6 +59,7 @@ export default async function RecruitmentPage({
   const YEARS_BUCKETS = ["under3", "3to5", "6to10", "11plus"];
   const minYears = minYearsParam && YEARS_BUCKETS.includes(minYearsParam) ? minYearsParam : null;
   const currentlyWorking = workingParam === "yes" || workingParam === "no" ? workingParam : null;
+  const noResumeYet = noResumeParam === "yes";
 
   const {
     data: { user },
@@ -92,6 +95,9 @@ export default async function RecruitmentPage({
   else if (minYears === "6to10") resumeQuery = resumeQuery.gte("years_experience", 6).lte("years_experience", 10);
   else if (minYears === "11plus") resumeQuery = resumeQuery.gte("years_experience", 11);
   if (currentlyWorking) resumeQuery = resumeQuery.eq("currently_working", currentlyWorking === "yes");
+  // Matches recruitment-table.tsx's own hasResumeContent check (file_name ||
+  // pasted_resume_text) rather than storage_path, which isn't selected here.
+  if (noResumeYet) resumeQuery = resumeQuery.is("file_name", null).is("pasted_resume_text", null);
   const { data: resumes } = await resumeQuery;
 
   const rows = (resumes ?? []) as RecruitmentTableRow[];
@@ -181,6 +187,7 @@ export default async function RecruitmentPage({
           bigFirm={bigFirm}
           minYears={minYears}
           currentlyWorking={currentlyWorking}
+          noResumeYet={noResumeYet}
           clearHref="/recruitment"
         />
         <AddCandidateForm action={addCandidateAction} />

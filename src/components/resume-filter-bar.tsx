@@ -80,12 +80,15 @@ const CURRENTLY_WORKING_OPTIONS = [
   { value: "no", label: "Working: No" },
 ];
 
+const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
+
 export function ResumeFilterBar({
   statuses,
   verdicts,
   bigFirm,
   minYears,
   currentlyWorking,
+  noResumeYet,
   clearHref,
 }: {
   statuses: string[];
@@ -93,6 +96,7 @@ export function ResumeFilterBar({
   bigFirm: string | null;
   minYears: string | null;
   currentlyWorking: string | null;
+  noResumeYet: boolean;
   clearHref: string;
 }) {
   const hasFilters =
@@ -100,7 +104,8 @@ export function ResumeFilterBar({
     verdicts.length > 0 ||
     Boolean(bigFirm) ||
     Boolean(minYears) ||
-    Boolean(currentlyWorking);
+    Boolean(currentlyWorking) ||
+    noResumeYet;
 
   return (
     <form action="/recruitment" className="space-y-2">
@@ -142,6 +147,8 @@ export function ResumeFilterBar({
             radio
           />
         ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        <Chip name="no_resume" option={NO_RESUME_OPTION} checked={noResumeYet} />
         {hasFilters && (
           <a href={clearHref} className="text-xs text-slate-500 underline">
             Clear filters
