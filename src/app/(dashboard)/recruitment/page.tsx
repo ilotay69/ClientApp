@@ -48,8 +48,8 @@ export default async function RecruitmentPage({
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
   const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
-  const minYears =
-    minYearsParam && (minYearsParam === "under2" || /^\d+$/.test(minYearsParam)) ? minYearsParam : null;
+  const YEARS_BUCKETS = ["under3", "3to5", "5to10", "10plus"];
+  const minYears = minYearsParam && YEARS_BUCKETS.includes(minYearsParam) ? minYearsParam : null;
 
   const {
     data: { user },
@@ -80,8 +80,10 @@ export default async function RecruitmentPage({
   if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
   if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
   if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
-  if (minYears === "under2") resumeQuery = resumeQuery.lt("years_experience", 2);
-  else if (minYears) resumeQuery = resumeQuery.gte("years_experience", Number(minYears));
+  if (minYears === "under3") resumeQuery = resumeQuery.lt("years_experience", 3);
+  else if (minYears === "3to5") resumeQuery = resumeQuery.gte("years_experience", 3).lt("years_experience", 5);
+  else if (minYears === "5to10") resumeQuery = resumeQuery.gte("years_experience", 5).lt("years_experience", 10);
+  else if (minYears === "10plus") resumeQuery = resumeQuery.gte("years_experience", 10);
   const { data: resumes } = await resumeQuery;
 
   const rows = (resumes ?? []) as RecruitmentTableRow[];

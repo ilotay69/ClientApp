@@ -65,14 +65,13 @@ const BIG_FIRM_OPTIONS = [
   { value: "no", label: "Big firm: No" },
 ];
 
-// "under2" is the one non-threshold value here — everything else is a
-// minimum (N+ years); page.tsx knows to turn it into a "< 2" query instead
-// of the usual "gte" the other three use.
+// Mutually-exclusive buckets, not open-ended minimums — page.tsx turns
+// each into its own gte/lt range so a candidate falls into exactly one.
 const YEARS_OPTIONS = [
-  { value: "under2", label: "<2 yrs" },
-  { value: "2", label: "2+ yrs" },
-  { value: "5", label: "5+ yrs" },
-  { value: "10", label: "10+ yrs" },
+  { value: "under3", label: "<3 yrs" },
+  { value: "3to5", label: "3-5 yrs" },
+  { value: "5to10", label: "5-10 yrs" },
+  { value: "10plus", label: "10+ yrs" },
 ];
 
 export function ResumeFilterBar({
