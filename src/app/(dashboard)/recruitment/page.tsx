@@ -48,7 +48,8 @@ export default async function RecruitmentPage({
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
   const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
-  const minYears = minYearsParam && /^\d+$/.test(minYearsParam) ? minYearsParam : null;
+  const minYears =
+    minYearsParam && (minYearsParam === "under2" || /^\d+$/.test(minYearsParam)) ? minYearsParam : null;
 
   const {
     data: { user },
@@ -79,7 +80,8 @@ export default async function RecruitmentPage({
   if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
   if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
   if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
-  if (minYears) resumeQuery = resumeQuery.gte("years_experience", Number(minYears));
+  if (minYears === "under2") resumeQuery = resumeQuery.lt("years_experience", 2);
+  else if (minYears) resumeQuery = resumeQuery.gte("years_experience", Number(minYears));
   const { data: resumes } = await resumeQuery;
 
   const rows = (resumes ?? []) as RecruitmentTableRow[];

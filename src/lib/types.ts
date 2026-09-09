@@ -254,9 +254,9 @@ export interface Resume {
   candidate_phone: string | null;
   ai_verdict: ResumeVerdict | null;
   ai_comment: string | null;
-  /** True if the candidate's most recent job looked like a large/
-   * multinational environment supporting thousands of users, false if it
-   * looked smaller, null if screening hasn't run or genuinely can't tell. */
+  /** True if the candidate's most recent employer looks like a company
+   * with more than 500 employees, false if 500 or fewer, null if
+   * screening hasn't run or genuinely can't tell. */
   big_firm_experience: boolean | null;
   /** Rough total years of relevant work experience, read off the work
    * history by screening — null until screened, or if it can't be told. */

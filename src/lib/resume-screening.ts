@@ -68,7 +68,7 @@ const TOOL_SCHEMA = {
           big_firm_experience: {
             type: ["boolean", "null"],
             description:
-              "true if the candidate's MOST RECENT job was at a large or multinational organization supporting a large environment (thousands of users/endpoints, multiple sites/regions) — false if their most recent job was clearly smaller-scale, null if genuinely can't be told from what's provided.",
+              "true if the candidate's MOST RECENT employer looks like a company with more than 500 employees (a large or multinational organization, multiple sites/regions, a large-scale IT environment) — false if it looks like 500 or fewer, null if genuinely can't be told from what's provided.",
           },
           years_experience: {
             type: ["integer", "null"],
@@ -237,10 +237,9 @@ applicant), leaving a field null if it genuinely isn't stated anywhere for them.
 fit verdict of "yes", "maybe", or "no" against the job posting above, weighing technical
 ability and customer-relationship ability together as described. Write overall_summary
 as the quick top-line take a hiring manager would want to read first — 1-2 sentences,
-not a repeat of the yes/maybe/no verdict alone. Also report big_firm_experience (was
-their MOST RECENT job at a large/multinational organization supporting a large,
-multi-site environment with thousands of users, vs. a smaller operation) and
-years_experience (their total relevant work experience in years, estimated from the
+not a repeat of the yes/maybe/no verdict alone. Also report big_firm_experience — true
+if the candidate's MOST RECENT employer looks like a company with more than 500
+employees, false if 500 or fewer — and years_experience (their total relevant work experience in years, estimated from the
 work history's dates), and currently_working (does their most recent job look
 still-current, e.g. no end date or "present") — leave any of these null if it genuinely
 can't be told from what's provided, don't guess. Note explicitly in technical_ability

@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Three extra AI-extracted screening signals, alongside verdict/comment:
--- big_firm_experience (did their last job look like a large/multinational
--- environment with thousands of users), years_experience (a rough total
+-- big_firm_experience (does their most recent employer look like a
+-- company with more than 500 employees), years_experience (a rough total
 -- years-of-experience estimate read off the work history), and
 -- currently_working (does their most recent job look still-current, e.g.
 -- no end date / "present"). All nullable, same as ai_verdict/ai_comment —

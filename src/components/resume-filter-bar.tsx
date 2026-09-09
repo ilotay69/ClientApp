@@ -65,7 +65,11 @@ const BIG_FIRM_OPTIONS = [
   { value: "no", label: "Big firm: No" },
 ];
 
-const MIN_YEARS_OPTIONS = [
+// "under2" is the one non-threshold value here — everything else is a
+// minimum (N+ years); page.tsx knows to turn it into a "< 2" query instead
+// of the usual "gte" the other three use.
+const YEARS_OPTIONS = [
+  { value: "under2", label: "<2 yrs" },
   { value: "2", label: "2+ yrs" },
   { value: "5", label: "5+ yrs" },
   { value: "10", label: "10+ yrs" },
@@ -108,7 +112,7 @@ export function ResumeFilterBar({
           />
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
-        {MIN_YEARS_OPTIONS.map((o) => (
+        {YEARS_OPTIONS.map((o) => (
           <Chip
             key={`min_years-${o.value}`}
             name="min_years"
