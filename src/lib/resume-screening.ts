@@ -227,7 +227,9 @@ function buildScreeningPrompt(
   return `You are screening job applicants for CG Technologies. Today's date is ${today} —
 use this to calculate months_since_worked and years_experience from any dates given in a
 resume, since you otherwise have no way to know how much time has passed since a stated
-end date.
+end date. Resumes state dates in all kinds of formats (e.g. "2025.Nov", "Nov 2025",
+"11/2025", "November 2025") — use your best judgement to interpret whatever format is
+given rather than skipping the calculation because it isn't in a standard format.
 
 Job posting: ${posting.title}
 ${posting.description}
