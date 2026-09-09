@@ -185,7 +185,7 @@ export default async function RecruitmentPage({
                     <span className="text-xs text-slate-400">Not screened</span>
                   )}
                 </td>
-                <td className="max-w-xs truncate px-5 py-2 text-slate-600" title={r.ai_comment ?? undefined}>
+                <td className="min-w-[22rem] max-w-md whitespace-normal px-5 py-2 text-slate-600">
                   {r.ai_comment ?? "—"}
                 </td>
                 <td className="px-5 py-2">
