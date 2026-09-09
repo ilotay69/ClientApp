@@ -256,11 +256,21 @@ async function listMailFolders(accessToken: string, url: string): Promise<MailFo
   return json.value ?? [];
 }
 
+// Safety cap on a breadth-first folder-tree walk — protects against a
+// pathological mailbox with an enormous or (in principle) cyclical folder
+// structure. A real mailbox's folder count is nowhere near this.
+const MAX_FOLDERS_SCANNED = 500;
+
 /**
- * Finds a folder by its exact display name (case-insensitive) — checks
- * top-level folders first, then Inbox's child folders (the common place for
- * a custom triage folder like "Resumes"). Returns null if not found rather
- * than throwing, since the caller decides what "not found" means for it.
+ * Finds a folder by its exact display name (case-insensitive), searching the
+ * ENTIRE folder tree breadth-first — not just top-level folders and Inbox's
+ * direct children. A first version of this only checked those two spots
+ * (matching the common case of a custom folder sitting right under Inbox),
+ * but a real mailbox can have a folder nested anywhere — under a different
+ * top-level folder, or more than one level deep — and that version reported
+ * "not found" for a folder that plainly existed. Top-level folders are still
+ * checked first (the queue starts there), so the common case is exactly as
+ * fast as before; this just doesn't give up if that's not where it is.
  *
  * Resurrected from commit 0f2ccc6's predecessor (removed when mailbox
  * review switched to mailbox-wide scanning) — used here for the Resume
@@ -273,18 +283,20 @@ export async function findFolderIdByDisplayName(
 ): Promise<string | null> {
   const target = displayName.toLowerCase();
 
-  const topLevel = await listMailFolders(
-    accessToken,
-    "https://graph.microsoft.com/v1.0/me/mailFolders?$top=100"
-  );
-  const topMatch = topLevel.find((f) => f.displayName.toLowerCase() === target);
-  if (topMatch) return topMatch.id;
+  let queue: string[] = ["https://graph.microsoft.com/v1.0/me/mailFolders?$top=100"];
+  let scanned = 0;
 
-  const inboxChildren = await listMailFolders(
-    accessToken,
-    "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/childFolders?$top=100"
-  );
-  return inboxChildren.find((f) => f.displayName.toLowerCase() === target)?.id ?? null;
+  while (queue.length > 0 && scanned < MAX_FOLDERS_SCANNED) {
+    const url = queue.shift()!;
+    const folders = await listMailFolders(accessToken, url);
+    for (const folder of folders) {
+      scanned += 1;
+      if (folder.displayName.toLowerCase() === target) return folder.id;
+      queue.push(`https://graph.microsoft.com/v1.0/me/mailFolders/${folder.id}/childFolders?$top=100`);
+    }
+  }
+
+  return null;
 }
 
 /**
