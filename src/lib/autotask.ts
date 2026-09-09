@@ -1243,6 +1243,86 @@ export async function fetchTicketsCreatedForCompany(
   return items.map((t) => ({ id: t.id, createDate: t.createDate }));
 }
 
+export type AutotaskPortalTicketRow = {
+  id: number;
+  ticketNumber: string | null;
+  title: string;
+  description: string | null;
+  resolution: string | null;
+  status: string | null;
+  priority: string | null;
+  dueDate: string | null;
+  openedAt: string | null;
+  lastActivityAt: string | null;
+  // completedDate is null -> open. Same field fetchOpenTicketsForCompany
+  // already relies on successfully for its own `notExist` filter.
+  isOpen: boolean;
+};
+
+async function fetchTicketsForCompanySince(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number,
+  field: "createDate" | "lastActivityDate",
+  sinceISO: string
+): Promise<RawTicket[]> {
+  // Await first, then cast the resolved array — matches every other cast of
+  // autotaskQueryAllPages's result in this file; casting the Promise type
+  // itself (Promise<unknown[]> as Promise<RawTicket[]>) is unproven here.
+  const items = await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "eq", field: "companyID", value: companyId },
+      { op: "gte", field, value: sinceISO },
+    ],
+  });
+  return items as RawTicket[];
+}
+
+/** Every ticket for one company — open AND closed — created or active in
+ * the last N days, for the client portal's Tickets tab. Deliberately omits
+ * queue_name/assigned_resource_name, same "internal, not the client's"
+ * reasoning fetchPortalTickets in portal-data.ts already documents for the
+ * cached table — skips resolveResourceNames entirely, one fewer API call.
+ *
+ * Two flat queries merged by id, not one grouped-OR query. Autotask's API
+ * is documented to support a nested `{op:"or", items:[...]}` filter group,
+ * which would do this in one round-trip — but nothing in this file has
+ * ever exercised that grammar, and `search` is loosely typed enough
+ * (`Record<string, unknown>`) that a mistake there would only surface as a
+ * live 400 from Autotask, not a compile error. Given a provably safe
+ * alternative exists (both queries here use filter shapes already proven
+ * working elsewhere in this file), use it — costs one extra Autotask
+ * round-trip per page load, uses nothing unverified. */
+export async function fetchTicketsForCompanyInWindow(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number,
+  sinceISO: string,
+  labels: PicklistLabelMaps
+): Promise<AutotaskPortalTicketRow[]> {
+  const [byCreated, byActivity] = await Promise.all([
+    fetchTicketsForCompanySince(creds, zoneUrl, companyId, "createDate", sinceISO),
+    fetchTicketsForCompanySince(creds, zoneUrl, companyId, "lastActivityDate", sinceISO),
+  ]);
+
+  const byId = new Map<number, RawTicket>();
+  for (const t of [...byCreated, ...byActivity]) byId.set(t.id, t);
+
+  return [...byId.values()].map((t) => ({
+    id: t.id,
+    ticketNumber: t.ticketNumber ?? null,
+    title: t.title,
+    description: t.description ?? null,
+    resolution: t.resolution ?? null,
+    status: t.status != null ? (labels.status.get(t.status) ?? String(t.status)) : null,
+    priority: t.priority != null ? (labels.priority.get(t.priority) ?? String(t.priority)) : null,
+    dueDate: t.dueDateTime ?? null,
+    openedAt: t.createDate ?? null,
+    lastActivityAt: t.lastActivityDate ?? null,
+    isOpen: !t.completedDate,
+  }));
+}
+
 export type AutotaskActiveResource = { id: number; name: string };
 
 /** Every active (non-terminated) Resource — for a resource picker, not a

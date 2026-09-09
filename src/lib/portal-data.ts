@@ -11,8 +11,14 @@ import {
   fetchContractBlocksForContractsInRange,
   fetchTimeEntriesForContracts,
   fetchTicketsCreatedForCompany,
+  fetchTicketPicklists,
+  fetchTicketsForCompanyInWindow,
+  type AutotaskPortalTicketRow,
 } from "@/lib/autotask";
+import { DEFAULT_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS } from "@/lib/mailbox-review";
 import type { PortalSession } from "@/lib/portal";
+
+export { DEFAULT_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS };
 
 /**
  * Every read a client-portal page makes.
@@ -504,4 +510,63 @@ export async function fetchPortalTickets(session: PortalSession): Promise<Portal
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Tickets tab — a real filterable list, separate from the Overview stat card
+// and trend above. Live-only, deliberately not sourced from the cached
+// autotask_tickets table: that cache's sync only ever writes currently-open
+// tickets (fetchOpenTicketsForCompany filters completedDate notExist), so it
+// structurally cannot answer "show me closed tickets" — there's nothing
+// closed in it to find.
+// ---------------------------------------------------------------------------
+
+export type PortalTicketListItem = AutotaskPortalTicketRow;
+
+export type PortalTicketList = {
+  tickets: PortalTicketListItem[];
+  unavailableReason: string | null;
+};
+
+/** Both open and closed tickets whose creation or last activity falls
+ * within lookbackDays — status filtering (open/closed/all) happens in the
+ * page, not here, so this one call serves every status toggle without a
+ * second Autotask round-trip. */
+export async function fetchPortalTicketList(
+  session: PortalSession,
+  lookbackDays: number
+): Promise<PortalTicketList> {
+  const empty = (reason: string | null): PortalTicketList => ({ tickets: [], unavailableReason: reason });
+
+  const companyId = session.client.autotaskCompanyId;
+  if (companyId == null) return empty("This account isn't linked to Autotask yet.");
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) return empty("Ticket data isn't available right now.");
+
+  const clamped = Math.min(
+    Math.max(Math.trunc(lookbackDays) || DEFAULT_LOOKBACK_DAYS, 1),
+    MAX_LOOKBACK_DAYS
+  );
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - clamped);
+
+  try {
+    const labels = await fetchTicketPicklists(settings.credentials, settings.zoneUrl);
+    const rows = await fetchTicketsForCompanyInWindow(
+      settings.credentials,
+      settings.zoneUrl,
+      companyId,
+      since.toISOString(),
+      labels
+    );
+    return {
+      tickets: rows.sort((a, b) => (b.openedAt ?? "").localeCompare(a.openedAt ?? "")),
+      unavailableReason: null,
+    };
+  } catch (err) {
+    console.error("fetchPortalTicketList failed", err);
+    return empty("Ticket data couldn't be loaded right now.");
+  }
 }

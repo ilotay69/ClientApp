@@ -9,6 +9,7 @@ import {
   IconList,
   IconLock,
   IconTag,
+  IconCheckSquare,
   IconLogOut,
   IconMenu,
   IconX,
@@ -20,6 +21,7 @@ const LINKS: {
   icon: (props: { className?: string }) => React.ReactNode;
 }[] = [
   { href: "/portal", label: "Overview", icon: IconGrid },
+  { href: "/portal/tickets", label: "Tickets", icon: IconCheckSquare },
   { href: "/portal/contracts", label: "Contract hours", icon: IconClock },
   { href: "/portal/devices", label: "Devices", icon: IconList },
   { href: "/portal/security", label: "Security", icon: IconLock },
