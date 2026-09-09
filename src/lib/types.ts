@@ -265,6 +265,10 @@ export interface Resume {
    * date / "present"), false if it clearly ended, null until screened or
    * if it can't be told. */
   currently_working: boolean | null;
+  /** True if the candidate is located in the Greater Toronto Area, false
+   * if a stated city is clearly elsewhere, null if no city is mentioned
+   * anywhere (their own address or their most recent job's location). */
+  in_gta: boolean | null;
   screened_at: string | null;
   screening_error: string | null;
   status: ResumeStatus;

@@ -27,6 +27,7 @@ export type RecruitmentTableRow = Pick<
   | "big_firm_experience"
   | "years_experience"
   | "currently_working"
+  | "in_gta"
   | "screened_at"
   | "screening_error"
   | "status"
@@ -86,6 +87,7 @@ export function RecruitmentTable({
             <th className="px-5 py-2 text-left font-medium text-slate-500">Big Firm</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Years Exp.</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Currently Working</th>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">GTA</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Comment</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Resume</th>
@@ -104,7 +106,7 @@ export function RecruitmentTable({
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-500">
+              <td colSpan={10} className="px-5 py-8 text-center text-sm text-slate-500">
                 No resumes match this filter yet.
               </td>
             </tr>
@@ -158,6 +160,9 @@ function ApplicantRow({
         <td className="px-5 py-2">
           <YesNoBadge value={row.currently_working} />
         </td>
+        <td className="px-5 py-2">
+          <YesNoBadge value={row.in_gta} />
+        </td>
         {/* Only the Overview line — Technical ability / Building customer
             relationships (the rest of splitComment's output) shows in the
             expanded row instead, so the collapsed list stays scannable. */}
@@ -189,7 +194,7 @@ function ApplicantRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={9} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
+          <td colSpan={10} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
             {(row.candidate_email || row.sender_email || row.candidate_phone) && (
               <p className="text-xs text-slate-500">
                 Contact: {[row.candidate_email ?? row.sender_email, row.candidate_phone]

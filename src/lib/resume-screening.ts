@@ -80,6 +80,11 @@ const TOOL_SCHEMA = {
             description:
               "true if the candidate's most recent job looks still-current (no end date, or explicitly \"present\"/\"current\"), false if their most recent job clearly ended, null if genuinely can't be told.",
           },
+          in_gta: {
+            type: ["boolean", "null"],
+            description:
+              "true if the candidate is located in the Greater Toronto Area (Toronto, Mississauga, Brampton, Markham, Vaughan, Richmond Hill, Oakville, Scarborough, Etobicoke, North York, and similar GTA municipalities), false if a city is stated and it's clearly outside the GTA. If the candidate's own address isn't given, judge by their most recent job's location instead. Null only if no city is mentioned anywhere at all — don't guess.",
+          },
         },
         required: [
           "resume_number",
@@ -90,6 +95,7 @@ const TOOL_SCHEMA = {
           "big_firm_experience",
           "years_experience",
           "currently_working",
+          "in_gta",
         ],
       },
     },
@@ -239,11 +245,13 @@ ability and customer-relationship ability together as described. Write overall_s
 as the quick top-line take a hiring manager would want to read first — 1-2 sentences,
 not a repeat of the yes/maybe/no verdict alone. Also report big_firm_experience — true
 if the candidate's MOST RECENT employer looks like a company with more than 500
-employees, false if 500 or fewer — and years_experience (their total relevant work experience in years, estimated from the
-work history's dates), and currently_working (does their most recent job look
-still-current, e.g. no end date or "present") — leave any of these null if it genuinely
-can't be told from what's provided, don't guess. Note explicitly in technical_ability
-or customer_relationships
+employees, false if 500 or fewer — years_experience (their total relevant work
+experience in years, estimated from the work history's dates), currently_working (does
+their most recent job look still-current, e.g. no end date or "present"), and in_gta
+(is the candidate located in the Greater Toronto Area — judge by their own stated
+address, or failing that, their most recent job's location) — leave any of these null
+if it genuinely can't be told from what's provided, don't guess. Note explicitly in
+technical_ability or customer_relationships
 if your verdict is based only on notification content with no resume yet. Report
 exactly one entry per resume_number shown above — don't skip any, and don't invent
 extra ones.`;
@@ -439,6 +447,7 @@ export async function screenPendingResumes(
           big_firm_experience?: boolean | null;
           years_experience?: number | null;
           currently_working?: boolean | null;
+          in_gta?: boolean | null;
         }
       >((parsed?.results ?? []).map((r: { resume_number: number }) => [r.resume_number, r]));
 
@@ -484,6 +493,7 @@ export async function screenPendingResumes(
             big_firm_experience: result.big_firm_experience ?? null,
             years_experience: result.years_experience ?? null,
             currently_working: result.currently_working ?? null,
+            in_gta: result.in_gta ?? null,
             screened_at: new Date().toISOString(),
             screening_error: null,
           })
