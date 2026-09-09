@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/permissions";
 import { syncResumeFolder } from "@/lib/resume-sync";
 import { screenPendingResumes } from "@/lib/resume-screening";
 import { getActiveAiSettings } from "@/lib/ai/settings";
+import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection, ResumeStatus } from "@/lib/types";
 
 /** Updates the signed-in user's own watched folder name. One row per staff
@@ -126,27 +127,47 @@ export async function createJobPosting(
 
 export type ResumeScreenState = { ok: boolean; message: string };
 
+type JobPostingForScreening = {
+  id: string;
+  title: string;
+  description: string;
+  additional_instructions: string | null;
+};
+
+// An explicit discriminated union (a literal `ok` field), not three bare
+// object shapes narrowed via `"error" in context` — that inferred version
+// built fine locally but failed the real (Railway) TypeScript check with
+// "string | undefined is not assignable to string", since the three
+// branches don't share a clean discriminant for the compiler to narrow on.
+// `ok` removes the ambiguity outright.
+type ScreeningContext =
+  | { ok: true; posting: JobPostingForScreening; settings: ActiveAiSettings }
+  | { ok: false; error: string };
+
 /** Shared by both screening actions below — loads the current posting
  * (newest row) and the active AI provider, or a clear reason why it can't
  * proceed. */
 async function loadScreeningContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any
-) {
+): Promise<ScreeningContext> {
   const { data: posting } = await admin
     .from("job_postings")
     .select("id, title, description, additional_instructions")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!posting) return { error: "Add a job posting first." } as const;
+  if (!posting) return { ok: false, error: "Add a job posting first." };
 
   const settings = await getActiveAiSettings(admin);
   if (!settings) {
-    return { error: "No AI provider is set up — configure one under Settings → Integrations." } as const;
+    return {
+      ok: false,
+      error: "No AI provider is set up — configure one under Settings → Integrations.",
+    };
   }
 
-  return { posting, settings } as const;
+  return { ok: true, posting, settings };
 }
 
 /** Screens every resume still awaiting one (screened_at = null). Anthropic-only
@@ -159,7 +180,7 @@ export async function screenPendingResumesAction(): Promise<ResumeScreenState> {
 
   const admin = createAdminClient();
   const context = await loadScreeningContext(admin);
-  if ("error" in context) return { ok: false, message: context.error };
+  if (!context.ok) return { ok: false, message: context.error };
 
   try {
     const result = await screenPendingResumes(admin, context.posting, context.settings);
@@ -185,7 +206,7 @@ export async function screenAllResumesAction(): Promise<ResumeScreenState> {
 
   const admin = createAdminClient();
   const context = await loadScreeningContext(admin);
-  if ("error" in context) return { ok: false, message: context.error };
+  if (!context.ok) return { ok: false, message: context.error };
 
   try {
     const result = await screenPendingResumes(admin, context.posting, context.settings, {
