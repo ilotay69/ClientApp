@@ -24,10 +24,21 @@ export type RecruitmentTableRow = Pick<
   | "candidate_phone"
   | "ai_verdict"
   | "ai_comment"
+  | "big_firm_experience"
+  | "years_experience"
+  | "currently_working"
   | "screened_at"
   | "screening_error"
   | "status"
 >;
+
+/** Renders a boolean|null screening signal as a Yes/No badge, or "—" before
+ * screening has run — reuses Badge's existing yes/no color mapping (see
+ * badge.tsx) rather than introducing a separate one for the same meaning. */
+function YesNoBadge({ value }: { value: boolean | null }) {
+  if (value === null) return <span className="text-xs text-slate-400">—</span>;
+  return <Badge value={value ? "yes" : "no"} />;
+}
 
 type ContentAction = (
   resumeId: string,
@@ -55,9 +66,10 @@ export function RecruitmentTable({
           <tr>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Date</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Name</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Phone</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Email</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Verdict</th>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">Big Firm</th>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">Years Exp.</th>
+            <th className="px-5 py-2 text-left font-medium text-slate-500">Currently Working</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Comment</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
             <th className="px-5 py-2 text-left font-medium text-slate-500">Resume</th>
@@ -76,7 +88,7 @@ export function RecruitmentTable({
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-5 py-8 text-center text-sm text-slate-500">
+              <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-500">
                 No resumes match this filter yet.
               </td>
             </tr>
@@ -111,8 +123,6 @@ function ApplicantRow({
       >
         <td className="px-5 py-2 whitespace-nowrap text-slate-600">{formatDate(row.received_at)}</td>
         <td className="px-5 py-2 text-slate-900">{row.candidate_name ?? row.sender_name ?? "—"}</td>
-        <td className="px-5 py-2 whitespace-nowrap text-slate-600">{row.candidate_phone ?? "—"}</td>
-        <td className="px-5 py-2 text-slate-600">{row.candidate_email ?? row.sender_email ?? "—"}</td>
         <td className="px-5 py-2">
           {row.ai_verdict ? (
             <Badge value={row.ai_verdict} />
@@ -123,6 +133,13 @@ function ApplicantRow({
           ) : (
             <span className="text-xs text-slate-400">Not screened</span>
           )}
+        </td>
+        <td className="px-5 py-2">
+          <YesNoBadge value={row.big_firm_experience} />
+        </td>
+        <td className="px-5 py-2 whitespace-nowrap text-slate-600">{row.years_experience ?? "—"}</td>
+        <td className="px-5 py-2">
+          <YesNoBadge value={row.currently_working} />
         </td>
         {/* whitespace-pre-line, not whitespace-normal — the AI comment is
             now two sections (technical ability / customer relationships)
@@ -157,7 +174,14 @@ function ApplicantRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={8} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
+          <td colSpan={9} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
+            {(row.candidate_email || row.sender_email || row.candidate_phone) && (
+              <p className="text-xs text-slate-500">
+                Contact: {[row.candidate_email ?? row.sender_email, row.candidate_phone]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
             {row.subject && (
               <p className="text-xs text-slate-400">
                 Subject: {row.subject}

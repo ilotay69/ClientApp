@@ -28,10 +28,7 @@ const COLORS: Record<string, string> = {
   maybe: ATTENTION,
   no: URGENT,
   new: NEUTRAL,
-  reviewing: INFO,
-  contacted: ATTENTION,
-  rejected: URGENT,
-  hired: SUCCESS,
+  reviewed: INFO,
 
   // project status
   planning: NEUTRAL,

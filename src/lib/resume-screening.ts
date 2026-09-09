@@ -65,8 +65,32 @@ const TOOL_SCHEMA = {
             description:
               "1-2 sentences on the candidate's apparent ability to build and maintain positive customer relationships — communication, professionalism, customer-service instincts, teamwork with non-technical people. Look for direct customer-facing experience (help desk, retail, hospitality, account management, etc.), not just technical roles. If there's genuinely not enough information to judge this, say so plainly rather than guessing.",
           },
+          big_firm_experience: {
+            type: ["boolean", "null"],
+            description:
+              "true if the candidate's MOST RECENT job was at a large or multinational organization supporting a large environment (thousands of users/endpoints, multiple sites/regions) — false if their most recent job was clearly smaller-scale, null if genuinely can't be told from what's provided.",
+          },
+          years_experience: {
+            type: ["integer", "null"],
+            description:
+              "Total years of relevant IT/technical work experience, estimated from the work history's dates (not counting education alone). Round to the nearest whole year. Null if genuinely can't be determined.",
+          },
+          currently_working: {
+            type: ["boolean", "null"],
+            description:
+              "true if the candidate's most recent job looks still-current (no end date, or explicitly \"present\"/\"current\"), false if their most recent job clearly ended, null if genuinely can't be told.",
+          },
         },
-        required: ["resume_number", "verdict", "overall_summary", "technical_ability", "customer_relationships"],
+        required: [
+          "resume_number",
+          "verdict",
+          "overall_summary",
+          "technical_ability",
+          "customer_relationships",
+          "big_firm_experience",
+          "years_experience",
+          "currently_working",
+        ],
       },
     },
   },
@@ -213,10 +237,17 @@ applicant), leaving a field null if it genuinely isn't stated anywhere for them.
 fit verdict of "yes", "maybe", or "no" against the job posting above, weighing technical
 ability and customer-relationship ability together as described. Write overall_summary
 as the quick top-line take a hiring manager would want to read first — 1-2 sentences,
-not a repeat of the yes/maybe/no verdict alone. Note explicitly in technical_ability or
-customer_relationships if your verdict is based only on notification content with no
-resume yet. Report exactly one entry per resume_number shown above — don't skip any,
-and don't invent extra ones.`;
+not a repeat of the yes/maybe/no verdict alone. Also report big_firm_experience (was
+their MOST RECENT job at a large/multinational organization supporting a large,
+multi-site environment with thousands of users, vs. a smaller operation) and
+years_experience (their total relevant work experience in years, estimated from the
+work history's dates), and currently_working (does their most recent job look
+still-current, e.g. no end date or "present") — leave any of these null if it genuinely
+can't be told from what's provided, don't guess. Note explicitly in technical_ability
+or customer_relationships
+if your verdict is based only on notification content with no resume yet. Report
+exactly one entry per resume_number shown above — don't skip any, and don't invent
+extra ones.`;
 }
 
 async function callAnthropicToolMultimodal(
@@ -406,6 +437,9 @@ export async function screenPendingResumes(
           overall_summary?: string;
           technical_ability?: string;
           customer_relationships?: string;
+          big_firm_experience?: boolean | null;
+          years_experience?: number | null;
+          currently_working?: boolean | null;
         }
       >((parsed?.results ?? []).map((r: { resume_number: number }) => [r.resume_number, r]));
 
@@ -443,6 +477,9 @@ export async function screenPendingResumes(
             candidate_phone: result.candidate_phone ?? null,
             ai_verdict: result.verdict,
             ai_comment: comment || null,
+            big_firm_experience: result.big_firm_experience ?? null,
+            years_experience: result.years_experience ?? null,
+            currently_working: result.currently_working ?? null,
             screened_at: new Date().toISOString(),
             screening_error: null,
           })

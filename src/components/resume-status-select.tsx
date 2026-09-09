@@ -5,10 +5,7 @@ import type { ResumeStatus } from "@/lib/types";
 
 const OPTIONS: { value: ResumeStatus; label: string }[] = [
   { value: "new", label: "New" },
-  { value: "reviewing", label: "Reviewing" },
-  { value: "contacted", label: "Contacted" },
-  { value: "rejected", label: "Rejected" },
-  { value: "hired", label: "Hired" },
+  { value: "reviewed", label: "Reviewed" },
 ];
 
 /** Same inline-edit shape as task-field-editor.tsx's InlineSelectEdit, just

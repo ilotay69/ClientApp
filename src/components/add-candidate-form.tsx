@@ -46,37 +46,15 @@ export function AddCandidateForm({
       }}
       className="w-full space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <div className="flex flex-wrap items-end gap-2">
-        <div>
-          <label className="block text-xs font-medium text-slate-700">
-            Name <span className="font-normal text-slate-400">(optional)</span>
-          </label>
-          <input
-            type="text"
-            name="candidate_name"
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-700">
-            Email <span className="font-normal text-slate-400">(optional)</span>
-          </label>
-          <input
-            type="email"
-            name="candidate_email"
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-700">
-            Phone <span className="font-normal text-slate-400">(optional)</span>
-          </label>
-          <input
-            type="text"
-            name="candidate_phone"
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-          />
-        </div>
+      <div>
+        <label className="block text-xs font-medium text-slate-700">
+          Name <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <input
+          type="text"
+          name="candidate_name"
+          className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+        />
       </div>
 
       <div>

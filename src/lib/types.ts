@@ -208,7 +208,7 @@ export interface MailConnection {
 }
 
 export type ResumeVerdict = "yes" | "maybe" | "no";
-export type ResumeStatus = "new" | "reviewing" | "contacted" | "rejected" | "hired";
+export type ResumeStatus = "new" | "reviewed";
 
 export interface JobPosting {
   id: string;
@@ -254,6 +254,17 @@ export interface Resume {
   candidate_phone: string | null;
   ai_verdict: ResumeVerdict | null;
   ai_comment: string | null;
+  /** True if the candidate's most recent job looked like a large/
+   * multinational environment supporting thousands of users, false if it
+   * looked smaller, null if screening hasn't run or genuinely can't tell. */
+  big_firm_experience: boolean | null;
+  /** Rough total years of relevant work experience, read off the work
+   * history by screening — null until screened, or if it can't be told. */
+  years_experience: number | null;
+  /** True if the candidate's most recent job looks still-current (no end
+   * date / "present"), false if it clearly ended, null until screened or
+   * if it can't be told. */
+  currently_working: boolean | null;
   screened_at: string | null;
   screening_error: string | null;
   status: ResumeStatus;

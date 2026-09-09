@@ -31,16 +31,24 @@ function toParamArray(value: string | string[] | undefined): string[] {
 export default async function RecruitmentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string | string[]; verdict?: string | string[] }>;
+  searchParams: Promise<{
+    status?: string | string[];
+    verdict?: string | string[];
+    big_firm?: string;
+    min_years?: string;
+  }>;
 }) {
   const supabase = await createClient();
   if (!(await hasPermission(supabase, "manage_recruitment"))) {
     redirect("/dashboard");
   }
 
-  const { status: statusParam, verdict: verdictParam } = await searchParams;
+  const { status: statusParam, verdict: verdictParam, big_firm: bigFirmParam, min_years: minYearsParam } =
+    await searchParams;
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
+  const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
+  const minYears = minYearsParam && /^\d+$/.test(minYearsParam) ? minYearsParam : null;
 
   const {
     data: { user },
@@ -64,12 +72,14 @@ export default async function RecruitmentPage({
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, screened_at, screening_error, status"
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, screened_at, screening_error, status"
     )
     .order("received_at", { ascending: false })
     .limit(200);
   if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
   if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
+  if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
+  if (minYears) resumeQuery = resumeQuery.gte("years_experience", Number(minYears));
   const { data: resumes } = await resumeQuery;
 
   const rows = (resumes ?? []) as RecruitmentTableRow[];
@@ -153,7 +163,13 @@ export default async function RecruitmentPage({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <ResumeFilterBar statuses={statuses} verdicts={verdicts} clearHref="/recruitment" />
+        <ResumeFilterBar
+          statuses={statuses}
+          verdicts={verdicts}
+          bigFirm={bigFirm}
+          minYears={minYears}
+          clearHref="/recruitment"
+        />
         <AddCandidateForm action={addCandidateAction} />
       </div>
 
