@@ -410,6 +410,34 @@ export async function fetchMessageAttachments(
   }));
 }
 
+// TEMPORARY diagnostic — two guesses about this endpoint's response shape
+// have already been wrong once each (the $select 400, then the half-fix that
+// silently dropped contentBytes). Rather than guess a third time, this
+// surfaces exactly what Graph actually returned per attachment — type, name,
+// content-type, and whether contentBytes was present (a boolean, never the
+// actual bytes) — so the real cause is visible from the Sync button's own
+// result message, with no server-log access needed. Remove once resolved.
+export async function fetchRawAttachmentDebugInfo(
+  accessToken: string,
+  messageId: string
+): Promise<string[]> {
+  const url = `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`;
+  const res = await graphFetch(url, accessToken);
+  if (!res.ok) return [`(debug) attachments request failed: ${res.status}`];
+  const json = await res.json();
+  const raw: {
+    ["@odata.type"]?: string;
+    name?: string;
+    contentType?: string;
+    contentBytes?: string;
+  }[] = json.value ?? [];
+  if (raw.length === 0) return ["(debug) message reported hasAttachments but /attachments returned none"];
+  return raw.map(
+    (a) =>
+      `(debug) type=${a["@odata.type"] ?? "?"} name=${a.name ?? "?"} contentType=${a.contentType ?? "?"} hasContentBytes=${Boolean(a.contentBytes)}`
+  );
+}
+
 export type GraphEvent = {
   id: string;
   subject: string;
