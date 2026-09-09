@@ -82,16 +82,16 @@ export function RecruitmentTable({
       <table className="min-w-full divide-y divide-slate-200 text-sm">
         <thead className="bg-slate-50">
           <tr>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Date</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Name</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Verdict</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Big Firm</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Years Exp.</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Currently Working</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">GTA</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Comment</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
-            <th className="px-5 py-2 text-left font-medium text-slate-500">Resume</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Date</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Name</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Verdict</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Big Firm</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Comment</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
+            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -141,9 +141,9 @@ function ApplicantRow({
         className="cursor-pointer hover:bg-slate-50"
         onClick={() => setExpanded((e) => !e)}
       >
-        <td className="px-5 py-2 whitespace-nowrap text-slate-600">{formatDate(row.received_at)}</td>
-        <td className="px-5 py-2 text-slate-900">{row.candidate_name ?? row.sender_name ?? "—"}</td>
-        <td className="px-5 py-2">
+        <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">{formatDate(row.received_at)}</td>
+        <td className="px-3 py-1.5 text-slate-900">{row.candidate_name ?? row.sender_name ?? "—"}</td>
+        <td className="px-3 py-1.5">
           {row.ai_verdict ? (
             <Badge value={row.ai_verdict} />
           ) : row.screening_error ? (
@@ -154,38 +154,39 @@ function ApplicantRow({
             <span className="text-xs text-slate-400">Not screened</span>
           )}
         </td>
-        <td className="px-5 py-2">
+        <td className="px-3 py-1.5">
           <YesNoBadge value={row.big_firm_experience} />
         </td>
-        <td className="px-5 py-2 whitespace-nowrap text-slate-600">{row.years_experience ?? "—"}</td>
-        <td className="px-5 py-2 whitespace-nowrap">
+        <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">{row.years_experience ?? "—"}</td>
+        <td className="px-3 py-1.5 whitespace-nowrap">
           <YesNoBadge value={row.currently_working} />
           {row.currently_working === false && row.months_since_worked !== null && (
             <span className="ml-1 text-xs text-slate-500">{row.months_since_worked}mo</span>
           )}
         </td>
-        <td className="px-5 py-2">
+        <td className="px-3 py-1.5">
           <YesNoBadge value={row.in_gta} />
         </td>
         {/* Only the Overview line — Technical ability / Building customer
             relationships (the rest of splitComment's output) shows in the
             expanded row instead, so the collapsed list stays scannable. */}
-        <td className="min-w-[22rem] whitespace-pre-line px-5 py-2 text-slate-600">
+        <td className="min-w-[14rem] max-w-[22rem] whitespace-pre-line px-3 py-1.5 text-slate-600">
           {overview ?? "—"}
         </td>
-        <td className="px-5 py-2" onClick={(e) => e.stopPropagation()}>
+        <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
           <ResumeStatusSelect
             resumeId={row.id}
             value={row.status as ResumeStatus}
             action={updateStatusAction}
           />
         </td>
-        <td className="px-5 py-2 whitespace-nowrap">
+        <td className="max-w-[9rem] px-3 py-1.5">
           {row.file_name ? (
             <Link
               href={`/api/resumes/${row.id}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-brand underline"
+              title={row.file_name}
+              className="block truncate text-brand underline"
             >
               {row.file_name}
             </Link>
