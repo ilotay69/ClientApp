@@ -241,6 +241,88 @@ async function callAnthropicToolMultimodal(
   return toolUse?.input ?? {};
 }
 
+const CONTACT_TOOL_NAME = "report_candidate_contact_info";
+const CONTACT_TOOL_SCHEMA = {
+  type: "object",
+  properties: {
+    candidate_name: { type: ["string", "null"], description: "Full name, read directly from the text — null if genuinely not stated." },
+    candidate_email: { type: ["string", "null"], description: "The candidate's own email address as stated — null if not present." },
+    candidate_phone: { type: ["string", "null"], description: "Phone number as stated — null if not present." },
+  },
+  required: ["candidate_name", "candidate_email", "candidate_phone"],
+} as const;
+
+export type CandidateContactInfo = {
+  candidate_name: string | null;
+  candidate_email: string | null;
+  candidate_phone: string | null;
+};
+
+const EMPTY_CONTACT_INFO: CandidateContactInfo = {
+  candidate_name: null,
+  candidate_email: null,
+  candidate_phone: null,
+};
+
+/**
+ * Reads whatever contact info it can off a plain block of pasted resume
+ * text — deliberately separate from screenPendingResumes' own extraction:
+ * that one needs a job posting and always screens for fit too, which
+ * "staff just pasted a resume and left the name/email/phone fields blank"
+ * shouldn't have to wait on. Best-effort: any failure (no AI provider
+ * configured, a request error) returns all-null rather than throwing, so a
+ * manual add always succeeds — worst case, staff just fill the fields in
+ * themselves.
+ */
+export async function extractCandidateContactInfo(
+  pastedText: string,
+  settings: ActiveAiSettings
+): Promise<CandidateContactInfo> {
+  if (settings.provider !== "anthropic" || !pastedText.trim()) return EMPTY_CONTACT_INFO;
+
+  try {
+    assertAsciiHeaderValue(settings.apiKey, "AI provider API key");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": settings.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        max_tokens: 512,
+        tools: [
+          {
+            name: CONTACT_TOOL_NAME,
+            description: "Report the candidate's contact info read from the given resume text.",
+            input_schema: CONTACT_TOOL_SCHEMA,
+          },
+        ],
+        tool_choice: { type: "tool", name: CONTACT_TOOL_NAME },
+        messages: [
+          {
+            role: "user",
+            content: `Read the candidate's name, email, and phone number from this resume text:\n\n${pastedText}`,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return EMPTY_CONTACT_INFO;
+
+    const json = await res.json();
+    const toolUse = (json.content ?? []).find((block: { type: string }) => block.type === "tool_use");
+    const result = toolUse?.input ?? {};
+    return {
+      candidate_name: result.candidate_name ?? null,
+      candidate_email: result.candidate_email ?? null,
+      candidate_phone: result.candidate_phone ?? null,
+    };
+  } catch {
+    return EMPTY_CONTACT_INFO;
+  }
+}
+
 export type ResumeScreeningResult = { screened: number; errored: number; remaining: number };
 
 /**

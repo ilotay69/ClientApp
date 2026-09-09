@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { syncResumeFolder } from "@/lib/resume-sync";
-import { screenPendingResumes } from "@/lib/resume-screening";
+import { screenPendingResumes, extractCandidateContactInfo } from "@/lib/resume-screening";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection, ResumeStatus } from "@/lib/types";
@@ -134,7 +134,13 @@ export type AddCandidateState = { error: string | null };
  * synthetic, guaranteed-unique placeholder instead of a schema change.
  * graph_attachment_id stays null, same as a notification-only synced row —
  * from here on it behaves identically (upload/paste/screen/delete all
- * already handle "no attachment" rows). */
+ * already handle "no attachment" rows).
+ *
+ * Every field is optional except that SOMETHING has to be given. If a
+ * resume was pasted and any of name/email/phone were left blank, tries to
+ * fill just the missing ones in from the pasted text before saving — best
+ * effort, via extractCandidateContactInfo (never blocks the save on
+ * failure, just leaves those fields blank same as if nothing were pasted). */
 export async function addCandidateAction(
   _prevState: AddCandidateState,
   formData: FormData
@@ -143,19 +149,35 @@ export async function addCandidateAction(
     return { error: "You don't have permission to do that." };
   }
 
-  const name = String(formData.get("candidate_name") ?? "").trim();
-  const email = String(formData.get("candidate_email") ?? "").trim();
-  const phone = String(formData.get("candidate_phone") ?? "").trim();
-  if (!name) return { error: "Name is required." };
+  let name = String(formData.get("candidate_name") ?? "").trim();
+  let email = String(formData.get("candidate_email") ?? "").trim();
+  let phone = String(formData.get("candidate_phone") ?? "").trim();
+  const pastedText = String(formData.get("pasted_resume_text") ?? "").trim();
+
+  if (!name && !email && !phone && !pastedText) {
+    return { error: "Add at least a name, contact info, or a pasted resume." };
+  }
 
   const admin = createAdminClient();
+
+  if (pastedText && (!name || !email || !phone)) {
+    const settings = await getActiveAiSettings(admin);
+    if (settings) {
+      const extracted = await extractCandidateContactInfo(pastedText, settings);
+      name = name || extracted.candidate_name || "";
+      email = email || extracted.candidate_email || "";
+      phone = phone || extracted.candidate_phone || "";
+    }
+  }
+
   const { error } = await admin.from("resumes").insert({
     graph_message_id: `manual-${crypto.randomUUID()}`,
     graph_attachment_id: null,
     received_at: new Date().toISOString(),
-    candidate_name: name,
+    candidate_name: name || null,
     candidate_email: email || null,
     candidate_phone: phone || null,
+    pasted_resume_text: pastedText || null,
   });
   if (error) {
     console.error("addCandidateAction failed", error);
