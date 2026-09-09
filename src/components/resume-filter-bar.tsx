@@ -75,21 +75,32 @@ const YEARS_OPTIONS = [
   { value: "11plus", label: "11+ yrs" },
 ];
 
+const CURRENTLY_WORKING_OPTIONS = [
+  { value: "yes", label: "Working: Yes" },
+  { value: "no", label: "Working: No" },
+];
+
 export function ResumeFilterBar({
   statuses,
   verdicts,
   bigFirm,
   minYears,
+  currentlyWorking,
   clearHref,
 }: {
   statuses: string[];
   verdicts: string[];
   bigFirm: string | null;
   minYears: string | null;
+  currentlyWorking: string | null;
   clearHref: string;
 }) {
   const hasFilters =
-    statuses.length > 0 || verdicts.length > 0 || Boolean(bigFirm) || Boolean(minYears);
+    statuses.length > 0 ||
+    verdicts.length > 0 ||
+    Boolean(bigFirm) ||
+    Boolean(minYears) ||
+    Boolean(currentlyWorking);
 
   return (
     <form action="/recruitment" className="space-y-2">
@@ -118,6 +129,16 @@ export function ResumeFilterBar({
             name="min_years"
             option={o}
             checked={minYears === o.value}
+            radio
+          />
+        ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        {CURRENTLY_WORKING_OPTIONS.map((o) => (
+          <Chip
+            key={`working-${o.value}`}
+            name="working"
+            option={o}
+            checked={currentlyWorking === o.value}
             radio
           />
         ))}

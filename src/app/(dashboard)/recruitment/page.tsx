@@ -36,6 +36,7 @@ export default async function RecruitmentPage({
     verdict?: string | string[];
     big_firm?: string;
     min_years?: string;
+    working?: string;
   }>;
 }) {
   const supabase = await createClient();
@@ -43,13 +44,19 @@ export default async function RecruitmentPage({
     redirect("/dashboard");
   }
 
-  const { status: statusParam, verdict: verdictParam, big_firm: bigFirmParam, min_years: minYearsParam } =
-    await searchParams;
+  const {
+    status: statusParam,
+    verdict: verdictParam,
+    big_firm: bigFirmParam,
+    min_years: minYearsParam,
+    working: workingParam,
+  } = await searchParams;
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
   const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
   const YEARS_BUCKETS = ["under3", "3to5", "6to10", "11plus"];
   const minYears = minYearsParam && YEARS_BUCKETS.includes(minYearsParam) ? minYearsParam : null;
+  const currentlyWorking = workingParam === "yes" || workingParam === "no" ? workingParam : null;
 
   const {
     data: { user },
@@ -73,7 +80,7 @@ export default async function RecruitmentPage({
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, in_gta, screened_at, screening_error, status"
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, screened_at, screening_error, status"
     )
     .order("received_at", { ascending: false })
     .limit(200);
@@ -84,6 +91,7 @@ export default async function RecruitmentPage({
   else if (minYears === "3to5") resumeQuery = resumeQuery.gte("years_experience", 3).lte("years_experience", 5);
   else if (minYears === "6to10") resumeQuery = resumeQuery.gte("years_experience", 6).lte("years_experience", 10);
   else if (minYears === "11plus") resumeQuery = resumeQuery.gte("years_experience", 11);
+  if (currentlyWorking) resumeQuery = resumeQuery.eq("currently_working", currentlyWorking === "yes");
   const { data: resumes } = await resumeQuery;
 
   const rows = (resumes ?? []) as RecruitmentTableRow[];
@@ -172,6 +180,7 @@ export default async function RecruitmentPage({
           verdicts={verdicts}
           bigFirm={bigFirm}
           minYears={minYears}
+          currentlyWorking={currentlyWorking}
           clearHref="/recruitment"
         />
         <AddCandidateForm action={addCandidateAction} />

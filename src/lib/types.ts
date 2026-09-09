@@ -265,6 +265,10 @@ export interface Resume {
    * date / "present"), false if it clearly ended, null until screened or
    * if it can't be told. */
   currently_working: boolean | null;
+  /** Only meaningful when currently_working is false — roughly how many
+   * months since their most recent job ended. Null when currently_working
+   * is true, or if it can't be estimated. */
+  months_since_worked: number | null;
   /** True if the candidate is located in the Greater Toronto Area, false
    * if a stated city is clearly elsewhere, null if no city is mentioned
    * anywhere (their own address or their most recent job's location). */

@@ -27,6 +27,7 @@ export type RecruitmentTableRow = Pick<
   | "big_firm_experience"
   | "years_experience"
   | "currently_working"
+  | "months_since_worked"
   | "in_gta"
   | "screened_at"
   | "screening_error"
@@ -157,8 +158,11 @@ function ApplicantRow({
           <YesNoBadge value={row.big_firm_experience} />
         </td>
         <td className="px-5 py-2 whitespace-nowrap text-slate-600">{row.years_experience ?? "—"}</td>
-        <td className="px-5 py-2">
+        <td className="px-5 py-2 whitespace-nowrap">
           <YesNoBadge value={row.currently_working} />
+          {row.currently_working === false && row.months_since_worked !== null && (
+            <span className="ml-1 text-xs text-slate-500">{row.months_since_worked}mo</span>
+          )}
         </td>
         <td className="px-5 py-2">
           <YesNoBadge value={row.in_gta} />

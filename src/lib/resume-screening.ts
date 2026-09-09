@@ -80,6 +80,11 @@ const TOOL_SCHEMA = {
             description:
               "true if the candidate's most recent job looks still-current (no end date, or explicitly \"present\"/\"current\"), false if their most recent job clearly ended, null if genuinely can't be told.",
           },
+          months_since_worked: {
+            type: ["integer", "null"],
+            description:
+              "Only when currently_working is false: roughly how many months since their most recent job ended, estimated from that job's end date. Null if currently_working is true, or if it can't be estimated.",
+          },
           in_gta: {
             type: ["boolean", "null"],
             description:
@@ -95,6 +100,7 @@ const TOOL_SCHEMA = {
           "big_firm_experience",
           "years_experience",
           "currently_working",
+          "months_since_worked",
           "in_gta",
         ],
       },
@@ -247,11 +253,12 @@ not a repeat of the yes/maybe/no verdict alone. Also report big_firm_experience 
 if the candidate's MOST RECENT employer looks like a company with more than 500
 employees, false if 500 or fewer — years_experience (their total relevant work
 experience in years, estimated from the work history's dates), currently_working (does
-their most recent job look still-current, e.g. no end date or "present"), and in_gta
-(is the candidate located in the Greater Toronto Area — judge by their own stated
-address, or failing that, their most recent job's location) — leave any of these null
-if it genuinely can't be told from what's provided, don't guess. Note explicitly in
-technical_ability or customer_relationships
+their most recent job look still-current, e.g. no end date or "present") plus, only
+when currently_working is false, months_since_worked (roughly how many months since
+that job ended), and in_gta (is the candidate located in the Greater Toronto Area —
+judge by their own stated address, or failing that, their most recent job's location)
+— leave any of these null if it genuinely can't be told from what's provided, don't
+guess. Note explicitly in technical_ability or customer_relationships
 if your verdict is based only on notification content with no resume yet. Report
 exactly one entry per resume_number shown above — don't skip any, and don't invent
 extra ones.`;
@@ -447,6 +454,7 @@ export async function screenPendingResumes(
           big_firm_experience?: boolean | null;
           years_experience?: number | null;
           currently_working?: boolean | null;
+          months_since_worked?: number | null;
           in_gta?: boolean | null;
         }
       >((parsed?.results ?? []).map((r: { resume_number: number }) => [r.resume_number, r]));
@@ -493,6 +501,7 @@ export async function screenPendingResumes(
             big_firm_experience: result.big_firm_experience ?? null,
             years_experience: result.years_experience ?? null,
             currently_working: result.currently_working ?? null,
+            months_since_worked: result.months_since_worked ?? null,
             in_gta: result.in_gta ?? null,
             screened_at: new Date().toISOString(),
             screening_error: null,
