@@ -83,7 +83,7 @@ const TOOL_SCHEMA = {
           months_since_worked: {
             type: ["integer", "null"],
             description:
-              "Only when currently_working is false: roughly how many months since their most recent job ended, estimated from that job's end date. Null if currently_working is true, or if it can't be estimated.",
+              "Only when currently_working is false: roughly how many months between their most recent job's stated end date and today's date (given in the prompt above) — calculate this, don't leave it null just because it takes arithmetic. Null only if currently_working is true, or no end date is stated at all.",
           },
           in_gta: {
             type: ["boolean", "null"],
@@ -222,7 +222,12 @@ function buildScreeningPrompt(
     ? `\nAdditional instructions from the hiring team:\n${posting.additional_instructions.trim()}\n`
     : "";
 
-  return `You are screening job applicants for CG Technologies.
+  const today = new Date().toISOString().slice(0, 10);
+
+  return `You are screening job applicants for CG Technologies. Today's date is ${today} —
+use this to calculate months_since_worked and years_experience from any dates given in a
+resume, since you otherwise have no way to know how much time has passed since a stated
+end date.
 
 Job posting: ${posting.title}
 ${posting.description}
