@@ -468,7 +468,12 @@ export async function screenPendingResumes(
           .filter(Boolean)
           .join("\n\n");
 
-        await admin
+        // Captures the write's own error rather than assuming success —
+        // update() doesn't throw on a DB-level failure (a missing column
+        // from a migration that hasn't run yet, say), so without this a
+        // failed write was silently counted as "screened" while nothing
+        // actually got saved.
+        const { error: updateError } = await admin
           .from("resumes")
           .update({
             job_posting_id: posting.id,
@@ -484,6 +489,15 @@ export async function screenPendingResumes(
             screening_error: null,
           })
           .eq("id", chunk[n].id);
+        if (updateError) {
+          console.error("screenPendingResumes: row update failed", updateError);
+          await admin
+            .from("resumes")
+            .update({ screening_error: updateError.message })
+            .eq("id", chunk[n].id);
+          errored += 1;
+          continue;
+        }
         screened += 1;
       }
     } catch (err) {
