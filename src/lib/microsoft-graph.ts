@@ -367,20 +367,25 @@ function isPdfFileAttachment(raw: {
  * are always well under that inline-content threshold, so there's no need
  * for a second, per-attachment `/$value` call.
  *
- * `$select` deliberately does NOT list `contentBytes` — this collection is
- * typed as the base `attachment` type, and `contentBytes` only exists on
- * the derived `fileAttachment` type, so Graph rejects it with a 400
- * ("Could not find a property named 'contentBytes' on type
- * 'microsoft.graph.attachment'") the moment it's named in $select. It still
- * comes back automatically for actual file attachments when $select is left
- * to the base-type-safe properties below — this is a real Graph quirk
- * confirmed against a live 400 response, not a guess.
+ * No `$select` at all on this call — deliberately. Two things confirmed
+ * against live Graph responses, not assumed: (1) this collection is typed
+ * as the base `attachment` type, and `contentBytes` only exists on the
+ * derived `fileAttachment` type, so naming it in `$select` gets a straight
+ * 400 ("Could not find a property named 'contentBytes' on type
+ * 'microsoft.graph.attachment'"). (2) `$select`'s presence changes the
+ * default from "every property" to "only what's listed" — so trimming
+ * `contentBytes` out of `$select` rather than dropping `$select` entirely
+ * does NOT bring it back; it does the opposite; that half-fix shipped once
+ * and produced "imported 0" for every attachment, since `contentBytes` was
+ * then genuinely absent from the response. Omitting `$select` altogether is
+ * what actually restores it, since Graph's un-selected default
+ * representation for a `fileAttachment` includes it automatically.
  */
 export async function fetchMessageAttachments(
   accessToken: string,
   messageId: string
 ): Promise<GraphFileAttachment[]> {
-  const url = `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments?$select=id,name,contentType,size`;
+  const url = `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`;
   const res = await graphFetch(url, accessToken);
   if (!res.ok) {
     const text = await res.text();
