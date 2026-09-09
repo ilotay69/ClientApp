@@ -22,6 +22,17 @@ const CATEGORY_PURPLE = "bg-purple-100 text-purple-700";
 const CATEGORY_INDIGO = "bg-indigo-100 text-indigo-700";
 
 const COLORS: Record<string, string> = {
+  // resume screener — ai_verdict + status (confirmed no collisions with any
+  // other value in this map)
+  yes: SUCCESS,
+  maybe: ATTENTION,
+  no: URGENT,
+  new: NEUTRAL,
+  reviewing: INFO,
+  contacted: ATTENTION,
+  rejected: URGENT,
+  hired: SUCCESS,
+
   // project status
   planning: NEUTRAL,
   active: INFO,

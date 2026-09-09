@@ -230,6 +230,7 @@ export interface Resume {
   file_name: string;
   storage_path: string;
   file_size_bytes: number | null;
+  content_type: string;
   job_posting_id: string | null;
   candidate_name: string | null;
   candidate_email: string | null;

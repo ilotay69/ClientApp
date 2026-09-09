@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { syncResumeFolder } from "@/lib/resume-sync";
-import type { MailConnection } from "@/lib/types";
+import { screenPendingResumes } from "@/lib/resume-screening";
+import { getActiveAiSettings } from "@/lib/ai/settings";
+import type { MailConnection, ResumeStatus } from "@/lib/types";
 
 /** Updates the signed-in user's own watched folder name. One row per staff
  * user on mail_connections, same as every other per-user mailbox setting
@@ -77,4 +79,94 @@ export async function syncResumesNow(): Promise<ResumeSyncState> {
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Sync failed." };
   }
+}
+
+export type CreateJobPostingState = { error: string | null };
+
+/** Always inserts a new row — this IS the "edit" operation. job_postings is
+ * append-only by design (see the plan): there's no "active" flag, the
+ * current posting is just the newest row, so past resumes keep pointing at
+ * whatever posting they were actually screened against even after this one
+ * changes. */
+export async function createJobPosting(
+  _prevState: CreateJobPostingState,
+  formData: FormData
+): Promise<CreateJobPostingState> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  if (!title || !description) {
+    return { error: "Title and description are both required." };
+  }
+
+  const { error } = await supabase
+    .from("job_postings")
+    .insert({ title, description, created_by: user.id });
+  if (error) {
+    console.error("createJobPosting failed", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/recruitment");
+  return { error: null };
+}
+
+export type ResumeScreenState = { ok: boolean; message: string };
+
+/** Loads the current posting (newest row) and the active AI provider, then
+ * screens every resume still awaiting one. Anthropic-only — screenPendingResumes
+ * itself refuses and returns a clear error if OpenAI is active, rather than
+ * attempting anything partial. */
+export async function screenPendingResumesAction(): Promise<ResumeScreenState> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: posting } = await admin
+    .from("job_postings")
+    .select("id, title, description")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!posting) {
+    return { ok: false, message: "Add a job posting first." };
+  }
+
+  const settings = await getActiveAiSettings(admin);
+  if (!settings) {
+    return { ok: false, message: "No AI provider is set up — configure one under Settings → Integrations." };
+  }
+
+  try {
+    const result = await screenPendingResumes(admin, posting, settings);
+    revalidatePath("/recruitment");
+    return {
+      ok: true,
+      message: `Screened ${result.screened}, ${result.errored} error${result.errored === 1 ? "" : "s"}, ${result.remaining} remaining.`,
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Screening failed." };
+  }
+}
+
+/** Exact shape of updateSuggestionStatus — a human overriding/marking a
+ * durable, redisplayed result, mutated in place rather than a separate
+ * dismissal table (see the plan's reasoning). */
+export async function updateResumeStatusAction(id: string, status: ResumeStatus): Promise<void> {
+  if (!(await requirePermission("manage_recruitment"))) return;
+
+  const admin = createAdminClient();
+  await admin.from("resumes").update({ status }).eq("id", id);
+  revalidatePath("/recruitment");
 }

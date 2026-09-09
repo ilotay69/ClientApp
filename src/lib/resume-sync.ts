@@ -21,8 +21,8 @@ export type ResumeSyncResult = {
 };
 
 /**
- * Pulls new PDF resumes out of one folder in the given user's connected
- * mailbox and stores them — no AI involved here at all (see
+ * Pulls new PDF and Word (.docx) resumes out of one folder in the given
+ * user's connected mailbox and stores them — no AI involved here at all (see
  * resume-screening.ts for that, run separately). Reuses the exact same
  * token-refresh helper every other mailbox feature in this app shares
  * (getValidAccessToken), so it inherits the same AADSTS53003 Conditional
@@ -56,10 +56,9 @@ export async function syncResumeFolder(
   let imported = 0;
 
   for (const message of messages) {
-    // Attachments are already PDF-only by the time they come back — a
-    // message whose only attachment is a Word doc, image, etc. legitimately
-    // yields zero here, since PDF-only is a deliberate v1 scope decision,
-    // not an error.
+    // Attachments are already filtered to PDF/.docx by the time they come
+    // back — a message whose only attachment is an image, a legacy .doc,
+    // etc. legitimately yields zero here, not an error.
     const attachments = await fetchMessageAttachments(accessToken, message.id);
     if (attachments.length === 0) continue;
 
@@ -85,9 +84,12 @@ export async function syncResumeFolder(
       const safeName = attachment.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `${connection.user_id}/${crypto.randomUUID()}-${safeName}`;
 
+      // attachment.contentType is already normalized to exactly one of the
+      // two supported values (see normalizeResumeContentType) — never a
+      // generic/mislabeled type from the sender's mail client.
       const { error: uploadError } = await admin.storage
         .from("resumes")
-        .upload(path, bytes, { contentType: "application/pdf" });
+        .upload(path, bytes, { contentType: attachment.contentType });
       if (uploadError) {
         console.error("syncResumeFolder: upload failed", uploadError);
         continue;
@@ -104,6 +106,7 @@ export async function syncResumeFolder(
         file_name: attachment.name,
         storage_path: path,
         file_size_bytes: attachment.size,
+        content_type: attachment.contentType,
       });
       if (insertError) {
         // Matches uploadInteractionDocument's rollback — don't leave an

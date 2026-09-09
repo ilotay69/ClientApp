@@ -348,7 +348,34 @@ export type GraphFileAttachment = {
   contentBytes: string;
 };
 
-function isPdfFileAttachment(raw: {
+// PDF and modern (.docx) Word only — legacy .doc (the pre-2007 binary
+// format) has no equivalent text-extraction path here (mammoth, used for
+// screening, reads .docx's XML structure; it can't read the old binary
+// format at all), so it's deliberately excluded rather than silently
+// mishandled.
+const PDF_MEDIA_TYPE = "application/pdf";
+const DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/**
+ * Normalizes a raw attachment's content type to exactly one of the two
+ * supported values, or null if it's neither — Outlook and other mail
+ * clients frequently send a generic `application/octet-stream` even for a
+ * real PDF or Word file (the same mislabeling this app already works around
+ * for client document uploads), so the filename extension is checked
+ * whenever the declared MIME type doesn't already match cleanly. Returning a
+ * normalized value here (rather than passing Graph's raw, possibly-generic
+ * contentType straight through) is what lets resumes.content_type reliably
+ * drive screening's PDF-vs-Word branch later — it's never ambiguous by the
+ * time it's stored.
+ */
+function normalizeResumeContentType(raw: { name?: string; contentType?: string }): string | null {
+  const name = (raw.name ?? "").toLowerCase();
+  if (raw.contentType === PDF_MEDIA_TYPE || name.endsWith(".pdf")) return PDF_MEDIA_TYPE;
+  if (raw.contentType === DOCX_MEDIA_TYPE || name.endsWith(".docx")) return DOCX_MEDIA_TYPE;
+  return null;
+}
+
+function isSupportedResumeAttachment(raw: {
   ["@odata.type"]?: string;
   name?: string;
   contentType?: string;
@@ -356,16 +383,16 @@ function isPdfFileAttachment(raw: {
 }): boolean {
   if (raw["@odata.type"] !== "#microsoft.graph.fileAttachment") return false;
   if (!raw.contentBytes) return false;
-  return raw.contentType === "application/pdf" || (raw.name ?? "").toLowerCase().endsWith(".pdf");
+  return normalizeResumeContentType(raw) !== null;
 }
 
 /**
- * A message's file attachments, filtered down to PDFs only — everything
- * else (embedded signature images, non-resume files) is discarded here so
- * callers never have to filter again. Graph inlines small attachments'
- * bytes directly as base64 `contentBytes` in this same response; resumes
- * are always well under that inline-content threshold, so there's no need
- * for a second, per-attachment `/$value` call.
+ * A message's file attachments, filtered down to PDF and Word (.docx) only —
+ * everything else (embedded signature images, other file types) is
+ * discarded here so callers never have to filter again. Graph inlines small
+ * attachments' bytes directly as base64 `contentBytes` in this same
+ * response; resumes are always well under that inline-content threshold, so
+ * there's no need for a second, per-attachment `/$value` call.
  *
  * No `$select` at all on this call — deliberately. Two things confirmed
  * against live Graph responses, not assumed: (1) this collection is typed
@@ -401,10 +428,12 @@ export async function fetchMessageAttachments(
     contentBytes?: string;
   }[] = json.value ?? [];
 
-  return raw.filter(isPdfFileAttachment).map((a) => ({
+  return raw.filter(isSupportedResumeAttachment).map((a) => ({
     id: a.id,
     name: a.name,
-    contentType: a.contentType,
+    // Normalized, not Graph's raw value — see normalizeResumeContentType.
+    // isSupportedResumeAttachment already confirmed this returns non-null.
+    contentType: normalizeResumeContentType(a) as string,
     size: a.size,
     contentBytes: a.contentBytes as string,
   }));
