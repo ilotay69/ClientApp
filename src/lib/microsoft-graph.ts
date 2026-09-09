@@ -366,12 +366,21 @@ function isPdfFileAttachment(raw: {
  * bytes directly as base64 `contentBytes` in this same response; resumes
  * are always well under that inline-content threshold, so there's no need
  * for a second, per-attachment `/$value` call.
+ *
+ * `$select` deliberately does NOT list `contentBytes` — this collection is
+ * typed as the base `attachment` type, and `contentBytes` only exists on
+ * the derived `fileAttachment` type, so Graph rejects it with a 400
+ * ("Could not find a property named 'contentBytes' on type
+ * 'microsoft.graph.attachment'") the moment it's named in $select. It still
+ * comes back automatically for actual file attachments when $select is left
+ * to the base-type-safe properties below — this is a real Graph quirk
+ * confirmed against a live 400 response, not a guess.
  */
 export async function fetchMessageAttachments(
   accessToken: string,
   messageId: string
 ): Promise<GraphFileAttachment[]> {
-  const url = `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments?$select=id,name,contentType,size,contentBytes`;
+  const url = `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments?$select=id,name,contentType,size`;
   const res = await graphFetch(url, accessToken);
   if (!res.ok) {
     const text = await res.text();
