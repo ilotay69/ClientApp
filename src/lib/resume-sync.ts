@@ -2,7 +2,6 @@ import {
   findFolderIdByDisplayName,
   fetchResumeCandidateMessages,
   fetchMessageAttachments,
-  fetchRawAttachmentDebugInfo,
 } from "@/lib/microsoft-graph";
 import { getValidAccessToken } from "@/lib/mail-sync";
 import type { MailConnection } from "@/lib/types";
@@ -19,10 +18,6 @@ export type ResumeSyncResult = {
   scanned: number;
   imported: number;
   hitPageCap: boolean;
-  // TEMPORARY — see fetchRawAttachmentDebugInfo's own comment. Remove this
-  // field (and its one call site below) once resurfacing "imported 0" is
-  // actually understood and fixed.
-  debug: string[];
 };
 
 /**
@@ -59,14 +54,14 @@ export async function syncResumeFolder(
   const { messages, hitPageCap } = await fetchResumeCandidateMessages(accessToken, folderId, sinceIso);
 
   let imported = 0;
-  const debug: string[] = [];
 
   for (const message of messages) {
+    // Attachments are already PDF-only by the time they come back — a
+    // message whose only attachment is a Word doc, image, etc. legitimately
+    // yields zero here, since PDF-only is a deliberate v1 scope decision,
+    // not an error.
     const attachments = await fetchMessageAttachments(accessToken, message.id);
-    if (attachments.length === 0) {
-      debug.push(...(await fetchRawAttachmentDebugInfo(accessToken, message.id)));
-      continue;
-    }
+    if (attachments.length === 0) continue;
 
     const { data: existing, error: existingError } = await admin
       .from("resumes")
@@ -127,5 +122,5 @@ export async function syncResumeFolder(
     .update({ resume_sync_last_synced_at: new Date().toISOString() })
     .eq("user_id", connection.user_id);
 
-  return { scanned: messages.length, imported, hitPageCap, debug };
+  return { scanned: messages.length, imported, hitPageCap };
 }

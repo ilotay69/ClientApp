@@ -70,14 +70,9 @@ export async function syncResumesNow(): Promise<ResumeSyncState> {
   try {
     const result = await syncResumeFolder(admin, connection as MailConnection);
     revalidatePath("/recruitment");
-    // TEMPORARY — appends fetchRawAttachmentDebugInfo's findings when
-    // anything was skipped, so the actual Graph response shape is visible
-    // without server-log access. Remove alongside ResumeSyncResult.debug
-    // once "imported 0" is understood and fixed.
-    const debugSuffix = result.debug.length > 0 ? ` ${result.debug.join(" | ")}` : "";
     return {
       ok: true,
-      message: `Scanned ${result.scanned} message${result.scanned === 1 ? "" : "s"}, imported ${result.imported} new resume${result.imported === 1 ? "" : "s"}.${debugSuffix}`,
+      message: `Scanned ${result.scanned} message${result.scanned === 1 ? "" : "s"}, imported ${result.imported} new resume${result.imported === 1 ? "" : "s"}.`,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Sync failed." };
