@@ -35,12 +35,27 @@ const TOOL_SCHEMA = {
             description: "Phone number as stated for them.",
           },
           verdict: { type: "string", enum: ["yes", "maybe", "no"] },
-          comment: {
+          // Two separate fields, not one combined comment field, deliberately:
+          // a schema field the model must fill in on its own is a much more
+          // reliable way to get a real, on-topic assessment of each dimension
+          // than asking it to self-format one string into two labeled
+          // sections — that's the kind of formatting instruction models
+          // follow inconsistently. Combined into ai_comment with headers at
+          // write time (see screenPendingResumes) rather than storing them as
+          // separate columns, so nothing downstream (the UI, the DB schema)
+          // has to change.
+          technical_ability: {
             type: "string",
-            description: "1-3 sentences justifying the verdict against the job posting.",
+            description:
+              "1-2 sentences on the candidate's technical/IT skill fit against the job posting specifically. If there's genuinely not enough information to judge this, say so plainly rather than guessing.",
+          },
+          customer_relationships: {
+            type: "string",
+            description:
+              "1-2 sentences on the candidate's apparent ability to build and maintain positive customer relationships — communication, professionalism, customer-service instincts, teamwork with non-technical people. Look for direct customer-facing experience (help desk, retail, hospitality, account management, etc.), not just technical roles. If there's genuinely not enough information to judge this, say so plainly rather than guessing.",
           },
         },
-        required: ["resume_number", "verdict", "comment"],
+        required: ["resume_number", "verdict", "technical_ability", "customer_relationships"],
       },
     },
   },
@@ -170,13 +185,22 @@ only thing that tells you which resume_number each one is. A notification email'
 content (e.g. answers to screening questions like availability, transportation, work
 authorization) is real signal even without a resume file — use it.
 
+CG Technologies is an MSP (managed service provider) — its technicians work directly
+with client staff every day, not just with machines. We are hiring for BOTH technical
+ability AND the ability to build good customer relationships — neither one alone is
+enough. A candidate who's clearly technically strong but shows no evidence of
+communication skills, professionalism, or customer-facing experience is NOT an
+automatic "yes"; weigh both dimensions together when you decide the verdict, the same
+way a hiring manager here actually would.
+
 For EACH applicant, read the candidate's full name, email, and phone number directly
 from whatever content is provided for them (never from surrounding context or another
-applicant), leaving a field null if it genuinely isn't stated anywhere for them, and
-give a fit verdict of "yes", "maybe", or "no" against the job posting above, with a
-short 1-3 sentence comment justifying it — note explicitly in the comment if your
-verdict is based only on notification content with no resume yet. Report exactly one
-entry per resume_number shown above — don't skip any, and don't invent extra ones.`;
+applicant), leaving a field null if it genuinely isn't stated anywhere for them. Give a
+fit verdict of "yes", "maybe", or "no" against the job posting above, weighing technical
+ability and customer-relationship ability together as described. Note explicitly in
+technical_ability or customer_relationships if your verdict is based only on
+notification content with no resume yet. Report exactly one entry per resume_number
+shown above — don't skip any, and don't invent extra ones.`;
 }
 
 async function callAnthropicToolMultimodal(
@@ -259,9 +283,17 @@ export async function screenPendingResumes(
       ];
 
       const parsed = await callAnthropicToolMultimodal(content, settings.apiKey, settings.model);
-      const byNumber = new Map<number, { candidate_name?: string; candidate_email?: string; candidate_phone?: string; verdict?: string; comment?: string }>(
-        (parsed?.results ?? []).map((r: { resume_number: number }) => [r.resume_number, r])
-      );
+      const byNumber = new Map<
+        number,
+        {
+          candidate_name?: string;
+          candidate_email?: string;
+          candidate_phone?: string;
+          verdict?: string;
+          technical_ability?: string;
+          customer_relationships?: string;
+        }
+      >((parsed?.results ?? []).map((r: { resume_number: number }) => [r.resume_number, r]));
 
       for (let n = 0; n < chunk.length; n++) {
         const result = byNumber.get(n + 1);
@@ -273,6 +305,19 @@ export async function screenPendingResumes(
           errored += 1;
           continue;
         }
+        // Combined into one string with clear section headers here, rather
+        // than storing the two schema fields as separate columns — keeps
+        // ai_comment, the UI, and the DB schema exactly as they were; only
+        // the shape of what generates the text changed.
+        const comment = [
+          result.technical_ability ? `Technical ability: ${result.technical_ability}` : null,
+          result.customer_relationships
+            ? `Building customer relationships: ${result.customer_relationships}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
         await admin
           .from("resumes")
           .update({
@@ -281,7 +326,7 @@ export async function screenPendingResumes(
             candidate_email: result.candidate_email ?? null,
             candidate_phone: result.candidate_phone ?? null,
             ai_verdict: result.verdict,
-            ai_comment: result.comment,
+            ai_comment: comment || null,
             screened_at: new Date().toISOString(),
             screening_error: null,
           })

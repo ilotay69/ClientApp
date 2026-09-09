@@ -118,7 +118,12 @@ function ApplicantRow({
             <span className="text-xs text-slate-400">Not screened</span>
           )}
         </td>
-        <td className="min-w-[22rem] max-w-md whitespace-normal px-5 py-2 text-slate-600">
+        {/* whitespace-pre-line, not whitespace-normal — the AI comment is
+            now two sections (technical ability / customer relationships)
+            joined by a blank line; pre-line keeps that line break instead
+            of collapsing it into one run-on paragraph, while still
+            wrapping normally like whitespace-normal did. */}
+        <td className="min-w-[22rem] max-w-md whitespace-pre-line px-5 py-2 text-slate-600">
           {row.ai_comment ?? "—"}
         </td>
         <td className="px-5 py-2" onClick={(e) => e.stopPropagation()}>
