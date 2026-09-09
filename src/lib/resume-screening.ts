@@ -35,6 +35,17 @@ const TOOL_SCHEMA = {
             description: "Phone number as stated for them.",
           },
           verdict: { type: "string", enum: ["yes", "maybe", "no"] },
+          // A dedicated field, not a prose instruction telling the model to
+          // "add a summary on top" — a free-text instruction competing
+          // against the two schema-forced fields below gets ignored far
+          // more often than a schema field the model is required to fill
+          // in on its own. Goes first in ai_comment, ahead of the two
+          // detailed sections (see screenPendingResumes).
+          overall_summary: {
+            type: "string",
+            description:
+              "A punchy 1-2 sentence overall read on this candidate, combining both technical fit and customer-relationship fit into one quick-scan verdict — the kind of line a hiring manager would want before reading the detail below. Not a restatement of the yes/maybe/no verdict alone.",
+          },
           // Two separate fields, not one combined comment field, deliberately:
           // a schema field the model must fill in on its own is a much more
           // reliable way to get a real, on-topic assessment of each dimension
@@ -55,7 +66,7 @@ const TOOL_SCHEMA = {
               "1-2 sentences on the candidate's apparent ability to build and maintain positive customer relationships — communication, professionalism, customer-service instincts, teamwork with non-technical people. Look for direct customer-facing experience (help desk, retail, hospitality, account management, etc.), not just technical roles. If there's genuinely not enough information to judge this, say so plainly rather than guessing.",
           },
         },
-        required: ["resume_number", "verdict", "technical_ability", "customer_relationships"],
+        required: ["resume_number", "verdict", "overall_summary", "technical_ability", "customer_relationships"],
       },
     },
   },
@@ -200,10 +211,12 @@ For EACH applicant, read the candidate's full name, email, and phone number dire
 from whatever content is provided for them (never from surrounding context or another
 applicant), leaving a field null if it genuinely isn't stated anywhere for them. Give a
 fit verdict of "yes", "maybe", or "no" against the job posting above, weighing technical
-ability and customer-relationship ability together as described. Note explicitly in
-technical_ability or customer_relationships if your verdict is based only on
-notification content with no resume yet. Report exactly one entry per resume_number
-shown above — don't skip any, and don't invent extra ones.`;
+ability and customer-relationship ability together as described. Write overall_summary
+as the quick top-line take a hiring manager would want to read first — 1-2 sentences,
+not a repeat of the yes/maybe/no verdict alone. Note explicitly in technical_ability or
+customer_relationships if your verdict is based only on notification content with no
+resume yet. Report exactly one entry per resume_number shown above — don't skip any,
+and don't invent extra ones.`;
 }
 
 async function callAnthropicToolMultimodal(
@@ -390,6 +403,7 @@ export async function screenPendingResumes(
           candidate_email?: string;
           candidate_phone?: string;
           verdict?: string;
+          overall_summary?: string;
           technical_ability?: string;
           customer_relationships?: string;
         }
@@ -406,10 +420,12 @@ export async function screenPendingResumes(
           continue;
         }
         // Combined into one string with clear section headers here, rather
-        // than storing the two schema fields as separate columns — keeps
+        // than storing the schema fields as separate columns — keeps
         // ai_comment, the UI, and the DB schema exactly as they were; only
-        // the shape of what generates the text changed.
+        // the shape of what generates the text changed. overall_summary goes
+        // first with no header, as the quick-scan line above the detail.
         const comment = [
+          result.overall_summary ?? null,
           result.technical_ability ? `Technical ability: ${result.technical_ability}` : null,
           result.customer_relationships
             ? `Building customer relationships: ${result.customer_relationships}`
