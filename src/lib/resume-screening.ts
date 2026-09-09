@@ -425,7 +425,7 @@ export async function screenPendingResumes(
         // the shape of what generates the text changed. overall_summary goes
         // first with no header, as the quick-scan line above the detail.
         const comment = [
-          result.overall_summary ?? null,
+          result.overall_summary ? `Overview: ${result.overall_summary}` : null,
           result.technical_ability ? `Technical ability: ${result.technical_ability}` : null,
           result.customer_relationships
             ? `Building customer relationships: ${result.customer_relationships}`
