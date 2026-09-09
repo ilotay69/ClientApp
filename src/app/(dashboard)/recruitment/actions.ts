@@ -104,13 +104,17 @@ export async function createJobPosting(
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const additionalInstructions = String(formData.get("additional_instructions") ?? "").trim();
   if (!title || !description) {
     return { error: "Title and description are both required." };
   }
 
-  const { error } = await supabase
-    .from("job_postings")
-    .insert({ title, description, created_by: user.id });
+  const { error } = await supabase.from("job_postings").insert({
+    title,
+    description,
+    additional_instructions: additionalInstructions || null,
+    created_by: user.id,
+  });
   if (error) {
     console.error("createJobPosting failed", error);
     return { error: error.message };
@@ -122,38 +126,75 @@ export async function createJobPosting(
 
 export type ResumeScreenState = { ok: boolean; message: string };
 
-/** Loads the current posting (newest row) and the active AI provider, then
- * screens every resume still awaiting one. Anthropic-only — screenPendingResumes
- * itself refuses and returns a clear error if OpenAI is active, rather than
- * attempting anything partial. */
+/** Shared by both screening actions below — loads the current posting
+ * (newest row) and the active AI provider, or a clear reason why it can't
+ * proceed. */
+async function loadScreeningContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any
+) {
+  const { data: posting } = await admin
+    .from("job_postings")
+    .select("id, title, description, additional_instructions")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!posting) return { error: "Add a job posting first." } as const;
+
+  const settings = await getActiveAiSettings(admin);
+  if (!settings) {
+    return { error: "No AI provider is set up — configure one under Settings → Integrations." } as const;
+  }
+
+  return { posting, settings } as const;
+}
+
+/** Screens every resume still awaiting one (screened_at = null). Anthropic-only
+ * — screenPendingResumes itself refuses and returns a clear error if OpenAI is
+ * active, rather than attempting anything partial. */
 export async function screenPendingResumesAction(): Promise<ResumeScreenState> {
   if (!(await requirePermission("manage_recruitment"))) {
     return { ok: false, message: "You don't have permission to do that." };
   }
 
   const admin = createAdminClient();
-
-  const { data: posting } = await admin
-    .from("job_postings")
-    .select("id, title, description")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!posting) {
-    return { ok: false, message: "Add a job posting first." };
-  }
-
-  const settings = await getActiveAiSettings(admin);
-  if (!settings) {
-    return { ok: false, message: "No AI provider is set up — configure one under Settings → Integrations." };
-  }
+  const context = await loadScreeningContext(admin);
+  if ("error" in context) return { ok: false, message: context.error };
 
   try {
-    const result = await screenPendingResumes(admin, posting, settings);
+    const result = await screenPendingResumes(admin, context.posting, context.settings);
     revalidatePath("/recruitment");
     return {
       ok: true,
       message: `Screened ${result.screened}, ${result.errored} error${result.errored === 1 ? "" : "s"}, ${result.remaining} remaining.`,
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Screening failed." };
+  }
+}
+
+/** Re-screens EVERY resume against the current posting, regardless of
+ * whether it's already been screened before — useful right after the
+ * posting's own instructions change, or after the screening prompt itself
+ * changes, so existing rows get judged against the current criteria rather
+ * than staying stuck with whatever verdict they got last time. */
+export async function screenAllResumesAction(): Promise<ResumeScreenState> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const context = await loadScreeningContext(admin);
+  if ("error" in context) return { ok: false, message: context.error };
+
+  try {
+    const result = await screenPendingResumes(admin, context.posting, context.settings, {
+      rescreenAll: true,
+    });
+    revalidatePath("/recruitment");
+    return {
+      ok: true,
+      message: `Re-screened ${result.screened}, ${result.errored} error${result.errored === 1 ? "" : "s"}, ${result.remaining} remaining.`,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Screening failed." };

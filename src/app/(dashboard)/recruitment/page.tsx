@@ -12,6 +12,7 @@ import {
   syncResumesNow,
   createJobPosting,
   screenPendingResumesAction,
+  screenAllResumesAction,
   updateResumeStatusAction,
   uploadResumeFileAction,
   pasteResumeTextAction,
@@ -48,7 +49,10 @@ export default async function RecruitmentPage({
       .select("resume_folder_name, resume_sync_last_synced_at")
       .eq("user_id", user?.id ?? "")
       .maybeSingle(),
-    supabase.from("job_postings").select("id, title, description, created_at").order("created_at", { ascending: false }),
+    supabase
+      .from("job_postings")
+      .select("id, title, description, additional_instructions, created_at")
+      .order("created_at", { ascending: false }),
   ]);
 
   const currentPosting = postings?.[0] ?? null;
@@ -107,16 +111,27 @@ export default async function RecruitmentPage({
             <JobPostingForm
               currentTitle={currentPosting?.title ?? ""}
               currentDescription={currentPosting?.description ?? ""}
+              currentAdditionalInstructions={currentPosting?.additional_instructions ?? ""}
               action={createJobPosting}
             />
           </div>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <AsyncActionButton
               label="Screen pending resumes"
               pendingLabel="Screening…"
               action={screenPendingResumesAction}
             />
+            <AsyncActionButton
+              label="Screen ALL resumes"
+              pendingLabel="Re-screening…"
+              action={screenAllResumesAction}
+            />
           </div>
+          <p className="mt-2 text-xs text-slate-400">
+            &quot;Screen pending&quot; only scores resumes that haven&apos;t been screened
+            yet. &quot;Screen ALL&quot; re-scores everyone against the current posting —
+            use it after changing the instructions above, or after a screening update.
+          </p>
           {pastPostings.length > 0 && (
             <details className="mt-4 text-xs text-slate-500">
               <summary className="cursor-pointer">

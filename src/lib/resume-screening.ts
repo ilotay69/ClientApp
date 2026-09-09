@@ -169,14 +169,18 @@ async function buildResumeContentBlocks(
 }
 
 function buildScreeningPrompt(
-  posting: { title: string; description: string },
+  posting: { title: string; description: string; additional_instructions: string | null },
   count: number
 ): string {
+  const extraInstructions = posting.additional_instructions?.trim()
+    ? `\nAdditional instructions from the hiring team:\n${posting.additional_instructions.trim()}\n`
+    : "";
+
   return `You are screening job applicants for CG Technologies.
 
 Job posting: ${posting.title}
 ${posting.description}
-
+${extraInstructions}
 Above are ${count} applicant(s), each preceded by its own "Resume #N (...)" label. Some
 carry an attached PDF resume, some carry extracted text from a Word resume or a
 staff-pasted resume, and some carry only an application notification email's own
@@ -241,18 +245,26 @@ async function callAnthropicToolMultimodal(
 export type ResumeScreeningResult = { screened: number; errored: number; remaining: number };
 
 /**
- * Screens every resume with screened_at = null against the given job
- * posting. Anthropic-only — native document reading has no OpenAI
- * equivalent built here (an accepted v1 tradeoff). Chunks run sequentially,
- * not in parallel, so a bad chunk's failure doesn't clobber others already
- * in flight and progress already made is never lost; screened_at is set
- * once on first success, never auto-re-screened later.
+ * Screens resumes against the given job posting. Anthropic-only — native
+ * document reading has no OpenAI equivalent built here (an accepted v1
+ * tradeoff). Chunks run sequentially, not in parallel, so a bad chunk's
+ * failure doesn't clobber others already in flight and progress already
+ * made is never lost.
+ *
+ * By default only screens resumes with screened_at = null (never screened
+ * before) — `screened_at` is set once on first success and not
+ * auto-re-screened later. Pass `rescreenAll: true` (the "Screen ALL
+ * resumes" button) to re-screen everyone regardless of prior screening —
+ * useful right after the posting's own instructions change, or after the
+ * screening prompt itself changes, so existing rows get judged against
+ * the current criteria rather than staying stuck with an old verdict.
  */
 export async function screenPendingResumes(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
-  posting: { id: string; title: string; description: string },
-  settings: ActiveAiSettings
+  posting: { id: string; title: string; description: string; additional_instructions: string | null },
+  settings: ActiveAiSettings,
+  options?: { rescreenAll?: boolean }
 ): Promise<ResumeScreeningResult> {
   if (settings.provider !== "anthropic") {
     throw new Error(
@@ -260,12 +272,15 @@ export async function screenPendingResumes(
     );
   }
 
-  const { data: pending } = await admin
+  let resumeQuery = admin
     .from("resumes")
     .select("id, storage_path, file_name, content_type, pasted_resume_text, email_body_text")
-    .is("screened_at", null)
     .order("received_at", { ascending: true })
     .limit(50);
+  if (!options?.rescreenAll) {
+    resumeQuery = resumeQuery.is("screened_at", null);
+  }
+  const { data: pending } = await resumeQuery;
 
   const rows: PendingResumeRow[] = pending ?? [];
   let screened = 0;

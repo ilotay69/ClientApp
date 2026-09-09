@@ -214,6 +214,7 @@ export interface JobPosting {
   id: string;
   title: string;
   description: string;
+  additional_instructions: string | null;
   created_by: string | null;
   created_at: string;
 }
