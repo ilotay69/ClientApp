@@ -23,16 +23,16 @@ const TOOL_SCHEMA = {
             description: "The N in this resume's \"Resume #N\" label, exactly as given.",
           },
           candidate_name: {
-            type: "string",
-            description: "Full name, read from the resume's own content.",
+            type: ["string", "null"],
+            description: "Full name, read from whatever content is provided — null only if genuinely not stated anywhere for this applicant.",
           },
           candidate_email: {
             type: ["string", "null"],
-            description: "The candidate's own email as printed on the resume — not email metadata.",
+            description: "The candidate's own email as stated for them — not email metadata.",
           },
           candidate_phone: {
             type: ["string", "null"],
-            description: "Phone number as printed on the resume.",
+            description: "Phone number as stated for them.",
           },
           verdict: { type: "string", enum: ["yes", "maybe", "no"] },
           comment: {
@@ -40,7 +40,7 @@ const TOOL_SCHEMA = {
             description: "1-3 sentences justifying the verdict against the job posting.",
           },
         },
-        required: ["resume_number", "candidate_name", "verdict", "comment"],
+        required: ["resume_number", "verdict", "comment"],
       },
     },
   },
@@ -64,9 +64,11 @@ type ContentBlock =
 
 type PendingResumeRow = {
   id: string;
-  storage_path: string;
-  file_name: string;
-  content_type: string;
+  storage_path: string | null;
+  file_name: string | null;
+  content_type: string | null;
+  pasted_resume_text: string | null;
+  email_body_text: string | null;
 };
 
 /**
@@ -79,6 +81,12 @@ type PendingResumeRow = {
  * mixing PDF documents and plain-text Word extracts, is exactly the kind of
  * assumption already burned twice on this feature's Graph-attachments code —
  * an explicit label removes the ambiguity outright rather than inferring it.
+ *
+ * A row now has three possible resume-content sources (a stored file,
+ * staff-pasted text, or neither yet) plus an optional email_body_text that's
+ * ALWAYS included when present, regardless of which of those three applies —
+ * a job-board notification's own body (screening-question answers, etc.) is
+ * useful context whether or not an actual resume exists for this row yet.
  */
 async function buildResumeContentBlocks(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,60 +94,89 @@ async function buildResumeContentBlocks(
   resume: PendingResumeRow,
   resumeNumber: number
 ): Promise<ContentBlock[]> {
-  const { data, error } = await admin.storage.from("resumes").download(resume.storage_path);
-  if (error || !data) {
-    throw new Error(`Could not read ${resume.file_name}: ${error?.message ?? "no data returned"}`);
-  }
-  const buffer = Buffer.from(await data.arrayBuffer());
-  const label = `Resume #${resumeNumber} (file: ${resume.file_name}):`;
+  // A local const, not a derived boolean, so TypeScript actually narrows
+  // storagePath to `string` (not `string | null`) inside the block below —
+  // checking a separately-stored `hasFile` boolean wouldn't narrow
+  // resume.storage_path itself.
+  const storagePath = resume.storage_path;
+  const label = storagePath
+    ? `Resume #${resumeNumber} (file: ${resume.file_name}):`
+    : resume.pasted_resume_text
+      ? `Resume #${resumeNumber} (pasted resume text):`
+      : `Resume #${resumeNumber} (application notification — no resume file yet):`;
 
-  if (resume.content_type === PDF_MEDIA_TYPE) {
-    return [
-      { type: "text", text: label },
-      {
+  const blocks: ContentBlock[] = [{ type: "text", text: label }];
+
+  if (resume.email_body_text) {
+    blocks.push({
+      type: "text",
+      text: `Application notification email content:\n${resume.email_body_text}`,
+    });
+  }
+
+  if (storagePath) {
+    const { data, error } = await admin.storage.from("resumes").download(storagePath);
+    if (error || !data) {
+      throw new Error(`Could not read ${resume.file_name}: ${error?.message ?? "no data returned"}`);
+    }
+    const buffer = Buffer.from(await data.arrayBuffer());
+
+    if (resume.content_type === PDF_MEDIA_TYPE) {
+      blocks.push({
         type: "document",
         source: { type: "base64", media_type: PDF_MEDIA_TYPE, data: buffer.toString("base64") },
-      },
-    ];
-  }
-
-  if (resume.content_type === DOCX_MEDIA_TYPE) {
-    // mammoth reads .docx's actual XML structure (paragraphs/runs) rather
-    // than reconstructing a visual layout the way PDF text extraction has
-    // to — genuinely more reliable than the pdf-parse approach this app
-    // already tried and abandoned once for a different feature. It has no
-    // native equivalent in Claude's document API (that's PDF/image only),
-    // so the extracted text goes in as a plain text block instead.
-    const { value: text } = await mammoth.extractRawText({ buffer });
-    return [
-      {
+      });
+    } else if (resume.content_type === DOCX_MEDIA_TYPE) {
+      // mammoth reads .docx's actual XML structure (paragraphs/runs) rather
+      // than reconstructing a visual layout the way PDF text extraction has
+      // to — genuinely more reliable than the pdf-parse approach this app
+      // already tried and abandoned once for a different feature. It has no
+      // native equivalent in Claude's document API (that's PDF/image only),
+      // so the extracted text goes in as a plain text block instead.
+      const { value: text } = await mammoth.extractRawText({ buffer });
+      blocks.push({
         type: "text",
-        text: `${label}\n${text.trim() || "(no extractable text found in this document)"}`,
-      },
-    ];
+        text: text.trim() || "(no extractable text found in this document)",
+      });
+    } else {
+      throw new Error(`Unsupported resume content type: ${resume.content_type}`);
+    }
+  } else if (resume.pasted_resume_text) {
+    blocks.push({ type: "text", text: resume.pasted_resume_text });
+  } else if (!resume.email_body_text) {
+    // Sync always sets at least one of these three for every row it
+    // creates — reaching here means something upstream is broken, not a
+    // normal "nothing to screen yet" state.
+    throw new Error("This row has no resume file, pasted text, or email content to screen.");
   }
 
-  throw new Error(`Unsupported resume content type: ${resume.content_type}`);
+  return blocks;
 }
 
 function buildScreeningPrompt(
   posting: { title: string; description: string },
   count: number
 ): string {
-  return `You are screening job applicant resumes for CG Technologies.
+  return `You are screening job applicants for CG Technologies.
 
 Job posting: ${posting.title}
 ${posting.description}
 
-Above are ${count} resume(s), each preceded by its own "Resume #N (file: ...)" label —
-some as an attached PDF document, others as extracted plain text. Treat both the same
-way; the label is the only thing that tells you which resume_number each one is.
+Above are ${count} applicant(s), each preceded by its own "Resume #N (...)" label. Some
+carry an attached PDF resume, some carry extracted text from a Word resume or a
+staff-pasted resume, and some carry only an application notification email's own
+content with no resume file yet — treat all of these the same way; the label is the
+only thing that tells you which resume_number each one is. A notification email's own
+content (e.g. answers to screening questions like availability, transportation, work
+authorization) is real signal even without a resume file — use it.
 
-For EACH resume, read the candidate's full name, email, and phone number directly from
-that resume's own content (never from surrounding context or another resume), and give
-a fit verdict of "yes", "maybe", or "no" against the job posting above, with a short
-1-3 sentence comment justifying it. Report exactly one entry per resume_number shown
-above — don't skip any, and don't invent extra ones.`;
+For EACH applicant, read the candidate's full name, email, and phone number directly
+from whatever content is provided for them (never from surrounding context or another
+applicant), leaving a field null if it genuinely isn't stated anywhere for them, and
+give a fit verdict of "yes", "maybe", or "no" against the job posting above, with a
+short 1-3 sentence comment justifying it — note explicitly in the comment if your
+verdict is based only on notification content with no resume yet. Report exactly one
+entry per resume_number shown above — don't skip any, and don't invent extra ones.`;
 }
 
 async function callAnthropicToolMultimodal(
@@ -201,7 +238,7 @@ export async function screenPendingResumes(
 
   const { data: pending } = await admin
     .from("resumes")
-    .select("id, storage_path, file_name, content_type")
+    .select("id, storage_path, file_name, content_type, pasted_resume_text, email_body_text")
     .is("screened_at", null)
     .order("received_at", { ascending: true })
     .limit(50);

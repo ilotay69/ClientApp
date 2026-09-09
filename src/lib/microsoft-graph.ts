@@ -300,29 +300,68 @@ export async function findFolderIdByDisplayName(
 }
 
 /**
- * Messages in one specific folder that have at least one attachment,
- * received on or after sinceIso — used by the Resume Screener sync, which
- * only cares about messages that could possibly carry a resume PDF.
- * `hasAttachments eq true` in the filter avoids a wasted attachments call
- * for every message that plainly has none.
+ * Strips an HTML email body down to plain text — good enough for feeding an
+ * AI prompt, not a faithful rendering. Deliberately no new dependency for
+ * this (a proper HTML-to-text library is more than this needs, and every
+ * new npm package added to this app carries the same untestable-until-deploy
+ * risk mammoth already does); Claude reads slightly-imperfect text fine
+ * since this is read for facts, not formatting.
+ */
+export function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export type ResumeCandidateMessage = {
+  id: string;
+  subject: string;
+  receivedDateTime: string;
+  from?: { emailAddress?: { name?: string; address?: string } };
+  /** Full body, not bodyPreview's short snippet — a job-board notification
+   * email's own content (screening-question answers, etc.) is genuinely
+   * useful input on its own, independent of whether it has a resume
+   * attachment. Graph returns HTML by default; htmlToPlainText below
+   * strips it down for the AI prompt. */
+  body?: { contentType: "html" | "text"; content: string };
+};
+
+/**
+ * Every message in one specific folder received on or after sinceIso — NOT
+ * filtered to `hasAttachments eq true` (an earlier version of this function
+ * was). Some applications arrive as a notification with no attachment at
+ * all — a job board's "you have a new applicant" email linking out to their
+ * own site, rather than a resume file this app can read directly. Every
+ * message in the watched folder becomes a resumes row either way; the ones
+ * with no supported attachment just start with no resume content beyond
+ * whatever the notification's own body says, until staff add one via
+ * upload or paste (see resume-sync.ts).
  */
 export async function fetchResumeCandidateMessages(
   accessToken: string,
   folderId: string,
   sinceIso: string,
   maxPages = 5
-): Promise<{ messages: MailboxSnapshotMessage[]; hitPageCap: boolean }> {
+): Promise<{ messages: ResumeCandidateMessage[]; hitPageCap: boolean }> {
   const base = new URL(`https://graph.microsoft.com/v1.0/me/mailFolders/${folderId}/messages`);
-  base.searchParams.set(
-    "$select",
-    "id,subject,from,toRecipients,receivedDateTime,sentDateTime,webLink,bodyPreview,conversationId,parentFolderId,hasAttachments"
-  );
-  base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso} and hasAttachments eq true`);
+  base.searchParams.set("$select", "id,subject,from,receivedDateTime,body");
+  base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso}`);
   base.searchParams.set("$orderby", "receivedDateTime asc");
   base.searchParams.set("$top", "50");
 
   let url: string | null = base.toString();
-  const messages: MailboxSnapshotMessage[] = [];
+  const messages: ResumeCandidateMessage[] = [];
   let pages = 0;
 
   while (url && pages < maxPages) {

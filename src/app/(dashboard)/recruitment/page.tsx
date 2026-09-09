@@ -1,22 +1,21 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
-import { Badge } from "@/components/badge";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
 import { ResumeFolderSettingsForm } from "@/components/resume-folder-settings-form";
 import { JobPostingForm } from "@/components/job-posting-form";
 import { ResumeFilterBar } from "@/components/resume-filter-bar";
-import { ResumeStatusSelect } from "@/components/resume-status-select";
+import { RecruitmentTable, type RecruitmentTableRow } from "@/components/recruitment-table";
 import {
   updateResumeFolderName,
   syncResumesNow,
   createJobPosting,
   screenPendingResumesAction,
   updateResumeStatusAction,
+  uploadResumeFileAction,
+  pasteResumeTextAction,
 } from "./actions";
-import type { Resume, ResumeStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +57,7 @@ export default async function RecruitmentPage({
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, screened_at, screening_error, status"
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, screened_at, screening_error, status"
     )
     .order("received_at", { ascending: false })
     .limit(200);
@@ -66,32 +65,16 @@ export default async function RecruitmentPage({
   if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
   const { data: resumes } = await resumeQuery;
 
-  type ResumeRow = Pick<
-    Resume,
-    | "id"
-    | "received_at"
-    | "sender_name"
-    | "sender_email"
-    | "subject"
-    | "file_name"
-    | "candidate_name"
-    | "candidate_email"
-    | "candidate_phone"
-    | "ai_verdict"
-    | "ai_comment"
-    | "screened_at"
-    | "screening_error"
-    | "status"
-  >;
-  const rows = (resumes ?? []) as ResumeRow[];
+  const rows = (resumes ?? []) as RecruitmentTableRow[];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Recruitment</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Resumes pulled in from one folder in your connected mailbox, screened against
-          your current job posting.
+          Applicants pulled in from one folder in your connected mailbox, screened against
+          your current job posting. A message with no resume attached still creates a row —
+          click it to add the resume by upload or paste once you have one.
         </p>
       </div>
 
@@ -153,65 +136,12 @@ export default async function RecruitmentPage({
 
       <ResumeFilterBar statuses={statuses} verdicts={verdicts} clearHref="/recruitment" />
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Date</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Name</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Phone</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Email</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Verdict</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Comment</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">Status</th>
-              <th className="px-5 py-2 text-left font-medium text-slate-500">File</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td className="px-5 py-2 whitespace-nowrap text-slate-600">{formatDate(r.received_at)}</td>
-                <td className="px-5 py-2 text-slate-900">{r.candidate_name ?? r.sender_name ?? "—"}</td>
-                <td className="px-5 py-2 whitespace-nowrap text-slate-600">{r.candidate_phone ?? "—"}</td>
-                <td className="px-5 py-2 text-slate-600">{r.candidate_email ?? r.sender_email ?? "—"}</td>
-                <td className="px-5 py-2">
-                  {r.ai_verdict ? (
-                    <Badge value={r.ai_verdict} />
-                  ) : r.screening_error ? (
-                    <span title={r.screening_error} className="text-xs text-red-600 underline decoration-dotted">
-                      Error
-                    </span>
-                  ) : (
-                    <span className="text-xs text-slate-400">Not screened</span>
-                  )}
-                </td>
-                <td className="min-w-[22rem] max-w-md whitespace-normal px-5 py-2 text-slate-600">
-                  {r.ai_comment ?? "—"}
-                </td>
-                <td className="px-5 py-2">
-                  <ResumeStatusSelect
-                    resumeId={r.id}
-                    value={r.status as ResumeStatus}
-                    action={updateResumeStatusAction}
-                  />
-                </td>
-                <td className="px-5 py-2 whitespace-nowrap">
-                  <Link href={`/api/resumes/${r.id}`} className="text-brand underline">
-                    {r.file_name}
-                  </Link>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-5 py-8 text-center text-sm text-slate-500">
-                  No resumes match this filter yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <RecruitmentTable
+        rows={rows}
+        updateStatusAction={updateResumeStatusAction}
+        uploadFileAction={uploadResumeFileAction}
+        pasteTextAction={pasteResumeTextAction}
+      />
     </div>
   );
 }

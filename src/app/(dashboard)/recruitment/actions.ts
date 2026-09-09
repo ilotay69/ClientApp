@@ -170,3 +170,126 @@ export async function updateResumeStatusAction(id: string, status: ResumeStatus)
   await admin.from("resumes").update({ status }).eq("id", id);
   revalidatePath("/recruitment");
 }
+
+const MAX_RESUME_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB, same cap as client documents
+const RESUME_MEDIA_TYPES: Record<string, true> = {
+  "application/pdf": true,
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+};
+
+export type ResumeContentState = { error: string | null };
+
+/** For an applicant row sync created with no attachment (a job-board
+ * notification with no resume file) — or to replace one that's wrong.
+ * Doesn't re-screen automatically: clears screened_at back to null so the
+ * NEXT "Screen pending resumes" click (already-existing button, not a new
+ * one) naturally picks this row up along with anything else pending,
+ * rather than adding a second, parallel single-row screening code path. */
+export async function uploadResumeFileAction(
+  resumeId: string,
+  _prevState: ResumeContentState,
+  formData: FormData
+): Promise<ResumeContentState> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
+  // Same mislabeled-MIME-type fallback as uploadInteractionDocument — some
+  // browsers/OSes report a real .docx as application/octet-stream.
+  const extensionOk = /\.(pdf|docx)$/i.test(file.name);
+  if (!RESUME_MEDIA_TYPES[file.type] && !extensionOk) {
+    return { error: "Only PDF or Word (.docx) resumes are supported." };
+  }
+  if (file.size > MAX_RESUME_UPLOAD_BYTES) return { error: "That file is larger than 20MB." };
+
+  const contentType = file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+    ? "application/pdf"
+    : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  const admin = createAdminClient();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${resumeId}/${crypto.randomUUID()}-${safeName}`;
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { error: uploadError } = await admin.storage
+    .from("resumes")
+    .upload(path, bytes, { contentType });
+  if (uploadError) {
+    console.error("uploadResumeFileAction: upload failed", uploadError);
+    return { error: uploadError.message };
+  }
+
+  const { error } = await admin
+    .from("resumes")
+    .update({
+      storage_path: path,
+      file_name: file.name,
+      file_size_bytes: file.size,
+      content_type: contentType,
+      pasted_resume_text: null, // a file replaces pasted text, not both at once
+      screened_at: null,
+      screening_error: null,
+    })
+    .eq("id", resumeId);
+  if (error) {
+    await admin.storage.from("resumes").remove([path]); // matches uploadInteractionDocument's rollback
+    console.error("uploadResumeFileAction: row update failed", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/recruitment");
+  return { error: null };
+}
+
+/** Alternative to uploading a file — staff copy/pastes resume text directly
+ * (e.g. from a job board's own resume-viewer page that this app can't fetch
+ * server-side, see the plan discussion on why). Clears any existing file,
+ * same "one or the other" rule as uploadResumeFileAction going the other
+ * direction. Also doesn't re-screen automatically, same reasoning. */
+export async function pasteResumeTextAction(
+  resumeId: string,
+  _prevState: ResumeContentState,
+  formData: FormData
+): Promise<ResumeContentState> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return { error: "Paste the resume text first." };
+
+  const admin = createAdminClient();
+
+  // If this row previously had an uploaded file, remove the orphaned
+  // storage object rather than leaving it unreferenced.
+  const { data: existing } = await admin
+    .from("resumes")
+    .select("storage_path")
+    .eq("id", resumeId)
+    .maybeSingle();
+  if (existing?.storage_path) {
+    await admin.storage.from("resumes").remove([existing.storage_path]);
+  }
+
+  const { error } = await admin
+    .from("resumes")
+    .update({
+      pasted_resume_text: text,
+      storage_path: null,
+      file_name: null,
+      file_size_bytes: null,
+      content_type: null,
+      screened_at: null,
+      screening_error: null,
+    })
+    .eq("id", resumeId);
+  if (error) {
+    console.error("pasteResumeTextAction failed", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/recruitment");
+  return { error: null };
+}

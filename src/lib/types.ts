@@ -222,15 +222,31 @@ export interface Resume {
   id: string;
   connection_user_id: string | null;
   graph_message_id: string;
-  graph_attachment_id: string;
+  /** Null for a notification-only row — a message with no PDF/Word
+   * attachment (e.g. a job board's "you have a new applicant" email with a
+   * link to view the resume on their own site). At most one such row per
+   * message; see the two partial unique indexes in 071 replacing the
+   * original single constraint. */
+  graph_attachment_id: string | null;
   received_at: string;
   sender_name: string | null;
   sender_email: string | null;
   subject: string | null;
-  file_name: string;
-  storage_path: string;
+  /** The notification/application email's own body text, plain-text
+   * extracted from its HTML — genuinely useful screening input on its own
+   * (job board notifications often carry the candidate's answers to
+   * screening questions), independent of whether a resume file/text exists
+   * for this row yet. */
+  email_body_text: string | null;
+  file_name: string | null;
+  storage_path: string | null;
   file_size_bytes: number | null;
-  content_type: string;
+  content_type: string | null;
+  /** Staff-entered resume text (copy-pasted from wherever the actual file
+   * lives, e.g. a job board's own page) — an alternative to storage_path
+   * for a row with no attachment. Mutually exclusive with storage_path in
+   * practice, though nothing in the schema enforces that. */
+  pasted_resume_text: string | null;
   job_posting_id: string | null;
   candidate_name: string | null;
   candidate_email: string | null;
