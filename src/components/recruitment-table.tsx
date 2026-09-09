@@ -40,6 +40,22 @@ function YesNoBadge({ value }: { value: boolean | null }) {
   return <Badge value={value ? "yes" : "no"} />;
 }
 
+/** ai_comment is one combined string (see screenPendingResumes) — splits
+ * its leading "Overview: ..." paragraph back out so the main row can show
+ * just that, with the Technical ability / Building customer relationships
+ * detail held back for the expanded row. A comment screened before the
+ * Overview field existed has no such paragraph — falls back to holding the
+ * whole thing as detail, nothing shown in the collapsed row (re-screening
+ * it, e.g. via "Screen ALL", is what backfills an overview for it). */
+function splitComment(comment: string | null): { overview: string | null; detail: string | null } {
+  if (!comment) return { overview: null, detail: null };
+  const [first, ...rest] = comment.split("\n\n");
+  if (first?.startsWith("Overview:")) {
+    return { overview: first, detail: rest.join("\n\n") || null };
+  }
+  return { overview: null, detail: comment };
+}
+
 type ContentAction = (
   resumeId: string,
   prevState: ResumeContentState,
@@ -114,6 +130,7 @@ function ApplicantRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasResumeContent = Boolean(row.file_name || row.pasted_resume_text);
+  const { overview, detail } = splitComment(row.ai_comment);
 
   return (
     <>
@@ -141,13 +158,11 @@ function ApplicantRow({
         <td className="px-5 py-2">
           <YesNoBadge value={row.currently_working} />
         </td>
-        {/* whitespace-pre-line, not whitespace-normal — the AI comment is
-            now two sections (technical ability / customer relationships)
-            joined by a blank line; pre-line keeps that line break instead
-            of collapsing it into one run-on paragraph, while still
-            wrapping normally like whitespace-normal did. */}
+        {/* Only the Overview line — Technical ability / Building customer
+            relationships (the rest of splitComment's output) shows in the
+            expanded row instead, so the collapsed list stays scannable. */}
         <td className="min-w-[22rem] whitespace-pre-line px-5 py-2 text-slate-600">
-          {row.ai_comment ?? "—"}
+          {overview ?? "—"}
         </td>
         <td className="px-5 py-2" onClick={(e) => e.stopPropagation()}>
           <ResumeStatusSelect
@@ -186,6 +201,9 @@ function ApplicantRow({
               <p className="text-xs text-slate-400">
                 Subject: {row.subject}
               </p>
+            )}
+            {detail && (
+              <p className="whitespace-pre-line text-sm text-slate-700">{detail}</p>
             )}
             {row.email_body_text && (
               <details className="text-sm">
