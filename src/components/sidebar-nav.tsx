@@ -48,10 +48,12 @@ export function SidebarNav({
   canViewClients,
   canViewProjects,
   canViewSalesRequests,
+  canManageRecruitment,
   teamOwnerOnly,
   integrationsOwnerOnly,
   touchpointsOwnerOnly,
   domainHealthOwnerOnly,
+  recruitmentOwnerOnly,
   signOutAction,
 }: {
   userLabel: string;
@@ -66,12 +68,14 @@ export function SidebarNav({
   canViewClients: boolean;
   canViewProjects: boolean;
   canViewSalesRequests: boolean;
+  canManageRecruitment: boolean;
   /** True only while no non-Owner role has been granted the permission —
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
   integrationsOwnerOnly: boolean;
   touchpointsOwnerOnly: boolean;
   domainHealthOwnerOnly: boolean;
+  recruitmentOwnerOnly: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -98,6 +102,16 @@ export function SidebarNav({
       : []),
     ...(canViewSalesRequests
       ? [{ href: "/sales-requests", label: "Internal Sales", icon: IconTag }]
+      : []),
+    ...(canManageRecruitment
+      ? [
+          {
+            href: "/recruitment",
+            label: "Recruitment",
+            icon: IconUsers,
+            ownerOnly: recruitmentOwnerOnly,
+          },
+        ]
       : []),
   ];
 

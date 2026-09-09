@@ -44,13 +44,15 @@ export default async function DashboardLayout({
   const canViewClients = me?.permissions.has("view_clients") ?? false;
   const canViewProjects = me?.permissions.has("view_projects") ?? false;
   const canViewSalesRequests = me?.permissions.has("view_sales_requests") ?? false;
+  const canManageRecruitment = me?.permissions.has("manage_recruitment") ?? false;
 
-  const [teamOwnerOnly, integrationsOwnerOnly, touchpointsOwnerOnly, domainHealthOwnerOnly] =
+  const [teamOwnerOnly, integrationsOwnerOnly, touchpointsOwnerOnly, domainHealthOwnerOnly, recruitmentOwnerOnly] =
     await Promise.all([
       isPermissionOwnerOnly(supabase, "manage_team"),
       isPermissionOwnerOnly(supabase, "manage_integrations"),
       isPermissionOwnerOnly(supabase, "manage_touchpoints"),
       isPermissionOwnerOnly(supabase, "view_domain_health"),
+      isPermissionOwnerOnly(supabase, "manage_recruitment"),
     ]);
 
   return (
@@ -68,10 +70,12 @@ export default async function DashboardLayout({
         canViewClients={canViewClients}
         canViewProjects={canViewProjects}
         canViewSalesRequests={canViewSalesRequests}
+        canManageRecruitment={canManageRecruitment}
         teamOwnerOnly={teamOwnerOnly}
         integrationsOwnerOnly={integrationsOwnerOnly}
         touchpointsOwnerOnly={touchpointsOwnerOnly}
         domainHealthOwnerOnly={domainHealthOwnerOnly}
+        recruitmentOwnerOnly={recruitmentOwnerOnly}
         signOutAction={signOut}
       />
       <main className="px-4 py-8 md:pl-64">
