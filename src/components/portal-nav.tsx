@@ -22,7 +22,7 @@ const LINKS: {
 }[] = [
   { href: "/portal", label: "Overview", icon: IconGrid },
   { href: "/portal/tickets", label: "Tickets", icon: IconCheckSquare },
-  { href: "/portal/contracts", label: "Contract hours", icon: IconClock },
+  { href: "/portal/contracts", label: "Contracts", icon: IconClock },
   { href: "/portal/devices", label: "Devices", icon: IconList },
   { href: "/portal/security", label: "Security", icon: IconLock },
   { href: "/portal/licences", label: "Microsoft 365", icon: IconTag },

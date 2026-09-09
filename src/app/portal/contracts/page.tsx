@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requirePortalSession } from "@/lib/portal";
 import {
   fetchPortalContractMonth,
+  fetchPortalContractServices,
   currentMonth,
   shiftMonth,
 } from "@/lib/portal-data";
@@ -11,7 +12,9 @@ import {
   PortalCard,
   StatCard,
   ProportionBar,
+  EmptyRow,
 } from "@/components/portal-ui";
+import { Badge } from "@/components/badge";
 import { TrendChart } from "@/components/charts/trend-chart";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +52,10 @@ export default async function PortalContractsPage({
   if (!session) redirect("/portal");
 
   const month = normalizeMonth(rawMonth);
-  const data = await fetchPortalContractMonth(session, month);
+  const [data, contractServices] = await Promise.all([
+    fetchPortalContractMonth(session, month),
+    fetchPortalContractServices(session),
+  ]);
 
   const totalPurchased = data.blocks.reduce((s, b) => s + b.purchased, 0);
   const totalUsed = data.blocks.reduce((s, b) => s + b.used, 0);
@@ -70,10 +76,36 @@ export default async function PortalContractsPage({
     <div className="space-y-6">
       <PortalPageHeader
         companyName={session.client.clientName}
-        title="Contract hours"
-        subtitle="Prepaid block hours purchased, used and remaining."
+        title="Contracts"
+        subtitle="What's contracted, plus prepaid block hours purchased, used and remaining."
         isPreview={session.isPreview}
       />
+
+      {contractServices.linked && (
+        <PortalCard title={`Contracted services (${contractServices.services.length})`}>
+          {contractServices.services.length === 0 ? (
+            <EmptyRow>No contracted services found.</EmptyRow>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {contractServices.services.map((s) => (
+                <div key={s.id} className="flex items-start justify-between gap-3 px-5 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900">
+                      {s.serviceName}
+                      {s.quantity !== null ? ` × ${s.quantity}` : ""}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {s.contractName}
+                      {s.description ? ` · ${s.description}` : ""}
+                    </p>
+                  </div>
+                  {s.contractStatus && <Badge value={s.contractStatus} />}
+                </div>
+              ))}
+            </div>
+          )}
+        </PortalCard>
+      )}
 
       <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         {canGoBack ? (

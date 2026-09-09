@@ -570,3 +570,67 @@ export async function fetchPortalTicketList(
     return empty("Ticket data couldn't be loaded right now.");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Contracted services — the line-item list of what a client is contracted
+// for (e.g. "Huntress - MDR x 3"), distinct from Contract hours' prepaid
+// block burn-down above. Cached, not live — same table the staff-facing
+// ClientAutotaskContractServices component already reads
+// (autotask_contract_services), already scoped per-client via client_id.
+// ---------------------------------------------------------------------------
+
+export type PortalContractService = {
+  id: number;
+  contractName: string;
+  contractStatus: string | null;
+  serviceName: string;
+  description: string | null;
+  quantity: number | null;
+};
+
+export type PortalContractServices = {
+  services: PortalContractService[];
+  linked: boolean;
+};
+
+export async function fetchPortalContractServices(
+  session: PortalSession
+): Promise<PortalContractServices> {
+  if (session.client.autotaskCompanyId == null) {
+    return { services: [], linked: false };
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("autotask_contract_services")
+    .select("id, contract_name, contract_status, service_name, description, quantity")
+    .eq("client_id", session.client.clientId)
+    .order("service_name");
+
+  if (error) {
+    console.error("fetchPortalContractServices failed", error);
+    return { services: [], linked: true };
+  }
+
+  type ContractServiceRow = {
+    id: number;
+    contract_name: string;
+    contract_status: string | null;
+    service_name: string;
+    description: string | null;
+    quantity: number | null;
+  };
+  const rows = (data ?? []) as ContractServiceRow[];
+
+  return {
+    linked: true,
+    services: rows.map((r: ContractServiceRow) => ({
+      id: r.id,
+      contractName: r.contract_name,
+      contractStatus: r.contract_status,
+      serviceName: r.service_name,
+      description: r.description,
+      quantity: r.quantity,
+    })),
+  };
+}
