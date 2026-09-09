@@ -16,6 +16,7 @@ import {
   updateResumeStatusAction,
   uploadResumeFileAction,
   pasteResumeTextAction,
+  deleteResumeAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -156,6 +157,7 @@ export default async function RecruitmentPage({
         updateStatusAction={updateResumeStatusAction}
         uploadFileAction={uploadResumeFileAction}
         pasteTextAction={pasteResumeTextAction}
+        deleteAction={deleteResumeAction}
       />
     </div>
   );

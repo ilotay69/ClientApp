@@ -79,7 +79,7 @@ export default async function DashboardLayout({
         signOutAction={signOut}
       />
       <main className="px-4 py-8 md:pl-64">
-        <div className="mx-auto max-w-6xl">{children}</div>
+        <div className="mx-auto max-w-[96rem]">{children}</div>
       </main>
     </div>
   );

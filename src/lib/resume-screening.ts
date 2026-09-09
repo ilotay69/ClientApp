@@ -97,11 +97,12 @@ type PendingResumeRow = {
  * assumption already burned twice on this feature's Graph-attachments code —
  * an explicit label removes the ambiguity outright rather than inferring it.
  *
- * A row now has three possible resume-content sources (a stored file,
- * staff-pasted text, or neither yet) plus an optional email_body_text that's
- * ALWAYS included when present, regardless of which of those three applies —
- * a job-board notification's own body (screening-question answers, etc.) is
- * useful context whether or not an actual resume exists for this row yet.
+ * A row has two possible resume-content sources by the time it reaches here
+ * (a stored file or staff-pasted text — screenPendingResumes only selects
+ * rows that have one of the two), plus an optional email_body_text that's
+ * always included when present alongside either — a job-board notification's
+ * own body (screening-question answers, etc.) is useful supporting context
+ * once there's an actual resume to screen.
  */
 async function buildResumeContentBlocks(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,9 +117,7 @@ async function buildResumeContentBlocks(
   const storagePath = resume.storage_path;
   const label = storagePath
     ? `Resume #${resumeNumber} (file: ${resume.file_name}):`
-    : resume.pasted_resume_text
-      ? `Resume #${resumeNumber} (pasted resume text):`
-      : `Resume #${resumeNumber} (application notification — no resume file yet):`;
+    : `Resume #${resumeNumber} (pasted resume text):`;
 
   const blocks: ContentBlock[] = [{ type: "text", text: label }];
 
@@ -158,11 +157,11 @@ async function buildResumeContentBlocks(
     }
   } else if (resume.pasted_resume_text) {
     blocks.push({ type: "text", text: resume.pasted_resume_text });
-  } else if (!resume.email_body_text) {
-    // Sync always sets at least one of these three for every row it
-    // creates — reaching here means something upstream is broken, not a
-    // normal "nothing to screen yet" state.
-    throw new Error("This row has no resume file, pasted text, or email content to screen.");
+  } else {
+    // The pending query in screenPendingResumes only selects rows that have
+    // a file or pasted text — reaching here means something upstream is
+    // broken, not a normal "nothing to screen yet" state.
+    throw new Error("This row has no resume file or pasted text to screen.");
   }
 
   return blocks;
@@ -275,6 +274,10 @@ export async function screenPendingResumes(
   let resumeQuery = admin
     .from("resumes")
     .select("id, storage_path, file_name, content_type, pasted_resume_text, email_body_text")
+    // A row with neither a file nor pasted text is notification-only
+    // (nothing but an application email) — don't screen it off that alone;
+    // wait until staff actually adds a resume, whichever way.
+    .or("storage_path.not.is.null,pasted_resume_text.not.is.null")
     .order("received_at", { ascending: true })
     .limit(50);
   if (!options?.rescreenAll) {

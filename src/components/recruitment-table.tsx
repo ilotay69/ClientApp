@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/badge";
+import { DeleteButton } from "@/components/delete-button";
 import { formatDate } from "@/lib/format";
 import { ResumeStatusSelect } from "@/components/resume-status-select";
 import type { Resume, ResumeStatus } from "@/lib/types";
@@ -39,11 +40,13 @@ export function RecruitmentTable({
   updateStatusAction,
   uploadFileAction,
   pasteTextAction,
+  deleteAction,
 }: {
   rows: RecruitmentTableRow[];
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
+  deleteAction: (id: string) => Promise<void>;
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -68,6 +71,7 @@ export function RecruitmentTable({
               updateStatusAction={updateStatusAction}
               uploadFileAction={uploadFileAction}
               pasteTextAction={pasteTextAction}
+              deleteAction={deleteAction}
             />
           ))}
           {rows.length === 0 && (
@@ -88,11 +92,13 @@ function ApplicantRow({
   updateStatusAction,
   uploadFileAction,
   pasteTextAction,
+  deleteAction,
 }: {
   row: RecruitmentTableRow;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
+  deleteAction: (id: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasResumeContent = Boolean(row.file_name || row.pasted_resume_text);
@@ -123,7 +129,7 @@ function ApplicantRow({
             joined by a blank line; pre-line keeps that line break instead
             of collapsing it into one run-on paragraph, while still
             wrapping normally like whitespace-normal did. */}
-        <td className="min-w-[22rem] max-w-md whitespace-pre-line px-5 py-2 text-slate-600">
+        <td className="min-w-[22rem] whitespace-pre-line px-5 py-2 text-slate-600">
           {row.ai_comment ?? "—"}
         </td>
         <td className="px-5 py-2" onClick={(e) => e.stopPropagation()}>
@@ -184,6 +190,13 @@ function ApplicantRow({
               uploadFileAction={uploadFileAction}
               pasteTextAction={pasteTextAction}
             />
+
+            <div onClick={(e) => e.stopPropagation()}>
+              <DeleteButton
+                action={deleteAction.bind(null, row.id)}
+                confirmText={`Delete this applicant${row.candidate_name ? ` (${row.candidate_name})` : ""}? This can't be undone.`}
+              />
+            </div>
           </td>
         </tr>
       )}

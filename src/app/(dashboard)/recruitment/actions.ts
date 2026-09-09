@@ -233,6 +233,30 @@ export async function updateResumeStatusAction(id: string, status: ResumeStatus)
   revalidatePath("/recruitment");
 }
 
+/** Permanently removes an applicant row — e.g. a job-board notification
+ * that's clearly spam, a duplicate, or someone no longer worth tracking.
+ * Deletes the row first, then best-effort cleans up its storage object:
+ * an orphaned file left behind on a rare cleanup failure is harmless, while
+ * a row left pointing at an already-deleted file is a visible broken link. */
+export async function deleteResumeAction(id: string): Promise<void> {
+  if (!(await requirePermission("manage_recruitment"))) return;
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("resumes")
+    .select("storage_path")
+    .eq("id", id)
+    .maybeSingle();
+
+  await admin.from("resumes").delete().eq("id", id);
+
+  if (existing?.storage_path) {
+    await admin.storage.from("resumes").remove([existing.storage_path]);
+  }
+
+  revalidatePath("/recruitment");
+}
+
 const MAX_RESUME_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB, same cap as client documents
 const RESUME_MEDIA_TYPES: Record<string, true> = {
   "application/pdf": true,
