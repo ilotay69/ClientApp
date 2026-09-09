@@ -1,0 +1,22 @@
+-- ============================================================================
+-- Resume Screener permission — enum value only.
+--
+-- Run this in the Supabase SQL Editor AFTER 068.
+--
+-- No companion seed migration. Every prior permission-enum migration in this
+-- app (059/060, 046/047) paired an enum-add with a seed step that granted the
+-- new key to manager/tech/sales_rep — because those were VIEW gates being
+-- retrofitted onto features those roles already used, and skipping the seed
+-- would have silently taken access away. manage_recruitment is different: it
+-- guards entirely new functionality that reads candidate PII (names, emails,
+-- phone numbers pulled straight off resumes) with no prior access to
+-- preserve. Leaving role_permissions with zero rows for this key means it
+-- defaults to Owner-only (isPermissionOwnerOnly() returns true, the sidebar
+-- shows the lock icon) until an Owner deliberately grants it to another role
+-- from Team -> Roles & permissions — no further migration needed for that,
+-- role_permissions is just data.
+--
+-- 55P04: a newly added enum value can't be used in the same transaction that
+-- added it, hence this is its own migration.
+-- ============================================================================
+alter type public.permission_key add value if not exists 'manage_recruitment';

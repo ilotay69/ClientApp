@@ -203,6 +203,43 @@ export interface MailConnection {
   dismissed_appointment_subjects: string[];
   snapshot_synced_at: string | null;
   sync_excluded_senders: string | null;
+  resume_folder_name: string | null;
+  resume_sync_last_synced_at: string | null;
+}
+
+export type ResumeVerdict = "yes" | "maybe" | "no";
+export type ResumeStatus = "new" | "reviewing" | "contacted" | "rejected" | "hired";
+
+export interface JobPosting {
+  id: string;
+  title: string;
+  description: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface Resume {
+  id: string;
+  connection_user_id: string | null;
+  graph_message_id: string;
+  graph_attachment_id: string;
+  received_at: string;
+  sender_name: string | null;
+  sender_email: string | null;
+  subject: string | null;
+  file_name: string;
+  storage_path: string;
+  file_size_bytes: number | null;
+  job_posting_id: string | null;
+  candidate_name: string | null;
+  candidate_email: string | null;
+  candidate_phone: string | null;
+  ai_verdict: ResumeVerdict | null;
+  ai_comment: string | null;
+  screened_at: string | null;
+  screening_error: string | null;
+  status: ResumeStatus;
+  imported_at: string;
 }
 
 export interface MailboxSnapshotMessageRow {
