@@ -125,6 +125,47 @@ export async function createJobPosting(
   return { error: null };
 }
 
+export type AddCandidateState = { error: string | null };
+
+/** Manually adds an applicant with no email behind it at all — someone
+ * referred in person, met at an event, etc. Reuses the resumes table rather
+ * than a parallel one: graph_message_id is NOT NULL with no default (every
+ * other row is keyed off a real Graph message), so a manual row gets a
+ * synthetic, guaranteed-unique placeholder instead of a schema change.
+ * graph_attachment_id stays null, same as a notification-only synced row —
+ * from here on it behaves identically (upload/paste/screen/delete all
+ * already handle "no attachment" rows). */
+export async function addCandidateAction(
+  _prevState: AddCandidateState,
+  formData: FormData
+): Promise<AddCandidateState> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const name = String(formData.get("candidate_name") ?? "").trim();
+  const email = String(formData.get("candidate_email") ?? "").trim();
+  const phone = String(formData.get("candidate_phone") ?? "").trim();
+  if (!name) return { error: "Name is required." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("resumes").insert({
+    graph_message_id: `manual-${crypto.randomUUID()}`,
+    graph_attachment_id: null,
+    received_at: new Date().toISOString(),
+    candidate_name: name,
+    candidate_email: email || null,
+    candidate_phone: phone || null,
+  });
+  if (error) {
+    console.error("addCandidateAction failed", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/recruitment");
+  return { error: null };
+}
+
 export type ResumeScreenState = { ok: boolean; message: string };
 
 type JobPostingForScreening = {

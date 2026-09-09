@@ -7,6 +7,7 @@ import { ResumeFolderSettingsForm } from "@/components/resume-folder-settings-fo
 import { JobPostingForm } from "@/components/job-posting-form";
 import { ResumeFilterBar } from "@/components/resume-filter-bar";
 import { RecruitmentTable, type RecruitmentTableRow } from "@/components/recruitment-table";
+import { AddCandidateForm } from "@/components/add-candidate-form";
 import {
   updateResumeFolderName,
   syncResumesNow,
@@ -17,6 +18,7 @@ import {
   uploadResumeFileAction,
   pasteResumeTextAction,
   deleteResumeAction,
+  addCandidateAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -150,7 +152,10 @@ export default async function RecruitmentPage({
         </div>
       </div>
 
-      <ResumeFilterBar statuses={statuses} verdicts={verdicts} clearHref="/recruitment" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ResumeFilterBar statuses={statuses} verdicts={verdicts} clearHref="/recruitment" />
+        <AddCandidateForm action={addCandidateAction} />
+      </div>
 
       <RecruitmentTable
         rows={rows}

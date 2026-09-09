@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
@@ -216,6 +216,7 @@ function AddResumeContent({
   pasteTextAction: ContentAction;
 }) {
   const [mode, setMode] = useState<"upload" | "paste">("upload");
+  const [formOpen, setFormOpen] = useState(!hasResumeContent);
   const [uploadState, uploadFormAction, uploadPending] = useActionState<ResumeContentState, FormData>(
     uploadFileAction.bind(null, resumeId),
     { error: null }
@@ -224,6 +225,39 @@ function AddResumeContent({
     pasteTextAction.bind(null, resumeId),
     { error: null }
   );
+  const uploadSubmittedRef = useRef(false);
+  const pasteSubmittedRef = useRef(false);
+
+  // Collapses the form back down once a save actually succeeds — checking
+  // state.error alone isn't enough, since it's also null before any submit
+  // has happened at all; the ref marks a real submit just occurred.
+  useEffect(() => {
+    if (uploadSubmittedRef.current && !uploadPending && !uploadState.error) {
+      uploadSubmittedRef.current = false;
+      setFormOpen(false);
+    }
+  }, [uploadPending, uploadState.error]);
+  useEffect(() => {
+    if (pasteSubmittedRef.current && !pastePending && !pasteState.error) {
+      pasteSubmittedRef.current = false;
+      setFormOpen(false);
+    }
+  }, [pastePending, pasteState.error]);
+
+  if (!formOpen) {
+    return (
+      <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white p-3">
+        <p className="text-xs text-emerald-600">Resume saved.</p>
+        <button
+          type="button"
+          onClick={() => setFormOpen(true)}
+          className="text-xs font-medium text-slate-500 underline"
+        >
+          Replace resume
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-md border border-slate-200 bg-white p-3">
@@ -252,7 +286,13 @@ function AddResumeContent({
       </div>
 
       {mode === "upload" ? (
-        <form action={uploadFormAction} className="mt-2 flex flex-wrap items-center gap-2">
+        <form
+          action={uploadFormAction}
+          onSubmit={() => {
+            uploadSubmittedRef.current = true;
+          }}
+          className="mt-2 flex flex-wrap items-center gap-2"
+        >
           <input
             type="file"
             name="file"
@@ -270,7 +310,13 @@ function AddResumeContent({
           {uploadState.error && <p className="w-full text-xs text-red-600">{uploadState.error}</p>}
         </form>
       ) : (
-        <form action={pasteFormAction} className="mt-2 space-y-2">
+        <form
+          action={pasteFormAction}
+          onSubmit={() => {
+            pasteSubmittedRef.current = true;
+          }}
+          className="mt-2 space-y-2"
+        >
           <textarea
             name="text"
             rows={6}
