@@ -65,13 +65,14 @@ const BIG_FIRM_OPTIONS = [
   { value: "no", label: "Big firm: No" },
 ];
 
-// Mutually-exclusive buckets, not open-ended minimums — page.tsx turns
-// each into its own gte/lt range so a candidate falls into exactly one.
+// Mutually-exclusive integer-year buckets (years_experience is always a
+// whole number) — page.tsx turns each into its own gte/lte range so a
+// candidate falls into exactly one, with no shared boundary value.
 const YEARS_OPTIONS = [
   { value: "under3", label: "<3 yrs" },
   { value: "3to5", label: "3-5 yrs" },
-  { value: "5to10", label: "5-10 yrs" },
-  { value: "10plus", label: "10+ yrs" },
+  { value: "6to10", label: "6-10 yrs" },
+  { value: "11plus", label: "11+ yrs" },
 ];
 
 export function ResumeFilterBar({
