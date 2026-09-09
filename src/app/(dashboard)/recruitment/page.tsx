@@ -85,7 +85,7 @@ export default async function RecruitmentPage({
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-900">Mailbox</h2>
           <div className="mt-3">
