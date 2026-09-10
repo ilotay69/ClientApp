@@ -134,9 +134,12 @@ export function RecruitmentTable({
           which is exactly why the sticky header did nothing. */}
       <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="divide-y divide-slate-200 text-sm">
-          <thead className="sticky top-0 z-10 bg-slate-50">
+          {/* sticky goes on each th, not the thead — thead itself is
+              unreliable across browsers for sticky positioning; th (and tr)
+              is the well-supported target. */}
+          <thead>
             <tr>
-              <th className="px-3 py-1.5">
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -144,16 +147,16 @@ export function RecruitmentTable({
                   aria-label="Select all"
                 />
               </th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Date</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Name</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Verdict</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Big Firm</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Comment</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
-              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Date</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Name</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Verdict</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Big Firm</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Comment</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
