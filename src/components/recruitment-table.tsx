@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import Link from "next/link";
 import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 import { formatDate } from "@/lib/format";
 import { ResumeStatusSelect } from "@/components/resume-status-select";
 import type { Resume, ResumeStatus } from "@/lib/types";
@@ -120,6 +121,7 @@ export function RecruitmentTable({
         >
           {pending ? "Screening…" : `Screen selected${selected.size > 0 ? ` (${selected.size})` : ""}`}
         </button>
+        {pending && <IndeterminateProgressBar />}
         {result && (
           <span className={`text-sm ${result.ok ? "text-emerald-700" : "text-red-600"}`}>
             {result.message}
@@ -457,6 +459,7 @@ function AddResumeContent({
           >
             {uploadPending ? "Uploading…" : "Save"}
           </button>
+          {uploadPending && <IndeterminateProgressBar />}
           {uploadState.error && <p className="w-full text-xs text-red-600">{uploadState.error}</p>}
         </form>
       ) : (
@@ -480,6 +483,7 @@ function AddResumeContent({
           >
             {pastePending ? "Saving…" : "Save"}
           </button>
+          {pastePending && <IndeterminateProgressBar />}
           {pasteState.error && <p className="text-xs text-red-600">{pasteState.error}</p>}
         </form>
       )}

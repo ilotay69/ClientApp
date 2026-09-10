@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 export function SyncMailboxButton({
   action,
@@ -27,6 +28,7 @@ export function SyncMailboxButton({
       >
         {pending ? "Syncing…" : "Sync my mailbox"}
       </button>
+      {pending && <IndeterminateProgressBar />}
       {result && (
         <span className={`text-sm ${result.ok ? "text-emerald-700" : "text-red-600"}`}>{result.message}</span>
       )}

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 export function SyncAutotaskButton({
   action,
@@ -34,6 +35,7 @@ export function SyncAutotaskButton({
       >
         {syncing ? "Syncing..." : "Sync Autotask"}
       </button>
+      {syncing && <IndeterminateProgressBar />}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { RefreshClientInsightsState } from "@/app/(dashboard)/clients/actions";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 const initialState: RefreshClientInsightsState = { error: null, summary: null };
 
@@ -26,6 +27,7 @@ export function RefreshClientInsightsButton({
           {pending ? "Checking..." : "Refresh insights"}
         </button>
       </form>
+      {pending && <IndeterminateProgressBar />}
       {state.summary && <p className="text-sm text-slate-500">{state.summary}</p>}
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
     </div>

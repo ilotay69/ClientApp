@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { syncNow, type SyncState } from "@/app/(dashboard)/settings/mail/actions";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 const initialState: SyncState = { error: null, summary: null };
 
@@ -19,6 +20,7 @@ export function SyncMailButton({ label = "Sync now" }: { label?: string }) {
           {pending ? "Syncing..." : label}
         </button>
       </form>
+      {pending && <IndeterminateProgressBar />}
       {state.summary && <p className="mt-2 text-sm text-emerald-700">{state.summary}</p>}
       {state.error && <p className="mt-2 text-sm text-red-600">{state.error}</p>}
     </div>

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 export function SyncNinjaOneButton({
   action,
@@ -28,6 +29,7 @@ export function SyncNinjaOneButton({
       >
         {syncing ? "Syncing..." : "Sync NinjaOne"}
       </button>
+      {syncing && <IndeterminateProgressBar />}
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );

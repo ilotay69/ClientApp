@@ -7,6 +7,7 @@ import type {
 } from "@/app/(dashboard)/team/client-access/actions";
 import { CLIENT_PORTAL_ROLE_LABELS, type ClientPortalRole } from "@/lib/portal-roles";
 import { formatDate } from "@/lib/format";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 const initialState: CreatePortalUserState = {
   error: null,
@@ -105,15 +106,18 @@ export function ClientAccessPanel({
             </select>
           </div>
 
-          <div className="sm:col-span-3">
-            {state.error && <p className="mb-2 text-sm text-red-600">{state.error}</p>}
-            <button
-              type="submit"
-              disabled={pending}
-              className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
-            >
-              {pending ? "Creating…" : "Create portal login"}
-            </button>
+          <div className="flex items-center gap-3 sm:col-span-3">
+            <div>
+              {state.error && <p className="mb-2 text-sm text-red-600">{state.error}</p>}
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+              >
+                {pending ? "Creating…" : "Create portal login"}
+              </button>
+            </div>
+            {pending && <IndeterminateProgressBar />}
           </div>
         </form>
 
@@ -309,6 +313,7 @@ function PortalUserRowView({
           >
             Remove
           </button>
+          {isPending && <IndeterminateProgressBar />}
         </div>
       </td>
     </tr>

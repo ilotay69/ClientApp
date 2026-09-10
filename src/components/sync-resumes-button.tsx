@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 /** Modeled on sync-mailbox-button.tsx's action-prop shape rather than
  * sync-mail-button.tsx's useActionState-with-a-hardcoded-import shape — both
@@ -37,6 +38,7 @@ export function AsyncActionButton({
       >
         {pending ? pendingLabel : label}
       </button>
+      {pending && <IndeterminateProgressBar />}
       {result && (
         <span className={`text-sm ${result.ok ? "text-emerald-700" : "text-red-600"}`}>{result.message}</span>
       )}
