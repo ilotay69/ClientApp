@@ -126,7 +126,13 @@ export function RecruitmentTable({
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      {/* overflow-y-visible is deliberate, not redundant: overflow-x-auto
+          alone makes the browser compute overflow-y as auto too, which turns
+          this div into its own (never-actually-scrolling, since its height
+          isn't constrained) vertical scroll container — that steals the
+          sticky thead's positioning context away from the real page scroll,
+          which is exactly why the sticky header did nothing. */}
+      <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="divide-y divide-slate-200 text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50">
             <tr>
