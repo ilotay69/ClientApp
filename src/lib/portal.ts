@@ -2,21 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isStaffRole } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
-
-/** Every portal page that can be individually granted/withheld per
- * client-portal sub-role (see client_portal_permissions, 081) — Overview
- * is deliberately not here, it's the one page every portal login can
- * always reach regardless of role, so there's never a zero-page dead end. */
-export const PORTAL_PAGE_KEYS = ["tickets", "contracts", "devices", "security", "licences"] as const;
-export type PortalPageKey = (typeof PORTAL_PAGE_KEYS)[number];
-
-export type ClientPortalRole = "client_tech" | "client_manager" | "client_owner";
-
-export const CLIENT_PORTAL_ROLE_LABELS: Record<ClientPortalRole, string> = {
-  client_tech: "Client Tech",
-  client_manager: "Client Manager",
-  client_owner: "Client Owner",
-};
+// Re-exported so existing server-side callers can keep importing these
+// from "@/lib/portal" unchanged — but a Client Component must import them
+// from "@/lib/portal-roles" directly instead (see that file's own comment
+// for why: this module transitively depends on next/headers).
+import { PORTAL_PAGE_KEYS, type PortalPageKey, type ClientPortalRole } from "@/lib/portal-roles";
+export { PORTAL_PAGE_KEYS, CLIENT_PORTAL_ROLE_LABELS } from "@/lib/portal-roles";
+export type { PortalPageKey, ClientPortalRole } from "@/lib/portal-roles";
 
 /** Which of PORTAL_PAGE_KEYS a given client-portal sub-role can see —
  * read via the service-role client, same reasoning as loadPortalClient:

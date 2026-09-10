@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { ClientPortalRole, PortalPageKey } from "@/lib/portal";
-import { CLIENT_PORTAL_ROLE_LABELS } from "@/lib/portal";
+import { CLIENT_PORTAL_ROLE_LABELS, type ClientPortalRole, type PortalPageKey } from "@/lib/portal-roles";
 
 const ROLES: ClientPortalRole[] = ["client_tech", "client_manager", "client_owner"];
 

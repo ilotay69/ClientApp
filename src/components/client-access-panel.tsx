@@ -5,7 +5,7 @@ import type {
   PortalUserRow,
   CreatePortalUserState,
 } from "@/app/(dashboard)/team/client-access/actions";
-import { CLIENT_PORTAL_ROLE_LABELS, type ClientPortalRole } from "@/lib/portal";
+import { CLIENT_PORTAL_ROLE_LABELS, type ClientPortalRole } from "@/lib/portal-roles";
 import { formatDate } from "@/lib/format";
 
 const initialState: CreatePortalUserState = {
