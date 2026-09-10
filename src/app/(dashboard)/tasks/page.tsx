@@ -120,7 +120,9 @@ export default async function TasksPage({
     { data: mailPrefs },
   ] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
-    supabase.from("profiles").select("id, full_name").order("full_name"),
+    // neq("role", "client"): client-portal logins aren't staff and must
+    // never appear as an assignable person here.
+    supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
     hasPermission(supabase, "delete_tasks"),
     hasPermission(supabase, "view_team_tasks"),
     supabase.from("projects").select("id, name, client_id, clients(name)").order("name"),

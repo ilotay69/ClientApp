@@ -66,7 +66,9 @@ export default async function ProjectsPage({
 
   const [{ data: projectsData }, { data: members }, canManageProjects] = await Promise.all([
     projectsQuery,
-    supabase.from("profiles").select("id, full_name").order("full_name"),
+    // neq("role", "client"): client-portal logins aren't staff and must
+    // never appear as an assignable person here.
+    supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
     hasPermission(supabase, "manage_projects"),
   ]);
 

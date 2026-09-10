@@ -55,7 +55,9 @@ export default async function SalesRequestsPage({
   const [{ data: clients }, { data: members }, { data: requestClientRows }, canManage] =
     await Promise.all([
       supabase.from("clients").select("id, name").order("name"),
-      supabase.from("profiles").select("id, full_name").order("full_name"),
+      // neq("role", "client"): client-portal logins aren't staff and must
+      // never appear as a filterable assignee here.
+      supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
       // Unfiltered, so the client filter's own options don't shrink as
       // other filters (stage, assignee, source) are applied.
       supabase.from("sales_requests").select("client_id").not("client_id", "is", null),

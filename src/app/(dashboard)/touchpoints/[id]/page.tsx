@@ -31,7 +31,9 @@ export default async function TouchpointDetailPage({
   const [{ data: touchpoint }, { data: clients }, { data: members }] = await Promise.all([
     supabase.from("touchpoints").select("*, clients(name)").eq("id", id).single(),
     supabase.from("clients").select("id, name").order("name"),
-    supabase.from("profiles").select("id, full_name").order("full_name"),
+    // neq("role", "client"): client-portal logins aren't staff and must
+    // never appear as an assignable owner here.
+    supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
   ]);
 
   if (!touchpoint) notFound();
