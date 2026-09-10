@@ -295,7 +295,15 @@ async function callAnthropicToolMultimodal(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 2048,
+      // Was 2048 — fine back when this was just verdict + one comment
+      // field, but the schema has grown to 11 required fields per resume
+      // since (several of them free text), and a batch covers 5 resumes
+      // at once. "AI did not return a result for this resume" showing up
+      // across many resumes at once (not just one occasionally) is the
+      // signature of the response getting cut off mid-batch, not the
+      // model genuinely skipping one — this is deliberately generous
+      // headroom, not a precisely-tuned number.
+      max_tokens: 8192,
       tools: [{ name: TOOL_NAME, description: TOOL_DESCRIPTION, input_schema: TOOL_SCHEMA }],
       tool_choice: { type: "tool", name: TOOL_NAME },
       messages: [{ role: "user", content }],
