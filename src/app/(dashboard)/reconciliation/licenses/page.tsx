@@ -1,10 +1,17 @@
 import { redirect } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
-import { fetchReconciliationForClient, fetchClientLicenseSkus } from "@/lib/reconciliation-data";
+import {
+  fetchReconciliationForClient,
+  fetchClientLicenseSkus,
+  fetchServiceLicenseMappings,
+  fetchAllKnownSkus,
+  fetchAllContractedServiceNames,
+} from "@/lib/reconciliation-data";
 import { saveServiceLicenseMapping, deleteServiceLicenseMapping } from "../actions";
 import { ClientPicker } from "@/components/reconciliation-client-picker";
 import { ReconciliationTable } from "@/components/reconciliation-table";
+import { ServiceLicenseMappingsManager } from "@/components/service-license-mappings-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +28,18 @@ export default async function LicenseReconciliationPage({
   const { client_id: clientId } = await searchParams;
 
   const admin = createAdminClient();
-  const { data: clients } = await admin.from("clients").select("id, name").order("name");
+  const [{ data: clients }, mappings, allSkus, allServiceNames] = await Promise.all([
+    admin.from("clients").select("id, name").order("name"),
+    fetchServiceLicenseMappings(admin),
+    fetchAllKnownSkus(),
+    fetchAllContractedServiceNames(),
+  ]);
   const clientList = (clients ?? []) as { id: string; name: string }[];
+
+  const mappedServiceNames = new Set(mappings.map((m) => m.serviceName.trim().toLowerCase()));
+  const unmappedServiceNames = allServiceNames.filter(
+    (name) => !mappedServiceNames.has(name.trim().toLowerCase())
+  );
 
   const selectedClient = clientId ? (clientList.find((c) => c.id === clientId) ?? null) : null;
 
@@ -39,10 +56,17 @@ export default async function LicenseReconciliationPage({
         <h1 className="text-2xl font-semibold text-slate-900">365 licence reconciliation</h1>
         <p className="mt-1 text-sm text-slate-500">
           Compares a client&apos;s active contracted services against their Microsoft 365
-          licence counts. A service with no matching licence yet needs mapping once — that
-          mapping then applies to every client with the same service name.
+          licence counts.
         </p>
       </div>
+
+      <ServiceLicenseMappingsManager
+        mappings={mappings}
+        unmappedServiceNames={unmappedServiceNames}
+        allSkus={allSkus}
+        saveMappingAction={saveServiceLicenseMapping}
+        deleteMappingAction={deleteServiceLicenseMapping}
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <label className="block text-sm font-medium text-slate-700">Client</label>

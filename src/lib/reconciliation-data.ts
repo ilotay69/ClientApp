@@ -182,3 +182,40 @@ export async function fetchClientLicenseSkus(
     friendlyName: friendlyM365SkuName(l.sku_part_number),
   }));
 }
+
+/** Every distinct M365 SKU synced for ANY client — for the standalone
+ * mapping manager, where staff define a rule up front rather than reacting
+ * to one specific client's unmapped row. fetchClientLicenseSkus (above)
+ * stays scoped to one client, for the per-client "map this" picker. */
+export async function fetchAllKnownSkus(): Promise<{ skuPartNumber: string; friendlyName: string }[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("m365_license_summary").select("sku_part_number");
+  if (error) {
+    console.error("fetchAllKnownSkus failed", error);
+    return [];
+  }
+  const unique = [...new Set(((data ?? []) as { sku_part_number: string }[]).map((l) => l.sku_part_number))];
+  return unique
+    .map((sku) => ({ skuPartNumber: sku, friendlyName: friendlyM365SkuName(sku) }))
+    .sort((a, b) => a.friendlyName.localeCompare(b.friendlyName));
+}
+
+/** Every distinct ACTIVE contracted service name across ANY client, so the
+ * mapping manager's "add a mapping" form can offer a real pick-list (the
+ * exact strings Autotask actually uses) instead of asking staff to type a
+ * service name freehand and risk a typo that silently never matches. */
+export async function fetchAllContractedServiceNames(): Promise<string[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("autotask_contract_services")
+    .select("service_name, contract_status");
+  if (error) {
+    console.error("fetchAllContractedServiceNames failed", error);
+    return [];
+  }
+  type Row = { service_name: string; contract_status: string | null };
+  const active = ((data ?? []) as Row[]).filter(
+    (s) => (s.contract_status ?? "").toLowerCase() === "active"
+  );
+  return [...new Set(active.map((s) => s.service_name))].sort((a, b) => a.localeCompare(b));
+}
