@@ -232,15 +232,25 @@ function ApplicantRow({
         <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">{formatDate(row.received_at)}</td>
         <td className="px-3 py-1.5 text-slate-900">{row.candidate_name ?? row.sender_name ?? "—"}</td>
         <td className="px-3 py-1.5">
-          {row.ai_verdict ? (
-            <Badge value={row.ai_verdict} />
-          ) : row.screening_error ? (
-            <span title={row.screening_error} className="text-xs text-red-600 underline decoration-dotted">
-              Error
-            </span>
-          ) : (
-            <span className="text-xs text-slate-400">Not screened</span>
-          )}
+          {/* Shown together, not either/or: an old verdict from a prior
+              successful screen must never hide a LATER screening_error —
+              a failed re-screen still sets screening_error on a row that
+              already has ai_verdict from before, and showing only the
+              stale badge would silently hide that the retry failed. */}
+          <div className="flex items-center gap-1.5">
+            {row.ai_verdict && <Badge value={row.ai_verdict} />}
+            {row.screening_error && (
+              <span
+                title={row.screening_error}
+                className="text-xs text-red-600 underline decoration-dotted"
+              >
+                {row.ai_verdict ? "Retry failed" : "Error"}
+              </span>
+            )}
+            {!row.ai_verdict && !row.screening_error && (
+              <span className="text-xs text-slate-400">Not screened</span>
+            )}
+          </div>
         </td>
         <td className="px-3 py-1.5">
           <YesNoBadge value={row.big_firm_experience} />
