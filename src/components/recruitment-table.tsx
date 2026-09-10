@@ -34,7 +34,12 @@ export type RecruitmentTableRow = Pick<
   | "screened_at"
   | "screening_error"
   | "status"
->;
+> & {
+  /** Name of another row in the current list whose pasted resume text
+   * matches this one's (see page.tsx) — null when no match. Computed at
+   * display time, not stored. */
+  duplicateOfName?: string | null;
+};
 
 /** Renders a boolean|null screening signal as a Yes/No badge, or "—" before
  * screening has run — reuses Badge's existing yes/no color mapping (see
@@ -232,7 +237,17 @@ function ApplicantRow({
           />
         </td>
         <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">{formatDate(row.received_at)}</td>
-        <td className="px-3 py-1.5 text-slate-900">{row.candidate_name ?? row.sender_name ?? "—"}</td>
+        <td className="px-3 py-1.5 text-slate-900">
+          {row.candidate_name ?? row.sender_name ?? "—"}
+          {row.duplicateOfName && (
+            <span
+              title={`Pasted resume text matches ${row.duplicateOfName}`}
+              className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+            >
+              Duplicate
+            </span>
+          )}
+        </td>
         <td className="px-3 py-1.5">
           {/* Shown together, not either/or: an old verdict from a prior
               successful screen must never hide a LATER screening_error —

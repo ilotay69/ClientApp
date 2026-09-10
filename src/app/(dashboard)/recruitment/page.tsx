@@ -109,6 +109,33 @@ export default async function RecruitmentPage({
 
   const rows = (resumes ?? []) as RecruitmentTableRow[];
 
+  // Flags candidates whose pasted resume text exactly matches another row in
+  // the current (filtered, up-to-200) list — not a DB constraint, just a
+  // display-time heads-up so staff can spot an accidental re-paste. Compares
+  // normalized text (trimmed, collapsed whitespace, case-insensitive) so
+  // trivial formatting differences from copy/paste don't hide a real match.
+  const textGroups = new Map<string, { id: string; name: string }[]>();
+  for (const r of rows) {
+    if (!r.pasted_resume_text) continue;
+    const key = r.pasted_resume_text.trim().toLowerCase().replace(/\s+/g, " ");
+    if (!key) continue;
+    const group = textGroups.get(key) ?? [];
+    group.push({ id: r.id, name: r.candidate_name ?? r.sender_name ?? "an earlier entry" });
+    textGroups.set(key, group);
+  }
+  const duplicateOfById = new Map<string, string>();
+  for (const group of textGroups.values()) {
+    if (group.length < 2) continue;
+    for (const entry of group) {
+      const other = group.find((g) => g.id !== entry.id);
+      if (other) duplicateOfById.set(entry.id, other.name);
+    }
+  }
+  const rowsWithDuplicates = rows.map((r) => ({
+    ...r,
+    duplicateOfName: duplicateOfById.get(r.id) ?? null,
+  }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -197,7 +224,7 @@ export default async function RecruitmentPage({
       </div>
 
       <RecruitmentTable
-        rows={rows}
+        rows={rowsWithDuplicates}
         updateStatusAction={updateResumeStatusAction}
         uploadFileAction={uploadResumeFileAction}
         pasteTextAction={pasteResumeTextAction}
