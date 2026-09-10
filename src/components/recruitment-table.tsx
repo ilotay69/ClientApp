@@ -128,7 +128,7 @@ export function RecruitmentTable({
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
+          <thead className="sticky top-0 z-10 bg-slate-50">
             <tr>
               <th className="px-3 py-1.5">
                 <input
