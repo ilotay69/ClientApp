@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
@@ -48,7 +48,7 @@ function YesNoBadge({ value }: { value: boolean | null }) {
  * detail held back for the expanded row. A comment screened before the
  * Overview field existed has no such paragraph — falls back to holding the
  * whole thing as detail, nothing shown in the collapsed row (re-screening
- * it, e.g. via "Screen ALL", is what backfills an overview for it). */
+ * it, e.g. via "Screen selected", is what backfills an overview for it). */
 function splitComment(comment: string | null): { overview: string | null; detail: string | null } {
   if (!comment) return { overview: null, detail: null };
   const [first, ...rest] = comment.split("\n\n");
@@ -70,62 +70,125 @@ export function RecruitmentTable({
   uploadFileAction,
   pasteTextAction,
   deleteAction,
+  screenSelectedAction,
 }: {
   rows: RecruitmentTableRow[];
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
+  screenSelectedAction: (resumeIds: string[]) => Promise<{ ok: boolean; message: string }>;
 }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const allIds = rows.map((r) => r.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(allIds));
+  }
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function runScreenSelected() {
+    setResult(null);
+    startTransition(async () => {
+      const outcome = await screenSelectedAction(Array.from(selected));
+      setResult(outcome);
+      if (outcome.ok) setSelected(new Set());
+    });
+  }
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-      <table className="divide-y divide-slate-200 text-sm">
-        <thead className="bg-slate-50">
-          <tr>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Date</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Name</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Verdict</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Big Firm</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Comment</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
-            <th className="px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {rows.map((r) => (
-            <ApplicantRow
-              key={r.id}
-              row={r}
-              updateStatusAction={updateStatusAction}
-              uploadFileAction={uploadFileAction}
-              pasteTextAction={pasteTextAction}
-              deleteAction={deleteAction}
-            />
-          ))}
-          {rows.length === 0 && (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={runScreenSelected}
+          disabled={pending || selected.size === 0}
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+        >
+          {pending ? "Screening…" : `Screen selected${selected.size > 0 ? ` (${selected.size})` : ""}`}
+        </button>
+        {result && (
+          <span className={`text-sm ${result.ok ? "text-emerald-700" : "text-red-600"}`}>
+            {result.message}
+          </span>
+        )}
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table className="divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50">
             <tr>
-              <td colSpan={10} className="px-5 py-8 text-center text-sm text-slate-500">
-                No resumes match this filter yet.
-              </td>
+              <th className="px-3 py-1.5">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  aria-label="Select all"
+                />
+              </th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Date</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Name</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Verdict</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Big Firm</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Comment</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
+              <th className="px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((r) => (
+              <ApplicantRow
+                key={r.id}
+                row={r}
+                selected={selected.has(r.id)}
+                onToggleSelected={() => toggleOne(r.id)}
+                updateStatusAction={updateStatusAction}
+                uploadFileAction={uploadFileAction}
+                pasteTextAction={pasteTextAction}
+                deleteAction={deleteAction}
+              />
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={11} className="px-5 py-8 text-center text-sm text-slate-500">
+                  No resumes match this filter yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 function ApplicantRow({
   row,
+  selected,
+  onToggleSelected,
   updateStatusAction,
   uploadFileAction,
   pasteTextAction,
   deleteAction,
 }: {
   row: RecruitmentTableRow;
+  selected: boolean;
+  onToggleSelected: () => void;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
@@ -141,6 +204,14 @@ function ApplicantRow({
         className="cursor-pointer hover:bg-slate-50"
         onClick={() => setExpanded((e) => !e)}
       >
+        <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelected}
+            aria-label={`Select ${row.candidate_name ?? row.sender_name ?? "this candidate"}`}
+          />
+        </td>
         <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">{formatDate(row.received_at)}</td>
         <td className="px-3 py-1.5 text-slate-900">{row.candidate_name ?? row.sender_name ?? "—"}</td>
         <td className="px-3 py-1.5">
@@ -199,7 +270,7 @@ function ApplicantRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={10} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
+          <td colSpan={11} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
             {(row.candidate_email || row.sender_email || row.candidate_phone) && (
               <p className="text-xs text-slate-500">
                 Contact: {[row.candidate_email ?? row.sender_email, row.candidate_phone]

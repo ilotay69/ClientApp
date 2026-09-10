@@ -257,14 +257,18 @@ export async function screenPendingResumesAction(): Promise<ResumeScreenState> {
   }
 }
 
-/** Re-screens EVERY resume against the current posting, regardless of
- * whether it's already been screened before — useful right after the
- * posting's own instructions change, or after the screening prompt itself
- * changes, so existing rows get judged against the current criteria rather
- * than staying stuck with whatever verdict they got last time. */
-export async function screenAllResumesAction(): Promise<ResumeScreenState> {
+/** Re-screens exactly the given rows against the current posting,
+ * regardless of whether any of them were already screened before — useful
+ * right after the posting's own instructions change, or after the
+ * screening prompt itself changes, so a chosen set of candidates gets
+ * judged against the current criteria rather than staying stuck with
+ * whatever verdict they got last time. */
+export async function screenSelectedResumesAction(resumeIds: string[]): Promise<ResumeScreenState> {
   if (!(await requirePermission("manage_recruitment"))) {
     return { ok: false, message: "You don't have permission to do that." };
+  }
+  if (resumeIds.length === 0) {
+    return { ok: false, message: "Select at least one resume first." };
   }
 
   const admin = createAdminClient();
@@ -273,12 +277,12 @@ export async function screenAllResumesAction(): Promise<ResumeScreenState> {
 
   try {
     const result = await screenPendingResumes(admin, context.posting, context.settings, {
-      rescreenAll: true,
+      resumeIds,
     });
     revalidatePath("/recruitment");
     return {
       ok: true,
-      message: `Re-screened ${result.screened}, ${result.errored} error${result.errored === 1 ? "" : "s"}, ${result.remaining} remaining.`,
+      message: `Screened ${result.screened}, ${result.errored} error${result.errored === 1 ? "" : "s"}.`,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Screening failed." };

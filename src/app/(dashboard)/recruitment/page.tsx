@@ -13,7 +13,7 @@ import {
   syncResumesNow,
   createJobPosting,
   screenPendingResumesAction,
-  screenAllResumesAction,
+  screenSelectedResumesAction,
   updateResumeStatusAction,
   uploadResumeFileAction,
   pasteResumeTextAction,
@@ -152,16 +152,11 @@ export default async function RecruitmentPage({
               pendingLabel="Screening…"
               action={screenPendingResumesAction}
             />
-            <AsyncActionButton
-              label="Screen ALL resumes"
-              pendingLabel="Re-screening…"
-              action={screenAllResumesAction}
-            />
           </div>
           <p className="mt-2 text-xs text-slate-400">
-            &quot;Screen pending&quot; only scores resumes that haven&apos;t been screened
-            yet. &quot;Screen ALL&quot; re-scores everyone against the current posting —
-            use it after changing the instructions above, or after a screening update.
+            Only scores resumes that haven&apos;t been screened yet. To re-score
+            specific candidates against a changed posting, check them in the table
+            below and use &quot;Screen selected&quot;.
           </p>
           {pastPostings.length > 0 && (
             <details className="mt-4 text-xs text-slate-500">
@@ -199,6 +194,7 @@ export default async function RecruitmentPage({
         uploadFileAction={uploadResumeFileAction}
         pasteTextAction={pasteResumeTextAction}
         deleteAction={deleteResumeAction}
+        screenSelectedAction={screenSelectedResumesAction}
       />
     </div>
   );

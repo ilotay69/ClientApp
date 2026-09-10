@@ -399,18 +399,21 @@ export type ResumeScreeningResult = { screened: number; errored: number; remaini
  *
  * By default only screens resumes with screened_at = null (never screened
  * before) — `screened_at` is set once on first success and not
- * auto-re-screened later. Pass `rescreenAll: true` (the "Screen ALL
- * resumes" button) to re-screen everyone regardless of prior screening —
+ * auto-re-screened later. Pass `resumeIds` (the "Screen selected" button) to
+ * re-screen exactly that set instead, regardless of prior screening state —
  * useful right after the posting's own instructions change, or after the
- * screening prompt itself changes, so existing rows get judged against
- * the current criteria rather than staying stuck with an old verdict.
+ * screening prompt itself changes, so a chosen set of rows gets judged
+ * against the current criteria rather than staying stuck with an old
+ * verdict. `resumeIds` and the screened_at filter are mutually exclusive:
+ * an explicit selection is always (re-)screened in full, uncapped by the
+ * 50-per-call limit that only applies to the "whatever's pending" case.
  */
 export async function screenPendingResumes(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
   posting: { id: string; title: string; description: string; additional_instructions: string | null },
   settings: ActiveAiSettings,
-  options?: { rescreenAll?: boolean }
+  options?: { resumeIds?: string[] }
 ): Promise<ResumeScreeningResult> {
   if (settings.provider !== "anthropic") {
     throw new Error(
@@ -425,10 +428,11 @@ export async function screenPendingResumes(
     // (nothing but an application email) — don't screen it off that alone;
     // wait until staff actually adds a resume, whichever way.
     .or("storage_path.not.is.null,pasted_resume_text.not.is.null")
-    .order("received_at", { ascending: true })
-    .limit(50);
-  if (!options?.rescreenAll) {
-    resumeQuery = resumeQuery.is("screened_at", null);
+    .order("received_at", { ascending: true });
+  if (options?.resumeIds) {
+    resumeQuery = resumeQuery.in("id", options.resumeIds);
+  } else {
+    resumeQuery = resumeQuery.is("screened_at", null).limit(50);
   }
   const { data: pending } = await resumeQuery;
 
