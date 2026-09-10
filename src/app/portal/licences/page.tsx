@@ -52,7 +52,6 @@ export default async function PortalLicencesPage({
               label="Unassigned"
               value={String(spare)}
               hint={spare > 0 ? "paid for but not in use" : "fully allocated"}
-              tone={spare > 0 ? "warn" : "good"}
             />
           </div>
 
@@ -68,6 +67,7 @@ export default async function PortalLicencesPage({
                     used={l.consumedUnits}
                     total={l.enabledUnits}
                     valueLabel={`${l.consumedUnits} / ${l.enabledUnits} assigned`}
+                    neutral
                   />
                 ))}
               </div>

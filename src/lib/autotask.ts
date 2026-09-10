@@ -631,6 +631,67 @@ export async function fetchTicketTimeEntries(
     .sort((a, b) => (a.dateWorked < b.dateWorked ? 1 : -1));
 }
 
+export type AutotaskTicketTimeEntry = {
+  id: number;
+  ticketId: number;
+  dateWorked: string;
+  hoursWorked: number;
+  resourceName: string | null;
+  summaryNotes: string | null;
+};
+
+/** Billable time entries for a SET of tickets at once (chunked, not one
+ * call per ticket like fetchTicketTimeEntries) — used by the client portal
+ * to show what's actually been billed against each of a client's open
+ * tickets. Filters out isNonBillable entries here rather than leaving that
+ * to the caller, since nothing about a client-facing view makes sense with
+ * internal (non-billable) time mixed in. */
+export async function fetchTimeEntriesForTickets(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketIds: number[]
+): Promise<AutotaskTicketTimeEntry[]> {
+  const uniqueIds = [...new Set(ticketIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return [];
+
+  type RawTimeEntry = {
+    id: number;
+    ticketID?: number;
+    dateWorked: string;
+    hoursWorked?: number;
+    summaryNotes?: string;
+    resourceID?: number;
+    isNonBillable?: boolean;
+  };
+
+  const raw: RawTimeEntry[] = [];
+  for (let i = 0; i < uniqueIds.length; i += CONTRACT_LOOKUP_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + CONTRACT_LOOKUP_CHUNK_SIZE);
+    const items = (await autotaskQueryAllPages(creds, zoneUrl, "TimeEntries", {
+      filter: [{ op: "in", field: "ticketID", value: chunk }],
+    })) as RawTimeEntry[];
+    raw.push(...items);
+  }
+
+  const billable = raw.filter((e) => !e.isNonBillable && e.ticketID != null);
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    billable.map((e) => e.resourceID).filter((id): id is number => id != null)
+  );
+
+  return billable
+    .map((e) => ({
+      id: e.id,
+      ticketId: e.ticketID as number,
+      dateWorked: e.dateWorked,
+      hoursWorked: e.hoursWorked ?? 0,
+      resourceName: e.resourceID != null ? (resourceNames.get(e.resourceID) ?? null) : null,
+      summaryNotes: e.summaryNotes ?? null,
+    }))
+    .sort((a, b) => (a.dateWorked < b.dateWorked ? 1 : -1));
+}
+
 export type AutotaskTimeEntryRange = {
   id: number;
   resourceID: number;

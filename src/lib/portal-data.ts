@@ -9,7 +9,9 @@ import { fetchHuntressAgents, type HuntressAgent } from "@/lib/huntress";
 import {
   fetchContractsForCompany,
   fetchContractBlocksForContractsInRange,
+  fetchContractStatusLabels,
   fetchTimeEntriesForContracts,
+  fetchTimeEntriesForTickets,
   fetchTicketsCreatedForCompany,
   fetchTicketPicklists,
   fetchTicketsForCompanyInWindow,
@@ -54,29 +56,10 @@ export type PortalContractBlock = {
   endDate: string;
 };
 
-export type PortalContractMonth = {
-  /** First day of the month being shown, "YYYY-MM-01". */
-  month: string;
+export type PortalActiveContractUsage = {
   blocks: PortalContractBlock[];
-  /** Billable hours per day within the month, for the burn-down chart. */
-  dailyUsage: { label: string; value: number }[];
-  totalHoursInMonth: number;
   unavailableReason: string | null;
 };
-
-/** Month bounds as plain "YYYY-MM-DD" strings.
- *
- * Deliberately string arithmetic on UTC parts rather than local Date
- * construction: Autotask compares these as dates, and a server in a
- * behind-UTC timezone would otherwise resolve "this month" to the previous
- * one for the first hours of the 1st. */
-function monthBounds(month: string): { from: string; to: string } {
-  const [y, m] = month.split("-").map(Number);
-  const from = `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-01`;
-  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const to = `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  return { from, to };
-}
 
 export function currentMonth(): string {
   const now = new Date();
@@ -90,15 +73,19 @@ export function shiftMonth(month: string, delta: number): string {
   return `${String(Math.floor(total / 12)).padStart(4, "0")}-${String((total % 12) + 1).padStart(2, "0")}-01`;
 }
 
-export async function fetchPortalContractMonth(
-  session: PortalSession,
-  month: string
-): Promise<PortalContractMonth> {
-  const empty = (reason: string | null): PortalContractMonth => ({
-    month,
+/**
+ * The client only ever buys prepaid hours in fixed block sizes (25/50/100),
+ * not a recurring monthly allotment — so "which month is this covering"
+ * (the old fetchPortalContractMonth) was the wrong model entirely. This
+ * shows what's actually meaningful instead: each ACTIVE contract's CURRENT
+ * block (the one whose date range covers today) and how much of it has
+ * been used, full stop — no stepping through past/future months.
+ */
+export async function fetchPortalActiveContractUsage(
+  session: PortalSession
+): Promise<PortalActiveContractUsage> {
+  const empty = (reason: string | null): PortalActiveContractUsage => ({
     blocks: [],
-    dailyUsage: [],
-    totalHoursInMonth: 0,
     unavailableReason: reason,
   });
 
@@ -110,14 +97,28 @@ export async function fetchPortalContractMonth(
   // zone_url stays null until the Autotask connection has been tested once.
   if (!settings?.zoneUrl) return empty("Contract data isn't available right now.");
 
-  const { from, to } = monthBounds(month);
-
   try {
     const contracts = await fetchContractsForCompany(settings.credentials, settings.zoneUrl, companyId);
     if (contracts.length === 0) return empty(null);
 
-    const contractIds = contracts.map((c) => c.id);
-    const contractById = new Map(contracts.map((c) => [c.id, c]));
+    // Active only — same exact-match rule fetchContractServicesForCompany
+    // already uses ("Inactive" contains the substring "active" too).
+    const statusLabels = await fetchContractStatusLabels(settings.credentials, settings.zoneUrl);
+    const activeContracts = contracts.filter(
+      (c) => (c.status != null ? statusLabels.get(c.status) : null)?.toLowerCase() === "active"
+    );
+    if (activeContracts.length === 0) return empty(null);
+
+    const contractIds = activeContracts.map((c) => c.id);
+    const contractById = new Map(activeContracts.map((c) => [c.id, c]));
+
+    const today = new Date().toISOString().slice(0, 10);
+    // Blocks run in fixed-size chunks, not on a monthly cadence, so there's
+    // no fixed window to bound "the current one" by — a year each side is
+    // generous enough to catch it even through a late renewal, without
+    // paging unboundedly.
+    const from = shiftMonth(currentMonth(), -12);
+    const to = shiftMonth(currentMonth(), 12);
 
     const blocks = await fetchContractBlocksForContractsInRange(
       settings.credentials,
@@ -126,22 +127,24 @@ export async function fetchPortalContractMonth(
       from,
       to
     );
-    if (blocks.length === 0) return empty(null);
+    const currentBlocks = blocks.filter((b) => b.startDate <= today && b.endDate >= today);
+    if (currentBlocks.length === 0) return empty(null);
 
-    // One fetch spanning the earliest overlapping block's start through the
-    // end of the month; each block narrows to its own range below, because a
-    // contract can have several sequential blocks (one per renewal) and
-    // lumping them together misattributes hours between them.
-    const earliestStart = blocks.reduce(
+    const earliestStart = currentBlocks.reduce(
       (min, b) => (b.startDate < min ? b.startDate : min),
-      blocks[0].startDate
+      currentBlocks[0].startDate
     );
+    const latestEnd = currentBlocks.reduce(
+      (max, b) => (b.endDate > max ? b.endDate : max),
+      currentBlocks[0].endDate
+    );
+
     const entries = await fetchTimeEntriesForContracts(
       settings.credentials,
       settings.zoneUrl,
       contractIds,
-      earliestStart < from ? earliestStart : from,
-      to
+      earliestStart,
+      latestEnd
     );
 
     const billableByContract = new Map<number, { day: string; hours: number }[]>();
@@ -152,7 +155,7 @@ export async function fetchPortalContractMonth(
       billableByContract.set(e.contractID, list);
     }
 
-    const rows: PortalContractBlock[] = blocks.map((b) => {
+    const rows: PortalContractBlock[] = currentBlocks.map((b) => {
       const used = (billableByContract.get(b.contractID) ?? [])
         .filter((e) => e.day >= b.startDate && e.day <= b.endDate)
         .reduce((sum, e) => sum + e.hours, 0);
@@ -168,31 +171,9 @@ export async function fetchPortalContractMonth(
       };
     });
 
-    // Day-by-day billable hours inside the selected month only.
-    const lastDay = Number(to.slice(-2));
-    const perDay = new Map<string, number>();
-    for (const e of entries) {
-      if (e.isNonBillable) continue;
-      const day = e.dateWorked.slice(0, 10);
-      if (day < from || day > to) continue;
-      perDay.set(day, (perDay.get(day) ?? 0) + e.hoursWorked);
-    }
-    const dailyUsage = Array.from({ length: lastDay }, (_, i) => {
-      const day = `${month.slice(0, 8)}${String(i + 1).padStart(2, "0")}`;
-      return { label: String(i + 1), value: Number((perDay.get(day) ?? 0).toFixed(2)) };
-    });
-
-    return {
-      month,
-      blocks: rows.sort((a, b) => b.percentUsed - a.percentUsed),
-      dailyUsage,
-      totalHoursInMonth: Number(
-        dailyUsage.reduce((sum, d) => sum + d.value, 0).toFixed(2)
-      ),
-      unavailableReason: null,
-    };
+    return { blocks: rows.sort((a, b) => b.percentUsed - a.percentUsed), unavailableReason: null };
   } catch (err) {
-    console.error("fetchPortalContractMonth failed", err);
+    console.error("fetchPortalActiveContractUsage failed", err);
     return empty("Contract data couldn't be loaded right now.");
   }
 }
@@ -521,17 +502,27 @@ export async function fetchPortalTickets(session: PortalSession): Promise<Portal
 // closed in it to find.
 // ---------------------------------------------------------------------------
 
-export type PortalTicketListItem = AutotaskPortalTicketRow;
+export type PortalTicketBillableEntry = {
+  id: number;
+  dateWorked: string;
+  hoursWorked: number;
+  resourceName: string | null;
+  summaryNotes: string | null;
+};
+
+export type PortalTicketListItem = AutotaskPortalTicketRow & {
+  billableTimeEntries: PortalTicketBillableEntry[];
+};
 
 export type PortalTicketList = {
   tickets: PortalTicketListItem[];
   unavailableReason: string | null;
 };
 
-/** Both open and closed tickets whose creation or last activity falls
- * within lookbackDays — status filtering (open/closed/all) happens in the
- * page, not here, so this one call serves every status toggle without a
- * second Autotask round-trip. */
+/** Open tickets only, whose creation or last activity falls within
+ * lookbackDays, each with its billable time entries attached. Closed
+ * tickets aren't fetched or shown at all — a client checking the portal
+ * cares about what's still being worked, not ticket history. */
 export async function fetchPortalTicketList(
   session: PortalSession,
   lookbackDays: number
@@ -561,10 +552,31 @@ export async function fetchPortalTicketList(
       since.toISOString(),
       labels
     );
-    return {
-      tickets: rows.sort((a, b) => (b.openedAt ?? "").localeCompare(a.openedAt ?? "")),
-      unavailableReason: null,
-    };
+    const openRows = rows.filter((t) => t.isOpen);
+
+    const entries = await fetchTimeEntriesForTickets(
+      settings.credentials,
+      settings.zoneUrl,
+      openRows.map((t) => t.id)
+    );
+    const entriesByTicket = new Map<number, PortalTicketBillableEntry[]>();
+    for (const e of entries) {
+      const list = entriesByTicket.get(e.ticketId) ?? [];
+      list.push({
+        id: e.id,
+        dateWorked: e.dateWorked,
+        hoursWorked: e.hoursWorked,
+        resourceName: e.resourceName,
+        summaryNotes: e.summaryNotes,
+      });
+      entriesByTicket.set(e.ticketId, list);
+    }
+
+    const tickets = openRows
+      .map((t) => ({ ...t, billableTimeEntries: entriesByTicket.get(t.id) ?? [] }))
+      .sort((a, b) => (b.openedAt ?? "").localeCompare(a.openedAt ?? ""));
+
+    return { tickets, unavailableReason: null };
   } catch (err) {
     console.error("fetchPortalTicketList failed", err);
     return empty("Ticket data couldn't be loaded right now.");

@@ -3,12 +3,11 @@ import { requirePortalSession } from "@/lib/portal";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/permissions";
 import {
-  fetchPortalContractMonth,
+  fetchPortalActiveContractUsage,
   fetchPortalDevices,
   fetchPortalSecureScore,
   fetchPortalLicences,
   fetchPortalTickets,
-  currentMonth,
 } from "@/lib/portal-data";
 import {
   PortalPageHeader,
@@ -32,7 +31,7 @@ export default async function PortalOverviewPage({
   if (!session) return <StaffClientPicker />;
 
   const [contracts, devices, secureScore, licences, tickets] = await Promise.all([
-    fetchPortalContractMonth(session, currentMonth()),
+    fetchPortalActiveContractUsage(session),
     fetchPortalDevices(session),
     fetchPortalSecureScore(session),
     fetchPortalLicences(session),
@@ -61,7 +60,7 @@ export default async function PortalOverviewPage({
           hint={
             contracts.blocks.length > 0
               ? `of ${hoursPurchased.toFixed(1)} purchased`
-              : contracts.unavailableReason ?? "No active block this month"
+              : contracts.unavailableReason ?? "No active contract block"
           }
           tone={
             contracts.blocks.length === 0

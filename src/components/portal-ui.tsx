@@ -155,14 +155,26 @@ export function ProportionBar({
   total,
   label,
   valueLabel,
+  neutral = false,
 }: {
   used: number;
   total: number;
   label: string;
   valueLabel: string;
+  /** Skips the red/amber near-full warning coloring, always using the plain
+   * brand color instead — for a proportion where "close to full" isn't
+   * actually a warning (e.g. licence assignment), unlike a contract hours
+   * block genuinely running low. */
+  neutral?: boolean;
 }) {
   const percent = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-  const tone = percent >= 95 ? "bg-red-500" : percent >= 80 ? "bg-amber-500" : "bg-brand";
+  const tone = neutral
+    ? "bg-brand"
+    : percent >= 95
+      ? "bg-red-500"
+      : percent >= 80
+        ? "bg-amber-500"
+        : "bg-brand";
 
   return (
     <div>

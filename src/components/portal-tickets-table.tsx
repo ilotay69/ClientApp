@@ -17,12 +17,15 @@ export function PortalTicketsTable({ tickets }: { tickets: PortalTicketListItem[
   );
 }
 
-/** No fetch on expand at all — every field shown here is already in the
- * array passed down at initial render. Simpler than the staff-facing
- * client-autotask-tickets.tsx, which lazy-loads notes/time entries on first
- * expand — this portal view deliberately excludes both (see the plan: the
- * only existing notes fetcher pulls internal-only remarks with no
- * customer-visible filter, unsafe to show a client). */
+/** No fetch on expand at all — every field shown here, billable time
+ * entries included, is already in the array passed down at initial render
+ * (see fetchPortalTicketList). Simpler than the staff-facing
+ * client-autotask-tickets.tsx, which lazy-loads on first expand instead.
+ * Ticket NOTES specifically are still excluded (see the plan: the only
+ * existing notes fetcher pulls internal-only remarks with no
+ * customer-visible filter, unsafe to show a client) — that's a different
+ * concern from time entries, which carry no such internal/external
+ * distinction beyond the isNonBillable filter already applied upstream. */
 function TicketRow({ ticket }: { ticket: PortalTicketListItem }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -75,6 +78,35 @@ function TicketRow({ ticket }: { ticket: PortalTicketListItem }) {
               Last activity {formatDate(ticket.lastActivityAt)}
             </p>
           )}
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Billable time
+              {ticket.billableTimeEntries.length > 0
+                ? ` (${ticket.billableTimeEntries.reduce((s, e) => s + e.hoursWorked, 0).toFixed(2)} hrs)`
+                : ""}
+            </h3>
+            {ticket.billableTimeEntries.length === 0 ? (
+              <p className="mt-1 text-sm text-slate-500">No billable time logged yet.</p>
+            ) : (
+              <div className="mt-1 divide-y divide-slate-100 rounded-md border border-slate-200 bg-white">
+                {ticket.billableTimeEntries.map((e) => (
+                  <div key={e.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="text-slate-700">{e.summaryNotes || "—"}</p>
+                      <p className="text-xs text-slate-400">
+                        {formatDate(e.dateWorked)}
+                        {e.resourceName ? ` · ${e.resourceName}` : ""}
+                      </p>
+                    </div>
+                    <span className="shrink-0 whitespace-nowrap text-slate-600">
+                      {e.hoursWorked.toFixed(2)} hrs
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
