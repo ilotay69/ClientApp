@@ -468,24 +468,36 @@ export async function screenPendingResumes(
       ];
 
       const parsed = await callAnthropicToolMultimodal(content, settings.apiKey, settings.model);
-      const byNumber = new Map<
-        number,
-        {
-          candidate_name?: string;
-          candidate_email?: string;
-          candidate_phone?: string;
-          verdict?: string;
-          overall_summary?: string;
-          technical_ability?: string;
-          customer_relationships?: string;
-          big_firm_experience?: boolean | null;
-          years_experience?: number | null;
-          currently_working?: boolean | null;
-          months_since_worked?: number | null;
-          in_gta?: boolean | null;
-          m365_technologies?: string | null;
-        }
-      >((parsed?.results ?? []).map((r: { resume_number: number }) => [r.resume_number, r]));
+      // The model's tool call isn't guaranteed to match TOOL_SCHEMA byte for
+      // byte — a single-resume chunk (e.g. "Screen selected" on one row) has
+      // occasionally come back with `results` as a bare object instead of a
+      // one-element array. Treat a non-array, non-null `results` as that one
+      // result rather than crashing every row in the chunk on `.map`.
+      type ScreeningResult = {
+        resume_number: number;
+        candidate_name?: string;
+        candidate_email?: string;
+        candidate_phone?: string;
+        verdict?: string;
+        overall_summary?: string;
+        technical_ability?: string;
+        customer_relationships?: string;
+        big_firm_experience?: boolean | null;
+        years_experience?: number | null;
+        currently_working?: boolean | null;
+        months_since_worked?: number | null;
+        in_gta?: boolean | null;
+        m365_technologies?: string | null;
+      };
+      const rawResults = parsed?.results;
+      const resultsArray: ScreeningResult[] = Array.isArray(rawResults)
+        ? rawResults
+        : rawResults && typeof rawResults === "object"
+          ? [rawResults as ScreeningResult]
+          : [];
+      const byNumber = new Map<number, ScreeningResult>(
+        resultsArray.map((r) => [r.resume_number, r])
+      );
 
       for (let n = 0; n < chunk.length; n++) {
         const result = byNumber.get(n + 1);
