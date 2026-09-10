@@ -5,6 +5,16 @@ import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { requirePermission, requireStaff, hasPermission } from "@/lib/permissions";
 import { syncAllProjectSlaProjects } from "@/lib/autotask-sync";
+import { getAutotaskSettings } from "@/lib/autotask-settings";
+import {
+  fetchTicketPicklists,
+  fetchTicketById,
+  fetchTicketNotes,
+  fetchTicketTimeEntries,
+  type AutotaskTicketDetail,
+  type AutotaskTicketNote,
+  type AutotaskTimeEntry,
+} from "@/lib/autotask";
 import type { ProjectStatus } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -387,4 +397,40 @@ export async function deleteProject(projectId: string, clientId: string) {
   revalidatePath("/projects");
   revalidatePath(`/clients/${clientId}`);
   redirect("/projects");
+}
+
+export type ProjectTicketDetail =
+  | { ticket: AutotaskTicketDetail; notes: AutotaskTicketNote[]; timeEntries: AutotaskTimeEntry[] }
+  | { error: string };
+
+/** Live detail for an Autotask-sourced project's originating ticket —
+ * description, resolution, notes, and time entries ("charges"), fetched
+ * only when the section is expanded, never persisted. Same reasoning as
+ * getAutotaskTicketDetailAction on the Clients page: bulk-fetching this on
+ * every sync would burn through Autotask's shared rate limit for data most
+ * projects never need opened. */
+export async function getProjectTicketDetailAction(ticketId: number): Promise<ProjectTicketDetail> {
+  if (!(await requirePermission("view_projects"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    // Sequential, not Promise.all — Autotask enforces a low concurrent-
+    // thread cap per API user (same reasoning as
+    // getAutotaskTicketDetailAction's sequential fetches).
+    const labels = await fetchTicketPicklists(settings.credentials, settings.zoneUrl);
+    const ticket = await fetchTicketById(settings.credentials, settings.zoneUrl, ticketId, labels);
+    if (!ticket) return { error: "This ticket could no longer be found in Autotask." };
+    const notes = await fetchTicketNotes(settings.credentials, settings.zoneUrl, ticketId);
+    const timeEntries = await fetchTicketTimeEntries(settings.credentials, settings.zoneUrl, ticketId);
+    return { ticket, notes, timeEntries };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load ticket detail." };
+  }
 }

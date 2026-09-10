@@ -542,6 +542,48 @@ export async function fetchProjectSlaTicketsForCompany(
   }));
 }
 
+export type AutotaskTicketDetail = {
+  id: number;
+  ticketNumber: string | null;
+  title: string;
+  description: string | null;
+  resolution: string | null;
+  status: string | null;
+  priority: string | null;
+};
+
+/** Live-fetch only — never persisted. One ticket's own descriptive fields —
+ * used for a Project-SLA project's originating ticket, which is deliberately
+ * lean everywhere else: fetchProjectSlaTicketsForCompany only ever stores
+ * name/status/dates onto the projects row (matching that table's own
+ * columns), and fetchOpenTicketsForCompany's cache deliberately excludes
+ * Project-SLA tickets entirely (to avoid double-listing them as regular
+ * tickets too) — so there's no cached description/resolution for this
+ * ticket anywhere, only a live fetch by id. */
+export async function fetchTicketById(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketId: number,
+  labels: PicklistLabelMaps
+): Promise<AutotaskTicketDetail | null> {
+  const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
+    filter: [{ op: "eq", field: "id", value: ticketId }],
+    MaxRecords: 1,
+  })) as RawTicket[];
+  const t = items[0];
+  if (!t) return null;
+
+  return {
+    id: t.id,
+    ticketNumber: t.ticketNumber ?? null,
+    title: t.title,
+    description: t.description ?? null,
+    resolution: t.resolution ?? null,
+    status: t.status != null ? (labels.status.get(t.status) ?? String(t.status)) : null,
+    priority: t.priority != null ? (labels.priority.get(t.priority) ?? String(t.priority)) : null,
+  };
+}
+
 export type AutotaskTicketNote = {
   id: number;
   title: string | null;

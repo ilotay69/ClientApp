@@ -5,8 +5,9 @@ import { hasPermission } from "@/lib/permissions";
 import { ProjectForm } from "@/components/project-form";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge, OverdueBadge } from "@/components/badge";
+import { ProjectAutotaskTicketDetail } from "@/components/project-autotask-ticket-detail";
 import { formatDate, isOverdue } from "@/lib/format";
-import { updateProject, deleteProject } from "../actions";
+import { updateProject, deleteProject, getProjectTicketDetailAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -67,32 +68,39 @@ export default async function ProjectDetailPage({
       </div>
 
       {fromAutotask ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm text-slate-600">
-            This project is synced from an Autotask ticket tagged with the Project SLA — its
-            name, status, and dates come from that ticket and refresh on the next Autotask sync.
-            Edit the ticket in Autotask, not here; changes made on this page would just be
-            overwritten. It can&apos;t be deleted from here either, for the same reason — remove
-            the Project SLA tag (or the ticket) in Autotask instead.
-          </p>
-          <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</dt>
-              <dd className="mt-1">
-                <Badge value={project.status} />
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Start</dt>
-              <dd className="mt-1 text-slate-700">{formatDate(project.start_date)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Target end
-              </dt>
-              <dd className="mt-1 text-slate-700">{formatDate(project.target_end_date)}</dd>
-            </div>
-          </dl>
+        <div className="space-y-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm text-slate-600">
+              This project is synced from an Autotask ticket tagged with the Project SLA — its
+              name, status, and dates come from that ticket and refresh on the next Autotask sync.
+              Edit the ticket in Autotask, not here; changes made on this page would just be
+              overwritten. It can&apos;t be deleted from here either, for the same reason — remove
+              the Project SLA tag (or the ticket) in Autotask instead.
+            </p>
+            <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</dt>
+                <dd className="mt-1">
+                  <Badge value={project.status} />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Start</dt>
+                <dd className="mt-1 text-slate-700">{formatDate(project.start_date)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Target end
+                </dt>
+                <dd className="mt-1 text-slate-700">{formatDate(project.target_end_date)}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <ProjectAutotaskTicketDetail
+            ticketId={project.source_autotask_ticket_id}
+            detailAction={getProjectTicketDetailAction}
+          />
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
