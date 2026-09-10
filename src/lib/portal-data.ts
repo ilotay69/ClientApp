@@ -73,6 +73,22 @@ export function shiftMonth(month: string, delta: number): string {
   return `${String(Math.floor(total / 12)).padStart(4, "0")}-${String((total % 12) + 1).padStart(2, "0")}-01`;
 }
 
+/** Month bounds as plain "YYYY-MM-DD" strings — still used by the ticket
+ * trend chart (fetchPortalTickets, below), even though the contract-hours
+ * page no longer needs a month concept at all.
+ *
+ * Deliberately string arithmetic on UTC parts rather than local Date
+ * construction: Autotask compares these as dates, and a server in a
+ * behind-UTC timezone would otherwise resolve "this month" to the previous
+ * one for the first hours of the 1st. */
+function monthBounds(month: string): { from: string; to: string } {
+  const [y, m] = month.split("-").map(Number);
+  const from = `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const to = `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
 /**
  * The client only ever buys prepaid hours in fixed block sizes (25/50/100),
  * not a recurring monthly allotment — so "which month is this covering"

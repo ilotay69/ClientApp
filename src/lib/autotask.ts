@@ -790,7 +790,15 @@ export async function fetchActiveContractBlocks(
     }));
 }
 
-export type AutotaskContractSummary = { id: number; contractName: string; companyID: number };
+export type AutotaskContractSummary = {
+  id: number;
+  contractName: string;
+  companyID: number;
+  /** Raw picklist code — resolve through fetchContractStatusLabels to get a
+   * label. Null from fetchContractsByIds, which doesn't fetch or need it
+   * (only used there to resolve a display name for a contract block). */
+  status: number | null;
+};
 
 const CONTRACT_LOOKUP_CHUNK_SIZE = 200;
 
@@ -814,7 +822,12 @@ export async function fetchContractsByIds(
         filter: [{ op: "in", field: "id", value: chunk }],
       })) as { id: number; contractName?: string; companyID: number }[];
       for (const c of items) {
-        results.push({ id: c.id, contractName: c.contractName ?? `Contract ${c.id}`, companyID: c.companyID });
+        results.push({
+          id: c.id,
+          contractName: c.contractName ?? `Contract ${c.id}`,
+          companyID: c.companyID,
+          status: null,
+        });
       }
     } catch (err) {
       console.error(
@@ -826,14 +839,11 @@ export async function fetchContractsByIds(
   return results;
 }
 
-/** Every Contract belonging to one company, whatever its status.
- *
- * Deliberately unlike fetchContractServicesForCompany, which keeps only
- * contracts whose status label is exactly "active" — that's right for "what
- * is this client paying for today", but it makes any view of a *past* month
- * come back empty once a contract has ended. The client portal steps
- * backwards through months, so it needs the unfiltered list and decides
- * relevance by date instead. */
+/** Every Contract belonging to one company, whatever its status — the raw
+ * status code is included (not filtered here) so a caller can resolve it
+ * through fetchContractStatusLabels and decide active-vs-not itself, same
+ * exact-match rule fetchContractServicesForCompany uses ("Inactive"
+ * contains the substring "active" too). */
 export async function fetchContractsForCompany(
   creds: AutotaskCredentials,
   zoneUrl: string,
@@ -841,12 +851,13 @@ export async function fetchContractsForCompany(
 ): Promise<AutotaskContractSummary[]> {
   const items = (await autotaskQueryAllPages(creds, zoneUrl, "Contracts", {
     filter: [{ op: "eq", field: "companyID", value: companyId }],
-  })) as { id: number; contractName?: string; companyID: number }[];
+  })) as { id: number; contractName?: string; companyID: number; status?: number }[];
 
   return items.map((c) => ({
     id: c.id,
     contractName: c.contractName ?? `Contract ${c.id}`,
     companyID: c.companyID,
+    status: c.status ?? null,
   }));
 }
 
