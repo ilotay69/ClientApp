@@ -161,32 +161,9 @@ export async function fetchReconciliationForClient(clientId: string): Promise<Re
   };
 }
 
-/** Every SKU this specific client actually has, for the "map this service
- * to a license" picker — scoped to what's real for them, not every SKU
- * that's ever existed across the whole book of business. */
-export async function fetchClientLicenseSkus(
-  clientId: string
-): Promise<{ skuPartNumber: string; friendlyName: string }[]> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("m365_license_summary")
-    .select("sku_part_number")
-    .eq("client_id", clientId)
-    .order("sku_part_number");
-  if (error) {
-    console.error("fetchClientLicenseSkus failed", error);
-    return [];
-  }
-  return ((data ?? []) as { sku_part_number: string }[]).map((l) => ({
-    skuPartNumber: l.sku_part_number,
-    friendlyName: friendlyM365SkuName(l.sku_part_number),
-  }));
-}
-
-/** Every distinct M365 SKU synced for ANY client — for the standalone
- * mapping manager, where staff define a rule up front rather than reacting
- * to one specific client's unmapped row. fetchClientLicenseSkus (above)
- * stays scoped to one client, for the per-client "map this" picker. */
+/** Every distinct M365 SKU synced for ANY client — mapping is managed in
+ * one place (the standalone mapping manager, not per-client), so this is
+ * intentionally account-wide rather than scoped to one client. */
 export async function fetchAllKnownSkus(): Promise<{ skuPartNumber: string; friendlyName: string }[]> {
   const admin = createAdminClient();
   const { data, error } = await admin.from("m365_license_summary").select("sku_part_number");

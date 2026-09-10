@@ -3,7 +3,6 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import {
   fetchReconciliationForClient,
-  fetchClientLicenseSkus,
   fetchServiceLicenseMappings,
   fetchAllKnownSkus,
   fetchAllContractedServiceNames,
@@ -43,12 +42,7 @@ export default async function LicenseReconciliationPage({
 
   const selectedClient = clientId ? (clientList.find((c) => c.id === clientId) ?? null) : null;
 
-  const [result, clientSkus] = selectedClient
-    ? await Promise.all([
-        fetchReconciliationForClient(selectedClient.id),
-        fetchClientLicenseSkus(selectedClient.id),
-      ])
-    : [null, []];
+  const result = selectedClient ? await fetchReconciliationForClient(selectedClient.id) : null;
 
   return (
     <div className="space-y-6">
@@ -84,9 +78,6 @@ export default async function LicenseReconciliationPage({
           clientName={selectedClient.name}
           rows={result.rows}
           unmatchedLicenses={result.unmatchedLicenses}
-          clientSkus={clientSkus}
-          saveMappingAction={saveServiceLicenseMapping}
-          deleteMappingAction={deleteServiceLicenseMapping}
         />
       )}
     </div>
