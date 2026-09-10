@@ -25,7 +25,7 @@ export default async function PortalTicketsPage({
   searchParams: Promise<{ preview?: string; days?: string }>;
 }) {
   const { preview, days: rawDays } = await searchParams;
-  const session = await requirePortalSession(preview);
+  const session = await requirePortalSession(preview, "tickets");
   if (!session) redirect("/portal");
 
   const days = normalizeDays(rawDays);

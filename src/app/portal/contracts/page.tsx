@@ -12,7 +12,7 @@ export default async function PortalContractsPage({
   searchParams: Promise<{ preview?: string }>;
 }) {
   const { preview } = await searchParams;
-  const session = await requirePortalSession(preview);
+  const session = await requirePortalSession(preview, "contracts");
   if (!session) redirect("/portal");
 
   const [data, contractServices] = await Promise.all([

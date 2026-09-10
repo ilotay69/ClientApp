@@ -9,6 +9,7 @@ import {
   sendPortalPasswordReset,
   resetPortalUserMfa,
   removePortalUser,
+  updatePortalUserRole,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -31,11 +32,20 @@ export default async function ClientAccessPage() {
         <Link href="/team" className="text-sm text-slate-500 hover:underline">
           ← Team
         </Link>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-900">Client access</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="mt-1 text-2xl font-semibold text-slate-900">Client access</h1>
+          <Link
+            href="/team/client-access/roles"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+          >
+            Manage permissions →
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-slate-500">
           Read-only portal logins for clients. Each login sees only its own company&apos;s
           data, has no access to any staff page, and is required to set up an authenticator
-          app before it can see anything.
+          app before it can see anything. Which portal pages a login can see depends on its
+          role — see &quot;Manage permissions&quot; above.
         </p>
       </div>
 
@@ -46,6 +56,7 @@ export default async function ClientAccessPage() {
         resetPasswordAction={sendPortalPasswordReset}
         resetMfaAction={resetPortalUserMfa}
         removeAction={removePortalUser}
+        updateRoleAction={updatePortalUserRole}
       />
     </div>
   );

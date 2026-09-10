@@ -5,6 +5,7 @@ import type {
   PortalUserRow,
   CreatePortalUserState,
 } from "@/app/(dashboard)/team/client-access/actions";
+import { CLIENT_PORTAL_ROLE_LABELS, type ClientPortalRole } from "@/lib/portal";
 import { formatDate } from "@/lib/format";
 
 const initialState: CreatePortalUserState = {
@@ -13,6 +14,8 @@ const initialState: CreatePortalUserState = {
   createdEmail: null,
 };
 
+const CLIENT_PORTAL_ROLES: ClientPortalRole[] = ["client_tech", "client_manager", "client_owner"];
+
 export function ClientAccessPanel({
   portalUsers,
   clients,
@@ -20,6 +23,7 @@ export function ClientAccessPanel({
   resetPasswordAction,
   resetMfaAction,
   removeAction,
+  updateRoleAction,
 }: {
   portalUsers: PortalUserRow[];
   clients: { id: string; name: string }[];
@@ -30,6 +34,7 @@ export function ClientAccessPanel({
   resetPasswordAction: (userId: string) => Promise<{ error?: string; sent?: boolean }>;
   resetMfaAction: (userId: string) => Promise<{ error?: string; reset?: boolean }>;
   removeAction: (userId: string) => Promise<{ error?: string; removed?: boolean }>;
+  updateRoleAction: (userId: string, role: ClientPortalRole) => Promise<{ error?: string }>;
 }) {
   const [state, formAction, pending] = useActionState(createAction, initialState);
 
@@ -77,6 +82,24 @@ export function ClientAccessPanel({
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Portal role</label>
+            <select
+              name="client_role"
+              required
+              defaultValue=""
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+            >
+              <option value="" disabled>
+                Choose a role…
+              </option>
+              {CLIENT_PORTAL_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {CLIENT_PORTAL_ROLE_LABELS[role]}
                 </option>
               ))}
             </select>
@@ -137,6 +160,7 @@ export function ClientAccessPanel({
                 <tr>
                   <th className="px-5 py-2 text-left font-medium text-slate-500">Person</th>
                   <th className="px-5 py-2 text-left font-medium text-slate-500">Client</th>
+                  <th className="px-5 py-2 text-left font-medium text-slate-500">Role</th>
                   <th className="px-5 py-2 text-left font-medium text-slate-500">
                     Authenticator
                   </th>
@@ -152,6 +176,7 @@ export function ClientAccessPanel({
                     resetPasswordAction={resetPasswordAction}
                     resetMfaAction={resetMfaAction}
                     removeAction={removeAction}
+                    updateRoleAction={updateRoleAction}
                   />
                 ))}
               </tbody>
@@ -168,15 +193,18 @@ function PortalUserRowView({
   resetPasswordAction,
   resetMfaAction,
   removeAction,
+  updateRoleAction,
 }: {
   user: PortalUserRow;
   resetPasswordAction: (userId: string) => Promise<{ error?: string; sent?: boolean }>;
   resetMfaAction: (userId: string) => Promise<{ error?: string; reset?: boolean }>;
   removeAction: (userId: string) => Promise<{ error?: string; removed?: boolean }>;
+  updateRoleAction: (userId: string, role: ClientPortalRole) => Promise<{ error?: string }>;
 }) {
   const [isPending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState(user.clientRole);
 
   function run(
     fn: () => Promise<{ error?: string }>,
@@ -202,6 +230,31 @@ function PortalUserRowView({
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </td>
       <td className="px-5 py-2 text-slate-600">{user.clientName}</td>
+      <td className="px-5 py-2">
+        <select
+          value={role}
+          disabled={isPending}
+          onChange={(e) => {
+            const next = e.target.value as ClientPortalRole;
+            const previous = role;
+            setRole(next);
+            startTransition(async () => {
+              const result = await updateRoleAction(user.id, next);
+              if (result?.error) {
+                setRole(previous);
+                setError(result.error);
+              }
+            });
+          }}
+          className="rounded-md border border-slate-300 px-1.5 py-1 text-xs disabled:opacity-60"
+        >
+          {CLIENT_PORTAL_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {CLIENT_PORTAL_ROLE_LABELS[r]}
+            </option>
+          ))}
+        </select>
+      </td>
       <td className="px-5 py-2">
         {user.mfaEnrolled ? (
           <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">

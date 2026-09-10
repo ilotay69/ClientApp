@@ -3,6 +3,52 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isStaffRole } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 
+/** Every portal page that can be individually granted/withheld per
+ * client-portal sub-role (see client_portal_permissions, 081) — Overview
+ * is deliberately not here, it's the one page every portal login can
+ * always reach regardless of role, so there's never a zero-page dead end. */
+export const PORTAL_PAGE_KEYS = ["tickets", "contracts", "devices", "security", "licences"] as const;
+export type PortalPageKey = (typeof PORTAL_PAGE_KEYS)[number];
+
+export type ClientPortalRole = "client_tech" | "client_manager" | "client_owner";
+
+export const CLIENT_PORTAL_ROLE_LABELS: Record<ClientPortalRole, string> = {
+  client_tech: "Client Tech",
+  client_manager: "Client Manager",
+  client_owner: "Client Owner",
+};
+
+/** Which of PORTAL_PAGE_KEYS a given client-portal sub-role can see —
+ * read via the service-role client, same reasoning as loadPortalClient:
+ * a role='client' login has no direct table access under RLS at all. */
+export async function fetchAllowedPortalPages(
+  clientRole: ClientPortalRole
+): Promise<Set<PortalPageKey>> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("client_portal_permissions")
+    .select("portal_page, enabled")
+    .eq("client_role", clientRole);
+
+  if (error) {
+    console.error("fetchAllowedPortalPages failed", error);
+    // Fails open to "everything allowed" rather than locking every client
+    // out of their whole portal over a transient read error — the same
+    // trade-off resolveResourceNames-style Autotask lookups already make
+    // elsewhere in this app for a failed lookup.
+    return new Set(PORTAL_PAGE_KEYS);
+  }
+
+  type Row = { portal_page: string; enabled: boolean };
+  const allowed = new Set(
+    ((data ?? []) as Row[])
+      .filter((r) => r.enabled)
+      .map((r) => r.portal_page)
+      .filter((p): p is PortalPageKey => (PORTAL_PAGE_KEYS as readonly string[]).includes(p))
+  );
+  return allowed;
+}
+
 /** The vendor mappings a portal page needs, and nothing else.
  *
  * Note what is NOT here: `notes` and `owner_id` from the clients row are
@@ -30,6 +76,13 @@ export type PortalSession = {
    * client themselves. Portal pages are read-only, but anything that ever
    * writes must refuse when this is set. */
   isPreview: boolean;
+  /** Meaningless during a staff preview (allowedPages is every page then,
+   * regardless of this value) — only real for an actual client login. */
+  clientRole: ClientPortalRole;
+  /** Which of PORTAL_PAGE_KEYS this session may reach — always every page
+   * during a staff preview, so staff auditing a client's portal are never
+   * blocked by that client's own role restrictions. */
+  allowedPages: Set<PortalPageKey>;
 };
 
 export type PortalContext =
@@ -110,7 +163,7 @@ export async function getPortalContext(previewClientId?: string): Promise<Portal
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, client_id, must_change_password")
+    .select("role, client_id, must_change_password, client_role")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile) return { state: "unauthenticated" };
@@ -144,16 +197,28 @@ export async function getPortalContext(previewClientId?: string): Promise<Portal
 
     const client = await loadPortalClient(profile.client_id);
     if (!client) return { state: "not_portal_user" };
-    return { state: "ok", client, email: user.email ?? "", isPreview: false };
+    const clientRole = (profile.client_role as ClientPortalRole) ?? "client_owner";
+    const allowedPages = await fetchAllowedPortalPages(clientRole);
+    return { state: "ok", client, email: user.email ?? "", isPreview: false, clientRole, allowedPages };
   }
 
   // Staff preview. No MFA requirement here — staff sign-in is a separate
   // concern, and requiring AAL2 would lock out every current employee.
+  // Every page is allowed regardless of role during a preview — a staff
+  // member auditing a client's portal needs to see all of it, not just
+  // whatever that client's own sub-role happens to be restricted to.
   if (isStaffRole(role)) {
     if (!previewClientId) return { state: "not_portal_user" };
     const client = await loadPortalClient(previewClientId);
     if (!client) return { state: "not_portal_user" };
-    return { state: "ok", client, email: user.email ?? "", isPreview: true };
+    return {
+      state: "ok",
+      client,
+      email: user.email ?? "",
+      isPreview: true,
+      clientRole: "client_owner",
+      allowedPages: new Set(PORTAL_PAGE_KEYS),
+    };
   }
 
   return { state: "not_portal_user" };
@@ -166,12 +231,22 @@ export async function getPortalContext(previewClientId?: string): Promise<Portal
  * ever holds a PortalSession — or `null`, which means "signed-in staff who
  * haven't picked a client to preview yet". /portal turns that into a client
  * picker; the sub-pages send it back to /portal.
+ *
+ * Pass `requiredPage` from any of the gated sub-pages (Tickets, Contracts,
+ * Devices, Security, Microsoft 365) — a session whose clientRole hasn't been
+ * granted that page gets sent back to /portal instead of being handed data
+ * it isn't supposed to see. Overview itself passes nothing: it has no
+ * requiredPage, so every portal login can always reach it.
  */
 export async function requirePortalSession(
-  previewClientId?: string
+  previewClientId?: string,
+  requiredPage?: PortalPageKey
 ): Promise<PortalSession | null> {
   const context = await getPortalContext(previewClientId);
-  if (context.state === "ok") return context;
+  if (context.state === "ok") {
+    if (requiredPage && !context.allowedPages.has(requiredPage)) redirect("/portal");
+    return context;
+  }
   if (context.state === "not_portal_user") return null;
   if (context.state === "unauthenticated") redirect("/login");
   if (context.state === "needs_password_change") redirect("/portal/reset-password");

@@ -18,7 +18,7 @@ export default async function PortalLicencesPage({
   searchParams: Promise<{ preview?: string }>;
 }) {
   const { preview } = await searchParams;
-  const session = await requirePortalSession(preview);
+  const session = await requirePortalSession(preview, "licences");
   if (!session) redirect("/portal");
 
   const { licences, lastSyncedAt, linked } = await fetchPortalLicences(session);

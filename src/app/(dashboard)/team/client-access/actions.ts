@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { getResendClient, buildPortalPasswordResetEmail } from "@/lib/resend";
+import type { ClientPortalRole } from "@/lib/portal";
+
+const CLIENT_PORTAL_ROLES: ClientPortalRole[] = ["client_tech", "client_manager", "client_owner"];
 
 export type PortalUserRow = {
   id: string;
@@ -12,6 +15,7 @@ export type PortalUserRow = {
   clientId: string;
   clientName: string;
   createdAt: string;
+  clientRole: ClientPortalRole;
   /** Whether they've finished setting up an authenticator. */
   mfaEnrolled: boolean;
   lastSignInAt: string | null;
@@ -29,7 +33,7 @@ export async function listPortalUsers(): Promise<PortalUserRow[]> {
   const admin = createAdminClient();
   const { data: profiles, error } = await admin
     .from("profiles")
-    .select("id, full_name, email, created_at, client_id")
+    .select("id, full_name, email, created_at, client_id, client_role")
     .eq("role", "client")
     .order("created_at", { ascending: false });
 
@@ -44,6 +48,7 @@ export async function listPortalUsers(): Promise<PortalUserRow[]> {
     email: string;
     created_at: string;
     client_id: string;
+    client_role: ClientPortalRole;
   };
   const rows0 = (profiles ?? []) as ProfileRow[];
 
@@ -85,6 +90,7 @@ export async function listPortalUsers(): Promise<PortalUserRow[]> {
         clientId: p.client_id,
         clientName: clientNameById.get(p.client_id) ?? "Unknown client",
         createdAt: p.created_at,
+        clientRole: p.client_role,
         mfaEnrolled,
         lastSignInAt,
       };
@@ -111,9 +117,13 @@ export async function createPortalUser(
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const clientId = String(formData.get("client_id") ?? "").trim();
+  const clientRole = String(formData.get("client_role") ?? "").trim() as ClientPortalRole;
 
   if (!fullName || !email || !clientId) {
     return fail("Name, email and client are all required.");
+  }
+  if (!CLIENT_PORTAL_ROLES.includes(clientRole)) {
+    return fail("Choose a valid portal role.");
   }
 
   const admin = createAdminClient();
@@ -166,7 +176,7 @@ export async function createPortalUser(
   // the portal forces a real password before anything else on next sign-in.
   await admin
     .from("profiles")
-    .update({ must_change_password: true })
+    .update({ must_change_password: true, client_role: clientRole })
     .eq("id", created.user.id);
 
   revalidatePath("/team/client-access");
@@ -271,6 +281,38 @@ export async function resetPortalUserMfa(
 
   revalidatePath("/team/client-access");
   return { reset: true };
+}
+
+/** Changes an existing portal login's role — which pages it can see is
+ * controlled separately, per role, from Client access -> Manage
+ * permissions; this just moves this one login between those roles. */
+export async function updatePortalUserRole(
+  userId: string,
+  clientRole: ClientPortalRole
+): Promise<{ error?: string }> {
+  if (!(await requirePermission("manage_client_access"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!CLIENT_PORTAL_ROLES.includes(clientRole)) {
+    return { error: "Not a valid portal role." };
+  }
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!profile || profile.role !== "client") return { error: "Not a portal login." };
+
+  const { error } = await admin.from("profiles").update({ client_role: clientRole }).eq("id", userId);
+  if (error) {
+    console.error("updatePortalUserRole failed", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/team/client-access");
+  return {};
 }
 
 /** Deletes the auth user, which cascades the profile away with it.

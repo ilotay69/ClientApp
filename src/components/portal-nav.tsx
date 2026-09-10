@@ -15,40 +15,48 @@ import {
   IconX,
 } from "@/components/icons";
 
+/** portalPage is null for Overview — always shown, no sub-role can hide it
+ * (see PORTAL_PAGE_KEYS in lib/portal.ts). Every other link's key must
+ * match one of those exactly for the allowedPages filter below to work. */
 const LINKS: {
   href: string;
   label: string;
   icon: (props: { className?: string }) => React.ReactNode;
+  portalPage: string | null;
 }[] = [
-  { href: "/portal", label: "Overview", icon: IconGrid },
-  { href: "/portal/tickets", label: "Tickets", icon: IconCheckSquare },
-  { href: "/portal/contracts", label: "Contracts", icon: IconClock },
-  { href: "/portal/devices", label: "Devices", icon: IconList },
-  { href: "/portal/security", label: "Security", icon: IconLock },
-  { href: "/portal/licences", label: "Microsoft 365", icon: IconTag },
+  { href: "/portal", label: "Overview", icon: IconGrid, portalPage: null },
+  { href: "/portal/tickets", label: "Tickets", icon: IconCheckSquare, portalPage: "tickets" },
+  { href: "/portal/contracts", label: "Contracts", icon: IconClock, portalPage: "contracts" },
+  { href: "/portal/devices", label: "Devices", icon: IconList, portalPage: "devices" },
+  { href: "/portal/security", label: "Security", icon: IconLock, portalPage: "security" },
+  { href: "/portal/licences", label: "Microsoft 365", icon: IconTag, portalPage: "licences" },
 ];
 
 export function PortalNav({
   companyName,
+  allowedPages,
   signOutAction,
 }: {
   companyName: string;
+  allowedPages: string[];
   signOutAction: () => Promise<void>;
 }) {
   return (
     // useSearchParams needs a Suspense boundary to keep the rest of the
     // layout from opting into client-side rendering wholesale.
     <Suspense fallback={null}>
-      <PortalNavInner companyName={companyName} signOutAction={signOutAction} />
+      <PortalNavInner companyName={companyName} allowedPages={allowedPages} signOutAction={signOutAction} />
     </Suspense>
   );
 }
 
 function PortalNavInner({
   companyName,
+  allowedPages,
   signOutAction,
 }: {
   companyName: string;
+  allowedPages: string[];
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -62,9 +70,15 @@ function PortalNavInner({
   const preview = searchParams.get("preview");
   const href = (base: string) => (preview ? `${base}?preview=${preview}` : base);
 
+  // Just hides links this session can't use — the real enforcement is each
+  // gated page's own requirePortalSession(preview, page) redirect, not this.
+  const visibleLinks = LINKS.filter(
+    (link) => link.portalPage === null || allowedPages.includes(link.portalPage)
+  );
+
   const items = (
     <>
-      {LINKS.map((link) => {
+      {visibleLinks.map((link) => {
         const active =
           link.href === "/portal" ? pathname === "/portal" : pathname.startsWith(link.href);
         const Icon = link.icon;

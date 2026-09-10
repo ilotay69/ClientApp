@@ -18,7 +18,7 @@ export default async function PortalSecurityPage({
   searchParams: Promise<{ preview?: string }>;
 }) {
   const { preview } = await searchParams;
-  const session = await requirePortalSession(preview);
+  const session = await requirePortalSession(preview, "security");
   if (!session) redirect("/portal");
 
   const [secureScore, huntress] = await Promise.all([

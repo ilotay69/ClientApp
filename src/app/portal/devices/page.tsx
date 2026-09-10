@@ -40,7 +40,7 @@ export default async function PortalDevicesPage({
   searchParams: Promise<{ preview?: string }>;
 }) {
   const { preview } = await searchParams;
-  const session = await requirePortalSession(preview);
+  const session = await requirePortalSession(preview, "devices");
   if (!session) redirect("/portal");
 
   const { devices, lastSyncedAt, linked } = await fetchPortalDevices(session);
