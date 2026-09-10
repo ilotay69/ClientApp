@@ -21,7 +21,8 @@ export type PermissionKey =
   | "view_team_tasks"
   | "view_sales_requests"
   | "manage_client_access"
-  | "manage_recruitment";
+  | "manage_recruitment"
+  | "manage_reconciliation";
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_team: "Add team members & change roles",
@@ -44,6 +45,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   view_sales_requests: "View the Internal Sales / Sales Requests pipeline",
   manage_client_access: "Create & revoke client portal logins",
   manage_recruitment: "Screen resumes & manage job postings (candidate PII)",
+  manage_reconciliation: "View & manage the licence reconciliation report (service↔licence mappings)",
 };
 
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];

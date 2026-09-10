@@ -45,15 +45,23 @@ export default async function DashboardLayout({
   const canViewProjects = me?.permissions.has("view_projects") ?? false;
   const canViewSalesRequests = me?.permissions.has("view_sales_requests") ?? false;
   const canManageRecruitment = me?.permissions.has("manage_recruitment") ?? false;
+  const canManageReconciliation = me?.permissions.has("manage_reconciliation") ?? false;
 
-  const [teamOwnerOnly, integrationsOwnerOnly, touchpointsOwnerOnly, domainHealthOwnerOnly, recruitmentOwnerOnly] =
-    await Promise.all([
-      isPermissionOwnerOnly(supabase, "manage_team"),
-      isPermissionOwnerOnly(supabase, "manage_integrations"),
-      isPermissionOwnerOnly(supabase, "manage_touchpoints"),
-      isPermissionOwnerOnly(supabase, "view_domain_health"),
-      isPermissionOwnerOnly(supabase, "manage_recruitment"),
-    ]);
+  const [
+    teamOwnerOnly,
+    integrationsOwnerOnly,
+    touchpointsOwnerOnly,
+    domainHealthOwnerOnly,
+    recruitmentOwnerOnly,
+    reconciliationOwnerOnly,
+  ] = await Promise.all([
+    isPermissionOwnerOnly(supabase, "manage_team"),
+    isPermissionOwnerOnly(supabase, "manage_integrations"),
+    isPermissionOwnerOnly(supabase, "manage_touchpoints"),
+    isPermissionOwnerOnly(supabase, "view_domain_health"),
+    isPermissionOwnerOnly(supabase, "manage_recruitment"),
+    isPermissionOwnerOnly(supabase, "manage_reconciliation"),
+  ]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -71,11 +79,13 @@ export default async function DashboardLayout({
         canViewProjects={canViewProjects}
         canViewSalesRequests={canViewSalesRequests}
         canManageRecruitment={canManageRecruitment}
+        canManageReconciliation={canManageReconciliation}
         teamOwnerOnly={teamOwnerOnly}
         integrationsOwnerOnly={integrationsOwnerOnly}
         touchpointsOwnerOnly={touchpointsOwnerOnly}
         domainHealthOwnerOnly={domainHealthOwnerOnly}
         recruitmentOwnerOnly={recruitmentOwnerOnly}
+        reconciliationOwnerOnly={reconciliationOwnerOnly}
         signOutAction={signOut}
       />
       <main className="px-4 py-8 md:pl-64">

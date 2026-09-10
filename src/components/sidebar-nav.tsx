@@ -16,6 +16,7 @@ import {
   IconUsers,
   IconClock,
   IconDownload,
+  IconRefresh,
   IconGlobe,
   IconLogOut,
   IconMenu,
@@ -49,11 +50,13 @@ export function SidebarNav({
   canViewProjects,
   canViewSalesRequests,
   canManageRecruitment,
+  canManageReconciliation,
   teamOwnerOnly,
   integrationsOwnerOnly,
   touchpointsOwnerOnly,
   domainHealthOwnerOnly,
   recruitmentOwnerOnly,
+  reconciliationOwnerOnly,
   signOutAction,
 }: {
   userLabel: string;
@@ -69,6 +72,7 @@ export function SidebarNav({
   canViewProjects: boolean;
   canViewSalesRequests: boolean;
   canManageRecruitment: boolean;
+  canManageReconciliation: boolean;
   /** True only while no non-Owner role has been granted the permission —
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
@@ -76,6 +80,7 @@ export function SidebarNav({
   touchpointsOwnerOnly: boolean;
   domainHealthOwnerOnly: boolean;
   recruitmentOwnerOnly: boolean;
+  reconciliationOwnerOnly: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -152,6 +157,16 @@ export function SidebarNav({
     ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
     ...(canViewAnalysis
       ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
+      : []),
+    ...(canManageReconciliation
+      ? [
+          {
+            href: "/reconciliation/licenses",
+            label: "Reconciliation",
+            icon: IconRefresh,
+            ownerOnly: reconciliationOwnerOnly,
+          },
+        ]
       : []),
   ];
 

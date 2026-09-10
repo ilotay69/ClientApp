@@ -30,6 +30,12 @@ const COLORS: Record<string, string> = {
   new: NEUTRAL,
   reviewed: INFO,
 
+  // license reconciliation status (confirmed no collisions above)
+  matched: SUCCESS,
+  mismatch: ATTENTION,
+  unmapped: NEUTRAL_MUTED,
+  license_missing: URGENT,
+
   // project status
   planning: NEUTRAL,
   active: INFO,
