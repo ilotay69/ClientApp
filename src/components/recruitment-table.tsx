@@ -29,6 +29,7 @@ export type RecruitmentTableRow = Pick<
   | "currently_working"
   | "months_since_worked"
   | "in_gta"
+  | "m365_management_experience"
   | "screened_at"
   | "screening_error"
   | "status"
@@ -43,12 +44,12 @@ function YesNoBadge({ value }: { value: boolean | null }) {
 }
 
 /** ai_comment is one combined string (see screenPendingResumes) — splits
- * its leading "Overview: ..." paragraph back out so the main row can show
- * just that, with the Technical ability / Building customer relationships
- * detail held back for the expanded row. A comment screened before the
- * Overview field existed has no such paragraph — falls back to holding the
- * whole thing as detail, nothing shown in the collapsed row (re-screening
- * it, e.g. via "Screen selected", is what backfills an overview for it). */
+ * its leading "Overview: ..." paragraph back out from the Technical
+ * ability / Building customer relationships detail. Both only ever show
+ * in the expanded row now — the collapsed list shows the 365 Mgmt/Big
+ * Firm/GTA/etc. signal columns instead. A comment screened before the
+ * Overview field existed has no such paragraph — falls back to holding
+ * the whole thing as detail with no separate overview line. */
 function splitComment(comment: string | null): { overview: string | null; detail: string | null } {
   if (!comment) return { overview: null, detail: null };
   const [first, ...rest] = comment.split("\n\n");
@@ -161,7 +162,7 @@ export function RecruitmentTable({
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Comment</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">365 Mgmt</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
             </tr>
@@ -254,11 +255,8 @@ function ApplicantRow({
         <td className="px-3 py-1.5">
           <YesNoBadge value={row.in_gta} />
         </td>
-        {/* Only the Overview line — Technical ability / Building customer
-            relationships (the rest of splitComment's output) shows in the
-            expanded row instead, so the collapsed list stays scannable. */}
-        <td className="min-w-[14rem] max-w-[22rem] whitespace-pre-line px-3 py-1.5 text-slate-600">
-          {overview ?? "—"}
+        <td className="px-3 py-1.5">
+          <YesNoBadge value={row.m365_management_experience} />
         </td>
         <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
           <ResumeStatusSelect
@@ -298,6 +296,9 @@ function ApplicantRow({
               <p className="text-xs text-slate-400">
                 Subject: {row.subject}
               </p>
+            )}
+            {overview && (
+              <p className="whitespace-pre-line text-sm font-medium text-slate-900">{overview}</p>
             )}
             {detail && (
               <p className="whitespace-pre-line text-sm text-slate-700">{detail}</p>

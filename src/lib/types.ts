@@ -273,6 +273,11 @@ export interface Resume {
    * if a stated city is clearly elsewhere, null if no city is mentioned
    * anywhere (their own address or their most recent job's location). */
   in_gta: boolean | null;
+  /** True if the candidate has hands-on Microsoft 365 management/
+   * configuration experience (admin center, Exchange Admin, Intune, Azure
+   * AD/Entra, SharePoint admin), not just end-user use. Null until
+   * screened, or if it can't be told. */
+  m365_management_experience: boolean | null;
   screened_at: string | null;
   screening_error: string | null;
   status: ResumeStatus;

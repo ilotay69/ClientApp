@@ -80,6 +80,11 @@ const CURRENTLY_WORKING_OPTIONS = [
   { value: "no", label: "Working: No" },
 ];
 
+const M365_OPTIONS = [
+  { value: "yes", label: "365 Mgmt: Yes" },
+  { value: "no", label: "365 Mgmt: No" },
+];
+
 const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
 
 export function ResumeFilterBar({
@@ -88,6 +93,7 @@ export function ResumeFilterBar({
   bigFirm,
   minYears,
   currentlyWorking,
+  m365Management,
   noResumeYet,
   clearHref,
 }: {
@@ -96,6 +102,7 @@ export function ResumeFilterBar({
   bigFirm: string | null;
   minYears: string | null;
   currentlyWorking: string | null;
+  m365Management: string | null;
   noResumeYet: boolean;
   clearHref: string;
 }) {
@@ -105,6 +112,7 @@ export function ResumeFilterBar({
     Boolean(bigFirm) ||
     Boolean(minYears) ||
     Boolean(currentlyWorking) ||
+    Boolean(m365Management) ||
     noResumeYet;
 
   return (
@@ -144,6 +152,16 @@ export function ResumeFilterBar({
             name="working"
             option={o}
             checked={currentlyWorking === o.value}
+            radio
+          />
+        ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        {M365_OPTIONS.map((o) => (
+          <Chip
+            key={`m365-${o.value}`}
+            name="m365"
+            option={o}
+            checked={m365Management === o.value}
             radio
           />
         ))}
