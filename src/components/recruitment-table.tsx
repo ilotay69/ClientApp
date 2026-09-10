@@ -79,7 +79,7 @@ export function RecruitmentTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-      <table className="min-w-full divide-y divide-slate-200 text-sm">
+      <table className="divide-y divide-slate-200 text-sm">
         <thead className="bg-slate-50">
           <tr>
             <th className="px-3 py-1.5 text-left font-medium text-slate-500">Date</th>
