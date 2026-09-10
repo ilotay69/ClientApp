@@ -9,10 +9,10 @@ const openSans = Open_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "CG Client Tracker",
-  description: "Internal operations tracker for CG Technologies — client mailboxes, projects, touchpoints, and team task assignment.",
+  title: "CG Ops",
+  description: "Internal operations tool for CG Technologies — client mailboxes, projects, touchpoints, recruitment, and team task assignment.",
   appleWebApp: {
-    title: "CG Tracker",
+    title: "CG Ops",
     statusBarStyle: "black-translucent",
   },
 };

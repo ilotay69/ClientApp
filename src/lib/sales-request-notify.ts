@@ -66,7 +66,7 @@ export async function notifySalesRequestChange(
 
     const resend = getResendClient();
     const fromAddress =
-      process.env.REMINDERS_FROM_EMAIL ?? "CG Client Tracker <reminders@example.com>";
+      process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
     const clientName = (request.clients as unknown as { name: string } | null)?.name ?? null;
 
     const { html, text } = buildSalesRequestEmail({

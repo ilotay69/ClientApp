@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
   }
 
   const resend = getResendClient();
-  const fromAddress = process.env.REMINDERS_FROM_EMAIL ?? "CG Client Tracker <reminders@example.com>";
+  const fromAddress = process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
   const results: { email: string; itemCount: number }[] = [];
   const logRows: { kind: string; entity_id: string; recipient_email: string }[] = [];
 

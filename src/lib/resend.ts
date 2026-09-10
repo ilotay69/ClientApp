@@ -44,7 +44,7 @@ export function buildDigestEmail(recipientName: string, items: DigestItem[]) {
       } item${items.length === 1 ? "" : "s"} needing attention</h2>
       <table style="width:100%;border-collapse:collapse;">${rows}</table>
       <p style="margin-top:24px;color:#64748b;font-size:13px;">
-        Sent by the CG Client Tracker daily reminder job.
+        Sent by CG Ops (daily reminder job).
       </p>
     </div>
   `;
@@ -95,7 +95,7 @@ export function buildTaskAssignedEmail(recipientName: string, task: TaskAssigned
           : ""
       }
       <p style="margin-top:24px;color:#64748b;font-size:13px;">
-        Sent by the CG Client Tracker.
+        Sent by CG Ops.
       </p>
     </div>
   `;
@@ -144,7 +144,7 @@ export function buildSalesRequestEmail(info: SalesRequestNotifyInfo) {
           : ""
       }
       <p style="margin-top:28px;color:#64748b;font-size:15px;">
-        Sent by the CG Client Tracker.
+        Sent by CG Ops.
       </p>
     </div>
   `;

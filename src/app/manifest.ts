@@ -7,10 +7,10 @@ import type { MetadataRoute } from "next";
 // "Add to Home Screen" flow.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "CG Client Tracker",
-    short_name: "CG Tracker",
+    name: "CG Ops",
+    short_name: "CG Ops",
     description:
-      "Internal operations tracker for CG Technologies — client mailboxes, projects, touchpoints, and team task assignment.",
+      "Internal operations tool for CG Technologies — client mailboxes, projects, touchpoints, recruitment, and team task assignment.",
     start_url: "/",
     display: "standalone",
     background_color: "#f8fafc",

@@ -213,7 +213,7 @@ export async function sendPortalPasswordReset(
   try {
     const resend = getResendClient();
     const fromAddress =
-      process.env.REMINDERS_FROM_EMAIL ?? "CG Client Tracker <reminders@example.com>";
+      process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
     const { html, text } = buildPortalPasswordResetEmail(profile.full_name, tempPassword);
     const { error: sendError } = await resend.emails.send({
       from: fromAddress,

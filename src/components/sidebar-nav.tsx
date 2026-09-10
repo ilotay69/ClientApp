@@ -188,7 +188,7 @@ export function SidebarNav({
     <div className="flex h-full flex-col bg-charcoal text-white">
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-base font-semibold tracking-tight text-white">
-          <span className="text-brand">CG</span> Client Tracker
+          <span className="text-brand">CG</span> Ops
         </span>
         <button
           type="button"
@@ -242,7 +242,7 @@ export function SidebarNav({
       {/* Mobile top bar */}
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
         <span className="text-sm font-semibold text-charcoal">
-          <span className="text-brand">CG</span> Client Tracker
+          <span className="text-brand">CG</span> Ops
         </span>
         <button
           type="button"
