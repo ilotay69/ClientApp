@@ -133,7 +133,14 @@ export function RecruitmentTable({
           sticky thead's positioning context away from the real page scroll,
           which is exactly why the sticky header did nothing. */}
       <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="divide-y divide-slate-200 text-sm">
+        {/* border-separate + border-spacing-0: Tailwind's Preflight reset
+            sets border-collapse: collapse on every table by default, and
+            sticky positioning on th/thead is well known to silently fail
+            under collapsed borders in several browsers — separate mode
+            (with zero spacing, so nothing visually changes) fixes that
+            without touching the divide-y row borders, which are applied
+            per-row rather than per-cell and don't depend on collapse mode. */}
+        <table className="border-separate border-spacing-0 divide-y divide-slate-200 text-sm">
           {/* sticky goes on each th, not the thead — thead itself is
               unreliable across browsers for sticky positioning; th (and tr)
               is the well-supported target. */}
