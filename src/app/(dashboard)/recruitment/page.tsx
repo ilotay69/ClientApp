@@ -86,7 +86,7 @@ export default async function RecruitmentPage({
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_management_experience, screened_at, screening_error, status"
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, screened_at, screening_error, status"
     )
     .order("received_at", { ascending: false })
     .limit(200);
@@ -98,7 +98,10 @@ export default async function RecruitmentPage({
   else if (minYears === "6to10") resumeQuery = resumeQuery.gte("years_experience", 6).lte("years_experience", 10);
   else if (minYears === "11plus") resumeQuery = resumeQuery.gte("years_experience", 11);
   if (currentlyWorking) resumeQuery = resumeQuery.eq("currently_working", currentlyWorking === "yes");
-  if (m365Management) resumeQuery = resumeQuery.eq("m365_management_experience", m365Management === "yes");
+  // m365_technologies is a keyword list, not a boolean — "yes" filters to
+  // non-null (some technology evidenced), "no" filters to null (none found).
+  if (m365Management === "yes") resumeQuery = resumeQuery.not("m365_technologies", "is", null);
+  else if (m365Management === "no") resumeQuery = resumeQuery.is("m365_technologies", null);
   // Matches recruitment-table.tsx's own hasResumeContent check (file_name ||
   // pasted_resume_text) rather than storage_path, which isn't selected here.
   if (noResumeYet) resumeQuery = resumeQuery.is("file_name", null).is("pasted_resume_text", null);

@@ -29,7 +29,7 @@ export type RecruitmentTableRow = Pick<
   | "currently_working"
   | "months_since_worked"
   | "in_gta"
-  | "m365_management_experience"
+  | "m365_technologies"
   | "screened_at"
   | "screening_error"
   | "status"
@@ -46,7 +46,7 @@ function YesNoBadge({ value }: { value: boolean | null }) {
 /** ai_comment is one combined string (see screenPendingResumes) — splits
  * its leading "Overview: ..." paragraph back out from the Technical
  * ability / Building customer relationships detail. Both only ever show
- * in the expanded row now — the collapsed list shows the 365 Mgmt/Big
+ * in the expanded row now — the collapsed list shows the 365 Tech/Big
  * Firm/GTA/etc. signal columns instead. A comment screened before the
  * Overview field existed has no such paragraph — falls back to holding
  * the whole thing as detail with no separate overview line. */
@@ -162,7 +162,7 @@ export function RecruitmentTable({
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">365 Mgmt</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">365 Tech</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
             </tr>
@@ -255,8 +255,8 @@ function ApplicantRow({
         <td className="px-3 py-1.5">
           <YesNoBadge value={row.in_gta} />
         </td>
-        <td className="px-3 py-1.5">
-          <YesNoBadge value={row.m365_management_experience} />
+        <td className="min-w-[10rem] max-w-[16rem] px-3 py-1.5 text-slate-700">
+          {row.m365_technologies ?? <span className="text-xs text-slate-400">—</span>}
         </td>
         <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
           <ResumeStatusSelect

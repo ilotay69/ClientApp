@@ -90,10 +90,10 @@ const TOOL_SCHEMA = {
             description:
               "true if the candidate is located in the Greater Toronto Area (Toronto, Mississauga, Brampton, Markham, Vaughan, Richmond Hill, Oakville, Scarborough, Etobicoke, North York, and similar GTA municipalities), false if a city is stated and it's clearly outside the GTA. If the candidate's own address isn't given, judge by their most recent job's location instead. Null only if no city is mentioned anywhere at all — don't guess.",
           },
-          m365_management_experience: {
-            type: ["boolean", "null"],
+          m365_technologies: {
+            type: ["string", "null"],
             description:
-              "true if the candidate has hands-on Microsoft 365 management/configuration experience (Microsoft 365 admin center, Exchange Admin Center, Intune, Azure AD/Entra ID, SharePoint admin, Microsoft Teams admin, etc.) — not just using M365 apps as an end user. False if their experience is clearly limited to end-user use, or to other platforms only. Null if genuinely can't be told from what's provided.",
+              "A short comma-separated list of specific Microsoft cloud/365 technologies the resume shows HANDS-ON ADMIN/CONFIGURATION evidence for — not just end-user app use. Just keywords, e.g. \"Intune, Azure AD, Exchange Admin, SharePoint Admin\" — no sentences, no explanation. Only include ones actually evidenced (Intune, Azure AD/Entra ID, Exchange Admin Center, SharePoint Admin, Teams Admin, Microsoft 365 Admin Center, Power Platform, Azure, Conditional Access, Autopilot, and similar are the kinds of things to look for). Null if none are evidenced at all.",
           },
         },
         required: [
@@ -107,7 +107,7 @@ const TOOL_SCHEMA = {
           "currently_working",
           "months_since_worked",
           "in_gta",
-          "m365_management_experience",
+          "m365_technologies",
         ],
       },
     },
@@ -270,9 +270,9 @@ their most recent job look still-current, e.g. no end date or "present") plus, o
 when currently_working is false, months_since_worked (roughly how many months since
 that job ended), in_gta (is the candidate located in the Greater Toronto Area —
 judge by their own stated address, or failing that, their most recent job's location),
-and m365_management_experience (hands-on Microsoft 365 admin/configuration experience —
-admin center, Exchange Admin, Intune, Azure AD/Entra, SharePoint admin — not just using
-M365 apps as an end user) — leave any of these null if it genuinely can't be told from what's provided, don't
+and m365_technologies (a short keyword list — not sentences — of specific Microsoft
+cloud technologies with HANDS-ON ADMIN/CONFIGURATION evidence, e.g. "Intune, Azure AD,
+Exchange Admin"; not just end-user app use) — leave any of these null if it genuinely can't be told from what's provided, don't
 guess. Note explicitly in technical_ability or customer_relationships
 if your verdict is based only on notification content with no resume yet. Report
 exactly one entry per resume_number shown above — don't skip any, and don't invent
@@ -475,7 +475,7 @@ export async function screenPendingResumes(
           currently_working?: boolean | null;
           months_since_worked?: number | null;
           in_gta?: boolean | null;
-          m365_management_experience?: boolean | null;
+          m365_technologies?: string | null;
         }
       >((parsed?.results ?? []).map((r: { resume_number: number }) => [r.resume_number, r]));
 
@@ -523,7 +523,7 @@ export async function screenPendingResumes(
             currently_working: result.currently_working ?? null,
             months_since_worked: result.months_since_worked ?? null,
             in_gta: result.in_gta ?? null,
-            m365_management_experience: result.m365_management_experience ?? null,
+            m365_technologies: result.m365_technologies ?? null,
             screened_at: new Date().toISOString(),
             screening_error: null,
           })

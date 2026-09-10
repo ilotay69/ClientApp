@@ -80,9 +80,11 @@ const CURRENTLY_WORKING_OPTIONS = [
   { value: "no", label: "Working: No" },
 ];
 
+// m365_technologies is a keyword list, not a boolean — "yes" means the
+// field is non-null (some technology was evidenced), "no" means it's null.
 const M365_OPTIONS = [
-  { value: "yes", label: "365 Mgmt: Yes" },
-  { value: "no", label: "365 Mgmt: No" },
+  { value: "yes", label: "365 Tech: Yes" },
+  { value: "no", label: "365 Tech: No" },
 ];
 
 const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
