@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic";
  * Where a client-portal login lands whenever must_change_password is set —
  * a brand-new login, or one staff just reset with sendPortalPasswordReset
  * (team/client-access/actions.ts), which emails a temp password directly
- * rather than a Supabase magic link. requirePortalSession sends them here on
- * its own; reaching it any other way still works via the identity check
- * below.
+ * rather than a Supabase magic link. requirePortalSession only returns this
+ * state AFTER MFA is satisfied (see getPortalContext) — Supabase itself
+ * refuses to update a password at AAL1 once any verified factor exists, so
+ * by the time anyone reaches this page they're already AAL2.
  *
- * Deliberately gated on getPortalIdentity(), not requirePortalSession(): a
- * brand-new portal login has no MFA factor yet, so the AAL2 check the latter
- * enforces would immediately bounce them to /portal/mfa before they ever get
- * to set a password — and setting one has to happen first.
+ * Deliberately gated on getPortalIdentity(), not requirePortalSession():
+ * the latter would redirect straight back here for this exact state,
+ * looping forever.
  */
 export default async function PortalResetPasswordPage() {
   const identity = await getPortalIdentity();

@@ -38,7 +38,9 @@ export type PortalContext =
    * a client row that has gone missing. Callers send these to "/". */
   | { state: "not_portal_user" }
   /** Still on a temp password (a brand-new login, or one just reset by
-   * staff) — must set a real one before anything else, MFA included. */
+   * staff) — must set a real one before reaching the portal. Only returned
+   * after MFA is satisfied (see getPortalContext): Supabase refuses a
+   * password update at AAL1 once any verified factor exists. */
   | { state: "needs_password_change" }
   /** No TOTP factor yet: first login. */
   | { state: "needs_enrolment" }
@@ -118,11 +120,6 @@ export async function getPortalContext(previewClientId?: string): Promise<Portal
   if (role === "client") {
     if (!profile.client_id) return { state: "not_portal_user" };
 
-    // Checked before MFA on purpose — a temp password (new login, or one
-    // just reset by staff) must be replaced before anything else, MFA
-    // enrolment included.
-    if (profile.must_change_password) return { state: "needs_password_change" };
-
     // MFA is mandatory for portal logins. currentLevel is read out of the
     // session JWT, so this is cheap enough to run on every action.
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -133,6 +130,17 @@ export async function getPortalContext(previewClientId?: string): Promise<Portal
         ? { state: "needs_verification" }
         : { state: "needs_enrolment" };
     }
+
+    // Checked AFTER MFA, not before: Supabase itself refuses to update a
+    // password at AAL1 once any verified factor exists ("AAL2 session is
+    // required to update email or password when MFA is enabled") — so an
+    // existing client who got a temp password from a reset has to step up
+    // with their EXISTING authenticator first (needs_verification, above),
+    // same as any other portal action. A brand-new login has no factor at
+    // all yet, so it goes through needs_enrolment above instead — enrolling
+    // (which verifies a code as part of the same flow) establishes AAL2 the
+    // same way, and only then does this check run.
+    if (profile.must_change_password) return { state: "needs_password_change" };
 
     const client = await loadPortalClient(profile.client_id);
     if (!client) return { state: "not_portal_user" };

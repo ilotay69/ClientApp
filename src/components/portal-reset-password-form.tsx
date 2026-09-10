@@ -45,10 +45,10 @@ export function PortalResetPasswordForm() {
 
     await clearMustChangePassword();
 
-    // /portal, not /portal/mfa directly — an existing client who just had
-    // their password reset already has a verified factor and should go
-    // straight in; only a genuinely new login has none, and getPortalContext
-    // (via requirePortalSession) sends those to /portal/mfa on its own.
+    // Reaching this form at all means MFA is already satisfied (see
+    // getPortalContext — must_change_password is only checked after AAL2,
+    // since Supabase refuses a password update before that anyway), so
+    // /portal is always the right next stop, new login or reset alike.
     router.replace("/portal");
   }
 
