@@ -37,6 +37,9 @@ export type PortalContext =
   /** Signed in, but not a portal user — staff with no ?preview= selected, or
    * a client row that has gone missing. Callers send these to "/". */
   | { state: "not_portal_user" }
+  /** Still on a temp password (a brand-new login, or one just reset by
+   * staff) — must set a real one before anything else, MFA included. */
+  | { state: "needs_password_change" }
   /** No TOTP factor yet: first login. */
   | { state: "needs_enrolment" }
   /** Has a verified TOTP factor but this session is still AAL1. */
@@ -105,7 +108,7 @@ export async function getPortalContext(previewClientId?: string): Promise<Portal
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, client_id")
+    .select("role, client_id, must_change_password")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile) return { state: "unauthenticated" };
@@ -114,6 +117,11 @@ export async function getPortalContext(previewClientId?: string): Promise<Portal
 
   if (role === "client") {
     if (!profile.client_id) return { state: "not_portal_user" };
+
+    // Checked before MFA on purpose — a temp password (new login, or one
+    // just reset by staff) must be replaced before anything else, MFA
+    // enrolment included.
+    if (profile.must_change_password) return { state: "needs_password_change" };
 
     // MFA is mandatory for portal logins. currentLevel is read out of the
     // session JWT, so this is cheap enough to run on every action.
@@ -158,6 +166,7 @@ export async function requirePortalSession(
   if (context.state === "ok") return context;
   if (context.state === "not_portal_user") return null;
   if (context.state === "unauthenticated") redirect("/login");
+  if (context.state === "needs_password_change") redirect("/portal/reset-password");
   redirect("/portal/mfa");
 }
 

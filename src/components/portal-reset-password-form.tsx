@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { clearMustChangePassword } from "@/app/portal/reset-password/actions";
 
 const MIN_LENGTH = 8;
 
 /**
- * Lands here after the "Email password reset" link — by the time this
- * renders, /auth/callback has already exchanged the recovery code for a real
- * session as this portal login (see sendPortalPasswordReset), so this is
- * just an ordinary supabase.auth.updateUser({ password }) call.
+ * Reached whenever must_change_password is set — a brand-new portal login,
+ * or one staff just reset (see sendPortalPasswordReset, which emails a temp
+ * password directly rather than a Supabase magic link). Just an ordinary
+ * supabase.auth.updateUser({ password }) call, followed by clearing the
+ * flag so getPortalContext lets them through next time.
  */
 export function PortalResetPasswordForm() {
   const router = useRouter();
@@ -41,10 +43,13 @@ export function PortalResetPasswordForm() {
       return;
     }
 
-    // Next stop is mandatory TOTP enrolment — a brand-new portal login has no
-    // factor yet, so /portal/mfa (via getPortalContext) will route them
-    // there regardless; naming it explicitly just skips a hop.
-    router.replace("/portal/mfa");
+    await clearMustChangePassword();
+
+    // /portal, not /portal/mfa directly — an existing client who just had
+    // their password reset already has a verified factor and should go
+    // straight in; only a genuinely new login has none, and getPortalContext
+    // (via requirePortalSession) sends those to /portal/mfa on its own.
+    router.replace("/portal");
   }
 
   return (

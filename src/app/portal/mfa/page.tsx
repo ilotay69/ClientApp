@@ -18,6 +18,8 @@ export default async function PortalMfaPage() {
   // Already fully signed in? Nothing to do here.
   const context = await getPortalContext();
   if (context.state === "ok") redirect("/portal");
+  // Still on a temp password — that has to happen before MFA enrolment.
+  if (context.state === "needs_password_change") redirect("/portal/reset-password");
 
   const mode = context.state === "needs_verification" ? "verify" : "enrol";
   return <PortalMfaSetup mode={mode} />;

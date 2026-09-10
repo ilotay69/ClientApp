@@ -5,11 +5,17 @@ import { resolveAppUrl } from "@/lib/app-url";
 export const dynamic = "force-dynamic";
 
 /**
- * Supabase redirects here after a "Sign in with Microsoft" login, and now
- * also after a client-portal password reset (see sendPortalPasswordReset).
- * This just exchanges the auth code for a session — it has nothing to do
- * with mailbox access (see /api/mail/callback for that separate,
- * narrower-scoped flow).
+ * Supabase redirects here after a "Sign in with Microsoft" login. This just
+ * exchanges the auth code for a session — it has nothing to do with mailbox
+ * access (see /api/mail/callback for that separate, narrower-scoped flow).
+ *
+ * No longer used by the client-portal password reset flow — that used to
+ * route through here after a Supabase magic-link email, but
+ * sendPortalPasswordReset (team/client-access/actions.ts) now sets the
+ * password directly through the admin API and emails a temp password
+ * instead, since the magic link's redirectTo had to exactly match
+ * Supabase's allow-listed Redirect URLs and kept drifting every time this
+ * app moved domains.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);

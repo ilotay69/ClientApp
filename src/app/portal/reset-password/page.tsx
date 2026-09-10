@@ -5,9 +5,12 @@ import { PortalResetPasswordForm } from "@/components/portal-reset-password-form
 export const dynamic = "force-dynamic";
 
 /**
- * Where a client-portal login lands after /auth/callback exchanges their
- * "Email password reset" link's code for a real session — see
- * sendPortalPasswordReset in team/client-access/actions.ts.
+ * Where a client-portal login lands whenever must_change_password is set —
+ * a brand-new login, or one staff just reset with sendPortalPasswordReset
+ * (team/client-access/actions.ts), which emails a temp password directly
+ * rather than a Supabase magic link. requirePortalSession sends them here on
+ * its own; reaching it any other way still works via the identity check
+ * below.
  *
  * Deliberately gated on getPortalIdentity(), not requirePortalSession(): a
  * brand-new portal login has no MFA factor yet, so the AAL2 check the latter

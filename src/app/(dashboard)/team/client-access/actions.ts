@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
-import { resolveAppUrl } from "@/lib/app-url";
+import { getResendClient, buildPortalPasswordResetEmail } from "@/lib/resend";
 
 export type PortalUserRow = {
   id: string;
@@ -161,15 +161,28 @@ export async function createPortalUser(
     return fail(createError?.message ?? "Could not create the portal login.");
   }
 
+  // A temp password should never be a standing credential, whether it's
+  // shown here for staff to relay or emailed via sendPortalPasswordReset —
+  // the portal forces a real password before anything else on next sign-in.
+  await admin
+    .from("profiles")
+    .update({ must_change_password: true })
+    .eq("id", created.user.id);
+
   revalidatePath("/team/client-access");
   return { error: null, createdPassword: tempPassword, createdEmail: email };
 }
 
-/** Emails a Supabase password-reset link.
+/** Mints a new temp password and emails it directly — replaces the old
+ * Supabase "resetPasswordForEmail" magic link, which depended on the
+ * recovery link's redirectTo exactly matching Supabase's allow-listed
+ * Redirect URLs (drifted every time the app moved domains, and gave no
+ * visibility when it silently failed to land the recipient anywhere).
  *
- * The safer way to hand over a brand-new login: the client sets their own
- * password from their own mailbox, so nothing sensitive travels through a
- * chat message. Also the fix for an ordinary forgotten password. */
+ * Sets the password directly through the admin API — no email link, no
+ * code exchange, nothing that can point at a stale domain. must_change_password
+ * forces a real password before the login can reach anything else, so the
+ * temp value emailed here is never a standing credential. */
 export async function sendPortalPasswordReset(
   userId: string
 ): Promise<{ error?: string; sent?: boolean }> {
@@ -180,30 +193,49 @@ export async function sendPortalPasswordReset(
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("profiles")
-    .select("email, role")
+    .select("email, full_name, role")
     .eq("id", userId)
     .maybeSingle();
   if (!profile || profile.role !== "client") return { error: "Not a portal login." };
 
-  // Sent through the ordinary (anon) client because that's the flow that
-  // emails the user a recovery link; the admin API has no "send reset" call.
-  //
-  // redirectTo goes through /auth/callback, not straight to /portal: the
-  // recovery link Supabase emails carries a one-time CODE that has to be
-  // exchanged for an actual session before anyone is signed in as this user
-  // — /auth/callback already does exactly that exchange for the Azure
-  // sign-in flow. Pointing redirectTo at /portal directly (the first version
-  // of this) skipped that exchange entirely, so clicking the email link
-  // never signed the recipient in as them at all — it just served whatever
-  // session the browser already had.
-  const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
-    redirectTo: `${resolveAppUrl()}/auth/callback?next=${encodeURIComponent("/portal/reset-password")}`,
+  const tempPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+
+  const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
+    password: tempPassword,
   });
-  if (error) {
-    console.error("sendPortalPasswordReset failed", error);
-    return { error: error.message };
+  if (updateError) {
+    console.error("sendPortalPasswordReset: password update failed", updateError);
+    return { error: updateError.message };
   }
+
+  await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
+
+  try {
+    const resend = getResendClient();
+    const fromAddress =
+      process.env.REMINDERS_FROM_EMAIL ?? "CG Client Tracker <reminders@example.com>";
+    const { html, text } = buildPortalPasswordResetEmail(profile.full_name, tempPassword);
+    const { error: sendError } = await resend.emails.send({
+      from: fromAddress,
+      to: profile.email,
+      subject: "Your CG Technologies client portal password was reset",
+      html,
+      text,
+    });
+    if (sendError) {
+      console.error("sendPortalPasswordReset: Resend rejected the email", sendError);
+      return { error: "Password was reset, but the email couldn't be sent — check Resend settings." };
+    }
+  } catch (err) {
+    console.error("sendPortalPasswordReset: email send failed", err);
+    return {
+      error:
+        err instanceof Error
+          ? `Password was reset, but the email failed: ${err.message}`
+          : "Password was reset, but the email couldn't be sent.",
+    };
+  }
+
   return { sent: true };
 }
 

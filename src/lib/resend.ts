@@ -161,6 +161,51 @@ export function buildSalesRequestEmail(info: SalesRequestNotifyInfo) {
   return { html, text };
 }
 
+/** Replaces Supabase's own "resetPasswordForEmail" magic-link email for the
+ * client portal — that flow proved fragile across this app's domain
+ * changes (the recovery link's redirectTo has to exactly match Supabase's
+ * allow-listed Redirect URLs, which drifted every time the app moved
+ * domains) and gave no visibility when it silently failed. This is a plain
+ * temp password, same as a brand-new portal login already gets — the
+ * recipient is forced to set a real password (must_change_password) before
+ * reaching anything else the first time they sign in with it. */
+export function buildPortalPasswordResetEmail(recipientName: string, tempPassword: string) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const firstName = recipientName.split(" ")[0] || recipientName;
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Hi ${escapeHtml(firstName)}, your client portal password was reset</h2>
+      <p style="color:#334155;font-size:14px;">
+        Use this temporary password to sign in — you&rsquo;ll be asked to set a new one right away.
+      </p>
+      <p style="margin:16px 0;">
+        <code style="display:inline-block;background:#f1f5f9;border-radius:6px;padding:8px 12px;font-size:16px;font-weight:600;color:#0f172a;">${escapeHtml(
+          tempPassword
+        )}</code>
+      </p>
+      ${
+        appUrl
+          ? `<p style="margin:16px 0;"><a href="${appUrl}/login" style="color:#0f172a;font-weight:600;text-decoration:none;">Sign in →</a></p>`
+          : ""
+      }
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">
+        If you didn&rsquo;t request this, contact CG Technologies right away.
+      </p>
+    </div>
+  `;
+
+  const text = `Your client portal password was reset.
+
+Temporary password: ${tempPassword}
+
+Sign in${appUrl ? ` at ${appUrl}/login` : ""} — you'll be asked to set a new password right away.
+
+If you didn't request this, contact CG Technologies right away.`;
+
+  return { html, text };
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
