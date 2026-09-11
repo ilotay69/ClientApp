@@ -541,13 +541,24 @@ export async function screenPendingResumes(
         // from a migration that hasn't run yet, say), so without this a
         // failed write was silently counted as "screened" while nothing
         // actually got saved.
+        // candidate_name/email/phone are contact fields, not screening
+        // signals — a resume can already have one saved (typed in manually,
+        // or extracted by an earlier successful screen) that this call's
+        // own extraction simply fails to reproduce, since name/contact
+        // extraction reliability varies independently of the rest of the
+        // screen. Setting these to null whenever this pass came back empty
+        // used to silently blank out a name that was already correct;
+        // omitting the key instead leaves whatever's already stored alone.
+        const contactFields: Record<string, string> = {};
+        if (result.candidate_name) contactFields.candidate_name = result.candidate_name;
+        if (result.candidate_email) contactFields.candidate_email = result.candidate_email;
+        if (result.candidate_phone) contactFields.candidate_phone = result.candidate_phone;
+
         const { error: updateError } = await admin
           .from("resumes")
           .update({
             job_posting_id: posting.id,
-            candidate_name: result.candidate_name ?? null,
-            candidate_email: result.candidate_email ?? null,
-            candidate_phone: result.candidate_phone ?? null,
+            ...contactFields,
             ai_verdict: result.verdict,
             ai_comment: comment || null,
             big_firm_experience: result.big_firm_experience ?? null,
