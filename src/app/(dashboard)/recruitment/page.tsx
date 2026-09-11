@@ -39,6 +39,7 @@ export default async function RecruitmentPage({
     working?: string;
     m365?: string;
     no_resume?: string;
+    q?: string;
   }>;
 }) {
   const supabase = await createClient();
@@ -54,7 +55,9 @@ export default async function RecruitmentPage({
     working: workingParam,
     m365: m365Param,
     no_resume: noResumeParam,
+    q: nameQueryParam,
   } = await searchParams;
+  const nameQuery = (nameQueryParam ?? "").trim();
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
   const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
@@ -86,10 +89,19 @@ export default async function RecruitmentPage({
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, screened_at, screening_error, status"
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, screened_at, screening_error, status",
+      { count: "exact" }
     )
     .order("received_at", { ascending: false })
     .limit(200);
+  if (nameQuery) {
+    // PostgREST's `.or()` string treats commas/parens as syntax, so the
+    // value is double-quote-wrapped (its own PostgREST escape hatch) rather
+    // than sanitized/stripped — lets a name search safely contain those
+    // characters instead of silently mangling them.
+    const escaped = `"%${nameQuery.replace(/"/g, '\\"')}%"`;
+    resumeQuery = resumeQuery.or(`candidate_name.ilike.${escaped},sender_name.ilike.${escaped}`);
+  }
   if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
   if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
   if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
@@ -105,7 +117,7 @@ export default async function RecruitmentPage({
   // Matches recruitment-table.tsx's own hasResumeContent check (file_name ||
   // pasted_resume_text) rather than storage_path, which isn't selected here.
   if (noResumeYet) resumeQuery = resumeQuery.is("file_name", null).is("pasted_resume_text", null);
-  const { data: resumes } = await resumeQuery;
+  const { data: resumes, count: totalCount } = await resumeQuery;
 
   const rows = (resumes ?? []) as RecruitmentTableRow[];
 
@@ -218,6 +230,8 @@ export default async function RecruitmentPage({
           currentlyWorking={currentlyWorking}
           m365Management={m365Management}
           noResumeYet={noResumeYet}
+          nameQuery={nameQuery}
+          totalCount={totalCount ?? rowsWithDuplicates.length}
           clearHref="/recruitment"
         />
         <AddCandidateForm action={addCandidateAction} />
