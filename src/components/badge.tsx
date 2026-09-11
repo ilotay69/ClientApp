@@ -121,6 +121,12 @@ const COLORS: Record<string, string> = {
   // "needs attention" tier rather than red)
   stable: SUCCESS,
   frequent_changes: ATTENTION,
+
+  // resume screener — interview RSVP status ("declined" reuses the
+  // existing yes/maybe/no's semantic tiers exactly, just a different name)
+  accepted: SUCCESS,
+  declined: URGENT,
+  tentative: ATTENTION,
 };
 
 export function Badge({ value }: { value: string }) {

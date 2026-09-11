@@ -57,6 +57,7 @@ export type RecruitmentTableRow = Pick<
     scheduledAt: string;
     durationMinutes: number;
     location: string | null;
+    rsvpStatus: "accepted" | "declined" | "tentative" | null;
   }[];
   /** Full message thread (both directions) with this candidate through the
    * shared recruitment mailbox — from resume_messages (see page.tsx). */
@@ -510,19 +511,22 @@ function ApplicantRow({
                 </p>
                 <ul className="mt-1 space-y-0.5">
                   {row.interviewHistory.map((iv) => (
-                    <li key={iv.id} className="text-slate-600">
-                      {new Intl.DateTimeFormat("en-US", {
-                        timeZone: "America/Toronto",
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                        timeZoneName: "short",
-                      }).format(new Date(iv.scheduledAt))}{" "}
-                      · {iv.durationMinutes} min
-                      {iv.location ? ` · ${iv.location}` : ""}
+                    <li key={iv.id} className="flex items-center gap-1.5 text-slate-600">
+                      <span>
+                        {new Intl.DateTimeFormat("en-US", {
+                          timeZone: "America/Toronto",
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          timeZoneName: "short",
+                        }).format(new Date(iv.scheduledAt))}{" "}
+                        · {iv.durationMinutes} min
+                        {iv.location ? ` · ${iv.location}` : ""}
+                      </span>
+                      {iv.rsvpStatus && <Badge value={iv.rsvpStatus} />}
                     </li>
                   ))}
                 </ul>

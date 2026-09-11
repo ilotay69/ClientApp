@@ -634,7 +634,7 @@ export async function syncSharedMailboxNowAction(): Promise<{ ok: boolean; messa
     revalidatePath("/recruitment");
     return {
       ok: true,
-      message: `Scanned ${result.scanned} message${result.scanned === 1 ? "" : "s"}, matched ${result.matched} to a candidate.`,
+      message: `Scanned ${result.scanned} message${result.scanned === 1 ? "" : "s"}, matched ${result.matched} to a candidate${result.rsvps > 0 ? `, ${result.rsvps} RSVP${result.rsvps === 1 ? "" : "s"}` : ""}.`,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Sync failed." };

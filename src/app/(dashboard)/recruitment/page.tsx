@@ -9,6 +9,7 @@ import { ResumeFilterBar } from "@/components/resume-filter-bar";
 import { RecruitmentTable, type RecruitmentTableRow } from "@/components/recruitment-table";
 import { AddCandidateForm } from "@/components/add-candidate-form";
 import { BulkUploadResumesForm } from "@/components/bulk-upload-resumes-form";
+import { Badge } from "@/components/badge";
 import {
   updateResumeFolderName,
   syncResumesNow,
@@ -109,7 +110,7 @@ export default async function RecruitmentPage({
       supabase
         .from("resume_interviews")
         .select(
-          "id, resume_id, scheduled_at, duration_minutes, location, resumes(candidate_name, sender_name, candidate_email, sender_email)"
+          "id, resume_id, scheduled_at, duration_minutes, location, rsvp_status, rsvp_at, resumes(candidate_name, sender_name, candidate_email, sender_email)"
         )
         .order("scheduled_at", { ascending: true }),
       // Full two-way thread (both directions), oldest first — grouped by
@@ -129,6 +130,8 @@ export default async function RecruitmentPage({
     scheduled_at: string;
     duration_minutes: number;
     location: string | null;
+    rsvp_status: "accepted" | "declined" | "tentative" | null;
+    rsvp_at: string | null;
     resumes:
       | {
           candidate_name: string | null;
@@ -245,6 +248,7 @@ export default async function RecruitmentPage({
       scheduledAt: iv.scheduled_at,
       durationMinutes: iv.duration_minutes,
       location: iv.location,
+      rsvpStatus: iv.rsvp_status,
     })),
     messages: (messagesByResumeId.get(r.id) ?? []).map((m) => ({
       id: m.id,
@@ -370,6 +374,7 @@ export default async function RecruitmentPage({
                   <p className={`text-sm ${isPast ? "text-slate-400" : "text-slate-700"}`}>
                     {when} · {iv.duration_minutes} min
                   </p>
+                  {iv.rsvp_status && <Badge value={iv.rsvp_status} />}
                   {iv.location && <p className="text-xs text-slate-500">{iv.location}</p>}
                   {email && <p className="text-xs text-slate-400">{email}</p>}
                 </div>

@@ -636,12 +636,25 @@ export async function sendMailAsSharedMailbox(
   }
 }
 
+// A meeting-response email (Accept/Decline/Tentative from a candidate's
+// calendar app) isn't just a plain message in Graph's model — it's typed
+// distinctly via meetingMessageType, which is how RSVP status gets
+// detected without parsing anything out of the email body/subject text.
+export type MeetingMessageType =
+  | "none"
+  | "meetingRequest"
+  | "meetingCancelled"
+  | "meetingAccepted"
+  | "meetingDeclined"
+  | "meetingTentativelyAccepted";
+
 export type SharedMailboxMessage = {
   id: string;
   subject: string;
   receivedDateTime: string;
   from?: { emailAddress?: { name?: string; address?: string } };
   body?: { contentType: "html" | "text"; content: string };
+  meetingMessageType?: MeetingMessageType;
 };
 
 /**
@@ -659,7 +672,7 @@ export async function fetchSharedMailboxMessagesSince(
   const base = new URL(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}/messages`
   );
-  base.searchParams.set("$select", "id,subject,from,receivedDateTime,body");
+  base.searchParams.set("$select", "id,subject,from,receivedDateTime,body,meetingMessageType");
   base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso}`);
   base.searchParams.set("$orderby", "receivedDateTime asc");
   base.searchParams.set("$top", "50");
