@@ -379,7 +379,7 @@ export default async function RecruitmentPage({
         </div>
       </details>
 
-      <details className="rounded-xl border border-slate-200 bg-white shadow-sm" open={visibleInterviews.length > 0}>
+      <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <summary className="cursor-pointer px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
           {showPastInterviews ? "Interviews" : "Upcoming interviews"}
           {visibleInterviews.length > 0 ? ` (${visibleInterviews.length})` : ""}
