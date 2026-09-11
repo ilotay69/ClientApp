@@ -62,12 +62,6 @@ const STATUS_OPTIONS = [
   { value: "hired", label: "Hired" },
 ];
 
-const VERDICT_OPTIONS = [
-  { value: "yes", label: "Yes" },
-  { value: "maybe", label: "Maybe" },
-  { value: "no", label: "No" },
-];
-
 const OUR_VERDICT_OPTIONS = [
   { value: "yes", label: "Our: Yes" },
   { value: "maybe", label: "Our: Maybe" },
@@ -123,11 +117,10 @@ const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
 // and sets exactly this set in one go, with no extra client-side logic
 // needed to "clear then apply".
 const AUTO_SUGGEST_HREF =
-  "/recruitment?verdict=yes&big_firm=no&min_years=3to5&min_years=6to10&working=yes&gta=yes&m365=yes&stability=stable&canada=yes";
+  "/recruitment?our_verdict=yes&big_firm=no&min_years=3to5&min_years=6to10&working=yes&gta=yes&m365=yes&stability=stable&canada=yes";
 
 export function ResumeFilterBar({
   statuses,
-  verdicts,
   ourVerdicts,
   bigFirm,
   minYears,
@@ -141,7 +134,6 @@ export function ResumeFilterBar({
   clearHref,
 }: {
   statuses: string[];
-  verdicts: string[];
   ourVerdicts: string[];
   bigFirm: string | null;
   minYears: string[];
@@ -156,7 +148,6 @@ export function ResumeFilterBar({
 }) {
   const hasFilters =
     statuses.length > 0 ||
-    verdicts.length > 0 ||
     ourVerdicts.length > 0 ||
     Boolean(bigFirm) ||
     minYears.length > 0 ||
@@ -185,10 +176,6 @@ export function ResumeFilterBar({
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {STATUS_OPTIONS.map((o) => (
           <Chip key={`status-${o.value}`} name="status" option={o} checked={statuses.includes(o.value)} />
-        ))}
-        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
-        {VERDICT_OPTIONS.map((o) => (
-          <Chip key={`verdict-${o.value}`} name="verdict" option={o} checked={verdicts.includes(o.value)} />
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {OUR_VERDICT_OPTIONS.map((o) => (

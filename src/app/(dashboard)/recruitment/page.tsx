@@ -42,7 +42,6 @@ export default async function RecruitmentPage({
 }: {
   searchParams: Promise<{
     status?: string | string[];
-    verdict?: string | string[];
     our_verdict?: string | string[];
     big_firm?: string;
     min_years?: string | string[];
@@ -64,7 +63,6 @@ export default async function RecruitmentPage({
   const resolvedSearchParams = await searchParams;
   const {
     status: statusParam,
-    verdict: verdictParam,
     our_verdict: ourVerdictParam,
     big_firm: bigFirmParam,
     min_years: minYearsParam,
@@ -80,7 +78,6 @@ export default async function RecruitmentPage({
   const showPastInterviews = showPastInterviewsParam === "1";
   const nameQuery = (nameQueryParam ?? "").trim();
   const statuses = toParamArray(statusParam);
-  const verdicts = toParamArray(verdictParam);
   const ourVerdicts = toParamArray(ourVerdictParam);
   const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
   const YEARS_BUCKETS = ["under3", "3to5", "6to10", "11plus"];
@@ -223,7 +220,6 @@ export default async function RecruitmentPage({
     resumeQuery = resumeQuery.or(`candidate_name.ilike.${escaped},sender_name.ilike.${escaped}`);
   }
   if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
-  if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
   if (ourVerdicts.length > 0) resumeQuery = resumeQuery.in("human_verdict", ourVerdicts);
   if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
   if (minYears.length > 0) {
@@ -443,7 +439,6 @@ export default async function RecruitmentPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ResumeFilterBar
           statuses={statuses}
-          verdicts={verdicts}
           ourVerdicts={ourVerdicts}
           bigFirm={bigFirm}
           minYears={minYears}

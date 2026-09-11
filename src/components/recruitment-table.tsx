@@ -864,6 +864,19 @@ function ApplicantRow({
               </div>
             )}
             <div className="max-w-xl text-sm" onClick={(e) => e.stopPropagation()}>
+              {row.ai_interview_analysis && (
+                <div className="mb-3 rounded-md border border-indigo-100 bg-indigo-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
+                    AI Analysis
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-slate-700">{row.ai_interview_analysis}</p>
+                  {row.ai_interview_analysis_at && (
+                    <p className="mt-1 text-xs text-indigo-400">
+                      Updated {formatDate(row.ai_interview_analysis_at)}
+                    </p>
+                  )}
+                </div>
+              )}
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Interview Notes
               </p>
@@ -882,19 +895,6 @@ function ApplicantRow({
               <div className="mt-2">
                 <InterviewNoteForm resumeId={row.id} action={addInterviewNoteAction} />
               </div>
-              {row.ai_interview_analysis && (
-                <div className="mt-3 rounded-md border border-indigo-100 bg-indigo-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
-                    AI Analysis
-                  </p>
-                  <p className="mt-1 whitespace-pre-line text-slate-700">{row.ai_interview_analysis}</p>
-                  {row.ai_interview_analysis_at && (
-                    <p className="mt-1 text-xs text-indigo-400">
-                      Updated {formatDate(row.ai_interview_analysis_at)}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
             <div className="max-w-xl text-sm" onClick={(e) => e.stopPropagation()}>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
