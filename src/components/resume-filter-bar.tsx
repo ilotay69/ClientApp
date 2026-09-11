@@ -98,8 +98,8 @@ const STABILITY_OPTIONS = [
 ];
 
 const CANADA_OPTIONS = [
-  { value: "yes", label: "Last job: Canada" },
-  { value: "no", label: "Last job: Outside Canada" },
+  { value: "yes", label: "Last job: CA" },
+  { value: "no", label: "Last job: Not CA" },
 ];
 
 const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
