@@ -33,11 +33,11 @@ export function ClientPurchaseNoteField({
         <label className="block text-sm font-medium text-slate-700">
           Purchased through <span className="font-normal text-slate-400">(manual note)</span>
         </label>
-        <input
-          type="text"
+        <textarea
           name="note"
           defaultValue={currentNote ?? ""}
-          placeholder="e.g. Direct from Microsoft, or through TD Synnex"
+          rows={2}
+          placeholder="e.g. Direct from Microsoft, or through TD Synnex — one line per instruction if there's more than one"
           className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
         />
         {state.error && <p className="mt-1 text-xs text-red-600">{state.error}</p>}

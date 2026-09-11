@@ -68,7 +68,7 @@ export default async function LicenseReconciliationPage({
         deleteMappingAction={deleteServiceLicenseMapping}
       />
 
-      <div className="flex flex-wrap items-start gap-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="max-w-sm">
           <label className="block text-sm font-medium text-slate-700">Client</label>
           <div className="mt-1">
