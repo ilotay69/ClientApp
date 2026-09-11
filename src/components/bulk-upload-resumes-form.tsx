@@ -10,13 +10,16 @@ type BulkUploadState = {
   failures?: string[];
 };
 
-// One request handles this many files' worth of Storage uploads + DB
-// inserts — kept small so a large selection (dozens of files) can't turn
-// into one long-running request that outlives Railway's own request
-// timeout, the same generic "This page couldn't load" failure already
-// fixed once for resume screening. The form below loops this in chunks
-// instead of sending everything in a single call.
-const UPLOAD_CHUNK_SIZE = 3;
+// One file per request, not a small batch — next.config.ts caps a Server
+// Action's request body at 25MB (sized for exactly one resume up to the
+// 20MB per-file limit, with headroom for multipart overhead), so even 3
+// files together can already blow past that if they're not tiny, failing
+// immediately rather than timing out. One at a time guarantees every
+// request looks exactly like the already-proven single-file upload path.
+// It also keeps each request short, avoiding the separate timeout risk a
+// long-running batched request would have (same class of issue already
+// fixed once for resume screening).
+const UPLOAD_CHUNK_SIZE = 1;
 
 /** Collapsed behind a button by default, same pattern as AddCandidateForm —
  * stays open after a save (rather than collapsing like that form does) so
