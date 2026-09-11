@@ -44,6 +44,15 @@ export type RecruitmentTableRow = Pick<
    * matches this one's (see page.tsx) — null when no match. Computed at
    * display time, not stored. */
   duplicateOfName?: string | null;
+  /** Every interview invite ever sent for this candidate, oldest first —
+   * from resume_interviews (see page.tsx), not stored on the resume row
+   * itself. */
+  interviewHistory?: {
+    id: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    location: string | null;
+  }[];
 };
 
 /** Renders a boolean|null screening signal as a Yes/No badge, or "—" before
@@ -467,6 +476,31 @@ function ApplicantRow({
               <p className="text-xs text-slate-400">
                 Subject: {row.subject}
               </p>
+            )}
+            {row.interviewHistory && row.interviewHistory.length > 0 && (
+              <div className="text-xs">
+                <p className="font-semibold uppercase tracking-wider text-slate-500">
+                  Interview history
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {row.interviewHistory.map((iv) => (
+                    <li key={iv.id} className="text-slate-600">
+                      {new Intl.DateTimeFormat("en-US", {
+                        timeZone: "America/Toronto",
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                        timeZoneName: "short",
+                      }).format(new Date(iv.scheduledAt))}{" "}
+                      · {iv.durationMinutes} min
+                      {iv.location ? ` · ${iv.location}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {overview && (
               <p className="whitespace-pre-line text-sm font-medium text-slate-900">{overview}</p>

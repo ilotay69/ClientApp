@@ -44,6 +44,7 @@ export default async function RecruitmentPage({
     canada?: string;
     no_resume?: string;
     q?: string;
+    show_past_interviews?: string;
   }>;
 }) {
   const supabase = await createClient();
@@ -51,6 +52,7 @@ export default async function RecruitmentPage({
     redirect("/dashboard");
   }
 
+  const resolvedSearchParams = await searchParams;
   const {
     status: statusParam,
     verdict: verdictParam,
@@ -63,7 +65,9 @@ export default async function RecruitmentPage({
     canada: canadaParam,
     no_resume: noResumeParam,
     q: nameQueryParam,
-  } = await searchParams;
+    show_past_interviews: showPastInterviewsParam,
+  } = resolvedSearchParams;
+  const showPastInterviews = showPastInterviewsParam === "1";
   const nameQuery = (nameQueryParam ?? "").trim();
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
@@ -82,7 +86,7 @@ export default async function RecruitmentPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: connection }, { data: postings }, { data: upcomingInterviews }] = await Promise.all([
+  const [{ data: connection }, { data: postings }, { data: allInterviews }] = await Promise.all([
     supabase
       .from("mail_connections")
       .select("resume_folder_name, resume_sync_last_synced_at")
@@ -92,20 +96,53 @@ export default async function RecruitmentPage({
       .from("job_postings")
       .select("id, title, description, created_at")
       .order("created_at", { ascending: false }),
-    // Every invite still ahead of us, most-imminent first — resumes(...) is
-    // a nested embed via resume_interviews.resume_id's FK, not a separate
+    // Every invite ever sent, oldest first — both the top "Upcoming
+    // interviews" section (filtered to now-or-later below, unless the
+    // "show past" toggle is on) and each candidate's own interview history
+    // in the table below are built from this one fetch. resumes(...) is a
+    // nested embed via resume_interviews.resume_id's FK, not a separate
     // round-trip.
     supabase
       .from("resume_interviews")
       .select(
-        "id, scheduled_at, duration_minutes, location, resumes(candidate_name, sender_name, candidate_email, sender_email)"
+        "id, resume_id, scheduled_at, duration_minutes, location, resumes(candidate_name, sender_name, candidate_email, sender_email)"
       )
-      .gte("scheduled_at", new Date().toISOString())
       .order("scheduled_at", { ascending: true }),
   ]);
 
   const currentPosting = postings?.[0] ?? null;
   const pastPostings = postings?.slice(1) ?? [];
+
+  type InterviewRow = {
+    id: string;
+    resume_id: string;
+    scheduled_at: string;
+    duration_minutes: number;
+    location: string | null;
+    resumes:
+      | {
+          candidate_name: string | null;
+          sender_name: string | null;
+          candidate_email: string | null;
+          sender_email: string | null;
+        }[]
+      | null;
+  };
+  const interviews = (allInterviews ?? []) as InterviewRow[];
+
+  const nowIso = new Date().toISOString();
+  // Always ascending, same as the base query — filtering to a subset never
+  // reorders it.
+  const visibleInterviews = showPastInterviews
+    ? interviews
+    : interviews.filter((iv) => iv.scheduled_at >= nowIso);
+
+  const interviewsByResumeId = new Map<string, InterviewRow[]>();
+  for (const iv of interviews) {
+    const list = interviewsByResumeId.get(iv.resume_id) ?? [];
+    list.push(iv);
+    interviewsByResumeId.set(iv.resume_id, list);
+  }
 
   let resumeQuery = supabase
     .from("resumes")
@@ -179,7 +216,27 @@ export default async function RecruitmentPage({
   const rowsWithDuplicates = rows.map((r) => ({
     ...r,
     duplicateOfName: duplicateOfById.get(r.id) ?? null,
+    interviewHistory: (interviewsByResumeId.get(r.id) ?? []).map((iv) => ({
+      id: iv.id,
+      scheduledAt: iv.scheduled_at,
+      durationMinutes: iv.duration_minutes,
+      location: iv.location,
+    })),
   }));
+
+  // Toggles ?show_past_interviews= while preserving every other current
+  // filter param — built from the raw searchParams object rather than the
+  // already-destructured individual filters, so this doesn't need updating
+  // every time a new filter is added elsewhere on this page.
+  const toggleInterviewsParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolvedSearchParams)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) value.forEach((v) => toggleInterviewsParams.append(key, v));
+    else toggleInterviewsParams.append(key, value);
+  }
+  if (showPastInterviews) toggleInterviewsParams.delete("show_past_interviews");
+  else toggleInterviewsParams.set("show_past_interviews", "1");
+  const toggleInterviewsHref = `/recruitment?${toggleInterviewsParams.toString()}`;
 
   return (
     <div className="space-y-6">
@@ -246,62 +303,48 @@ export default async function RecruitmentPage({
         </div>
       </details>
 
-      <details className="rounded-xl border border-slate-200 bg-white shadow-sm" open={(upcomingInterviews?.length ?? 0) > 0}>
+      <details className="rounded-xl border border-slate-200 bg-white shadow-sm" open={visibleInterviews.length > 0}>
         <summary className="cursor-pointer px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
-          Upcoming interviews{upcomingInterviews && upcomingInterviews.length > 0 ? ` (${upcomingInterviews.length})` : ""}
+          {showPastInterviews ? "Interviews" : "Upcoming interviews"}
+          {visibleInterviews.length > 0 ? ` (${visibleInterviews.length})` : ""}
         </summary>
+        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-2">
+          <span className="text-xs text-slate-400">Always sorted soonest first.</span>
+          <a href={toggleInterviewsHref} className="text-xs font-medium text-slate-500 underline">
+            {showPastInterviews ? "Hide past interviews" : "Show past interviews"}
+          </a>
+        </div>
         <div className="divide-y divide-slate-100 border-t border-slate-100">
-          {!upcomingInterviews || upcomingInterviews.length === 0 ? (
+          {visibleInterviews.length === 0 ? (
             <p className="px-6 py-4 text-sm text-slate-500">Nothing scheduled yet.</p>
           ) : (
-            upcomingInterviews.map(
-              (iv: {
-                id: string;
-                scheduled_at: string;
-                duration_minutes: number;
-                location: string | null;
-                // PostgREST embeds a to-one relation as an array in the
-                // inferred type regardless of actual cardinality (Database
-                // is untyped here, so nothing narrows this further) — it's
-                // really ever at most one row, hence the defensive index
-                // below rather than trusting either shape outright.
-                resumes:
-                  | {
-                      candidate_name: string | null;
-                      sender_name: string | null;
-                      candidate_email: string | null;
-                      sender_email: string | null;
-                    }[]
-                  | null;
-              }) => {
-                const resumeInfo = Array.isArray(iv.resumes) ? iv.resumes[0] : iv.resumes;
-                const name = resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate";
-                const email = resumeInfo?.candidate_email ?? resumeInfo?.sender_email;
-                const when = new Intl.DateTimeFormat("en-US", {
-                  timeZone: "America/Toronto",
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  timeZoneName: "short",
-                }).format(new Date(iv.scheduled_at));
-                return (
-                  <div key={iv.id} className="flex flex-wrap items-center justify-between gap-2 px-6 py-2">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{name}</p>
-                      {email && <p className="text-xs text-slate-500">{email}</p>}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-slate-700">
-                        {when} · {iv.duration_minutes} min
-                      </p>
-                      {iv.location && <p className="text-xs text-slate-500">{iv.location}</p>}
-                    </div>
-                  </div>
-                );
-              }
-            )
+            visibleInterviews.map((iv: InterviewRow) => {
+              const resumeInfo = Array.isArray(iv.resumes) ? iv.resumes[0] : iv.resumes;
+              const name = resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate";
+              const email = resumeInfo?.candidate_email ?? resumeInfo?.sender_email;
+              const isPast = iv.scheduled_at < nowIso;
+              const when = new Intl.DateTimeFormat("en-US", {
+                timeZone: "America/Toronto",
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                timeZoneName: "short",
+              }).format(new Date(iv.scheduled_at));
+              return (
+                <div key={iv.id} className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 px-6 py-2">
+                  <p className={`w-56 shrink-0 text-sm font-medium ${isPast ? "text-slate-400" : "text-slate-900"}`}>
+                    {name}
+                  </p>
+                  <p className={`text-sm ${isPast ? "text-slate-400" : "text-slate-700"}`}>
+                    {when} · {iv.duration_minutes} min
+                  </p>
+                  {iv.location && <p className="text-xs text-slate-500">{iv.location}</p>}
+                  {email && <p className="text-xs text-slate-400">{email}</p>}
+                </div>
+              );
+            })
           )}
         </div>
       </details>
