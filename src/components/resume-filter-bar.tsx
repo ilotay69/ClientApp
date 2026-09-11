@@ -109,7 +109,7 @@ const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
 // and sets exactly this set in one go, with no extra client-side logic
 // needed to "clear then apply".
 const AUTO_SUGGEST_HREF =
-  "/recruitment?status=new&verdict=yes&min_years=3to5&min_years=6to10&working=yes&gta=yes&m365=yes&stability=stable&canada=yes";
+  "/recruitment?status=new&verdict=yes&big_firm=no&min_years=3to5&min_years=6to10&working=yes&gta=yes&m365=yes&stability=stable&canada=yes";
 
 export function ResumeFilterBar({
   statuses,
