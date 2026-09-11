@@ -111,6 +111,12 @@ const COLORS: Record<string, string> = {
   // sales request source — a category, not a status
   manual: NEUTRAL,
   mailbox_ai: CATEGORY_PURPLE,
+
+  // resume screener — job_stability (not a plain yes/no boolean; frequent
+  // job changes isn't "urgent", just worth a second look, so it gets the
+  // "needs attention" tier rather than red)
+  stable: SUCCESS,
+  frequent_changes: ATTENTION,
 };
 
 export function Badge({ value }: { value: string }) {

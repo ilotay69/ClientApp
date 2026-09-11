@@ -92,6 +92,11 @@ const GTA_OPTIONS = [
   { value: "no", label: "GTA: No" },
 ];
 
+const STABILITY_OPTIONS = [
+  { value: "stable", label: "Stable" },
+  { value: "frequent_changes", label: "Frequent changes" },
+];
+
 const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
 
 export function ResumeFilterBar({
@@ -102,6 +107,7 @@ export function ResumeFilterBar({
   currentlyWorking,
   m365Management,
   gta,
+  stability,
   noResumeYet,
   nameQuery,
   clearHref,
@@ -113,6 +119,7 @@ export function ResumeFilterBar({
   currentlyWorking: string | null;
   m365Management: string | null;
   gta: string | null;
+  stability: string | null;
   noResumeYet: boolean;
   nameQuery: string;
   clearHref: string;
@@ -125,6 +132,7 @@ export function ResumeFilterBar({
     Boolean(currentlyWorking) ||
     Boolean(m365Management) ||
     Boolean(gta) ||
+    Boolean(stability) ||
     noResumeYet ||
     Boolean(nameQuery);
 
@@ -185,6 +193,16 @@ export function ResumeFilterBar({
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {GTA_OPTIONS.map((o) => (
           <Chip key={`gta-${o.value}`} name="gta" option={o} checked={gta === o.value} radio />
+        ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        {STABILITY_OPTIONS.map((o) => (
+          <Chip
+            key={`stability-${o.value}`}
+            name="stability"
+            option={o}
+            checked={stability === o.value}
+            radio
+          />
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         <Chip name="no_resume" option={NO_RESUME_OPTION} checked={noResumeYet} />

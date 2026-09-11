@@ -90,6 +90,12 @@ const TOOL_SCHEMA = {
             description:
               "true if the candidate is located in the Greater Toronto Area (Toronto, Mississauga, Brampton, Markham, Vaughan, Richmond Hill, Oakville, Scarborough, Etobicoke, North York, and similar GTA municipalities), false if a city is stated and it's clearly outside the GTA. If the candidate's own address isn't given, judge by their most recent job's location instead. Null only if no city is mentioned anywhere at all — don't guess.",
           },
+          job_stability: {
+            type: ["string", "null"],
+            enum: ["stable", "frequent_changes", null],
+            description:
+              "Review EVERY employer/position listed in the work history, not just the most recent one, together with each one's dates. \"frequent_changes\" if there's a pattern of short stints — roughly 3 or more past roles each under about 1-2 years (their current/still-ongoing role doesn't count against this, since it hasn't ended yet). \"stable\" if most roles show longer tenure (roughly 2+ years), or there are too few jobs listed to show any hopping pattern at all. Null only if no dates/work history are given to judge from.",
+          },
           m365_technologies: {
             type: ["string", "null"],
             description:
@@ -108,6 +114,7 @@ const TOOL_SCHEMA = {
           "months_since_worked",
           "in_gta",
           "m365_technologies",
+          "job_stability",
         ],
       },
     },
@@ -282,9 +289,13 @@ their most recent job look still-current, e.g. no end date or "present") plus, o
 when currently_working is false, months_since_worked (roughly how many months since
 that job ended), in_gta (is the candidate located in the Greater Toronto Area —
 judge by their own stated address, or failing that, their most recent job's location),
-and m365_technologies (a short keyword list — not sentences — of specific Microsoft
+m365_technologies (a short keyword list — not sentences — of specific Microsoft
 cloud technologies with HANDS-ON ADMIN/CONFIGURATION evidence, e.g. "Intune, Azure AD,
-Exchange Admin"; not just end-user app use) — leave any of these null if it genuinely can't be told from what's provided, don't
+Exchange Admin"; not just end-user app use), and job_stability — review EVERY employer
+listed, not just the most recent one, with each one's dates: "frequent_changes" if there's
+a pattern of roughly 3+ past roles each under about 1-2 years (their current, still-ongoing
+role doesn't count against this), "stable" if most roles run 2+ years or there are too few
+jobs listed to show a pattern — leave any of these null if it genuinely can't be told from what's provided, don't
 guess. Note explicitly in technical_ability or customer_relationships
 if your verdict is based only on notification content with no resume yet. Report
 exactly one entry per resume_number shown above — don't skip any, and don't invent
@@ -500,6 +511,7 @@ export async function screenPendingResumes(
         months_since_worked?: number | null;
         in_gta?: boolean | null;
         m365_technologies?: string | null;
+        job_stability?: "stable" | "frequent_changes" | null;
       };
       const rawResults = parsed?.results;
       const resultsArray: ScreeningResult[] = Array.isArray(rawResults)
@@ -567,6 +579,7 @@ export async function screenPendingResumes(
             months_since_worked: result.months_since_worked ?? null,
             in_gta: result.in_gta ?? null,
             m365_technologies: result.m365_technologies ?? null,
+            job_stability: result.job_stability ?? null,
             screened_at: new Date().toISOString(),
             screening_error: null,
           })

@@ -278,6 +278,10 @@ export interface Resume {
    * Exchange Admin") — not end-user app use. Null until screened, or if
    * none are evidenced. */
   m365_technologies: string | null;
+  /** "stable" or "frequent_changes", judged from EVERY employer listed (not
+   * just the most recent one) and each one's dates — null until screened,
+   * or if there's no work history/dates to judge from. */
+  job_stability: "stable" | "frequent_changes" | null;
   screened_at: string | null;
   screening_error: string | null;
   status: ResumeStatus;
