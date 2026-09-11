@@ -55,16 +55,25 @@ export function BulkUploadResumesForm({
         const chunkFormData = new FormData();
         for (const file of chunk) chunkFormData.append("files", file);
 
-        const outcome = await action({ error: null, success: null }, chunkFormData);
-        // No `created` at all means this chunk never even got to
-        // processing files (permission denied, etc.) — a real stop, not
-        // just some files in the chunk failing individually.
-        if (outcome.created === undefined) {
-          setResult(outcome);
-          return;
+        // A network-level failure calling the action at all (not the
+        // action's own graceful {error} response — that's handled below)
+        // is now just this one file's failure, not the whole batch's —
+        // one problem file shouldn't stop everything after it.
+        try {
+          const outcome = await action({ error: null, success: null }, chunkFormData);
+          // No `created` at all means this chunk never even got to
+          // processing files (permission denied, etc.) — a real stop, not
+          // just some files in the chunk failing individually.
+          if (outcome.created === undefined) {
+            setResult(outcome);
+            return;
+          }
+          created += outcome.created;
+          failures.push(...(outcome.failures ?? []));
+        } catch (err) {
+          console.error("BulkUploadResumesForm: chunk request failed", err);
+          failures.push(...chunk.map((f) => `${f.name} — couldn't be uploaded, paste its text instead`));
         }
-        created += outcome.created;
-        failures.push(...(outcome.failures ?? []));
 
         const done = i + UPLOAD_CHUNK_SIZE >= fileArray.length;
         setResult({

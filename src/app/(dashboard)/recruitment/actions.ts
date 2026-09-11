@@ -611,54 +611,67 @@ export async function bulkUploadResumesAction(
   const failures: string[] = [];
 
   for (const file of files) {
-    const extensionOk = /\.(pdf|docx)$/i.test(file.name);
-    if (!RESUME_MEDIA_TYPES[file.type] && !extensionOk) {
-      failures.push(`${file.name} (not a PDF or Word file)`);
-      continue;
+    // Wraps this one file's entire path — a thrown exception here (a
+    // corrupted file failing arrayBuffer(), a Storage SDK call that
+    // throws instead of returning {error} on some malformed input, etc.)
+    // used to propagate straight out of the whole Server Action call with
+    // no graceful {error} response at all, which is what actually caused
+    // the generic, uninformative "page couldn't load" failure a bad file
+    // triggered — one file's real problem should never take down the
+    // whole request when every other file in the batch is fine.
+    try {
+      const extensionOk = /\.(pdf|docx)$/i.test(file.name);
+      if (!RESUME_MEDIA_TYPES[file.type] && !extensionOk) {
+        failures.push(`${file.name} — not a PDF or Word file, paste its text instead`);
+        continue;
+      }
+      if (file.size > MAX_RESUME_UPLOAD_BYTES) {
+        failures.push(`${file.name} — larger than 20MB, paste its text instead`);
+        continue;
+      }
+
+      const contentType =
+        file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+      // Generated up front (rather than left to the resumes table's own
+      // default) so the storage path can nest under this row's id, same
+      // layout convention as uploadResumeFileAction's single-file path.
+      const resumeId = crypto.randomUUID();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${resumeId}/${crypto.randomUUID()}-${safeName}`;
+
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const { error: uploadError } = await admin.storage.from("resumes").upload(path, bytes, { contentType });
+      if (uploadError) {
+        console.error("bulkUploadResumesAction: upload failed", uploadError);
+        failures.push(`${file.name} — couldn't be uploaded, paste its text instead`);
+        continue;
+      }
+
+      const { error: insertError } = await admin.from("resumes").insert({
+        id: resumeId,
+        graph_message_id: `manual-${crypto.randomUUID()}`,
+        graph_attachment_id: null,
+        received_at: new Date().toISOString(),
+        storage_path: path,
+        file_name: file.name,
+        file_size_bytes: file.size,
+        content_type: contentType,
+      });
+      if (insertError) {
+        await admin.storage.from("resumes").remove([path]); // matches uploadResumeFileAction's rollback
+        console.error("bulkUploadResumesAction: row insert failed", insertError);
+        failures.push(`${file.name} — couldn't be saved, paste its text instead`);
+        continue;
+      }
+
+      created += 1;
+    } catch (err) {
+      console.error("bulkUploadResumesAction: unexpected error on one file", file.name, err);
+      failures.push(`${file.name} — couldn't be uploaded, paste its text instead`);
     }
-    if (file.size > MAX_RESUME_UPLOAD_BYTES) {
-      failures.push(`${file.name} (larger than 20MB)`);
-      continue;
-    }
-
-    const contentType =
-      file.type === "application/pdf" || /\.pdf$/i.test(file.name)
-        ? "application/pdf"
-        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-    // Generated up front (rather than left to the resumes table's own
-    // default) so the storage path can nest under this row's id, same
-    // layout convention as uploadResumeFileAction's single-file path.
-    const resumeId = crypto.randomUUID();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `${resumeId}/${crypto.randomUUID()}-${safeName}`;
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const { error: uploadError } = await admin.storage.from("resumes").upload(path, bytes, { contentType });
-    if (uploadError) {
-      console.error("bulkUploadResumesAction: upload failed", uploadError);
-      failures.push(`${file.name} (${uploadError.message})`);
-      continue;
-    }
-
-    const { error: insertError } = await admin.from("resumes").insert({
-      id: resumeId,
-      graph_message_id: `manual-${crypto.randomUUID()}`,
-      graph_attachment_id: null,
-      received_at: new Date().toISOString(),
-      storage_path: path,
-      file_name: file.name,
-      file_size_bytes: file.size,
-      content_type: contentType,
-    });
-    if (insertError) {
-      await admin.storage.from("resumes").remove([path]); // matches uploadResumeFileAction's rollback
-      console.error("bulkUploadResumesAction: row insert failed", insertError);
-      failures.push(`${file.name} (${insertError.message})`);
-      continue;
-    }
-
-    created += 1;
   }
 
   revalidatePath("/recruitment");
