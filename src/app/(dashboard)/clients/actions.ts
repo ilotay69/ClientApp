@@ -1040,7 +1040,7 @@ export async function updateClientM365PurchaseNoteAction(
     return { error: error.message };
   }
 
-  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/reconciliation/licenses");
   return { error: null };
 }
 

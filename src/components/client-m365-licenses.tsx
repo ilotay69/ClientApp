@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/badge";
 import { friendlyM365SkuName } from "@/lib/m365-sku-names";
 import { CollapsibleCard } from "@/components/collapsible-card";
@@ -13,74 +13,15 @@ export type M365LicenseRow = {
   enabled_units: number;
 };
 
-type PurchaseNoteState = { error: string | null };
-
 // Below this, the filter row costs more space than it saves.
 const FILTER_THRESHOLD = 5;
-
-/** Purchase channel (direct vs. through a distributor like TD Synnex) isn't
- * exposed by the tenant-scoped Graph API this data is synced through — no
- * Microsoft API call can tell us that, so it's a plain manual note instead. */
-function PurchaseNoteField({
-  clientId,
-  currentNote,
-  action,
-}: {
-  clientId: string;
-  currentNote: string | null;
-  action: (
-    clientId: string,
-    prev: PurchaseNoteState,
-    formData: FormData
-  ) => Promise<PurchaseNoteState>;
-}) {
-  const [state, formAction, pending] = useActionState<PurchaseNoteState, FormData>(
-    action.bind(null, clientId),
-    { error: null }
-  );
-
-  return (
-    <form action={formAction} className="flex flex-wrap items-start gap-2 border-b border-slate-100 px-5 py-3">
-      <div className="min-w-[16rem] flex-1">
-        <label className="block text-xs font-medium text-slate-700">
-          Purchased through <span className="font-normal text-slate-400">(manual note)</span>
-        </label>
-        <input
-          type="text"
-          name="note"
-          defaultValue={currentNote ?? ""}
-          placeholder="e.g. Direct from Microsoft, or through TD Synnex"
-          className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-        />
-        {state.error && <p className="mt-1 text-xs text-red-600">{state.error}</p>}
-      </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className="mt-5 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-      >
-        {pending ? "Saving…" : "Save"}
-      </button>
-    </form>
-  );
-}
 
 export function ClientM365Licenses({
   tenantId,
   licenses,
-  purchaseNote,
-  updatePurchaseNoteAction,
-  clientId,
 }: {
   tenantId: string | null;
   licenses: M365LicenseRow[];
-  purchaseNote: string | null;
-  updatePurchaseNoteAction: (
-    clientId: string,
-    prev: PurchaseNoteState,
-    formData: FormData
-  ) => Promise<PurchaseNoteState>;
-  clientId: string;
 }) {
   const [query, setQuery] = useState("");
   const [toggle, setToggle] = useState<string | null>(null);
@@ -99,11 +40,6 @@ export function ClientM365Licenses({
 
   return (
     <CollapsibleCard title="Microsoft 365 licenses" count={visible.length}>
-      <PurchaseNoteField
-        clientId={clientId}
-        currentNote={purchaseNote}
-        action={updatePurchaseNoteAction}
-      />
       {showFilters && (
         <ListFilterBar
           query={query}

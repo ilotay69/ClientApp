@@ -50,7 +50,6 @@ import {
   saveM365ClientCredentialsAction,
   testM365ClientConnectionAction,
   unlinkClientM365Tenant,
-  updateClientM365PurchaseNoteAction,
   syncClientM365Data,
   autoSyncClientNinjaOneIfStale,
   autoSyncClientM365IfStale,
@@ -511,9 +510,6 @@ export default async function ClientDetailPage({
                     <ClientM365Licenses
                       tenantId={client.m365_tenant_id}
                       licenses={m365Licenses ?? []}
-                      purchaseNote={client.m365_license_purchase_note}
-                      updatePurchaseNoteAction={updateClientM365PurchaseNoteAction}
-                      clientId={client.id}
                     />
 
                     <ClientM365SecureScore

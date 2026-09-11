@@ -8,9 +8,11 @@ import {
   fetchAllContractedServiceNames,
 } from "@/lib/reconciliation-data";
 import { saveServiceLicenseMapping, deleteServiceLicenseMapping } from "../actions";
+import { updateClientM365PurchaseNoteAction } from "../../clients/actions";
 import { ClientPicker } from "@/components/reconciliation-client-picker";
 import { ReconciliationTable } from "@/components/reconciliation-table";
 import { ServiceLicenseMappingsManager } from "@/components/service-license-mappings-manager";
+import { ClientPurchaseNoteField } from "@/components/client-purchase-note-field";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +30,16 @@ export default async function LicenseReconciliationPage({
 
   const admin = createAdminClient();
   const [{ data: clients }, mappings, allSkus, allServiceNames] = await Promise.all([
-    admin.from("clients").select("id, name").order("name"),
+    admin.from("clients").select("id, name, m365_license_purchase_note").order("name"),
     fetchServiceLicenseMappings(admin),
     fetchAllKnownSkus(),
     fetchAllContractedServiceNames(),
   ]);
-  const clientList = (clients ?? []) as { id: string; name: string }[];
+  const clientList = (clients ?? []) as {
+    id: string;
+    name: string;
+    m365_license_purchase_note: string | null;
+  }[];
 
   const mappedServiceNames = new Set(mappings.map((m) => m.serviceName.trim().toLowerCase()));
   const unmappedServiceNames = allServiceNames.filter(
@@ -62,11 +68,20 @@ export default async function LicenseReconciliationPage({
         deleteMappingAction={deleteServiceLicenseMapping}
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label className="block text-sm font-medium text-slate-700">Client</label>
-        <div className="mt-1 max-w-sm">
-          <ClientPicker clients={clientList} selectedId={selectedClient?.id ?? null} />
+      <div className="flex flex-wrap items-start gap-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="max-w-sm">
+          <label className="block text-sm font-medium text-slate-700">Client</label>
+          <div className="mt-1">
+            <ClientPicker clients={clientList} selectedId={selectedClient?.id ?? null} />
+          </div>
         </div>
+        {selectedClient && (
+          <ClientPurchaseNoteField
+            clientId={selectedClient.id}
+            currentNote={selectedClient.m365_license_purchase_note}
+            action={updateClientM365PurchaseNoteAction}
+          />
+        )}
       </div>
 
       {!selectedClient || !result ? (
