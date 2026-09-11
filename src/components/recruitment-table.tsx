@@ -32,6 +32,7 @@ export type RecruitmentTableRow = Pick<
   | "in_gta"
   | "m365_technologies"
   | "job_stability"
+  | "last_job_in_canada"
   | "screened_at"
   | "screening_error"
   | "status"
@@ -212,6 +213,7 @@ export function RecruitmentTable({
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">365 Tech</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Stability</th>
+              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Canada</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
             </tr>
@@ -231,7 +233,7 @@ export function RecruitmentTable({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-5 py-8 text-center text-sm text-slate-500">
+                <td colSpan={13} className="px-5 py-8 text-center text-sm text-slate-500">
                   No resumes match this filter yet.
                 </td>
               </tr>
@@ -334,6 +336,9 @@ function ApplicantRow({
             <span className="text-xs text-slate-400">—</span>
           )}
         </td>
+        <td className="px-3 py-1.5">
+          <YesNoBadge value={row.last_job_in_canada} />
+        </td>
         <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
           <ResumeStatusSelect
             resumeId={row.id}
@@ -360,7 +365,7 @@ function ApplicantRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={12} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
+          <td colSpan={13} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
             {(row.candidate_email || row.sender_email || row.candidate_phone) && (
               <p className="text-xs text-slate-500">
                 Contact: {[row.candidate_email ?? row.sender_email, row.candidate_phone]

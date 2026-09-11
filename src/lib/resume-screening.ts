@@ -96,6 +96,11 @@ const TOOL_SCHEMA = {
             description:
               "Review EVERY employer/position listed in the work history, not just the most recent one, together with each one's dates. \"frequent_changes\" if there's a pattern of short stints — roughly 3 or more past roles each under about 1-2 years (their current/still-ongoing role doesn't count against this, since it hasn't ended yet). \"stable\" if most roles show longer tenure (roughly 2+ years), or there are too few jobs listed to show any hopping pattern at all. Null only if no dates/work history are given to judge from.",
           },
+          last_job_in_canada: {
+            type: ["boolean", "null"],
+            description:
+              "true if the candidate's MOST RECENT job's stated location is in Canada (any province or city), false if that job's location is clearly outside Canada. Judge specifically by the employer/location given for their most recent role — not their personal mailing address, and not any earlier job. Null only if no location is stated for their most recent job at all — don't guess.",
+          },
           m365_technologies: {
             type: ["string", "null"],
             description:
@@ -115,6 +120,7 @@ const TOOL_SCHEMA = {
           "in_gta",
           "m365_technologies",
           "job_stability",
+          "last_job_in_canada",
         ],
       },
     },
@@ -291,11 +297,13 @@ that job ended), in_gta (is the candidate located in the Greater Toronto Area �
 judge by their own stated address, or failing that, their most recent job's location),
 m365_technologies (a short keyword list — not sentences — of specific Microsoft
 cloud technologies with HANDS-ON ADMIN/CONFIGURATION evidence, e.g. "Intune, Azure AD,
-Exchange Admin"; not just end-user app use), and job_stability — review EVERY employer
+Exchange Admin"; not just end-user app use), job_stability — review EVERY employer
 listed, not just the most recent one, with each one's dates: "frequent_changes" if there's
 a pattern of roughly 3+ past roles each under about 1-2 years (their current, still-ongoing
 role doesn't count against this), "stable" if most roles run 2+ years or there are too few
-jobs listed to show a pattern — leave any of these null if it genuinely can't be told from what's provided, don't
+jobs listed to show a pattern — and last_job_in_canada (is their MOST RECENT job's stated
+location in Canada, judged by that job's own location, not their personal address or any
+earlier job) — leave any of these null if it genuinely can't be told from what's provided, don't
 guess. Note explicitly in technical_ability or customer_relationships
 if your verdict is based only on notification content with no resume yet. Report
 exactly one entry per resume_number shown above — don't skip any, and don't invent
@@ -512,6 +520,7 @@ export async function screenPendingResumes(
         in_gta?: boolean | null;
         m365_technologies?: string | null;
         job_stability?: "stable" | "frequent_changes" | null;
+        last_job_in_canada?: boolean | null;
       };
       const rawResults = parsed?.results;
       const resultsArray: ScreeningResult[] = Array.isArray(rawResults)
@@ -580,6 +589,7 @@ export async function screenPendingResumes(
             in_gta: result.in_gta ?? null,
             m365_technologies: result.m365_technologies ?? null,
             job_stability: result.job_stability ?? null,
+            last_job_in_canada: result.last_job_in_canada ?? null,
             screened_at: new Date().toISOString(),
             screening_error: null,
           })

@@ -41,6 +41,7 @@ export default async function RecruitmentPage({
     m365?: string;
     gta?: string;
     stability?: string;
+    canada?: string;
     no_resume?: string;
     q?: string;
   }>;
@@ -59,6 +60,7 @@ export default async function RecruitmentPage({
     m365: m365Param,
     gta: gtaParam,
     stability: stabilityParam,
+    canada: canadaParam,
     no_resume: noResumeParam,
     q: nameQueryParam,
   } = await searchParams;
@@ -73,6 +75,7 @@ export default async function RecruitmentPage({
   const gta = gtaParam === "yes" || gtaParam === "no" ? gtaParam : null;
   const stability =
     stabilityParam === "stable" || stabilityParam === "frequent_changes" ? stabilityParam : null;
+  const canada = canadaParam === "yes" || canadaParam === "no" ? canadaParam : null;
   const noResumeYet = noResumeParam === "yes";
 
   const {
@@ -97,7 +100,7 @@ export default async function RecruitmentPage({
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, screened_at, screening_error, status",
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, last_job_in_canada, screened_at, screening_error, status",
       { count: "exact" }
     )
     .order("received_at", { ascending: false })
@@ -133,6 +136,7 @@ export default async function RecruitmentPage({
   else if (m365Management === "no") resumeQuery = resumeQuery.is("m365_technologies", null);
   if (gta) resumeQuery = resumeQuery.eq("in_gta", gta === "yes");
   if (stability) resumeQuery = resumeQuery.eq("job_stability", stability);
+  if (canada) resumeQuery = resumeQuery.eq("last_job_in_canada", canada === "yes");
   // Matches recruitment-table.tsx's own hasResumeContent check (file_name ||
   // pasted_resume_text) rather than storage_path, which isn't selected here.
   if (noResumeYet) resumeQuery = resumeQuery.is("file_name", null).is("pasted_resume_text", null);
@@ -246,6 +250,7 @@ export default async function RecruitmentPage({
           m365Management={m365Management}
           gta={gta}
           stability={stability}
+          canada={canada}
           noResumeYet={noResumeYet}
           nameQuery={nameQuery}
           clearHref="/recruitment"

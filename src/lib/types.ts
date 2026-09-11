@@ -282,6 +282,10 @@ export interface Resume {
    * just the most recent one) and each one's dates — null until screened,
    * or if there's no work history/dates to judge from. */
   job_stability: "stable" | "frequent_changes" | null;
+  /** True if the candidate's most recent job's stated location is in
+   * Canada, false if clearly outside it, null until screened or if no
+   * location is stated for that job at all. */
+  last_job_in_canada: boolean | null;
   screened_at: string | null;
   screening_error: string | null;
   status: ResumeStatus;

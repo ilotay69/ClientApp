@@ -97,6 +97,11 @@ const STABILITY_OPTIONS = [
   { value: "frequent_changes", label: "Frequent changes" },
 ];
 
+const CANADA_OPTIONS = [
+  { value: "yes", label: "Last job: Canada" },
+  { value: "no", label: "Last job: Outside Canada" },
+];
+
 const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
 
 export function ResumeFilterBar({
@@ -108,6 +113,7 @@ export function ResumeFilterBar({
   m365Management,
   gta,
   stability,
+  canada,
   noResumeYet,
   nameQuery,
   clearHref,
@@ -120,6 +126,7 @@ export function ResumeFilterBar({
   m365Management: string | null;
   gta: string | null;
   stability: string | null;
+  canada: string | null;
   noResumeYet: boolean;
   nameQuery: string;
   clearHref: string;
@@ -133,6 +140,7 @@ export function ResumeFilterBar({
     Boolean(m365Management) ||
     Boolean(gta) ||
     Boolean(stability) ||
+    Boolean(canada) ||
     noResumeYet ||
     Boolean(nameQuery);
 
@@ -201,6 +209,16 @@ export function ResumeFilterBar({
             name="stability"
             option={o}
             checked={stability === o.value}
+            radio
+          />
+        ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        {CANADA_OPTIONS.map((o) => (
+          <Chip
+            key={`canada-${o.value}`}
+            name="canada"
+            option={o}
+            checked={canada === o.value}
             radio
           />
         ))}
