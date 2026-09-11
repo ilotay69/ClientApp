@@ -18,6 +18,8 @@ import {
   screenSelectedResumesAction,
   updateResumeStatusAction,
   updateResumeHumanVerdictAction,
+  updateFinalDecisionAction,
+  addInterviewNoteAction,
   uploadResumeFileAction,
   pasteResumeTextAction,
   deleteResumeAction,
@@ -95,8 +97,13 @@ export default async function RecruitmentPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: connection }, { data: postings }, { data: allInterviews }, { data: allMessages }] =
-    await Promise.all([
+  const [
+    { data: connection },
+    { data: postings },
+    { data: allInterviews },
+    { data: allMessages },
+    { data: allInterviewNotes },
+  ] = await Promise.all([
       supabase
         .from("mail_connections")
         .select("resume_folder_name, resume_sync_last_synced_at")
@@ -124,6 +131,14 @@ export default async function RecruitmentPage({
         .from("resume_messages")
         .select("id, resume_id, direction, body_text, sent_at")
         .order("sent_at", { ascending: true }),
+      // Every interview note ever added, oldest first — grouped by
+      // resume_id below into each candidate's own Interview Notes section.
+      // profiles(...) is a nested embed via created_by's FK, not a separate
+      // round-trip.
+      supabase
+        .from("resume_interview_notes")
+        .select("id, resume_id, note_text, created_at, profiles(full_name)")
+        .order("created_at", { ascending: true }),
     ]);
 
   const currentPosting = postings?.[0] ?? null;
@@ -177,10 +192,24 @@ export default async function RecruitmentPage({
     messagesByResumeId.set(m.resume_id, list);
   }
 
+  type InterviewNoteRow = {
+    id: string;
+    resume_id: string;
+    note_text: string;
+    created_at: string;
+    profiles: { full_name: string } | { full_name: string }[] | null;
+  };
+  const notesByResumeId = new Map<string, InterviewNoteRow[]>();
+  for (const n of (allInterviewNotes ?? []) as InterviewNoteRow[]) {
+    const list = notesByResumeId.get(n.resume_id) ?? [];
+    list.push(n);
+    notesByResumeId.set(n.resume_id, list);
+  }
+
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, human_verdict, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, last_job_in_canada, screened_at, screening_error, status",
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, human_verdict, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, last_job_in_canada, screened_at, screening_error, status, ai_interview_analysis, ai_interview_analysis_at, final_decision",
       { count: "exact" }
     )
     .order("received_at", { ascending: false })
@@ -264,6 +293,15 @@ export default async function RecruitmentPage({
       bodyText: m.body_text,
       sentAt: m.sent_at,
     })),
+    interviewNotes: (notesByResumeId.get(r.id) ?? []).map((n) => {
+      const profile = Array.isArray(n.profiles) ? n.profiles[0] : n.profiles;
+      return {
+        id: n.id,
+        noteText: n.note_text,
+        createdAt: n.created_at,
+        authorName: profile?.full_name ?? null,
+      };
+    }),
   }));
 
   // Toggles ?show_past_interviews= while preserving every other current
@@ -430,6 +468,8 @@ export default async function RecruitmentPage({
         totalCount={totalCount ?? rowsWithDuplicates.length}
         updateStatusAction={updateResumeStatusAction}
         updateHumanVerdictAction={updateResumeHumanVerdictAction}
+        updateFinalDecisionAction={updateFinalDecisionAction}
+        addInterviewNoteAction={addInterviewNoteAction}
         uploadFileAction={uploadResumeFileAction}
         pasteTextAction={pasteResumeTextAction}
         deleteAction={deleteResumeAction}

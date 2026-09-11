@@ -16,10 +16,13 @@ import { IndeterminateProgressBar } from "@/components/progress-bar";
 import { ScreenPendingResumesButton } from "@/components/screen-pending-resumes-button";
 import { ScheduleInterviewForm } from "@/components/schedule-interview-form";
 import { CandidateReplyForm } from "@/components/candidate-reply-form";
+import { InterviewNoteForm } from "@/components/interview-note-form";
+import { FinalDecisionEditor } from "@/components/final-decision-editor";
 import type {
   ResumeScreenState,
   ScheduleInterviewState,
   SendCandidateReplyState,
+  AddInterviewNoteState,
 } from "@/app/(dashboard)/recruitment/actions";
 import { formatDate } from "@/lib/format";
 import { ResumeStatusSelect } from "@/components/resume-status-select";
@@ -54,6 +57,9 @@ export type RecruitmentTableRow = Pick<
   | "screened_at"
   | "screening_error"
   | "status"
+  | "ai_interview_analysis"
+  | "ai_interview_analysis_at"
+  | "final_decision"
 > & {
   /** Name of another row in the current list whose pasted resume text
    * matches this one's (see page.tsx) — null when no match. Computed at
@@ -77,6 +83,15 @@ export type RecruitmentTableRow = Pick<
     direction: "inbound" | "outbound";
     bodyText: string | null;
     sentAt: string;
+  }[];
+  /** Every interview note ever added for this candidate, oldest first —
+   * from resume_interview_notes (see page.tsx), not stored on the resume
+   * row itself. */
+  interviewNotes?: {
+    id: string;
+    noteText: string;
+    createdAt: string;
+    authorName: string | null;
   }[];
 };
 
@@ -218,6 +233,8 @@ export function RecruitmentTable({
   totalCount,
   updateStatusAction,
   updateHumanVerdictAction,
+  updateFinalDecisionAction,
+  addInterviewNoteAction,
   uploadFileAction,
   pasteTextAction,
   deleteAction,
@@ -232,6 +249,12 @@ export function RecruitmentTable({
   totalCount: number;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   updateHumanVerdictAction: (id: string, verdict: ResumeVerdict | null) => Promise<void>;
+  updateFinalDecisionAction: (id: string, decision: string | null) => Promise<void>;
+  addInterviewNoteAction: (
+    resumeId: string,
+    prev: AddInterviewNoteState,
+    formData: FormData
+  ) => Promise<AddInterviewNoteState>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
@@ -455,6 +478,8 @@ export function RecruitmentTable({
                 onToggleExpanded={() => toggleExpanded(r.id)}
                 updateStatusAction={updateStatusAction}
                 updateHumanVerdictAction={updateHumanVerdictAction}
+                updateFinalDecisionAction={updateFinalDecisionAction}
+                addInterviewNoteAction={addInterviewNoteAction}
                 uploadFileAction={uploadFileAction}
                 pasteTextAction={pasteTextAction}
                 deleteAction={deleteAction}
@@ -613,6 +638,8 @@ function ApplicantRow({
   onToggleExpanded,
   updateStatusAction,
   updateHumanVerdictAction,
+  updateFinalDecisionAction,
+  addInterviewNoteAction,
   uploadFileAction,
   pasteTextAction,
   deleteAction,
@@ -626,6 +653,12 @@ function ApplicantRow({
   onToggleExpanded: () => void;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   updateHumanVerdictAction: (id: string, verdict: ResumeVerdict | null) => Promise<void>;
+  updateFinalDecisionAction: (id: string, decision: string | null) => Promise<void>;
+  addInterviewNoteAction: (
+    resumeId: string,
+    prev: AddInterviewNoteState,
+    formData: FormData
+  ) => Promise<AddInterviewNoteState>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
@@ -830,6 +863,51 @@ function ApplicantRow({
                 </ul>
               </div>
             )}
+            <div className="max-w-xl text-sm" onClick={(e) => e.stopPropagation()}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Interview Notes
+              </p>
+              {row.interviewNotes && row.interviewNotes.length > 0 && (
+                <ul className="mt-1 max-h-64 space-y-2 overflow-y-auto rounded-md bg-white p-3">
+                  {row.interviewNotes.map((n) => (
+                    <li key={n.id} className="border-b border-slate-100 pb-2 last:border-0 last:pb-0">
+                      <p className="whitespace-pre-line text-slate-700">{n.noteText}</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {n.authorName ?? "Staff"} · {formatDate(n.createdAt)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-2">
+                <InterviewNoteForm resumeId={row.id} action={addInterviewNoteAction} />
+              </div>
+              {row.ai_interview_analysis && (
+                <div className="mt-3 rounded-md border border-indigo-100 bg-indigo-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">
+                    AI Analysis
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-slate-700">{row.ai_interview_analysis}</p>
+                  {row.ai_interview_analysis_at && (
+                    <p className="mt-1 text-xs text-indigo-400">
+                      Updated {formatDate(row.ai_interview_analysis_at)}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="max-w-xl text-sm" onClick={(e) => e.stopPropagation()}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Final Decision
+              </p>
+              <div className="mt-1">
+                <FinalDecisionEditor
+                  resumeId={row.id}
+                  value={row.final_decision}
+                  action={updateFinalDecisionAction}
+                />
+              </div>
+            </div>
             <div className="max-w-xl text-sm" onClick={(e) => e.stopPropagation()}>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Messages

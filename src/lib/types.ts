@@ -305,6 +305,14 @@ export interface Resume {
   screening_error: string | null;
   status: ResumeStatus;
   imported_at: string;
+  /** Rolling AI summary of ALL of this candidate's interview notes together
+   * (see resume_interview_notes) — overwritten each time a note is added,
+   * not itself a history. Null until at least one note exists. */
+  ai_interview_analysis: string | null;
+  ai_interview_analysis_at: string | null;
+  /** Staff's own free-text final call, once the interview process has run
+   * its course — deliberately not a fixed set of values like status. */
+  final_decision: string | null;
 }
 
 export interface MailboxSnapshotMessageRow {

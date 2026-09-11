@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/permissions";
 import { syncResumeFolder } from "@/lib/resume-sync";
 import { screenPendingResumes, extractCandidateContactInfo } from "@/lib/resume-screening";
 import { getActiveAiSettings } from "@/lib/ai/settings";
+import { generateInterviewAnalysis } from "@/lib/interview-analysis";
 import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection, ResumeStatus, ResumeVerdict } from "@/lib/types";
 import { interviewDateTimeToUtc } from "@/lib/ics";
@@ -329,6 +330,108 @@ export async function updateResumeHumanVerdictAction(
   const admin = createAdminClient();
   await admin.from("resumes").update({ human_verdict: verdict }).eq("id", id);
   revalidatePath("/recruitment");
+}
+
+/** One free-text field, not a list like interview notes — staff's own final
+ * call once the interview process has run its course. Deliberately no fixed
+ * set of values (unlike status/verdict) since this is meant to read as a
+ * short paragraph, not a category. */
+export async function updateFinalDecisionAction(id: string, decision: string | null): Promise<void> {
+  if (!(await requirePermission("manage_recruitment"))) return;
+
+  const admin = createAdminClient();
+  await admin.from("resumes").update({ final_decision: decision }).eq("id", id);
+  revalidatePath("/recruitment");
+}
+
+export type AddInterviewNoteState = { error: string | null; success: string | null };
+
+/** Saves one interview note, then best-effort regenerates the rolling AI
+ * analysis from ALL of that candidate's notes together — a failed or
+ * unconfigured AI provider must never block saving the note itself, so the
+ * regeneration step is wrapped separately and only ever logged on failure. */
+export async function addInterviewNoteAction(
+  resumeId: string,
+  _prevState: AddInterviewNoteState,
+  formData: FormData
+): Promise<AddInterviewNoteState> {
+  const user = await requirePermission("manage_recruitment");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const noteText = String(formData.get("note") ?? "").trim();
+  if (!noteText) {
+    return { error: "Write a note first.", success: null };
+  }
+
+  const admin = createAdminClient();
+  const { error: insertError } = await admin.from("resume_interview_notes").insert({
+    resume_id: resumeId,
+    note_text: noteText,
+    created_by: user.id,
+  });
+  if (insertError) {
+    console.error("addInterviewNoteAction: insert failed", insertError);
+    return { error: "Couldn't save the note.", success: null };
+  }
+
+  try {
+    await regenerateInterviewAnalysis(admin, resumeId);
+  } catch (err) {
+    console.error("addInterviewNoteAction: analysis regeneration failed", err);
+  }
+
+  revalidatePath("/recruitment");
+  return { error: null, success: "Note added." };
+}
+
+async function regenerateInterviewAnalysis(admin: ReturnType<typeof createAdminClient>, resumeId: string) {
+  const settings = await getActiveAiSettings(admin);
+  if (!settings) return;
+
+  const { data: resume } = await admin
+    .from("resumes")
+    .select("candidate_name, sender_name, job_posting_id")
+    .eq("id", resumeId)
+    .maybeSingle();
+  if (!resume) return;
+
+  let jobTitle: string | null = null;
+  if (resume.job_posting_id) {
+    const { data: posting } = await admin
+      .from("job_postings")
+      .select("title")
+      .eq("id", resume.job_posting_id)
+      .maybeSingle();
+    jobTitle = posting?.title ?? null;
+  }
+
+  const { data: notes } = await admin
+    .from("resume_interview_notes")
+    .select("note_text, created_at, profiles(full_name)")
+    .eq("resume_id", resumeId)
+    .order("created_at", { ascending: true });
+
+  const notesForAnalysis = (notes ?? []).map(
+    (n: { note_text: string; created_at: string; profiles: { full_name: string } | { full_name: string }[] | null }) => {
+      const profile = Array.isArray(n.profiles) ? n.profiles[0] : n.profiles;
+      return {
+        noteText: n.note_text,
+        createdAt: n.created_at,
+        authorName: profile?.full_name ?? null,
+      };
+    }
+  );
+
+  const candidateName = resume.candidate_name ?? resume.sender_name ?? "the candidate";
+  const analysis = await generateInterviewAnalysis(candidateName, jobTitle, notesForAnalysis, settings);
+  if (!analysis) return;
+
+  await admin
+    .from("resumes")
+    .update({ ai_interview_analysis: analysis, ai_interview_analysis_at: new Date().toISOString() })
+    .eq("id", resumeId);
 }
 
 /** Permanently removes an applicant row — e.g. a job-board notification
