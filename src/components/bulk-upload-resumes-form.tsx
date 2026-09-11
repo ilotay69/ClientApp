@@ -1,9 +1,22 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
 
-type BulkUploadState = { error: string | null; success: string | null };
+type BulkUploadState = {
+  error: string | null;
+  success: string | null;
+  created?: number;
+  failures?: string[];
+};
+
+// One request handles this many files' worth of Storage uploads + DB
+// inserts — kept small so a large selection (dozens of files) can't turn
+// into one long-running request that outlives Railway's own request
+// timeout, the same generic "This page couldn't load" failure already
+// fixed once for resume screening. The form below loops this in chunks
+// instead of sending everything in a single call.
+const UPLOAD_CHUNK_SIZE = 3;
 
 /** Collapsed behind a button by default, same pattern as AddCandidateForm —
  * stays open after a save (rather than collapsing like that form does) so
@@ -16,19 +29,52 @@ export function BulkUploadResumesForm({
   action: (prev: BulkUploadState, formData: FormData) => Promise<BulkUploadState>;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState<BulkUploadState, FormData>(action, {
-    error: null,
-    success: null,
-  });
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<BulkUploadState | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const submittedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (submittedRef.current && !pending) {
-      submittedRef.current = false;
-      formRef.current?.reset();
+  function runUpload(e: FormEvent) {
+    e.preventDefault();
+    const files = fileInputRef.current?.files;
+    if (!files || files.length === 0) {
+      setResult({ error: "Choose one or more resume files.", success: null });
+      return;
     }
-  }, [pending]);
+    const fileArray = Array.from(files);
+
+    setResult(null);
+    startTransition(async () => {
+      let created = 0;
+      const failures: string[] = [];
+      for (let i = 0; i < fileArray.length; i += UPLOAD_CHUNK_SIZE) {
+        const chunk = fileArray.slice(i, i + UPLOAD_CHUNK_SIZE);
+        const chunkFormData = new FormData();
+        for (const file of chunk) chunkFormData.append("files", file);
+
+        const outcome = await action({ error: null, success: null }, chunkFormData);
+        // No `created` at all means this chunk never even got to
+        // processing files (permission denied, etc.) — a real stop, not
+        // just some files in the chunk failing individually.
+        if (outcome.created === undefined) {
+          setResult(outcome);
+          return;
+        }
+        created += outcome.created;
+        failures.push(...(outcome.failures ?? []));
+
+        const done = i + UPLOAD_CHUNK_SIZE >= fileArray.length;
+        setResult({
+          error: null,
+          success:
+            `Added ${created} candidate${created === 1 ? "" : "s"}` +
+            (failures.length > 0 ? `. ${failures.length} failed: ${failures.join(", ")}` : "") +
+            (done ? "." : "…"),
+        });
+      }
+      formRef.current?.reset();
+    });
+  }
 
   if (!open) {
     return (
@@ -45,10 +91,7 @@ export function BulkUploadResumesForm({
   return (
     <form
       ref={formRef}
-      action={formAction}
-      onSubmit={() => {
-        submittedRef.current = true;
-      }}
+      onSubmit={runUpload}
       className="w-full space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
       <div>
@@ -58,6 +101,7 @@ export function BulkUploadResumesForm({
           candidate, not screened yet.
         </p>
         <input
+          ref={fileInputRef}
           type="file"
           name="files"
           multiple
@@ -84,8 +128,8 @@ export function BulkUploadResumesForm({
         </button>
         {pending && <IndeterminateProgressBar />}
       </div>
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-      {state.success && <p className="text-sm text-emerald-600">{state.success}</p>}
+      {result?.error && <p className="text-sm text-red-600">{result.error}</p>}
+      {result?.success && <p className="text-sm text-emerald-600">{result.success}</p>}
     </form>
   );
 }

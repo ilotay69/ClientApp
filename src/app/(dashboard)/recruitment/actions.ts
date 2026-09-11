@@ -574,7 +574,16 @@ export async function uploadResumeFileAction(
   return { error: null };
 }
 
-export type BulkUploadResumesState = { error: string | null; success: string | null };
+export type BulkUploadResumesState = {
+  error: string | null;
+  success: string | null;
+  /** This call's own counts — set so the caller (BulkUploadResumesForm,
+   * which chunks a large selection into several calls the same way
+   * ScreenPendingResumesButton does) can accumulate a running total across
+   * chunks instead of only ever seeing one chunk's own message. */
+  created?: number;
+  failures?: string[];
+};
 
 /** One or more resume files at once, each becoming its own brand-new
  * candidate row — the bulk counterpart to addCandidateAction's manual
@@ -655,12 +664,14 @@ export async function bulkUploadResumesAction(
   revalidatePath("/recruitment");
 
   if (created === 0) {
-    return { error: `Nothing was added — ${failures.join(", ")}.`, success: null };
+    return { error: `Nothing was added — ${failures.join(", ")}.`, success: null, created, failures };
   }
   const summary = `Added ${created} candidate${created === 1 ? "" : "s"}.`;
   return {
     error: null,
     success: failures.length > 0 ? `${summary} ${failures.length} failed: ${failures.join(", ")}` : summary,
+    created,
+    failures,
   };
 }
 
