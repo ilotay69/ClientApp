@@ -217,6 +217,7 @@ export type ResumeStatus =
   | "new"
   | "reviewing"
   | "contacting"
+  | "invited"
   | "interviewing"
   | "rejected"
   | "hired";

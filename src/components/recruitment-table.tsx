@@ -1,6 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+} from "react";
 import Link from "next/link";
 import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
@@ -100,6 +108,105 @@ type ContentAction = (
   formData: FormData
 ) => Promise<ResumeContentState>;
 
+type SortKey =
+  | "date"
+  | "name"
+  | "verdict"
+  | "big_firm"
+  | "years_exp"
+  | "working"
+  | "gta"
+  | "tech"
+  | "stability"
+  | "ca"
+  | "status";
+
+// Status is a workflow, not alphabetical text — sorting it needs to follow
+// the actual stage order (see resume-status-select.tsx), not string order,
+// or "contacting" would wrongly sort after "hired".
+const STATUS_RANK: Record<ResumeStatus, number> = {
+  new: 0,
+  reviewing: 1,
+  contacting: 2,
+  invited: 3,
+  interviewing: 4,
+  rejected: 5,
+  hired: 6,
+};
+
+function sortValue(row: RecruitmentTableRow, key: SortKey): string | number | boolean | null {
+  switch (key) {
+    case "date":
+      return new Date(row.received_at).getTime();
+    case "name":
+      return (row.candidate_name ?? row.sender_name ?? "").toLowerCase();
+    case "verdict":
+      return row.ai_verdict;
+    case "big_firm":
+      return row.big_firm_experience;
+    case "years_exp":
+      return row.years_experience;
+    case "working":
+      return row.currently_working;
+    case "gta":
+      return row.in_gta;
+    case "tech":
+      return (row.m365_technologies ?? "").toLowerCase();
+    case "stability":
+      return row.job_stability;
+    case "ca":
+      return row.last_job_in_canada;
+    case "status":
+      return STATUS_RANK[row.status];
+  }
+}
+
+// Nulls always sort last regardless of direction — an unscreened/unknown
+// value isn't meaningfully "less than" a known one in either order.
+function compareRows(a: RecruitmentTableRow, b: RecruitmentTableRow, key: SortKey, dir: "asc" | "desc"): number {
+  const av = sortValue(a, key);
+  const bv = sortValue(b, key);
+  if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1;
+  if (bv === null || bv === undefined) return -1;
+
+  let cmp: number;
+  if (typeof av === "boolean" || typeof bv === "boolean") {
+    cmp = Number(av) - Number(bv);
+  } else if (typeof av === "number" && typeof bv === "number") {
+    cmp = av - bv;
+  } else {
+    cmp = String(av).localeCompare(String(bv));
+  }
+  return dir === "asc" ? cmp : -cmp;
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onClick,
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey | null;
+  dir: "asc" | "desc";
+  onClick: (key: SortKey) => void;
+}) {
+  const active = activeKey === sortKey;
+  return (
+    <th
+      className="sticky top-0 z-10 cursor-pointer select-none bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500 hover:text-slate-700"
+      onClick={() => onClick(sortKey)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className="w-2.5 text-[10px] text-slate-400">{active ? (dir === "asc" ? "▲" : "▼") : ""}</span>
+      </span>
+    </th>
+  );
+}
+
 export function RecruitmentTable({
   rows,
   nameQuery,
@@ -183,6 +290,23 @@ export function RecruitmentTable({
       return next;
     });
   }
+
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => compareRows(a, b, sortKey, sortDir));
+  }, [rows, sortKey, sortDir]);
 
   // Same reasoning as ScreenPendingResumesButton: screenPendingResumes
   // processes a resumeIds selection uncapped, in sequential 5-per-call
@@ -298,22 +422,22 @@ export function RecruitmentTable({
                   aria-label="Select all"
                 />
               </th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Date</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Name</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Verdict</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Big Firm</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Years Exp.</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Working</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">GTA</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">365 Tech</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Stability</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">CA</th>
-              <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Status</th>
+              <SortableTh label="Date" sortKey="date" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Verdict" sortKey="verdict" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Big Firm" sortKey="big_firm" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Years Exp." sortKey="years_exp" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Working" sortKey="working" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="GTA" sortKey="gta" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="365 Tech" sortKey="tech" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Stability" sortKey="stability" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="CA" sortKey="ca" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
               <th className="sticky top-0 z-10 bg-slate-50 px-3 py-1.5 text-left font-medium text-slate-500">Resume</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => (
+            {sortedRows.map((r) => (
               <ApplicantRow
                 key={r.id}
                 row={r}

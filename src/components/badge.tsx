@@ -30,6 +30,7 @@ const COLORS: Record<string, string> = {
   new: NEUTRAL,
   reviewing: INFO,
   contacting: ATTENTION,
+  invited: ATTENTION,
   interviewing: INFO,
   rejected: URGENT,
   hired: SUCCESS,

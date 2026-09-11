@@ -49,11 +49,14 @@ function Chip({
   );
 }
 
-// Matches Indeed's own applicant status stages exactly.
+// Matches Indeed's own applicant status stages, plus "invited" for a
+// candidate who's been sent an interview invite/booking link but hasn't
+// interviewed yet.
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
   { value: "reviewing", label: "Reviewing" },
   { value: "contacting", label: "Contacting" },
+  { value: "invited", label: "Invited" },
   { value: "interviewing", label: "Interviewing" },
   { value: "rejected", label: "Rejected" },
   { value: "hired", label: "Hired" },
