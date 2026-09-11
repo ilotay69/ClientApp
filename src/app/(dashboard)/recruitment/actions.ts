@@ -391,7 +391,10 @@ export async function scheduleInterviewAction(
     return { error: "No email on file for this candidate.", success: null };
   }
   const candidateName = resume.candidate_name ?? resume.sender_name ?? "there";
-  const recruiterName = profile?.full_name ?? user.email ?? "CG Technologies";
+  // Falls back to the generic company name, never to user.email — nothing
+  // in this candidate-facing email should be able to leak a staff member's
+  // own address even indirectly.
+  const recruiterName = profile?.full_name ?? "CG Technologies";
   const jobTitle = posting?.title ?? "the role";
 
   const start = interviewDateTimeToUtc(date, time);
@@ -407,18 +410,17 @@ export async function scheduleInterviewAction(
   }).format(start);
 
   const fromAddress = process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
-  // The ICS's own ORGANIZER is independent of the email's From/Reply-To
-  // headers, and it's what the candidate's calendar app actually sends its
-  // Accept/Decline RSVP reply to — setting it to the recruiter's real
-  // address (not the generic send-from address) means that reply lands
-  // directly in their own inbox natively, with no RSVP-processing code of
-  // our own needed.
-  const organizerEmail = user.email ?? fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
+  // Deliberately the shared Resend/company send-from address, not any
+  // individual staff member's own email — nothing here should expose a
+  // personal company address to the candidate, in the ICS content or
+  // otherwise. Both the calendar app's Accept/Decline RSVP reply and any
+  // reply to the email itself go to this same shared address.
+  const organizerEmail = fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
 
   const ics = buildInterviewIcs({
     uid: `interview-${resumeId}-${Date.now()}@cgtechnologies.com`,
     organizerEmail,
-    organizerName: recruiterName,
+    organizerName: "CG Technologies",
     attendeeEmail: candidateEmail,
     attendeeName: candidateName,
     summary: `Interview: ${jobTitle}`,
@@ -442,10 +444,11 @@ export async function scheduleInterviewAction(
     const { error: sendError } = await resend.emails.send({
       from: fromAddress,
       to: candidateEmail,
-      // CC'd so the recruiter gets their own copy of the invite (and the
-      // .ics) to add to their own calendar too, not just the candidate.
-      cc: user.email ?? undefined,
-      replyTo: user.email ?? undefined,
+      // CC'd to the same shared address it's sent from — a plain send has
+      // no "sent" copy anywhere on its own, so this is what actually gets
+      // it (and the .ics) into a shared, monitored inbox. Reply-To is left
+      // unset, which defaults to the From address itself.
+      cc: fromAddress,
       subject: `Interview invite: ${jobTitle}`,
       html,
       text,
@@ -496,7 +499,7 @@ export async function scheduleInterviewAction(
 
   revalidatePath("/recruitment");
 
-  return { error: null, success: `Invite sent to ${candidateEmail} (CC'd to you).` };
+  return { error: null, success: `Invite sent to ${candidateEmail}.` };
 }
 
 const MAX_RESUME_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB, same cap as client documents
