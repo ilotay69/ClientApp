@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { buildSalesRequestEmail } from "@/lib/resend";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+import { sendPushToUsers } from "@/lib/push-notifications";
 
 /** Best-effort — a missing Resend key, unset rep email, or send failure
  * never blocks the actual create/update/note action itself.
@@ -64,6 +65,29 @@ export async function notifySalesRequestChange(
         actorEmail,
       });
       return;
+    }
+
+    // Push and email are independent channels — resolve push recipients by
+    // user id (the actor's is already known; the rep's is looked up by
+    // matching their notification-settings email against a profile, since
+    // rep_email is just a plain text field, not itself a profile FK) and
+    // send regardless of whether the shared mailbox is configured.
+    const pushUserIds = new Set<string>();
+    if (actorUserId) pushUserIds.add(actorUserId);
+    if (repEmail) {
+      const { data: repProfile } = await admin
+        .from("profiles")
+        .select("id")
+        .ilike("email", repEmail)
+        .maybeSingle();
+      if (repProfile) pushUserIds.add(repProfile.id);
+    }
+    if (pushUserIds.size > 0) {
+      sendPushToUsers(admin, Array.from(pushUserIds), {
+        title: "Sales request update",
+        body: `${request.title}: ${changeSummary}`,
+        url: "/sales-requests",
+      }).catch((err) => console.error("notifySalesRequestChange: push failed", err));
     }
 
     const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;

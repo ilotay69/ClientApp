@@ -131,6 +131,26 @@ export function IconUsers({ className }: IconProps) {
   );
 }
 
+export function IconBell({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 6 2 7H4c.5-1 2-3 2-7Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+export function IconBellOff({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M6 8a6 6 0 0 1 10.3-4.2" />
+      <path d="M18 8c0 4 1.5 6 2 7H8" />
+      <path d="M4 4l16 16" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
 export function IconLogOut({ className }: IconProps) {
   return (
     <svg className={className} {...base}>

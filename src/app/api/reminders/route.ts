@@ -4,6 +4,7 @@ import { buildDigestEmail, type DigestItem } from "@/lib/resend";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { formatDate, isServiceCheckOverdue } from "@/lib/format";
+import { sendPushToUser } from "@/lib/push-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -165,6 +166,17 @@ export async function GET(request: NextRequest) {
 
   if (buckets.size === 0) {
     return NextResponse.json({ sent: 0, recipients: [] });
+  }
+
+  // Push and email are independent channels — send regardless of whether
+  // the shared mailbox below is configured. Keyed by profile id already,
+  // since that's exactly what the buckets Map's key is.
+  for (const [ownerId, bucket] of buckets) {
+    sendPushToUser(supabase, ownerId, {
+      title: `${bucket.items.length} item${bucket.items.length === 1 ? "" : "s"} need your attention`,
+      body: bucket.items[0]?.label ?? "",
+      url: "/dashboard",
+    }).catch((err) => console.error("reminders: push failed", { ownerId, err }));
   }
 
   const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;

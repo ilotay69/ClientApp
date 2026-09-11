@@ -5,6 +5,7 @@ import {
   clearSharedMailboxSyncError,
   recordSharedMailboxSyncError,
 } from "@/lib/shared-mailbox";
+import { sendPushToUser, sendPushToPermissionHolders } from "@/lib/push-notifications";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any;
@@ -51,24 +52,31 @@ export async function syncSharedMailboxMessages(admin: Admin): Promise<SharedMai
 
     // Every resume's known candidate email, lowercased — the match key for
     // filing an inbound message (or RSVP) against the right candidate.
-    const { data: resumes } = await admin.from("resumes").select("id, candidate_email, sender_email");
+    const { data: resumes } = await admin
+      .from("resumes")
+      .select("id, candidate_name, sender_name, candidate_email, sender_email");
     const resumeIdByEmail = new Map<string, string>();
+    const resumeNameById = new Map<string, string>();
     for (const r of resumes ?? []) {
       const email = (r.candidate_email ?? r.sender_email)?.toLowerCase().trim();
       if (email && !resumeIdByEmail.has(email)) resumeIdByEmail.set(email, r.id);
+      resumeNameById.set(r.id, r.candidate_name ?? r.sender_name ?? "A candidate");
     }
 
     // Each candidate's most recently scheduled interview — ascending order
     // means the last one seen per resume_id is the newest, which is what an
     // RSVP reply almost always refers to (a candidate rarely has more than
-    // one active interview at a time).
+    // one active interview at a time). scheduled_by is who gets pushed an
+    // RSVP notification — the clearest, least ambiguous recipient there is.
     const { data: interviews } = await admin
       .from("resume_interviews")
-      .select("id, resume_id, created_at")
+      .select("id, resume_id, created_at, scheduled_by")
       .order("created_at", { ascending: true });
     const latestInterviewIdByResumeId = new Map<string, string>();
+    const scheduledByByResumeId = new Map<string, string | null>();
     for (const iv of interviews ?? []) {
       latestInterviewIdByResumeId.set(iv.resume_id, iv.id);
+      scheduledByByResumeId.set(iv.resume_id, iv.scheduled_by);
     }
 
     let matched = 0;
@@ -78,6 +86,8 @@ export async function syncSharedMailboxMessages(admin: Admin): Promise<SharedMai
       if (!fromEmail) continue;
       const resumeId = resumeIdByEmail.get(fromEmail);
       if (!resumeId) continue;
+
+      const candidateName = resumeNameById.get(resumeId) ?? "A candidate";
 
       const rsvpStatus = message.meetingMessageType
         ? RSVP_STATUS_BY_MEETING_MESSAGE_TYPE[message.meetingMessageType]
@@ -90,6 +100,15 @@ export async function syncSharedMailboxMessages(admin: Admin): Promise<SharedMai
             .update({ rsvp_status: rsvpStatus, rsvp_at: message.receivedDateTime })
             .eq("id", interviewId);
           rsvps += 1;
+
+          const schedulerId = scheduledByByResumeId.get(resumeId);
+          if (schedulerId) {
+            sendPushToUser(admin, schedulerId, {
+              title: "Interview RSVP",
+              body: `${candidateName} ${rsvpStatus} the interview invite.`,
+              url: "/recruitment",
+            }).catch((err) => console.error("syncSharedMailboxMessages: RSVP push failed", err));
+          }
         }
         continue;
       }
@@ -113,7 +132,17 @@ export async function syncSharedMailboxMessages(admin: Admin): Promise<SharedMai
         },
         { onConflict: "graph_message_id", ignoreDuplicates: true }
       );
-      if (!error) matched += 1;
+      if (!error) {
+        matched += 1;
+        // No single owner for a plain reply (unlike an RSVP, which belongs
+        // to whoever scheduled that interview) — the whole recruitment team
+        // gets notified rather than guessing at one person.
+        sendPushToPermissionHolders(admin, "manage_recruitment", {
+          title: "Candidate reply",
+          body: `${candidateName} replied.`,
+          url: "/recruitment",
+        }).catch((err) => console.error("syncSharedMailboxMessages: reply push failed", err));
+      }
     }
 
     await admin

@@ -5,6 +5,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { buildTaskAssignedEmail } from "@/lib/resend";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+import { sendPushToUsers } from "@/lib/push-notifications";
 import { formatDate } from "@/lib/format";
 import { requirePermission, requireStaff } from "@/lib/permissions";
 import type { TaskKind, TaskPriority } from "@/lib/types";
@@ -50,6 +51,17 @@ async function notifyNewAssignees(taskId: string, newAssigneeIds: string[]) {
 
   if (!task || !recipients?.length) return;
 
+  const admin = createAdminClient();
+
+  // Push and email are independent channels — a push notification
+  // shouldn't wait on (or be skipped because of) the shared mailbox not
+  // being configured.
+  sendPushToUsers(
+    admin,
+    recipients.map((r) => r.id),
+    { title: "New task assigned", body: task.title, url: "/tasks" }
+  ).catch((err) => console.error("notifyNewAssignees: push failed", err));
+
   const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
   if (!mailboxEmail) {
     console.error("notifyNewAssignees: SHARED_MAILBOX_EMAIL isn't set, skipping notification email");
@@ -57,7 +69,6 @@ async function notifyNewAssignees(taskId: string, newAssigneeIds: string[]) {
   }
 
   try {
-    const admin = createAdminClient();
     const settings = await getSharedMailboxSettings(admin);
     if (!settings) {
       console.error("notifyNewAssignees: shared mailbox integration isn't set up yet");

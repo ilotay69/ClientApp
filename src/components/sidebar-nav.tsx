@@ -23,6 +23,7 @@ import {
   IconX,
   IconLock,
 } from "@/components/icons";
+import { NotificationBell } from "@/components/notification-bell";
 
 type NavItem = {
   href: string;
@@ -239,6 +240,9 @@ export function SidebarNav({
 
       <div className="border-t border-white/15 px-4 py-3">
         <p className="truncate text-sm text-white/80">{userLabel}</p>
+        <div className="mt-2">
+          <NotificationBell />
+        </div>
         <form action={signOutAction} className="mt-2">
           <button
             type="submit"
