@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type ChangeEvent } from "react";
 import { friendlyM365SkuName } from "@/lib/m365-sku-names";
 import type { ServiceLicenseMapping } from "@/lib/reconciliation-data";
 import type { SaveMappingState } from "@/app/(dashboard)/reconciliation/actions";
@@ -75,14 +75,29 @@ function AddMappingForm({
   });
   const formRef = useRef<HTMLFormElement>(null);
   const submittedRef = useRef(false);
+  const [skuValue, setSkuValue] = useState("");
 
   // Clears the form back to blank once a save actually succeeds.
   useEffect(() => {
     if (submittedRef.current && !pending && !state.error) {
       submittedRef.current = false;
       formRef.current?.reset();
+      setSkuValue("");
     }
   }, [pending, state.error]);
+
+  // Pre-selects the licence whose friendly name is an exact (case/whitespace
+  // insensitive) match for the chosen service — e.g. a contracted "Exchange
+  // Online (Plan 2)" service against the identically-named licence. Most
+  // services map 1:1 onto a licence with the same display name, so this
+  // turns that common case into a one-click confirm; still just a default,
+  // staff can pick a different licence from the dropdown afterward same as
+  // before, and nothing here saves the mapping automatically.
+  function handleServiceChange(e: ChangeEvent<HTMLSelectElement>) {
+    const chosen = e.target.value.trim().toLowerCase();
+    const match = allSkus.find((s) => s.friendlyName.trim().toLowerCase() === chosen);
+    setSkuValue(match?.skuPartNumber ?? "");
+  }
 
   return (
     <form
@@ -99,6 +114,7 @@ function AddMappingForm({
           name="service_name"
           required
           defaultValue=""
+          onChange={handleServiceChange}
           className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
         >
           <option value="" disabled>
@@ -116,7 +132,8 @@ function AddMappingForm({
         <select
           name="sku_part_number"
           required
-          defaultValue=""
+          value={skuValue}
+          onChange={(e) => setSkuValue(e.target.value)}
           className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
         >
           <option value="" disabled>
