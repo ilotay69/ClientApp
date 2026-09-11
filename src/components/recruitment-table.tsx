@@ -569,11 +569,14 @@ function ApplicantRow({
                   ))}
                 </ul>
               )}
-              <div className="mt-2 flex flex-wrap items-start gap-2">
-                <div className="min-w-[16rem] flex-1">
-                  <CandidateReplyForm resumeId={row.id} action={sendCandidateReplyAction} />
-                </div>
-                <ScheduleInterviewForm resumeId={row.id} action={scheduleInterviewAction} />
+              <div className="mt-2">
+                <CandidateReplyForm
+                  resumeId={row.id}
+                  action={sendCandidateReplyAction}
+                  extraActions={
+                    <ScheduleInterviewForm resumeId={row.id} action={scheduleInterviewAction} />
+                  }
+                />
               </div>
             </div>
             {overview && (
