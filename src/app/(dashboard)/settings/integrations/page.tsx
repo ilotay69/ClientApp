@@ -199,10 +199,10 @@ export default async function IntegrationsSettingsPage({
                 ),
               },
               {
-                label: "Recruitment Mailbox",
+                label: "Shared Mailbox",
                 content: (
                   <SharedMailboxSettingsForm
-                    mailboxEmail={process.env.RECRUITMENT_MAILBOX_EMAIL ?? null}
+                    mailboxEmail={process.env.SHARED_MAILBOX_EMAIL ?? null}
                     lastSyncedAt={sharedMailboxRow?.last_synced_at ?? null}
                     lastSyncError={sharedMailboxRow?.last_sync_error ?? null}
                     lastSyncErrorAt={sharedMailboxRow?.last_sync_error_at ?? null}

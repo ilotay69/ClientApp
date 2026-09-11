@@ -416,10 +416,10 @@ export async function scheduleInterviewAction(
   // candidate, in the ICS content or otherwise. Both the calendar app's
   // Accept/Decline RSVP reply and any reply to the email itself go to this
   // same shared address (and get picked up by the candidate-messaging sync).
-  const mailboxEmail = process.env.RECRUITMENT_MAILBOX_EMAIL;
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
   if (!mailboxEmail) {
     return {
-      error: "The recruitment mailbox isn't configured yet — set RECRUITMENT_MAILBOX_EMAIL.",
+      error: "The shared mailbox isn't configured yet — set SHARED_MAILBOX_EMAIL.",
       success: null,
     };
   }
@@ -449,7 +449,7 @@ export async function scheduleInterviewAction(
   try {
     const settings = await getSharedMailboxSettings(admin);
     if (!settings) {
-      return { error: "The recruitment mailbox integration hasn't been set up yet.", success: null };
+      return { error: "The shared mailbox integration hasn't been set up yet.", success: null };
     }
     const accessToken = await getValidSharedMailboxToken(admin, settings);
     // saveToSentItems (set inside sendMailAsSharedMailbox) already puts a
@@ -520,10 +520,10 @@ export async function sendCandidateReplyAction(
     return { error: "Write a message first.", success: null };
   }
 
-  const mailboxEmail = process.env.RECRUITMENT_MAILBOX_EMAIL;
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
   if (!mailboxEmail) {
     return {
-      error: "The recruitment mailbox isn't configured yet — set RECRUITMENT_MAILBOX_EMAIL.",
+      error: "The shared mailbox isn't configured yet — set SHARED_MAILBOX_EMAIL.",
       success: null,
     };
   }
@@ -553,7 +553,7 @@ export async function sendCandidateReplyAction(
   try {
     const settings = await getSharedMailboxSettings(admin);
     if (!settings) {
-      return { error: "The recruitment mailbox integration hasn't been set up yet.", success: null };
+      return { error: "The shared mailbox integration hasn't been set up yet.", success: null };
     }
     const accessToken = await getValidSharedMailboxToken(admin, settings);
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {

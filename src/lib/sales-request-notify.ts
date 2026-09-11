@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
-import { getResendClient, buildSalesRequestEmail } from "@/lib/resend";
+import { buildSalesRequestEmail } from "@/lib/resend";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 
 /** Best-effort — a missing Resend key, unset rep email, or send failure
  * never blocks the actual create/update/note action itself.
@@ -64,9 +66,17 @@ export async function notifySalesRequestChange(
       return;
     }
 
-    const resend = getResendClient();
-    const fromAddress =
-      process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
+    const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+    if (!mailboxEmail) {
+      console.error("Sales-request notification skipped: SHARED_MAILBOX_EMAIL isn't set");
+      return;
+    }
+    const sharedMailboxSettings = await getSharedMailboxSettings(admin);
+    if (!sharedMailboxSettings) {
+      console.error("Sales-request notification skipped: shared mailbox integration isn't set up yet");
+      return;
+    }
+    const accessToken = await getValidSharedMailboxToken(admin, sharedMailboxSettings);
     const clientName = (request.clients as unknown as { name: string } | null)?.name ?? null;
 
     const { html, text } = buildSalesRequestEmail({
@@ -79,22 +89,19 @@ export async function notifySalesRequestChange(
     });
 
     // Separate sends, not one email addressed to both — recipients
-    // shouldn't see each other's address. resend.emails.send() returns
-    // {data, error} rather than throwing on an API-level rejection (e.g.
-    // an unverified domain only allowing sends to the account's own
-    // address) — checked and logged per recipient so a silent rejection
-    // for one recipient doesn't look identical to it never being
-    // attempted at all.
+    // shouldn't see each other's address. Each send is caught individually
+    // so one recipient failing doesn't look identical to it never being
+    // attempted at all, and doesn't stop the other recipient's send.
     for (const recipient of recipients) {
-      const { error: sendError } = await resend.emails.send({
-        from: fromAddress,
-        to: recipient,
-        subject: `Sales request: ${request.title}`,
-        html,
-        text,
-      });
-      if (sendError) {
-        console.error("Resend rejected sales-request notification", {
+      try {
+        await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
+          to: recipient,
+          subject: `Sales request: ${request.title}`,
+          html,
+          text,
+        });
+      } catch (sendError) {
+        console.error("Failed to send sales-request notification", {
           requestId,
           recipient,
           sendError,

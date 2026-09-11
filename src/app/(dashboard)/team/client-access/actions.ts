@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
-import { getResendClient, buildPortalPasswordResetEmail } from "@/lib/resend";
+import { buildPortalPasswordResetEmail } from "@/lib/resend";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import type { ClientPortalRole } from "@/lib/portal";
 
 const CLIENT_PORTAL_ROLES: ClientPortalRole[] = ["client_tech", "client_manager", "client_owner"];
@@ -221,21 +223,22 @@ export async function sendPortalPasswordReset(
   await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
 
   try {
-    const resend = getResendClient();
-    const fromAddress =
-      process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
+    const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+    if (!mailboxEmail) {
+      return { error: "Password was reset, but the shared mailbox isn't configured — set SHARED_MAILBOX_EMAIL." };
+    }
+    const settings = await getSharedMailboxSettings(admin);
+    if (!settings) {
+      return { error: "Password was reset, but the shared mailbox integration hasn't been set up yet." };
+    }
+    const accessToken = await getValidSharedMailboxToken(admin, settings);
     const { html, text } = buildPortalPasswordResetEmail(profile.full_name, tempPassword);
-    const { error: sendError } = await resend.emails.send({
-      from: fromAddress,
+    await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: profile.email,
       subject: "Your CG Technologies client portal password was reset",
       html,
       text,
     });
-    if (sendError) {
-      console.error("sendPortalPasswordReset: Resend rejected the email", sendError);
-      return { error: "Password was reset, but the email couldn't be sent — check Resend settings." };
-    }
   } catch (err) {
     console.error("sendPortalPasswordReset: email send failed", err);
     return {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getResendClient, buildDigestEmail, type DigestItem } from "@/lib/resend";
+import { buildDigestEmail, type DigestItem } from "@/lib/resend";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { formatDate, isServiceCheckOverdue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -165,20 +167,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sent: 0, recipients: [] });
   }
 
-  const resend = getResendClient();
-  const fromAddress = process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+  if (!mailboxEmail) {
+    return NextResponse.json({ error: "SHARED_MAILBOX_EMAIL isn't set." }, { status: 500 });
+  }
+  const sharedMailboxSettings = await getSharedMailboxSettings(supabase);
+  if (!sharedMailboxSettings) {
+    return NextResponse.json({ error: "The shared mailbox integration isn't set up yet." }, { status: 500 });
+  }
+  const accessToken = await getValidSharedMailboxToken(supabase, sharedMailboxSettings);
+
   const results: { email: string; itemCount: number }[] = [];
   const logRows: { kind: string; entity_id: string; recipient_email: string }[] = [];
 
   for (const [, bucket] of buckets) {
     const { html, text } = buildDigestEmail(bucket.name, bucket.items);
-    await resend.emails.send({
-      from: fromAddress,
-      to: bucket.email,
-      subject: `${bucket.items.length} item${bucket.items.length === 1 ? "" : "s"} need your attention`,
-      html,
-      text,
-    });
+    try {
+      await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
+        to: bucket.email,
+        subject: `${bucket.items.length} item${bucket.items.length === 1 ? "" : "s"} need your attention`,
+        html,
+        text,
+      });
+    } catch (err) {
+      // One recipient failing (a bad address, a transient Graph error)
+      // shouldn't stop the rest of the digest from going out, or the
+      // reminder_log insert below from happening for whoever did succeed.
+      console.error("Failed to send reminder digest", { email: bucket.email, err });
+      continue;
+    }
 
     results.push({ email: bucket.email, itemCount: bucket.items.length });
     for (const entry of bucket.logEntries) {

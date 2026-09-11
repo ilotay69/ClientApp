@@ -37,7 +37,7 @@ export async function syncSharedMailboxMessages(admin: Admin): Promise<SharedMai
   const settings = await getSharedMailboxSettings(admin);
   if (!settings?.mailboxEmail) {
     throw new Error(
-      "The shared mailbox isn't configured yet — set RECRUITMENT_MAILBOX_EMAIL and finish setup under Settings → Integrations."
+      "The shared mailbox isn't configured yet — set SHARED_MAILBOX_EMAIL and finish setup under Settings → Integrations."
     );
   }
 

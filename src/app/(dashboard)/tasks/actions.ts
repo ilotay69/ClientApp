@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { getResendClient, buildTaskAssignedEmail } from "@/lib/resend";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { buildTaskAssignedEmail } from "@/lib/resend";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { formatDate } from "@/lib/format";
 import { requirePermission, requireStaff } from "@/lib/permissions";
 import type { TaskKind, TaskPriority } from "@/lib/types";
@@ -48,10 +50,20 @@ async function notifyNewAssignees(taskId: string, newAssigneeIds: string[]) {
 
   if (!task || !recipients?.length) return;
 
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+  if (!mailboxEmail) {
+    console.error("notifyNewAssignees: SHARED_MAILBOX_EMAIL isn't set, skipping notification email");
+    return;
+  }
+
   try {
-    const resend = getResendClient();
-    const fromAddress =
-      process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
+    const admin = createAdminClient();
+    const settings = await getSharedMailboxSettings(admin);
+    if (!settings) {
+      console.error("notifyNewAssignees: shared mailbox integration isn't set up yet");
+      return;
+    }
+    const accessToken = await getValidSharedMailboxToken(admin, settings);
     const clientName = (task.clients as unknown as { name: string } | null)?.name ?? null;
 
     await Promise.all(
@@ -64,8 +76,7 @@ async function notifyNewAssignees(taskId: string, newAssigneeIds: string[]) {
           dueDate: task.due_date ? formatDate(task.due_date) : null,
           assignedByName: assigner?.full_name ?? null,
         });
-        return resend.emails.send({
-          from: fromAddress,
+        return sendMailAsSharedMailbox(accessToken, mailboxEmail, {
           to: r.email,
           subject: `You've been assigned: ${task.title}`,
           html,

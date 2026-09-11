@@ -12,7 +12,7 @@ export type SharedMailboxSettings = {
   lastSyncErrorAt: string | null;
 };
 
-/** mailboxEmail comes from the RECRUITMENT_MAILBOX_EMAIL env var, not a DB
+/** mailboxEmail comes from the SHARED_MAILBOX_EMAIL env var, not a DB
  * column — one source of truth for which mailbox every Graph call actually
  * targets, rather than a stored value that could drift out of sync with it. */
 export async function getSharedMailboxSettings(admin: Admin): Promise<SharedMailboxSettings | null> {
@@ -24,7 +24,7 @@ export async function getSharedMailboxSettings(admin: Admin): Promise<SharedMail
   if (!data) return null;
 
   return {
-    mailboxEmail: process.env.RECRUITMENT_MAILBOX_EMAIL ?? null,
+    mailboxEmail: process.env.SHARED_MAILBOX_EMAIL ?? null,
     cachedAccessToken: data.cached_access_token,
     tokenExpiresAt: data.token_expires_at,
     lastSyncedAt: data.last_synced_at,

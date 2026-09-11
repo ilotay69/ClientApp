@@ -586,9 +586,9 @@ export async function testSharedMailboxConnectionAction(): Promise<{ ok: boolean
     return { ok: false, message: "You don't have permission to do that." };
   }
 
-  const mailboxEmail = process.env.RECRUITMENT_MAILBOX_EMAIL;
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
   if (!mailboxEmail) {
-    return { ok: false, message: "Set the RECRUITMENT_MAILBOX_EMAIL environment variable first." };
+    return { ok: false, message: "Set the SHARED_MAILBOX_EMAIL environment variable first." };
   }
 
   try {

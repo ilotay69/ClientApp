@@ -35,11 +35,11 @@ export function SharedMailboxSettingsForm({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div>
-        <h2 className="text-sm font-semibold text-slate-900">Recruitment mailbox</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Shared mailbox</h2>
         <p className="mt-1 text-xs text-slate-500">
           {mailboxEmail
             ? `${mailboxEmail} — used for interview invites and candidate messaging`
-            : "Not configured — set the RECRUITMENT_MAILBOX_EMAIL environment variable"}
+            : "Not configured — set the SHARED_MAILBOX_EMAIL environment variable"}
         </p>
       </div>
 
