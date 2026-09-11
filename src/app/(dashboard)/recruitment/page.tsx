@@ -8,6 +8,7 @@ import { JobPostingForm } from "@/components/job-posting-form";
 import { ResumeFilterBar } from "@/components/resume-filter-bar";
 import { RecruitmentTable, type RecruitmentTableRow } from "@/components/recruitment-table";
 import { AddCandidateForm } from "@/components/add-candidate-form";
+import { BulkUploadResumesForm } from "@/components/bulk-upload-resumes-form";
 import {
   updateResumeFolderName,
   syncResumesNow,
@@ -19,6 +20,7 @@ import {
   pasteResumeTextAction,
   deleteResumeAction,
   addCandidateAction,
+  bulkUploadResumesAction,
   scheduleInterviewAction,
 } from "./actions";
 
@@ -364,7 +366,10 @@ export default async function RecruitmentPage({
           nameQuery={nameQuery}
           clearHref="/recruitment"
         />
-        <AddCandidateForm action={addCandidateAction} />
+        <div className="flex flex-wrap items-start gap-2">
+          <AddCandidateForm action={addCandidateAction} />
+          <BulkUploadResumesForm action={bulkUploadResumesAction} />
+        </div>
       </div>
 
       <RecruitmentTable

@@ -574,6 +574,96 @@ export async function uploadResumeFileAction(
   return { error: null };
 }
 
+export type BulkUploadResumesState = { error: string | null; success: string | null };
+
+/** One or more resume files at once, each becoming its own brand-new
+ * candidate row — the bulk counterpart to addCandidateAction's manual
+ * single-candidate form, except with an actual file per candidate instead
+ * of pasted text. Not screened automatically, same as every other
+ * upload/paste path — "Screen pending resumes" (or selecting these rows
+ * and "Screen selected") picks them up afterward, which is also what
+ * extracts candidate_name/email/phone for each one. A per-file failure
+ * (wrong type, storage error) doesn't abort the rest of the batch. */
+export async function bulkUploadResumesAction(
+  _prevState: BulkUploadResumesState,
+  formData: FormData
+): Promise<BulkUploadResumesState> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) {
+    return { error: "Choose one or more resume files.", success: null };
+  }
+
+  const admin = createAdminClient();
+  let created = 0;
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const extensionOk = /\.(pdf|docx)$/i.test(file.name);
+    if (!RESUME_MEDIA_TYPES[file.type] && !extensionOk) {
+      failures.push(`${file.name} (not a PDF or Word file)`);
+      continue;
+    }
+    if (file.size > MAX_RESUME_UPLOAD_BYTES) {
+      failures.push(`${file.name} (larger than 20MB)`);
+      continue;
+    }
+
+    const contentType =
+      file.type === "application/pdf" || /\.pdf$/i.test(file.name)
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    // Generated up front (rather than left to the resumes table's own
+    // default) so the storage path can nest under this row's id, same
+    // layout convention as uploadResumeFileAction's single-file path.
+    const resumeId = crypto.randomUUID();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${resumeId}/${crypto.randomUUID()}-${safeName}`;
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const { error: uploadError } = await admin.storage.from("resumes").upload(path, bytes, { contentType });
+    if (uploadError) {
+      console.error("bulkUploadResumesAction: upload failed", uploadError);
+      failures.push(`${file.name} (${uploadError.message})`);
+      continue;
+    }
+
+    const { error: insertError } = await admin.from("resumes").insert({
+      id: resumeId,
+      graph_message_id: `manual-${crypto.randomUUID()}`,
+      graph_attachment_id: null,
+      received_at: new Date().toISOString(),
+      storage_path: path,
+      file_name: file.name,
+      file_size_bytes: file.size,
+      content_type: contentType,
+    });
+    if (insertError) {
+      await admin.storage.from("resumes").remove([path]); // matches uploadResumeFileAction's rollback
+      console.error("bulkUploadResumesAction: row insert failed", insertError);
+      failures.push(`${file.name} (${insertError.message})`);
+      continue;
+    }
+
+    created += 1;
+  }
+
+  revalidatePath("/recruitment");
+
+  if (created === 0) {
+    return { error: `Nothing was added — ${failures.join(", ")}.`, success: null };
+  }
+  const summary = `Added ${created} candidate${created === 1 ? "" : "s"}.`;
+  return {
+    error: null,
+    success: failures.length > 0 ? `${summary} ${failures.length} failed: ${failures.join(", ")}` : summary,
+  };
+}
+
 /** Alternative to uploading a file — staff copy/pastes resume text directly
  * (e.g. from a job board's own resume-viewer page that this app can't fetch
  * server-side, see the plan discussion on why). Clears any existing file,
