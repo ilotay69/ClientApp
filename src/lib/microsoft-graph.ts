@@ -672,7 +672,20 @@ export async function fetchSharedMailboxMessagesSince(
   const base = new URL(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}/messages`
   );
-  base.searchParams.set("$select", "id,subject,from,receivedDateTime,body,meetingMessageType");
+  // meetingMessageType only exists on the derived eventMessage type, not
+  // the base Message type this collection is typed as — selecting it bare
+  // gets a straight 400 ("Could not find a property named
+  // 'meetingMessageType' on type 'Microsoft.OutlookServices.Message'"),
+  // the same class of bug already hit once for resume attachments. Graph's
+  // type-cast $select syntax (microsoft.graph.eventMessage/<prop>) is what
+  // actually requests a derived-type property from a base-typed
+  // collection; the response still comes back with the plain,
+  // unqualified `meetingMessageType` field name on messages where it
+  // applies (null/absent otherwise).
+  base.searchParams.set(
+    "$select",
+    "id,subject,from,receivedDateTime,body,microsoft.graph.eventMessage/meetingMessageType"
+  );
   base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso}`);
   base.searchParams.set("$orderby", "receivedDateTime asc");
   base.searchParams.set("$top", "50");
