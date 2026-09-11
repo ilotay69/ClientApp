@@ -90,7 +90,9 @@ export function RecruitmentTable({
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
-  screenSelectedAction: (resumeIds: string[]) => Promise<{ ok: boolean; message: string }>;
+  screenSelectedAction: (
+    resumeIds: string[]
+  ) => Promise<{ ok: boolean; message: string; screened?: number; errored?: number }>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
@@ -127,12 +129,37 @@ export function RecruitmentTable({
     });
   }
 
+  // Same reasoning as ScreenPendingResumesButton: screenPendingResumes
+  // processes a resumeIds selection uncapped, in sequential 5-per-call
+  // Anthropic batches — sending a large selection (100+ resumes) as one
+  // Server Action request risks outliving Railway's own request timeout,
+  // surfacing as a generic "This page couldn't load" rather than any error
+  // this component gets a chance to show. Chunking here instead keeps each
+  // request to one Anthropic call, same as a small selection always was.
+  const SELECT_SCREEN_CHUNK_SIZE = 5;
+
   function runScreenSelected() {
     setResult(null);
+    const ids = Array.from(selected);
     startTransition(async () => {
-      const outcome = await screenSelectedAction(Array.from(selected));
-      setResult(outcome);
-      if (outcome.ok) setSelected(new Set());
+      let screened = 0;
+      let errored = 0;
+      for (let i = 0; i < ids.length; i += SELECT_SCREEN_CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + SELECT_SCREEN_CHUNK_SIZE);
+        const outcome = await screenSelectedAction(chunk);
+        if (!outcome.ok) {
+          setResult(outcome);
+          return;
+        }
+        screened += outcome.screened ?? 0;
+        errored += outcome.errored ?? 0;
+        const done = i + SELECT_SCREEN_CHUNK_SIZE >= ids.length;
+        setResult({
+          ok: true,
+          message: `Screened ${screened}, ${errored} error${errored === 1 ? "" : "s"}${done ? "." : "…"}`,
+        });
+      }
+      setSelected(new Set());
     });
   }
 

@@ -298,6 +298,8 @@ export async function screenSelectedResumesAction(resumeIds: string[]): Promise<
     return {
       ok: true,
       message: `Screened ${result.screened}, ${result.errored} error${result.errored === 1 ? "" : "s"}.`,
+      screened: result.screened,
+      errored: result.errored,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Screening failed." };
