@@ -301,12 +301,27 @@ function ApplicantRow({
   const hasResumeContent = Boolean(row.file_name || row.pasted_resume_text);
   const { overview, detail } = splitComment(row.ai_comment);
 
+  // Marks a still-"new" candidate as "reviewing" the first time staff
+  // actually opens their row — a ref (not state) so rapid expand/collapse
+  // toggling before the server round-trip lands can't fire this twice; it
+  // naturally resets on the next real page load once row.status itself
+  // comes back as something other than "new".
+  const autoMarkedReviewingRef = useRef(false);
+
+  function handleRowClick() {
+    setExpanded((e) => {
+      const next = !e;
+      if (next && row.status === "new" && !autoMarkedReviewingRef.current) {
+        autoMarkedReviewingRef.current = true;
+        updateStatusAction(row.id, "reviewing");
+      }
+      return next;
+    });
+  }
+
   return (
     <>
-      <tr
-        className="cursor-pointer hover:bg-slate-50"
-        onClick={() => setExpanded((e) => !e)}
-      >
+      <tr className="cursor-pointer hover:bg-slate-50" onClick={handleRowClick}>
         <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
           <input
             type="checkbox"
