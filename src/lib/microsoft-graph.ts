@@ -708,3 +708,81 @@ export async function fetchSharedMailboxMessagesSince(
 
   return messages;
 }
+
+/** Graph's dateTimeTimeZone resource wants a plain local-format string
+ * ("2026-09-11T20:00:00", no "Z", no milliseconds) alongside an explicit
+ * timeZone field — sending an ISO string's trailing "Z" alongside a
+ * separate timeZone is a documented source of Graph either rejecting or
+ * misinterpreting the value, so this strips both before ever building a
+ * request body. Used with timeZone: "UTC" here, since the caller has
+ * already converted to a UTC instant. */
+function toGraphDateTime(date: Date): string {
+  return date.toISOString().slice(0, 19);
+}
+
+export type SharedMailboxEventResult = {
+  id: string;
+  /** Graph's own auto-generated Teams link (isOnlineMeeting below) — null
+   * if for some reason Graph didn't return one. */
+  teamsJoinUrl: string | null;
+};
+
+/**
+ * Creates a real calendar event on the shared mailbox's own calendar, with
+ * the candidate as an attendee — not just an emailed standalone .ics file.
+ * Exchange sends the actual meeting-request email to the attendee
+ * automatically as a side effect of this call (the same thing that happens
+ * scheduling a meeting from Outlook's own UI), so there's no separate
+ * email-building step needed here at all. isOnlineMeeting auto-generates a
+ * Teams link and Graph appends the "join the meeting" block to the body
+ * itself — `bodyHtml` below should be just the descriptive content (role,
+ * notes), not a join-link block of its own.
+ */
+export async function createSharedMailboxEvent(
+  accessToken: string,
+  mailboxEmail: string,
+  event: {
+    subject: string;
+    bodyHtml: string;
+    start: Date;
+    end: Date;
+    location: string | null;
+    attendeeEmail: string;
+    attendeeName: string;
+  }
+): Promise<SharedMailboxEventResult> {
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}/calendar/events`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        subject: event.subject,
+        body: { contentType: "HTML", content: event.bodyHtml },
+        start: { dateTime: toGraphDateTime(event.start), timeZone: "UTC" },
+        end: { dateTime: toGraphDateTime(event.end), timeZone: "UTC" },
+        ...(event.location ? { location: { displayName: event.location } } : {}),
+        attendees: [
+          {
+            emailAddress: { address: event.attendeeEmail, name: event.attendeeName },
+            type: "required",
+          },
+        ],
+        isOnlineMeeting: true,
+        onlineMeetingProvider: "teamsForBusiness",
+      }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Microsoft Graph create-event failed (${res.status}): ${text}`);
+  }
+  const json = await res.json();
+  return {
+    id: json.id,
+    teamsJoinUrl: json.onlineMeeting?.joinUrl ?? null,
+  };
+}

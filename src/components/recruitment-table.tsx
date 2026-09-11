@@ -58,6 +58,7 @@ export type RecruitmentTableRow = Pick<
     durationMinutes: number;
     location: string | null;
     rsvpStatus: "accepted" | "declined" | "tentative" | null;
+    teamsJoinUrl: string | null;
   }[];
   /** Full message thread (both directions) with this candidate through the
    * shared recruitment mailbox — from resume_messages (see page.tsx). */
@@ -527,6 +528,17 @@ function ApplicantRow({
                         {iv.location ? ` · ${iv.location}` : ""}
                       </span>
                       {iv.rsvpStatus && <Badge value={iv.rsvpStatus} />}
+                      {iv.teamsJoinUrl && (
+                        <a
+                          href={iv.teamsJoinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-medium text-indigo-600 hover:underline"
+                        >
+                          Join Teams meeting
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>

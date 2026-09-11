@@ -8,9 +8,8 @@ import { screenPendingResumes, extractCandidateContactInfo } from "@/lib/resume-
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection, ResumeStatus } from "@/lib/types";
-import { buildInterviewInviteEmail } from "@/lib/resend";
-import { buildInterviewIcs, interviewDateTimeToUtc } from "@/lib/ics";
-import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { interviewDateTimeToUtc } from "@/lib/ics";
+import { sendMailAsSharedMailbox, createSharedMailboxEvent } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 
 /** Updates the signed-in user's own watched folder name. One row per staff
@@ -400,22 +399,13 @@ export async function scheduleInterviewAction(
   const jobTitle = posting?.title ?? "the role";
 
   const start = interviewDateTimeToUtc(date, time);
-  const whenLabel = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Toronto",
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(start);
+  const end = new Date(start.getTime() + durationMinutes * 60_000);
 
-  // The shared recruitment mailbox, not any individual staff member's own
-  // email — nothing here should expose a personal company address to the
-  // candidate, in the ICS content or otherwise. Both the calendar app's
-  // Accept/Decline RSVP reply and any reply to the email itself go to this
-  // same shared address (and get picked up by the candidate-messaging sync).
+  // The shared mailbox, not any individual staff member's own email —
+  // nothing here should expose a personal company address to the
+  // candidate. The event lives on this mailbox's own calendar; Exchange
+  // sends the actual meeting-request email to the candidate automatically
+  // as a side effect of creating it below, no separate email step needed.
   const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
   if (!mailboxEmail) {
     return {
@@ -424,52 +414,33 @@ export async function scheduleInterviewAction(
     };
   }
 
-  const ics = buildInterviewIcs({
-    uid: `interview-${resumeId}-${Date.now()}@cgtechnologies.com`,
-    organizerEmail: mailboxEmail,
-    organizerName: "CG Technologies",
-    attendeeEmail: candidateEmail,
-    attendeeName: candidateName,
-    summary: `Interview: ${jobTitle}`,
-    description: notes ?? `Interview for the ${jobTitle} role.`,
-    location,
-    start,
-    durationMinutes,
-  });
+  // Just the descriptive content — Graph appends its own "Join Microsoft
+  // Teams Meeting" block to this automatically (isOnlineMeeting below), and
+  // Outlook's own invite chrome (time, location, Accept/Decline buttons)
+  // wraps around it, so this doesn't need to rebuild any of that itself.
+  const bodyHtml = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;">
+    <p>Interview for the <strong>${jobTitle}</strong> role, with ${recruiterName} · CG Technologies.</p>
+    ${notes ? `<p style="white-space:pre-line;">${notes.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>` : ""}
+  </div>`;
 
-  const { html, text } = buildInterviewInviteEmail({
-    candidateName,
-    jobTitle,
-    whenLabel,
-    location,
-    notes,
-    recruiterName,
-  });
-
+  let eventResult: { id: string; teamsJoinUrl: string | null };
   try {
     const settings = await getSharedMailboxSettings(admin);
     if (!settings) {
       return { error: "The shared mailbox integration hasn't been set up yet.", success: null };
     }
     const accessToken = await getValidSharedMailboxToken(admin, settings);
-    // saveToSentItems (set inside sendMailAsSharedMailbox) already puts a
-    // copy in the mailbox's own Sent folder — no separate cc needed to get
-    // a "sent copy" the way Resend's send-only API required.
-    await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
-      to: candidateEmail,
-      subject: `Interview invite: ${jobTitle}`,
-      html,
-      text,
-      attachments: [
-        {
-          filename: "interview.ics",
-          contentBase64: Buffer.from(ics, "utf-8").toString("base64"),
-          contentType: "text/calendar; charset=utf-8; method=REQUEST",
-        },
-      ],
+    eventResult = await createSharedMailboxEvent(accessToken, mailboxEmail, {
+      subject: `Interview: ${jobTitle}`,
+      bodyHtml,
+      start,
+      end,
+      location,
+      attendeeEmail: candidateEmail,
+      attendeeName: candidateName,
     });
   } catch (err) {
-    console.error("scheduleInterviewAction: email send failed", err);
+    console.error("scheduleInterviewAction: event creation failed", err);
     return {
       error: err instanceof Error ? err.message : "Couldn't send the invite.",
       success: null,
@@ -492,11 +463,16 @@ export async function scheduleInterviewAction(
     location,
     notes,
     scheduled_by: user.id,
+    graph_event_id: eventResult.id,
+    teams_join_url: eventResult.teamsJoinUrl,
   });
 
   revalidatePath("/recruitment");
 
-  return { error: null, success: `Invite sent to ${candidateEmail}.` };
+  return {
+    error: null,
+    success: `Invite sent to ${candidateEmail}.${eventResult.teamsJoinUrl ? " Teams link generated." : ""}`,
+  };
 }
 
 export type SendCandidateReplyState = { error: string | null; success: string | null };

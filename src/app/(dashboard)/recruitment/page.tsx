@@ -110,7 +110,7 @@ export default async function RecruitmentPage({
       supabase
         .from("resume_interviews")
         .select(
-          "id, resume_id, scheduled_at, duration_minutes, location, rsvp_status, rsvp_at, resumes(candidate_name, sender_name, candidate_email, sender_email)"
+          "id, resume_id, scheduled_at, duration_minutes, location, rsvp_status, rsvp_at, teams_join_url, resumes(candidate_name, sender_name, candidate_email, sender_email)"
         )
         .order("scheduled_at", { ascending: true }),
       // Full two-way thread (both directions), oldest first — grouped by
@@ -132,6 +132,7 @@ export default async function RecruitmentPage({
     location: string | null;
     rsvp_status: "accepted" | "declined" | "tentative" | null;
     rsvp_at: string | null;
+    teams_join_url: string | null;
     resumes:
       | {
           candidate_name: string | null;
@@ -249,6 +250,7 @@ export default async function RecruitmentPage({
       durationMinutes: iv.duration_minutes,
       location: iv.location,
       rsvpStatus: iv.rsvp_status,
+      teamsJoinUrl: iv.teams_join_url,
     })),
     messages: (messagesByResumeId.get(r.id) ?? []).map((m) => ({
       id: m.id,
@@ -376,6 +378,16 @@ export default async function RecruitmentPage({
                   </p>
                   {iv.rsvp_status && <Badge value={iv.rsvp_status} />}
                   {iv.location && <p className="text-xs text-slate-500">{iv.location}</p>}
+                  {iv.teams_join_url && (
+                    <a
+                      href={iv.teams_join_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-indigo-600 hover:underline"
+                    >
+                      Join Teams meeting
+                    </a>
+                  )}
                   {email && <p className="text-xs text-slate-400">{email}</p>}
                 </div>
               );
