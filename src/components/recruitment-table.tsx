@@ -544,21 +544,23 @@ function ApplicantRow({
                 </ul>
               </div>
             )}
-            <div className="text-xs" onClick={(e) => e.stopPropagation()}>
-              <p className="font-semibold uppercase tracking-wider text-slate-500">Messages</p>
+            <div className="max-w-xl text-sm" onClick={(e) => e.stopPropagation()}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Messages
+              </p>
               {row.messages && row.messages.length > 0 && (
-                <ul className="mt-1 max-h-48 space-y-1.5 overflow-y-auto rounded-md bg-white p-2">
+                <ul className="mt-1 max-h-64 space-y-2 overflow-y-auto rounded-md bg-white p-3">
                   {row.messages.map((m) => (
                     <li key={m.id} className={m.direction === "outbound" ? "text-right" : "text-left"}>
                       <span
-                        className={`inline-block max-w-[85%] rounded-md px-2 py-1 text-left ${
+                        className={`inline-block min-w-[6rem] max-w-[85%] rounded-md px-3 py-2 text-left ${
                           m.direction === "outbound"
                             ? "bg-brand/10 text-slate-800"
                             : "bg-slate-100 text-slate-700"
                         }`}
                       >
                         <span className="block whitespace-pre-line">{m.bodyText}</span>
-                        <span className="mt-0.5 block text-[10px] text-slate-400">
+                        <span className="mt-1 block text-xs text-slate-400">
                           {m.direction === "outbound" ? "You" : "Candidate"} ·{" "}
                           {formatDate(m.sentAt)}
                         </span>
@@ -567,8 +569,11 @@ function ApplicantRow({
                   ))}
                 </ul>
               )}
-              <div className="mt-2">
-                <CandidateReplyForm resumeId={row.id} action={sendCandidateReplyAction} />
+              <div className="mt-2 flex flex-wrap items-start gap-2">
+                <div className="min-w-[16rem] flex-1">
+                  <CandidateReplyForm resumeId={row.id} action={sendCandidateReplyAction} />
+                </div>
+                <ScheduleInterviewForm resumeId={row.id} action={scheduleInterviewAction} />
               </div>
             </div>
             {overview && (
@@ -605,14 +610,11 @@ function ApplicantRow({
               pasteTextAction={pasteTextAction}
             />
 
-            <div className="flex flex-wrap items-start gap-2">
-              <ScheduleInterviewForm resumeId={row.id} action={scheduleInterviewAction} />
-              <div onClick={(e) => e.stopPropagation()}>
-                <DeleteButton
-                  action={deleteAction.bind(null, row.id)}
-                  confirmText={`Delete this applicant${row.candidate_name ? ` (${row.candidate_name})` : ""}? This can't be undone.`}
-                />
-              </div>
+            <div onClick={(e) => e.stopPropagation()}>
+              <DeleteButton
+                action={deleteAction.bind(null, row.id)}
+                confirmText={`Delete this applicant${row.candidate_name ? ` (${row.candidate_name})` : ""}? This can't be undone.`}
+              />
             </div>
           </td>
         </tr>
