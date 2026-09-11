@@ -36,7 +36,7 @@ export default async function RecruitmentPage({
     status?: string | string[];
     verdict?: string | string[];
     big_firm?: string;
-    min_years?: string;
+    min_years?: string | string[];
     working?: string;
     m365?: string;
     gta?: string;
@@ -65,7 +65,7 @@ export default async function RecruitmentPage({
   const verdicts = toParamArray(verdictParam);
   const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
   const YEARS_BUCKETS = ["under3", "3to5", "6to10", "11plus"];
-  const minYears = minYearsParam && YEARS_BUCKETS.includes(minYearsParam) ? minYearsParam : null;
+  const minYears = toParamArray(minYearsParam).filter((v) => YEARS_BUCKETS.includes(v));
   const currentlyWorking = workingParam === "yes" || workingParam === "no" ? workingParam : null;
   const m365Management = m365Param === "yes" || m365Param === "no" ? m365Param : null;
   const gta = gtaParam === "yes" || gtaParam === "no" ? gtaParam : null;
@@ -109,10 +109,19 @@ export default async function RecruitmentPage({
   if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
   if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
   if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
-  if (minYears === "under3") resumeQuery = resumeQuery.lt("years_experience", 3);
-  else if (minYears === "3to5") resumeQuery = resumeQuery.gte("years_experience", 3).lte("years_experience", 5);
-  else if (minYears === "6to10") resumeQuery = resumeQuery.gte("years_experience", 6).lte("years_experience", 10);
-  else if (minYears === "11plus") resumeQuery = resumeQuery.gte("years_experience", 11);
+  if (minYears.length > 0) {
+    // Each bucket is its own OR'd clause — the two middle buckets need an
+    // AND of two conditions (gte + lte), so those are wrapped in PostgREST's
+    // and(...) group rather than expressed as flat comma-separated terms
+    // (which .or() would otherwise read as one big OR across all four).
+    const YEARS_CLAUSES: Record<string, string> = {
+      under3: "years_experience.lt.3",
+      "3to5": "and(years_experience.gte.3,years_experience.lte.5)",
+      "6to10": "and(years_experience.gte.6,years_experience.lte.10)",
+      "11plus": "years_experience.gte.11",
+    };
+    resumeQuery = resumeQuery.or(minYears.map((v) => YEARS_CLAUSES[v]).join(","));
+  }
   if (currentlyWorking) resumeQuery = resumeQuery.eq("currently_working", currentlyWorking === "yes");
   // m365_technologies is a keyword list, not a boolean — "yes" filters to
   // non-null (some technology evidenced), "no" filters to null (none found).

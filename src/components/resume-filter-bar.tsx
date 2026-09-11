@@ -65,9 +65,9 @@ const BIG_FIRM_OPTIONS = [
   { value: "no", label: "Big firm: No" },
 ];
 
-// Mutually-exclusive integer-year buckets (years_experience is always a
-// whole number) — page.tsx turns each into its own gte/lte range so a
-// candidate falls into exactly one, with no shared boundary value.
+// Integer-year buckets (years_experience is always a whole number), no two
+// sharing a boundary value — multi-select, so page.tsx ORs together
+// whichever buckets are checked rather than picking just one.
 const YEARS_OPTIONS = [
   { value: "under3", label: "<3 yrs" },
   { value: "3to5", label: "3-5 yrs" },
@@ -109,7 +109,7 @@ export function ResumeFilterBar({
   statuses: string[];
   verdicts: string[];
   bigFirm: string | null;
-  minYears: string | null;
+  minYears: string[];
   currentlyWorking: string | null;
   m365Management: string | null;
   gta: string | null;
@@ -121,7 +121,7 @@ export function ResumeFilterBar({
     statuses.length > 0 ||
     verdicts.length > 0 ||
     Boolean(bigFirm) ||
-    Boolean(minYears) ||
+    minYears.length > 0 ||
     Boolean(currentlyWorking) ||
     Boolean(m365Management) ||
     Boolean(gta) ||
@@ -159,8 +159,7 @@ export function ResumeFilterBar({
             key={`min_years-${o.value}`}
             name="min_years"
             option={o}
-            checked={minYears === o.value}
-            radio
+            checked={minYears.includes(o.value)}
           />
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
