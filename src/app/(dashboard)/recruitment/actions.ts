@@ -407,12 +407,18 @@ export async function scheduleInterviewAction(
   }).format(start);
 
   const fromAddress = process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
-  const organizerEmail = fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
+  // The ICS's own ORGANIZER is independent of the email's From/Reply-To
+  // headers, and it's what the candidate's calendar app actually sends its
+  // Accept/Decline RSVP reply to — setting it to the recruiter's real
+  // address (not the generic send-from address) means that reply lands
+  // directly in their own inbox natively, with no RSVP-processing code of
+  // our own needed.
+  const organizerEmail = user.email ?? fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
 
   const ics = buildInterviewIcs({
     uid: `interview-${resumeId}-${Date.now()}@cgtechnologies.com`,
     organizerEmail,
-    organizerName: "CG Technologies",
+    organizerName: recruiterName,
     attendeeEmail: candidateEmail,
     attendeeName: candidateName,
     summary: `Interview: ${jobTitle}`,
@@ -436,6 +442,9 @@ export async function scheduleInterviewAction(
     const { error: sendError } = await resend.emails.send({
       from: fromAddress,
       to: candidateEmail,
+      // CC'd so the recruiter gets their own copy of the invite (and the
+      // .ics) to add to their own calendar too, not just the candidate.
+      cc: user.email ?? undefined,
       replyTo: user.email ?? undefined,
       subject: `Interview invite: ${jobTitle}`,
       html,
@@ -487,7 +496,7 @@ export async function scheduleInterviewAction(
 
   revalidatePath("/recruitment");
 
-  return { error: null, success: `Invite sent to ${candidateEmail}.` };
+  return { error: null, success: `Invite sent to ${candidateEmail} (CC'd to you).` };
 }
 
 const MAX_RESUME_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB, same cap as client documents
