@@ -212,7 +212,14 @@ export interface MailConnection {
 }
 
 export type ResumeVerdict = "yes" | "maybe" | "no";
-export type ResumeStatus = "new" | "reviewed";
+// Matches Indeed's own applicant status stages exactly.
+export type ResumeStatus =
+  | "new"
+  | "reviewing"
+  | "contacting"
+  | "interviewing"
+  | "rejected"
+  | "hired";
 
 export interface JobPosting {
   id: string;

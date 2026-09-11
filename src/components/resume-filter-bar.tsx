@@ -49,9 +49,14 @@ function Chip({
   );
 }
 
+// Matches Indeed's own applicant status stages exactly.
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
-  { value: "reviewed", label: "Reviewed" },
+  { value: "reviewing", label: "Reviewing" },
+  { value: "contacting", label: "Contacting" },
+  { value: "interviewing", label: "Interviewing" },
+  { value: "rejected", label: "Rejected" },
+  { value: "hired", label: "Hired" },
 ];
 
 const VERDICT_OPTIONS = [

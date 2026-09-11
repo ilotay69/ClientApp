@@ -22,13 +22,17 @@ const CATEGORY_PURPLE = "bg-purple-100 text-purple-700";
 const CATEGORY_INDIGO = "bg-indigo-100 text-indigo-700";
 
 const COLORS: Record<string, string> = {
-  // resume screener — ai_verdict + status (confirmed no collisions with any
-  // other value in this map)
+  // resume screener — ai_verdict + status, matching Indeed's own applicant
+  // stages (confirmed no collisions with any other value in this map)
   yes: SUCCESS,
   maybe: ATTENTION,
   no: URGENT,
   new: NEUTRAL,
-  reviewed: INFO,
+  reviewing: INFO,
+  contacting: ATTENTION,
+  interviewing: INFO,
+  rejected: URGENT,
+  hired: SUCCESS,
 
   // license reconciliation status (confirmed no collisions above)
   matched: SUCCESS,
