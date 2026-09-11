@@ -102,6 +102,13 @@ export function RecruitmentTable({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [searchValue, setSearchValue] = useState(nameQuery);
+  // Accordion, not independent per-row state: at most one candidate's detail
+  // is open at a time, so opening another one collapses whichever was open.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  function toggleExpanded(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
 
   // Full-navigation GET rather than SPA routing, matching every other filter
   // on this page — reads the other, currently-active filters straight off
@@ -260,6 +267,8 @@ export function RecruitmentTable({
                 row={r}
                 selected={selected.has(r.id)}
                 onToggleSelected={() => toggleOne(r.id)}
+                expanded={expandedId === r.id}
+                onToggleExpanded={() => toggleExpanded(r.id)}
                 updateStatusAction={updateStatusAction}
                 uploadFileAction={uploadFileAction}
                 pasteTextAction={pasteTextAction}
@@ -284,6 +293,8 @@ function ApplicantRow({
   row,
   selected,
   onToggleSelected,
+  expanded,
+  onToggleExpanded,
   updateStatusAction,
   uploadFileAction,
   pasteTextAction,
@@ -292,12 +303,13 @@ function ApplicantRow({
   row: RecruitmentTableRow;
   selected: boolean;
   onToggleSelected: () => void;
+  expanded: boolean;
+  onToggleExpanded: () => void;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const hasResumeContent = Boolean(row.file_name || row.pasted_resume_text);
   const { overview, detail } = splitComment(row.ai_comment);
 
@@ -309,14 +321,12 @@ function ApplicantRow({
   const autoMarkedReviewingRef = useRef(false);
 
   function handleRowClick() {
-    setExpanded((e) => {
-      const next = !e;
-      if (next && row.status === "new" && !autoMarkedReviewingRef.current) {
-        autoMarkedReviewingRef.current = true;
-        updateStatusAction(row.id, "reviewing");
-      }
-      return next;
-    });
+    const opening = !expanded;
+    if (opening && row.status === "new" && !autoMarkedReviewingRef.current) {
+      autoMarkedReviewingRef.current = true;
+      updateStatusAction(row.id, "reviewing");
+    }
+    onToggleExpanded();
   }
 
   return (
@@ -418,9 +428,25 @@ function ApplicantRow({
           <td colSpan={13} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
             {(row.candidate_email || row.sender_email || row.candidate_phone) && (
               <p className="text-xs text-slate-500">
-                Contact: {[row.candidate_email ?? row.sender_email, row.candidate_phone]
-                  .filter(Boolean)
-                  .join(" · ")}
+                Contact:{" "}
+                {(() => {
+                  const email = row.candidate_email ?? row.sender_email;
+                  return (
+                    <>
+                      {email && (
+                        <a
+                          href={`mailto:${email}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-brand underline"
+                        >
+                          {email}
+                        </a>
+                      )}
+                      {email && row.candidate_phone && " · "}
+                      {row.candidate_phone}
+                    </>
+                  );
+                })()}
               </p>
             )}
             {row.subject && (
