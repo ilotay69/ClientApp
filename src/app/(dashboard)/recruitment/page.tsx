@@ -41,6 +41,7 @@ export default async function RecruitmentPage({
   searchParams: Promise<{
     status?: string | string[];
     verdict?: string | string[];
+    our_verdict?: string | string[];
     big_firm?: string;
     min_years?: string | string[];
     working?: string;
@@ -62,6 +63,7 @@ export default async function RecruitmentPage({
   const {
     status: statusParam,
     verdict: verdictParam,
+    our_verdict: ourVerdictParam,
     big_firm: bigFirmParam,
     min_years: minYearsParam,
     working: workingParam,
@@ -77,6 +79,7 @@ export default async function RecruitmentPage({
   const nameQuery = (nameQueryParam ?? "").trim();
   const statuses = toParamArray(statusParam);
   const verdicts = toParamArray(verdictParam);
+  const ourVerdicts = toParamArray(ourVerdictParam);
   const bigFirm = bigFirmParam === "yes" || bigFirmParam === "no" ? bigFirmParam : null;
   const YEARS_BUCKETS = ["under3", "3to5", "6to10", "11plus"];
   const minYears = toParamArray(minYearsParam).filter((v) => YEARS_BUCKETS.includes(v));
@@ -192,6 +195,7 @@ export default async function RecruitmentPage({
   }
   if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
   if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
+  if (ourVerdicts.length > 0) resumeQuery = resumeQuery.in("human_verdict", ourVerdicts);
   if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
   if (minYears.length > 0) {
     // Each bucket is its own OR'd clause — the two middle buckets need an
@@ -402,6 +406,7 @@ export default async function RecruitmentPage({
         <ResumeFilterBar
           statuses={statuses}
           verdicts={verdicts}
+          ourVerdicts={ourVerdicts}
           bigFirm={bigFirm}
           minYears={minYears}
           currentlyWorking={currentlyWorking}

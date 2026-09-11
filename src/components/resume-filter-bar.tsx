@@ -68,6 +68,12 @@ const VERDICT_OPTIONS = [
   { value: "no", label: "No" },
 ];
 
+const OUR_VERDICT_OPTIONS = [
+  { value: "yes", label: "Our: Yes" },
+  { value: "maybe", label: "Our: Maybe" },
+  { value: "no", label: "Our: No" },
+];
+
 const BIG_FIRM_OPTIONS = [
   { value: "yes", label: "Big firm: Yes" },
   { value: "no", label: "Big firm: No" },
@@ -122,6 +128,7 @@ const AUTO_SUGGEST_HREF =
 export function ResumeFilterBar({
   statuses,
   verdicts,
+  ourVerdicts,
   bigFirm,
   minYears,
   currentlyWorking,
@@ -135,6 +142,7 @@ export function ResumeFilterBar({
 }: {
   statuses: string[];
   verdicts: string[];
+  ourVerdicts: string[];
   bigFirm: string | null;
   minYears: string[];
   currentlyWorking: string | null;
@@ -149,6 +157,7 @@ export function ResumeFilterBar({
   const hasFilters =
     statuses.length > 0 ||
     verdicts.length > 0 ||
+    ourVerdicts.length > 0 ||
     Boolean(bigFirm) ||
     minYears.length > 0 ||
     Boolean(currentlyWorking) ||
@@ -180,6 +189,15 @@ export function ResumeFilterBar({
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {VERDICT_OPTIONS.map((o) => (
           <Chip key={`verdict-${o.value}`} name="verdict" option={o} checked={verdicts.includes(o.value)} />
+        ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        {OUR_VERDICT_OPTIONS.map((o) => (
+          <Chip
+            key={`our_verdict-${o.value}`}
+            name="our_verdict"
+            option={o}
+            checked={ourVerdicts.includes(o.value)}
+          />
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {BIG_FIRM_OPTIONS.map((o) => (
