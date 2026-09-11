@@ -87,6 +87,11 @@ const M365_OPTIONS = [
   { value: "no", label: "365 Tech: No" },
 ];
 
+const GTA_OPTIONS = [
+  { value: "yes", label: "GTA: Yes" },
+  { value: "no", label: "GTA: No" },
+];
+
 const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
 
 export function ResumeFilterBar({
@@ -96,6 +101,7 @@ export function ResumeFilterBar({
   minYears,
   currentlyWorking,
   m365Management,
+  gta,
   noResumeYet,
   nameQuery,
   clearHref,
@@ -106,6 +112,7 @@ export function ResumeFilterBar({
   minYears: string | null;
   currentlyWorking: string | null;
   m365Management: string | null;
+  gta: string | null;
   noResumeYet: boolean;
   nameQuery: string;
   clearHref: string;
@@ -117,6 +124,7 @@ export function ResumeFilterBar({
     Boolean(minYears) ||
     Boolean(currentlyWorking) ||
     Boolean(m365Management) ||
+    Boolean(gta) ||
     noResumeYet ||
     Boolean(nameQuery);
 
@@ -174,6 +182,10 @@ export function ResumeFilterBar({
             checked={m365Management === o.value}
             radio
           />
+        ))}
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+        {GTA_OPTIONS.map((o) => (
+          <Chip key={`gta-${o.value}`} name="gta" option={o} checked={gta === o.value} radio />
         ))}
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         <Chip name="no_resume" option={NO_RESUME_OPTION} checked={noResumeYet} />

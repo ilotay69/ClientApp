@@ -39,6 +39,7 @@ export default async function RecruitmentPage({
     min_years?: string;
     working?: string;
     m365?: string;
+    gta?: string;
     no_resume?: string;
     q?: string;
   }>;
@@ -55,6 +56,7 @@ export default async function RecruitmentPage({
     min_years: minYearsParam,
     working: workingParam,
     m365: m365Param,
+    gta: gtaParam,
     no_resume: noResumeParam,
     q: nameQueryParam,
   } = await searchParams;
@@ -66,6 +68,7 @@ export default async function RecruitmentPage({
   const minYears = minYearsParam && YEARS_BUCKETS.includes(minYearsParam) ? minYearsParam : null;
   const currentlyWorking = workingParam === "yes" || workingParam === "no" ? workingParam : null;
   const m365Management = m365Param === "yes" || m365Param === "no" ? m365Param : null;
+  const gta = gtaParam === "yes" || gtaParam === "no" ? gtaParam : null;
   const noResumeYet = noResumeParam === "yes";
 
   const {
@@ -115,6 +118,7 @@ export default async function RecruitmentPage({
   // non-null (some technology evidenced), "no" filters to null (none found).
   if (m365Management === "yes") resumeQuery = resumeQuery.not("m365_technologies", "is", null);
   else if (m365Management === "no") resumeQuery = resumeQuery.is("m365_technologies", null);
+  if (gta) resumeQuery = resumeQuery.eq("in_gta", gta === "yes");
   // Matches recruitment-table.tsx's own hasResumeContent check (file_name ||
   // pasted_resume_text) rather than storage_path, which isn't selected here.
   if (noResumeYet) resumeQuery = resumeQuery.is("file_name", null).is("pasted_resume_text", null);
@@ -226,6 +230,7 @@ export default async function RecruitmentPage({
           minYears={minYears}
           currentlyWorking={currentlyWorking}
           m365Management={m365Management}
+          gta={gta}
           noResumeYet={noResumeYet}
           nameQuery={nameQuery}
           clearHref="/recruitment"
