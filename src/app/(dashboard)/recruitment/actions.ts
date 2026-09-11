@@ -7,7 +7,7 @@ import { syncResumeFolder } from "@/lib/resume-sync";
 import { screenPendingResumes, extractCandidateContactInfo } from "@/lib/resume-screening";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { ActiveAiSettings } from "@/lib/ai";
-import type { MailConnection, ResumeStatus } from "@/lib/types";
+import type { MailConnection, ResumeStatus, ResumeVerdict } from "@/lib/types";
 import { interviewDateTimeToUtc } from "@/lib/ics";
 import { sendMailAsSharedMailbox, createSharedMailboxEvent } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
@@ -314,6 +314,20 @@ export async function updateResumeStatusAction(id: string, status: ResumeStatus)
 
   const admin = createAdminClient();
   await admin.from("resumes").update({ status }).eq("id", id);
+  revalidatePath("/recruitment");
+}
+
+/** Staff's own Yes/Maybe/No call — kept on a separate column from
+ * ai_verdict, so a human override is never confused with (or overwritten
+ * by) the AI screener's own judgment. */
+export async function updateResumeHumanVerdictAction(
+  id: string,
+  verdict: ResumeVerdict | null
+): Promise<void> {
+  if (!(await requirePermission("manage_recruitment"))) return;
+
+  const admin = createAdminClient();
+  await admin.from("resumes").update({ human_verdict: verdict }).eq("id", id);
   revalidatePath("/recruitment");
 }
 

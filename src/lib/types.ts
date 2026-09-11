@@ -266,6 +266,9 @@ export interface Resume {
   candidate_phone: string | null;
   ai_verdict: ResumeVerdict | null;
   ai_comment: string | null;
+  /** Staff's own Yes/Maybe/No call, independent of ai_verdict — never
+   * written to or overwritten by the AI screener. */
+  human_verdict: ResumeVerdict | null;
   /** True if the candidate's most recent employer looks like a company
    * with more than 500 employees, false if 500 or fewer, null if
    * screening hasn't run or genuinely can't tell. */

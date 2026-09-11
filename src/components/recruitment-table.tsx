@@ -23,7 +23,8 @@ import type {
 } from "@/app/(dashboard)/recruitment/actions";
 import { formatDate } from "@/lib/format";
 import { ResumeStatusSelect } from "@/components/resume-status-select";
-import type { Resume, ResumeStatus } from "@/lib/types";
+import { ResumeVerdictSelect } from "@/components/resume-verdict-select";
+import type { Resume, ResumeStatus, ResumeVerdict } from "@/lib/types";
 import type { ResumeContentState } from "@/app/(dashboard)/recruitment/actions";
 
 export type RecruitmentTableRow = Pick<
@@ -41,6 +42,7 @@ export type RecruitmentTableRow = Pick<
   | "candidate_phone"
   | "ai_verdict"
   | "ai_comment"
+  | "human_verdict"
   | "big_firm_experience"
   | "years_experience"
   | "currently_working"
@@ -111,7 +113,8 @@ type ContentAction = (
 type SortKey =
   | "date"
   | "name"
-  | "verdict"
+  | "our_verdict"
+  | "ai_verdict"
   | "big_firm"
   | "years_exp"
   | "working"
@@ -140,7 +143,9 @@ function sortValue(row: RecruitmentTableRow, key: SortKey): string | number | bo
       return new Date(row.received_at).getTime();
     case "name":
       return (row.candidate_name ?? row.sender_name ?? "").toLowerCase();
-    case "verdict":
+    case "our_verdict":
+      return row.human_verdict;
+    case "ai_verdict":
       return row.ai_verdict;
     case "big_firm":
       return row.big_firm_experience;
@@ -212,6 +217,7 @@ export function RecruitmentTable({
   nameQuery,
   totalCount,
   updateStatusAction,
+  updateHumanVerdictAction,
   uploadFileAction,
   pasteTextAction,
   deleteAction,
@@ -225,6 +231,7 @@ export function RecruitmentTable({
   nameQuery: string;
   totalCount: number;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
+  updateHumanVerdictAction: (id: string, verdict: ResumeVerdict | null) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
@@ -424,7 +431,8 @@ export function RecruitmentTable({
               </th>
               <SortableTh label="Date" sortKey="date" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
               <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-              <SortableTh label="Verdict" sortKey="verdict" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="Our Verdict" sortKey="our_verdict" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTh label="AI Verdict" sortKey="ai_verdict" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
               <SortableTh label="Big Firm" sortKey="big_firm" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
               <SortableTh label="Years Exp." sortKey="years_exp" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
               <SortableTh label="Working" sortKey="working" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
@@ -446,6 +454,7 @@ export function RecruitmentTable({
                 expanded={expandedId === r.id}
                 onToggleExpanded={() => toggleExpanded(r.id)}
                 updateStatusAction={updateStatusAction}
+                updateHumanVerdictAction={updateHumanVerdictAction}
                 uploadFileAction={uploadFileAction}
                 pasteTextAction={pasteTextAction}
                 deleteAction={deleteAction}
@@ -455,7 +464,7 @@ export function RecruitmentTable({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-5 py-8 text-center text-sm text-slate-500">
+                <td colSpan={14} className="px-5 py-8 text-center text-sm text-slate-500">
                   No resumes match this filter yet.
                 </td>
               </tr>
@@ -603,6 +612,7 @@ function ApplicantRow({
   expanded,
   onToggleExpanded,
   updateStatusAction,
+  updateHumanVerdictAction,
   uploadFileAction,
   pasteTextAction,
   deleteAction,
@@ -615,6 +625,7 @@ function ApplicantRow({
   expanded: boolean;
   onToggleExpanded: () => void;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
+  updateHumanVerdictAction: (id: string, verdict: ResumeVerdict | null) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
@@ -670,6 +681,13 @@ function ApplicantRow({
               Duplicate
             </span>
           )}
+        </td>
+        <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+          <ResumeVerdictSelect
+            resumeId={row.id}
+            value={row.human_verdict}
+            action={updateHumanVerdictAction}
+          />
         </td>
         <td className="px-3 py-1.5">
           {/* Shown together, not either/or: an old verdict from a prior
@@ -744,7 +762,7 @@ function ApplicantRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={13} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
+          <td colSpan={14} className="space-y-4 border-t border-slate-100 bg-slate-50 px-5 py-4">
             {(row.candidate_email || row.sender_email || row.candidate_phone) && (
               <p className="text-xs text-slate-500">
                 Contact:{" "}

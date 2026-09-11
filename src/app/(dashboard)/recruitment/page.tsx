@@ -17,6 +17,7 @@ import {
   screenPendingResumesAction,
   screenSelectedResumesAction,
   updateResumeStatusAction,
+  updateResumeHumanVerdictAction,
   uploadResumeFileAction,
   pasteResumeTextAction,
   deleteResumeAction,
@@ -176,7 +177,7 @@ export default async function RecruitmentPage({
   let resumeQuery = supabase
     .from("resumes")
     .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, last_job_in_canada, screened_at, screening_error, status",
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, human_verdict, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, last_job_in_canada, screened_at, screening_error, status",
       { count: "exact" }
     )
     .order("received_at", { ascending: false })
@@ -423,6 +424,7 @@ export default async function RecruitmentPage({
         nameQuery={nameQuery}
         totalCount={totalCount ?? rowsWithDuplicates.length}
         updateStatusAction={updateResumeStatusAction}
+        updateHumanVerdictAction={updateResumeHumanVerdictAction}
         uploadFileAction={uploadResumeFileAction}
         pasteTextAction={pasteResumeTextAction}
         deleteAction={deleteResumeAction}
