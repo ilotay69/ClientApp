@@ -82,7 +82,7 @@ export default async function RecruitmentPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: connection }, { data: postings }] = await Promise.all([
+  const [{ data: connection }, { data: postings }, { data: upcomingInterviews }] = await Promise.all([
     supabase
       .from("mail_connections")
       .select("resume_folder_name, resume_sync_last_synced_at")
@@ -92,6 +92,16 @@ export default async function RecruitmentPage({
       .from("job_postings")
       .select("id, title, description, created_at")
       .order("created_at", { ascending: false }),
+    // Every invite still ahead of us, most-imminent first — resumes(...) is
+    // a nested embed via resume_interviews.resume_id's FK, not a separate
+    // round-trip.
+    supabase
+      .from("resume_interviews")
+      .select(
+        "id, scheduled_at, duration_minutes, location, resumes(candidate_name, sender_name, candidate_email, sender_email)"
+      )
+      .gte("scheduled_at", new Date().toISOString())
+      .order("scheduled_at", { ascending: true }),
   ]);
 
   const currentPosting = postings?.[0] ?? null;
@@ -233,6 +243,58 @@ export default async function RecruitmentPage({
               </details>
             )}
           </div>
+        </div>
+      </details>
+
+      <details className="rounded-xl border border-slate-200 bg-white shadow-sm" open={(upcomingInterviews?.length ?? 0) > 0}>
+        <summary className="cursor-pointer px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Upcoming interviews{upcomingInterviews && upcomingInterviews.length > 0 ? ` (${upcomingInterviews.length})` : ""}
+        </summary>
+        <div className="divide-y divide-slate-100 border-t border-slate-100">
+          {!upcomingInterviews || upcomingInterviews.length === 0 ? (
+            <p className="px-6 py-4 text-sm text-slate-500">Nothing scheduled yet.</p>
+          ) : (
+            upcomingInterviews.map(
+              (iv: {
+                id: string;
+                scheduled_at: string;
+                duration_minutes: number;
+                location: string | null;
+                resumes: {
+                  candidate_name: string | null;
+                  sender_name: string | null;
+                  candidate_email: string | null;
+                  sender_email: string | null;
+                } | null;
+              }) => {
+                const name = iv.resumes?.candidate_name ?? iv.resumes?.sender_name ?? "Unnamed candidate";
+                const email = iv.resumes?.candidate_email ?? iv.resumes?.sender_email;
+                const when = new Intl.DateTimeFormat("en-US", {
+                  timeZone: "America/Toronto",
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  timeZoneName: "short",
+                }).format(new Date(iv.scheduled_at));
+                return (
+                  <div key={iv.id} className="flex flex-wrap items-center justify-between gap-2 px-6 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{name}</p>
+                      {email && <p className="text-xs text-slate-500">{email}</p>}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-slate-700">
+                        {when} · {iv.duration_minutes} min
+                      </p>
+                      {iv.location && <p className="text-xs text-slate-500">{iv.location}</p>}
+                    </div>
+                  </div>
+                );
+              }
+            )
+          )}
         </div>
       </details>
 

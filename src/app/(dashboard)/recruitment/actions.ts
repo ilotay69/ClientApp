@@ -377,7 +377,12 @@ export async function scheduleInterviewAction(
       .eq("id", resumeId)
       .maybeSingle(),
     admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    admin.from("job_postings").select("title").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin
+      .from("job_postings")
+      .select("id, title")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (!resume) return { error: "Candidate not found.", success: null };
 
@@ -435,7 +440,17 @@ export async function scheduleInterviewAction(
       subject: `Interview invite: ${jobTitle}`,
       html,
       text,
-      attachments: [{ filename: "interview.ics", content: Buffer.from(ics, "utf-8") }],
+      // Explicitly base64-encoded rather than passing the raw Buffer — the
+      // SDK's own Buffer handling isn't something this codebase can verify
+      // without a live send, and an already-base64 string is unambiguously
+      // what Resend's HTTP API itself expects for attachment content.
+      attachments: [
+        {
+          filename: "interview.ics",
+          content: Buffer.from(ics, "utf-8").toString("base64"),
+          contentType: "text/calendar; charset=utf-8; method=REQUEST",
+        },
+      ],
     });
     if (sendError) {
       console.error("scheduleInterviewAction: Resend rejected the email", sendError);
@@ -452,6 +467,21 @@ export async function scheduleInterviewAction(
   if (resume.status !== "hired" && resume.status !== "rejected") {
     await admin.from("resumes").update({ status: "interviewing" }).eq("id", resumeId);
   }
+
+  // Durable record of the invite — previously the scheduled date/time only
+  // ever existed in the sent email itself, with nothing kept in the app.
+  // Re-scheduling the same candidate inserts another row rather than
+  // overwriting, so past invites stay visible too.
+  await admin.from("resume_interviews").insert({
+    resume_id: resumeId,
+    job_posting_id: posting?.id ?? null,
+    scheduled_at: start.toISOString(),
+    duration_minutes: durationMinutes,
+    location,
+    notes,
+    scheduled_by: user.id,
+  });
+
   revalidatePath("/recruitment");
 
   return { error: null, success: `Invite sent to ${candidateEmail}.` };
