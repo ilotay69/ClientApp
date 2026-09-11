@@ -1015,6 +1015,35 @@ export async function unlinkClientM365Tenant(clientId: string): Promise<void> {
   revalidatePath(`/clients/${clientId}`);
 }
 
+/** Purchase channel (direct from Microsoft vs. through a distributor like
+ * TD Synnex) isn't exposed by the tenant-scoped Graph API this app syncs
+ * licenses through — no Microsoft API call can tell us that, so it's a
+ * plain manual note staff maintain themselves. */
+export async function updateClientM365PurchaseNoteAction(
+  clientId: string,
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const note = String(formData.get("note") ?? "").trim();
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("clients")
+    .update({ m365_license_purchase_note: note || null })
+    .eq("id", clientId);
+  if (error) {
+    console.error("updateClientM365PurchaseNoteAction failed", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/clients/${clientId}`);
+  return { error: null };
+}
+
 /** On-demand sync for a single mapped client — licenses and Secure Score
  * gaps together, one click. Each client has its own independent
  * credentials, so there's no shared-token rotation concern the way GDAP

@@ -39,6 +39,10 @@ export interface Client {
   autotask_company_id: number | null;
   ninjaone_organization_id: number | null;
   m365_tenant_id: string | null;
+  /** Free-text, staff-maintained note on how this client's M365 licences
+   * are purchased (e.g. "Direct from Microsoft" vs "Through TD Synnex") —
+   * nothing in Microsoft's own tenant API exposes this, so it's manual. */
+  m365_license_purchase_note: string | null;
   huntress_organization_id: number | null;
   forticloud_account_id: string | null;
   ninjaone_last_synced_at: string | null;
