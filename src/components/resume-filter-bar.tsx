@@ -104,6 +104,13 @@ const CANADA_OPTIONS = [
 
 const NO_RESUME_OPTION = { value: "yes", label: "No resume yet" };
 
+// A one-click preset, not a toggle chip — a plain link to a URL carrying
+// only these params, so navigating to it both resets every other filter
+// and sets exactly this set in one go, with no extra client-side logic
+// needed to "clear then apply".
+const AUTO_SUGGEST_HREF =
+  "/recruitment?status=new&verdict=yes&min_years=3to5&min_years=6to10&working=yes&gta=yes&m365=yes&stability=stable&canada=yes";
+
 export function ResumeFilterBar({
   statuses,
   verdicts,
@@ -152,6 +159,13 @@ export function ResumeFilterBar({
           rather than needing its own separate submission. */}
       <input type="hidden" name="q" value={nameQuery} />
       <div className="flex flex-wrap items-center gap-1.5">
+        <a
+          href={AUTO_SUGGEST_HREF}
+          className="rounded-md bg-brand px-2.5 py-1.5 text-sm font-medium text-white hover:bg-brand-dark"
+        >
+          Auto Suggest
+        </a>
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
         {STATUS_OPTIONS.map((o) => (
           <Chip key={`status-${o.value}`} name="status" option={o} checked={statuses.includes(o.value)} />
         ))}
