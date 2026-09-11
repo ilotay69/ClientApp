@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
-import { ScreenPendingResumesButton } from "@/components/screen-pending-resumes-button";
 import { ResumeFolderSettingsForm } from "@/components/resume-folder-settings-form";
 import { JobPostingForm } from "@/components/job-posting-form";
 import { ResumeFilterBar } from "@/components/resume-filter-bar";
@@ -90,7 +89,7 @@ export default async function RecruitmentPage({
       .maybeSingle(),
     supabase
       .from("job_postings")
-      .select("id, title, description, additional_instructions, created_at")
+      .select("id, title, description, created_at")
       .order("created_at", { ascending: false }),
   ]);
 
@@ -182,63 +181,59 @@ export default async function RecruitmentPage({
         </p>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Mailbox</h2>
-          <div className="mt-3">
-            <ResumeFolderSettingsForm
-              currentFolderName={connection?.resume_folder_name ?? ""}
-              action={updateResumeFolderName}
-            />
+      <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary className="cursor-pointer px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Mailbox &amp; job posting settings
+        </summary>
+        <div className="grid items-start gap-6 border-t border-slate-100 p-6 lg:grid-cols-2">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Mailbox</h2>
+            <div className="mt-3">
+              <ResumeFolderSettingsForm
+                currentFolderName={connection?.resume_folder_name ?? ""}
+                action={updateResumeFolderName}
+              />
+            </div>
+            {connection?.resume_sync_last_synced_at && (
+              <p className="mt-3 text-xs text-slate-400">
+                Last synced {formatDate(connection.resume_sync_last_synced_at)}
+              </p>
+            )}
+            <div className="mt-4">
+              <AsyncActionButton
+                label="Sync resumes now"
+                pendingLabel="Syncing…"
+                action={syncResumesNow}
+              />
+            </div>
           </div>
-          {connection?.resume_sync_last_synced_at && (
-            <p className="mt-3 text-xs text-slate-400">
-              Last synced {formatDate(connection.resume_sync_last_synced_at)}
-            </p>
-          )}
-          <div className="mt-4">
-            <AsyncActionButton
-              label="Sync resumes now"
-              pendingLabel="Syncing…"
-              action={syncResumesNow}
-            />
-          </div>
-        </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Current job posting</h2>
-          <div className="mt-3">
-            <JobPostingForm
-              currentTitle={currentPosting?.title ?? ""}
-              currentDescription={currentPosting?.description ?? ""}
-              currentAdditionalInstructions={currentPosting?.additional_instructions ?? ""}
-              action={createJobPosting}
-            />
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Current job posting</h2>
+            <div className="mt-3">
+              <JobPostingForm
+                currentTitle={currentPosting?.title ?? ""}
+                currentDescription={currentPosting?.description ?? ""}
+                action={createJobPosting}
+              />
+            </div>
+            {pastPostings.length > 0 && (
+              <details className="mt-4 text-xs text-slate-500">
+                <summary className="cursor-pointer">
+                  {pastPostings.length} earlier posting{pastPostings.length === 1 ? "" : "s"}
+                </summary>
+                <ul className="mt-2 space-y-1">
+                  {pastPostings.map((p: { id: string; title: string; created_at: string }) => (
+                    <li key={p.id}>
+                      {p.title} — {formatDate(p.created_at)}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <ScreenPendingResumesButton action={screenPendingResumesAction} />
-          </div>
-          <p className="mt-2 text-xs text-slate-400">
-            Only scores resumes that haven&apos;t been screened yet. To re-score
-            specific candidates against a changed posting, check them in the table
-            below and use &quot;Screen selected&quot;.
-          </p>
-          {pastPostings.length > 0 && (
-            <details className="mt-4 text-xs text-slate-500">
-              <summary className="cursor-pointer">
-                {pastPostings.length} earlier posting{pastPostings.length === 1 ? "" : "s"}
-              </summary>
-              <ul className="mt-2 space-y-1">
-                {pastPostings.map((p: { id: string; title: string; created_at: string }) => (
-                  <li key={p.id}>
-                    {p.title} — {formatDate(p.created_at)}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
         </div>
-      </div>
+      </details>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ResumeFilterBar
@@ -267,6 +262,7 @@ export default async function RecruitmentPage({
         pasteTextAction={pasteResumeTextAction}
         deleteAction={deleteResumeAction}
         screenSelectedAction={screenSelectedResumesAction}
+        screenPendingAction={screenPendingResumesAction}
       />
     </div>
   );

@@ -105,7 +105,6 @@ export async function createJobPosting(
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const additionalInstructions = String(formData.get("additional_instructions") ?? "").trim();
   if (!title || !description) {
     return { error: "Title and description are both required." };
   }
@@ -113,7 +112,6 @@ export async function createJobPosting(
   const { error } = await supabase.from("job_postings").insert({
     title,
     description,
-    additional_instructions: additionalInstructions || null,
     created_by: user.id,
   });
   if (error) {
@@ -206,7 +204,6 @@ type JobPostingForScreening = {
   id: string;
   title: string;
   description: string;
-  additional_instructions: string | null;
 };
 
 // An explicit discriminated union (a literal `ok` field), not three bare
@@ -228,7 +225,7 @@ async function loadScreeningContext(
 ): Promise<ScreeningContext> {
   const { data: posting } = await admin
     .from("job_postings")
-    .select("id, title, description, additional_instructions")
+    .select("id, title, description")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

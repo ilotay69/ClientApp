@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
+import { ScreenPendingResumesButton } from "@/components/screen-pending-resumes-button";
+import type { ResumeScreenState } from "@/app/(dashboard)/recruitment/actions";
 import { formatDate } from "@/lib/format";
 import { ResumeStatusSelect } from "@/components/resume-status-select";
 import type { Resume, ResumeStatus } from "@/lib/types";
@@ -82,6 +84,7 @@ export function RecruitmentTable({
   pasteTextAction,
   deleteAction,
   screenSelectedAction,
+  screenPendingAction,
 }: {
   rows: RecruitmentTableRow[];
   nameQuery: string;
@@ -93,6 +96,7 @@ export function RecruitmentTable({
   screenSelectedAction: (
     resumeIds: string[]
   ) => Promise<{ ok: boolean; message: string; screened?: number; errored?: number }>;
+  screenPendingAction: () => Promise<ResumeScreenState>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
@@ -166,6 +170,10 @@ export function RecruitmentTable({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
+        <ScreenPendingResumesButton action={screenPendingAction} />
+
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+
         <button
           type="button"
           onClick={runScreenSelected}

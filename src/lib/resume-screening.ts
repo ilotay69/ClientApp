@@ -245,14 +245,7 @@ async function buildResumeContentBlocks(
   return blocks;
 }
 
-function buildScreeningPrompt(
-  posting: { title: string; description: string; additional_instructions: string | null },
-  count: number
-): string {
-  const extraInstructions = posting.additional_instructions?.trim()
-    ? `\nAdditional instructions from the hiring team:\n${posting.additional_instructions.trim()}\n`
-    : "";
-
+function buildScreeningPrompt(posting: { title: string; description: string }, count: number): string {
   const today = new Date().toISOString().slice(0, 10);
 
   return `You are screening job applicants for CG Technologies. Today's date is ${today} —
@@ -264,7 +257,7 @@ given rather than skipping the calculation because it isn't in a standard format
 
 Job posting: ${posting.title}
 ${posting.description}
-${extraInstructions}
+
 Above are ${count} applicant(s), each preceded by its own "Resume #N (...)" label. Some
 carry an attached PDF resume, some carry extracted text from a Word resume or a
 staff-pasted resume, and some carry only an application notification email's own
@@ -458,7 +451,7 @@ export type ResumeScreeningResult = { screened: number; errored: number; remaini
 export async function screenPendingResumes(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
-  posting: { id: string; title: string; description: string; additional_instructions: string | null },
+  posting: { id: string; title: string; description: string },
   settings: ActiveAiSettings,
   options?: { resumeIds?: string[] }
 ): Promise<ResumeScreeningResult> {
