@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
+import { ScreenPendingResumesButton } from "@/components/screen-pending-resumes-button";
 import { ResumeFolderSettingsForm } from "@/components/resume-folder-settings-form";
 import { JobPostingForm } from "@/components/job-posting-form";
 import { ResumeFilterBar } from "@/components/resume-filter-bar";
@@ -193,11 +194,7 @@ export default async function RecruitmentPage({
             />
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <AsyncActionButton
-              label="Screen pending resumes"
-              pendingLabel="Screening…"
-              action={screenPendingResumesAction}
-            />
+            <ScreenPendingResumesButton action={screenPendingResumesAction} />
           </div>
           <p className="mt-2 text-xs text-slate-400">
             Only scores resumes that haven&apos;t been screened yet. To re-score

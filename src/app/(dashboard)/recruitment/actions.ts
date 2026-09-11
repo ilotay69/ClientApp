@@ -188,7 +188,19 @@ export async function addCandidateAction(
   return { error: null };
 }
 
-export type ResumeScreenState = { ok: boolean; message: string };
+export type ResumeScreenState = {
+  ok: boolean;
+  message: string;
+  /** This call's own counts, plus the true DB-wide pending count afterward
+   * — only set by screenPendingResumesAction (the "whatever's pending"
+   * path). Lets the caller loop (see ScreenPendingResumesButton) and
+   * accumulate a running total, instead of needing a single request to
+   * process everything, which risks outliving the platform's own request
+   * timeout when there are many pending resumes. */
+  screened?: number;
+  errored?: number;
+  remaining?: number;
+};
 
 type JobPostingForScreening = {
   id: string;
@@ -251,6 +263,9 @@ export async function screenPendingResumesAction(): Promise<ResumeScreenState> {
     return {
       ok: true,
       message: `Screened ${result.screened}, ${result.errored} error${result.errored === 1 ? "" : "s"}, ${result.remaining} remaining.`,
+      screened: result.screened,
+      errored: result.errored,
+      remaining: result.remaining,
     };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Screening failed." };

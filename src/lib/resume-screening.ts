@@ -122,6 +122,18 @@ const TOOL_SCHEMA = {
 // bad file's blast radius to a single small chunk rather than a whole batch.
 const BATCH_SIZE = 5;
 
+// Per-invocation cap for the "whatever's pending" path (no explicit
+// resumeIds) — kept equal to BATCH_SIZE, i.e. exactly one Anthropic call per
+// screenPendingResumes() call, not several sequential ones. A single Server
+// Action request that fires off many chunks in a row (the old cap was 50,
+// up to 10 sequential Anthropic calls) risks outliving Railway's own
+// reverse-proxy request timeout, which surfaces to the user as a generic
+// browser-level "This page couldn't load" — not a caught, displayable error
+// at all. The caller (ScreenPendingResumesButton) loops this call instead,
+// so many-pending-resumes screening still runs to completion, just as a
+// sequence of short requests rather than one long one.
+const PENDING_SCREEN_LIMIT = BATCH_SIZE;
+
 const PDF_MEDIA_TYPE = "application/pdf";
 const DOCX_MEDIA_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -448,7 +460,7 @@ export async function screenPendingResumes(
   if (options?.resumeIds) {
     resumeQuery = resumeQuery.in("id", options.resumeIds);
   } else {
-    resumeQuery = resumeQuery.is("screened_at", null).limit(50);
+    resumeQuery = resumeQuery.is("screened_at", null).limit(PENDING_SCREEN_LIMIT);
   }
   const { data: pending } = await resumeQuery;
 
@@ -571,5 +583,22 @@ export async function screenPendingResumes(
     }
   }
 
-  return { screened, errored, remaining: Math.max(0, rows.length - screened - errored) };
+  // For the "whatever's pending" path, rows.length is capped at
+  // PENDING_SCREEN_LIMIT, so "rows.length - screened - errored" (the old
+  // computation) was never a real remaining-work count — every row in the
+  // batch always ends up screened or errored, so it was always ~0 even with
+  // hundreds still waiting. Re-query the true pending count instead, so the
+  // caller (a looping button) knows whether to fire another request. Not
+  // meaningful for an explicit resumeIds selection, which isn't looped.
+  let remaining = 0;
+  if (!options?.resumeIds) {
+    const { count } = await admin
+      .from("resumes")
+      .select("id", { count: "exact", head: true })
+      .or("storage_path.not.is.null,pasted_resume_text.not.is.null")
+      .is("screened_at", null);
+    remaining = count ?? 0;
+  }
+
+  return { screened, errored, remaining };
 }
