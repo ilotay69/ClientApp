@@ -260,15 +260,23 @@ export default async function RecruitmentPage({
                 scheduled_at: string;
                 duration_minutes: number;
                 location: string | null;
-                resumes: {
-                  candidate_name: string | null;
-                  sender_name: string | null;
-                  candidate_email: string | null;
-                  sender_email: string | null;
-                } | null;
+                // PostgREST embeds a to-one relation as an array in the
+                // inferred type regardless of actual cardinality (Database
+                // is untyped here, so nothing narrows this further) — it's
+                // really ever at most one row, hence the defensive index
+                // below rather than trusting either shape outright.
+                resumes:
+                  | {
+                      candidate_name: string | null;
+                      sender_name: string | null;
+                      candidate_email: string | null;
+                      sender_email: string | null;
+                    }[]
+                  | null;
               }) => {
-                const name = iv.resumes?.candidate_name ?? iv.resumes?.sender_name ?? "Unnamed candidate";
-                const email = iv.resumes?.candidate_email ?? iv.resumes?.sender_email;
+                const resumeInfo = Array.isArray(iv.resumes) ? iv.resumes[0] : iv.resumes;
+                const name = resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate";
+                const email = resumeInfo?.candidate_email ?? resumeInfo?.sender_email;
                 const when = new Intl.DateTimeFormat("en-US", {
                   timeZone: "America/Toronto",
                   weekday: "short",
