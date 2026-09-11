@@ -440,15 +440,18 @@ export async function scheduleInterviewAction(
       subject: `Interview invite: ${jobTitle}`,
       html,
       text,
-      // Explicitly base64-encoded rather than passing the raw Buffer — the
-      // SDK's own Buffer handling isn't something this codebase can verify
-      // without a live send, and an already-base64 string is unambiguously
-      // what Resend's HTTP API itself expects for attachment content.
+      // Explicitly base64-encoded rather than passing the raw Buffer — an
+      // already-base64 string is unambiguous either way. content_type is
+      // snake_case per Resend's own API reference (confirmed against
+      // resend.com/docs/api-reference/emails/send-email) — the previous
+      // camelCase `contentType` here was simply the wrong field name and
+      // Resend silently ignored it, falling back to MIME-sniffing the
+      // ".ics" filename instead of the explicit calendar type.
       attachments: [
         {
           filename: "interview.ics",
           content: Buffer.from(ics, "utf-8").toString("base64"),
-          contentType: "text/calendar; charset=utf-8; method=REQUEST",
+          content_type: "text/calendar; charset=utf-8; method=REQUEST",
         },
       ],
     });
