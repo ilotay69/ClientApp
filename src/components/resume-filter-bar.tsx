@@ -98,7 +98,6 @@ export function ResumeFilterBar({
   m365Management,
   noResumeYet,
   nameQuery,
-  totalCount,
   clearHref,
 }: {
   statuses: string[];
@@ -109,7 +108,6 @@ export function ResumeFilterBar({
   m365Management: string | null;
   noResumeYet: boolean;
   nameQuery: string;
-  totalCount: number;
   clearHref: string;
 }) {
   const hasFilters =
@@ -124,24 +122,11 @@ export function ResumeFilterBar({
 
   return (
     <form action="/recruitment" className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          name="q"
-          defaultValue={nameQuery}
-          placeholder="Search by name…"
-          className="w-48 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-        />
-        <button
-          type="submit"
-          className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          Search
-        </button>
-        <span className="text-xs text-slate-500">
-          {totalCount} resume{totalCount === 1 ? "" : "s"}
-        </span>
-      </div>
+      {/* The name search box itself lives in RecruitmentTable's toolbar, next
+          to "Screen selected" — but ?q= is one filter among several, so it
+          rides along as a hidden field in this same auto-submitting form
+          rather than needing its own separate submission. */}
+      <input type="hidden" name="q" value={nameQuery} />
       <div className="flex flex-wrap items-center gap-1.5">
         {STATUS_OPTIONS.map((o) => (
           <Chip key={`status-${o.value}`} name="status" option={o} checked={statuses.includes(o.value)} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
@@ -73,6 +73,8 @@ type ContentAction = (
 
 export function RecruitmentTable({
   rows,
+  nameQuery,
+  totalCount,
   updateStatusAction,
   uploadFileAction,
   pasteTextAction,
@@ -80,6 +82,8 @@ export function RecruitmentTable({
   screenSelectedAction,
 }: {
   rows: RecruitmentTableRow[];
+  nameQuery: string;
+  totalCount: number;
   updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
@@ -89,6 +93,21 @@ export function RecruitmentTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [searchValue, setSearchValue] = useState(nameQuery);
+
+  // Full-navigation GET rather than SPA routing, matching every other filter
+  // on this page — reads the other, currently-active filters straight off
+  // the browser URL rather than needing them threaded through as props, so
+  // updating just ?q= here can't clobber status/verdict/etc. chips set via
+  // ResumeFilterBar's own form.
+  function submitSearch(e: FormEvent) {
+    e.preventDefault();
+    const params = new URLSearchParams(window.location.search);
+    const trimmed = searchValue.trim();
+    if (trimmed) params.set("q", trimmed);
+    else params.delete("q");
+    window.location.href = `/recruitment?${params.toString()}`;
+  }
 
   const allIds = rows.map((r) => r.id);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
@@ -132,6 +151,27 @@ export function RecruitmentTable({
             {result.message}
           </span>
         )}
+
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+
+        <form onSubmit={submitSearch} className="flex items-center gap-2">
+          <input
+            type="search"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            placeholder="Search by name…"
+            className="w-48 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Search
+          </button>
+        </form>
+        <span className="text-xs text-slate-500">
+          {totalCount} resume{totalCount === 1 ? "" : "s"}
+        </span>
       </div>
 
       {/* overflow-y-visible is deliberate, not redundant: overflow-x-auto

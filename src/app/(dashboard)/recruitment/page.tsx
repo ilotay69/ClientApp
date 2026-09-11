@@ -231,7 +231,6 @@ export default async function RecruitmentPage({
           m365Management={m365Management}
           noResumeYet={noResumeYet}
           nameQuery={nameQuery}
-          totalCount={totalCount ?? rowsWithDuplicates.length}
           clearHref="/recruitment"
         />
         <AddCandidateForm action={addCandidateAction} />
@@ -239,6 +238,8 @@ export default async function RecruitmentPage({
 
       <RecruitmentTable
         rows={rowsWithDuplicates}
+        nameQuery={nameQuery}
+        totalCount={totalCount ?? rowsWithDuplicates.length}
         updateStatusAction={updateResumeStatusAction}
         uploadFileAction={uploadResumeFileAction}
         pasteTextAction={pasteResumeTextAction}
