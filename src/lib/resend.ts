@@ -206,6 +206,56 @@ If you didn't request this, contact CG Technologies right away.`;
   return { html, text };
 }
 
+/** Interview invite for a recruitment candidate — the .ics calendar
+ * attachment itself is built separately (see src/lib/ics.ts) and passed to
+ * resend.emails.send()'s own `attachments` array; this only builds the
+ * email body around it. */
+export function buildInterviewInviteEmail({
+  candidateName,
+  jobTitle,
+  whenLabel,
+  location,
+  notes,
+  recruiterName,
+}: {
+  candidateName: string;
+  jobTitle: string;
+  whenLabel: string;
+  location: string | null;
+  notes: string | null;
+  recruiterName: string;
+}) {
+  const firstName = candidateName.split(" ")[0] || candidateName;
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Hi ${escapeHtml(firstName)}, let&rsquo;s schedule your interview</h2>
+      <p style="color:#334155;font-size:14px;">
+        We&rsquo;d like to invite you to interview for the <strong>${escapeHtml(jobTitle)}</strong> role.
+      </p>
+      <p style="margin:16px 0;color:#0f172a;font-size:16px;font-weight:600;">${escapeHtml(whenLabel)}</p>
+      ${location ? `<p style="color:#334155;font-size:14px;">Location: ${escapeHtml(location)}</p>` : ""}
+      ${notes ? `<p style="color:#334155;font-size:14px;white-space:pre-line;">${escapeHtml(notes)}</p>` : ""}
+      <p style="color:#64748b;font-size:13px;margin-top:16px;">
+        A calendar invite is attached — add it to your calendar to confirm.
+      </p>
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">
+        ${escapeHtml(recruiterName)} · CG Technologies
+      </p>
+    </div>
+  `;
+
+  const text = `Hi ${firstName}, let's schedule your interview for the ${jobTitle} role.
+
+${whenLabel}
+${location ? `Location: ${location}\n` : ""}${notes ? `${notes}\n` : ""}
+A calendar invite is attached — add it to your calendar to confirm.
+
+${recruiterName} · CG Technologies`;
+
+  return { html, text };
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")

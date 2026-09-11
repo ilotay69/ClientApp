@@ -19,6 +19,7 @@ import {
   pasteResumeTextAction,
   deleteResumeAction,
   addCandidateAction,
+  scheduleInterviewAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -263,6 +264,7 @@ export default async function RecruitmentPage({
         deleteAction={deleteResumeAction}
         screenSelectedAction={screenSelectedResumesAction}
         screenPendingAction={screenPendingResumesAction}
+        scheduleInterviewAction={scheduleInterviewAction}
       />
     </div>
   );

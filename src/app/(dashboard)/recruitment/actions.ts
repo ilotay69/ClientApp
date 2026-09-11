@@ -8,6 +8,8 @@ import { screenPendingResumes, extractCandidateContactInfo } from "@/lib/resume-
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection, ResumeStatus } from "@/lib/types";
+import { getResendClient, buildInterviewInviteEmail } from "@/lib/resend";
+import { buildInterviewIcs, interviewDateTimeToUtc } from "@/lib/ics";
 
 /** Updates the signed-in user's own watched folder name. One row per staff
  * user on mail_connections, same as every other per-user mailbox setting
@@ -336,6 +338,123 @@ export async function deleteResumeAction(id: string): Promise<void> {
   }
 
   revalidatePath("/recruitment");
+}
+
+export type ScheduleInterviewState = { error: string | null; success: string | null };
+
+/** Emails the candidate an interview invite with a standard .ics calendar
+ * attachment (see src/lib/ics.ts) — not a real Microsoft Graph calendar
+ * event, since that would need a new Calendars.ReadWrite permission and
+ * re-consent on the app registration. Any calendar app can open the .ics
+ * either way. Bumps status to "interviewing" on success, unless the
+ * candidate's already past that (hired/rejected) — scheduling shouldn't
+ * silently walk a closed-out candidate back into the pipeline. */
+export async function scheduleInterviewAction(
+  resumeId: string,
+  _prevState: ScheduleInterviewState,
+  formData: FormData
+): Promise<ScheduleInterviewState> {
+  const user = await requirePermission("manage_recruitment");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const date = String(formData.get("date") ?? "").trim();
+  const time = String(formData.get("time") ?? "").trim();
+  const durationMinutes = Number(formData.get("duration_minutes") ?? 30) || 30;
+  const location = String(formData.get("location") ?? "").trim() || null;
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+
+  if (!date || !time) {
+    return { error: "Pick a date and time.", success: null };
+  }
+
+  const admin = createAdminClient();
+  const [{ data: resume }, { data: profile }, { data: posting }] = await Promise.all([
+    admin
+      .from("resumes")
+      .select("candidate_name, candidate_email, sender_name, sender_email, status")
+      .eq("id", resumeId)
+      .maybeSingle(),
+    admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    admin.from("job_postings").select("title").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (!resume) return { error: "Candidate not found.", success: null };
+
+  const candidateEmail = resume.candidate_email ?? resume.sender_email;
+  if (!candidateEmail) {
+    return { error: "No email on file for this candidate.", success: null };
+  }
+  const candidateName = resume.candidate_name ?? resume.sender_name ?? "there";
+  const recruiterName = profile?.full_name ?? user.email ?? "CG Technologies";
+  const jobTitle = posting?.title ?? "the role";
+
+  const start = interviewDateTimeToUtc(date, time);
+  const whenLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Toronto",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(start);
+
+  const fromAddress = process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
+  const organizerEmail = fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
+
+  const ics = buildInterviewIcs({
+    uid: `interview-${resumeId}-${Date.now()}@cgtechnologies.com`,
+    organizerEmail,
+    organizerName: "CG Technologies",
+    attendeeEmail: candidateEmail,
+    attendeeName: candidateName,
+    summary: `Interview: ${jobTitle}`,
+    description: notes ?? `Interview for the ${jobTitle} role.`,
+    location,
+    start,
+    durationMinutes,
+  });
+
+  const { html, text } = buildInterviewInviteEmail({
+    candidateName,
+    jobTitle,
+    whenLabel,
+    location,
+    notes,
+    recruiterName,
+  });
+
+  try {
+    const resend = getResendClient();
+    const { error: sendError } = await resend.emails.send({
+      from: fromAddress,
+      to: candidateEmail,
+      replyTo: user.email ?? undefined,
+      subject: `Interview invite: ${jobTitle}`,
+      html,
+      text,
+      attachments: [{ filename: "interview.ics", content: Buffer.from(ics, "utf-8") }],
+    });
+    if (sendError) {
+      console.error("scheduleInterviewAction: Resend rejected the email", sendError);
+      return { error: "Couldn't send the invite — check Resend settings.", success: null };
+    }
+  } catch (err) {
+    console.error("scheduleInterviewAction: email send failed", err);
+    return {
+      error: err instanceof Error ? err.message : "Couldn't send the invite.",
+      success: null,
+    };
+  }
+
+  if (resume.status !== "hired" && resume.status !== "rejected") {
+    await admin.from("resumes").update({ status: "interviewing" }).eq("id", resumeId);
+  }
+  revalidatePath("/recruitment");
+
+  return { error: null, success: `Invite sent to ${candidateEmail}.` };
 }
 
 const MAX_RESUME_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB, same cap as client documents

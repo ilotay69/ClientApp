@@ -6,7 +6,8 @@ import { Badge } from "@/components/badge";
 import { DeleteButton } from "@/components/delete-button";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
 import { ScreenPendingResumesButton } from "@/components/screen-pending-resumes-button";
-import type { ResumeScreenState } from "@/app/(dashboard)/recruitment/actions";
+import { ScheduleInterviewForm } from "@/components/schedule-interview-form";
+import type { ResumeScreenState, ScheduleInterviewState } from "@/app/(dashboard)/recruitment/actions";
 import { formatDate } from "@/lib/format";
 import { ResumeStatusSelect } from "@/components/resume-status-select";
 import type { Resume, ResumeStatus } from "@/lib/types";
@@ -85,6 +86,7 @@ export function RecruitmentTable({
   deleteAction,
   screenSelectedAction,
   screenPendingAction,
+  scheduleInterviewAction,
 }: {
   rows: RecruitmentTableRow[];
   nameQuery: string;
@@ -93,6 +95,11 @@ export function RecruitmentTable({
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
+  scheduleInterviewAction: (
+    resumeId: string,
+    prev: ScheduleInterviewState,
+    formData: FormData
+  ) => Promise<ScheduleInterviewState>;
   screenSelectedAction: (
     resumeIds: string[]
   ) => Promise<{ ok: boolean; message: string; screened?: number; errored?: number }>;
@@ -273,6 +280,7 @@ export function RecruitmentTable({
                 uploadFileAction={uploadFileAction}
                 pasteTextAction={pasteTextAction}
                 deleteAction={deleteAction}
+                scheduleInterviewAction={scheduleInterviewAction}
               />
             ))}
             {rows.length === 0 && (
@@ -299,6 +307,7 @@ function ApplicantRow({
   uploadFileAction,
   pasteTextAction,
   deleteAction,
+  scheduleInterviewAction,
 }: {
   row: RecruitmentTableRow;
   selected: boolean;
@@ -309,6 +318,11 @@ function ApplicantRow({
   uploadFileAction: ContentAction;
   pasteTextAction: ContentAction;
   deleteAction: (id: string) => Promise<void>;
+  scheduleInterviewAction: (
+    resumeId: string,
+    prev: ScheduleInterviewState,
+    formData: FormData
+  ) => Promise<ScheduleInterviewState>;
 }) {
   const hasResumeContent = Boolean(row.file_name || row.pasted_resume_text);
   const { overview, detail } = splitComment(row.ai_comment);
@@ -488,11 +502,14 @@ function ApplicantRow({
               pasteTextAction={pasteTextAction}
             />
 
-            <div onClick={(e) => e.stopPropagation()}>
-              <DeleteButton
-                action={deleteAction.bind(null, row.id)}
-                confirmText={`Delete this applicant${row.candidate_name ? ` (${row.candidate_name})` : ""}? This can't be undone.`}
-              />
+            <div className="flex flex-wrap items-start gap-2">
+              <ScheduleInterviewForm resumeId={row.id} action={scheduleInterviewAction} />
+              <div onClick={(e) => e.stopPropagation()}>
+                <DeleteButton
+                  action={deleteAction.bind(null, row.id)}
+                  confirmText={`Delete this applicant${row.candidate_name ? ` (${row.candidate_name})` : ""}? This can't be undone.`}
+                />
+              </div>
             </div>
           </td>
         </tr>
