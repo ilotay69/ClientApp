@@ -24,6 +24,7 @@ import {
   bulkUploadResumesAction,
   scheduleInterviewAction,
   sendCandidateReplyAction,
+  sendBulkCandidateMessageAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -429,6 +430,7 @@ export default async function RecruitmentPage({
         screenPendingAction={screenPendingResumesAction}
         scheduleInterviewAction={scheduleInterviewAction}
         sendCandidateReplyAction={sendCandidateReplyAction}
+        sendBulkMessageAction={sendBulkCandidateMessageAction}
       />
     </div>
   );

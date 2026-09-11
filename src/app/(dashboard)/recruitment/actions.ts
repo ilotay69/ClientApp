@@ -558,6 +558,113 @@ export async function sendCandidateReplyAction(
   return { error: null, success: `Sent to ${candidateEmail}.` };
 }
 
+export type BulkMessageState = { ok: boolean; message: string; sent?: number; errored?: number };
+
+/** Sends the same message (with an optional booking-link call-to-action) to
+ * every selected candidate — e.g. "here's a link, pick your own interview
+ * slot" instead of staff scheduling each one individually. One
+ * resume_messages row per recipient, same as the single-candidate reply
+ * form, so every send still shows up in that candidate's own thread. Chunked
+ * client-side (see BulkMessageForm) for the same reason screening selected
+ * resumes is chunked — a large selection risks outliving the platform's
+ * request timeout in one call. */
+export async function sendBulkCandidateMessageAction(
+  resumeIds: string[],
+  body: string,
+  link: string | null,
+  linkLabel: string | null
+): Promise<BulkMessageState> {
+  const user = await requirePermission("manage_recruitment");
+  if (!user) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+  const trimmedBody = body.trim();
+  if (!trimmedBody) {
+    return { ok: false, message: "Write a message first." };
+  }
+  if (resumeIds.length === 0) {
+    return { ok: false, message: "Select at least one candidate first." };
+  }
+
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+  if (!mailboxEmail) {
+    return { ok: false, message: "The shared mailbox isn't configured yet — set SHARED_MAILBOX_EMAIL." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getSharedMailboxSettings(admin);
+  if (!settings) {
+    return { ok: false, message: "The shared mailbox integration hasn't been set up yet." };
+  }
+
+  const trimmedLink = link?.trim() || null;
+  const trimmedLinkLabel = linkLabel?.trim() || "Book your interview time";
+
+  let sent = 0;
+  let errored = 0;
+  for (const resumeId of resumeIds) {
+    try {
+      const { data: resume } = await admin
+        .from("resumes")
+        .select("candidate_name, candidate_email, sender_name, sender_email")
+        .eq("id", resumeId)
+        .maybeSingle();
+      const candidateEmail = resume?.candidate_email ?? resume?.sender_email;
+      if (!candidateEmail) {
+        errored += 1;
+        continue;
+      }
+      const candidateName = resume?.candidate_name ?? resume?.sender_name ?? "there";
+      const firstName = candidateName.split(" ")[0] || candidateName;
+
+      const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+        <p>Hi ${firstName},</p>
+        <p style="white-space:pre-line;">${trimmedBody.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+        ${
+          trimmedLink
+            ? `<p style="margin:20px 0;"><a href="${trimmedLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;">${trimmedLinkLabel}</a></p>`
+            : ""
+        }
+        <p style="margin-top:24px;color:#64748b;font-size:13px;">CG Technologies</p>
+      </div>`;
+      const text = `Hi ${firstName},\n\n${trimmedBody}${
+        trimmedLink ? `\n\n${trimmedLinkLabel}: ${trimmedLink}` : ""
+      }\n\nCG Technologies`;
+
+      const accessToken = await getValidSharedMailboxToken(admin, settings);
+      await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
+        to: candidateEmail,
+        subject: "Message from CG Technologies",
+        html,
+        text,
+      });
+
+      await admin.from("resume_messages").insert({
+        resume_id: resumeId,
+        direction: "outbound",
+        subject: "Message from CG Technologies",
+        body_text: trimmedLink ? `${trimmedBody}\n\n${trimmedLinkLabel}: ${trimmedLink}` : trimmedBody,
+        sent_at: new Date().toISOString(),
+        from_email: mailboxEmail,
+        to_email: candidateEmail,
+        sent_by: user.id,
+      });
+      sent += 1;
+    } catch (err) {
+      console.error("sendBulkCandidateMessageAction: send failed", err);
+      errored += 1;
+    }
+  }
+
+  revalidatePath("/recruitment");
+  return {
+    ok: true,
+    message: `Sent ${sent}${errored > 0 ? `, ${errored} error${errored === 1 ? "" : "s"}` : ""}.`,
+    sent,
+    errored,
+  };
+}
+
 const MAX_RESUME_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB, same cap as client documents
 const RESUME_MEDIA_TYPES: Record<string, true> = {
   "application/pdf": true,

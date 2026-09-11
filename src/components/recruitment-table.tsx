@@ -112,6 +112,7 @@ export function RecruitmentTable({
   screenPendingAction,
   scheduleInterviewAction,
   sendCandidateReplyAction,
+  sendBulkMessageAction,
 }: {
   rows: RecruitmentTableRow[];
   nameQuery: string;
@@ -130,6 +131,12 @@ export function RecruitmentTable({
     prev: SendCandidateReplyState,
     formData: FormData
   ) => Promise<SendCandidateReplyState>;
+  sendBulkMessageAction: (
+    resumeIds: string[],
+    body: string,
+    link: string | null,
+    linkLabel: string | null
+  ) => Promise<{ ok: boolean; message: string; sent?: number; errored?: number }>;
   screenSelectedAction: (
     resumeIds: string[]
   ) => Promise<{ ok: boolean; message: string; screened?: number; errored?: number }>;
@@ -235,6 +242,14 @@ export function RecruitmentTable({
 
         <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
 
+        <BulkMessageForm
+          selectedIds={Array.from(selected)}
+          action={sendBulkMessageAction}
+          onSent={() => setSelected(new Set())}
+        />
+
+        <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+
         <form onSubmit={submitSearch} className="flex items-center gap-2">
           <input
             type="search"
@@ -323,6 +338,135 @@ export function RecruitmentTable({
             )}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+/** Sends one message (with an optional booking-link button) to every
+ * selected candidate at once — for the "here's a link, book your own slot"
+ * flow rather than staff scheduling each interview individually. Collapsed
+ * behind a button, same UX shape as ScheduleInterviewForm, since it needs a
+ * selection to make sense first. */
+function BulkMessageForm({
+  selectedIds,
+  action,
+  onSent,
+}: {
+  selectedIds: string[];
+  action: (
+    resumeIds: string[],
+    body: string,
+    link: string | null,
+    linkLabel: string | null
+  ) => Promise<{ ok: boolean; message: string; sent?: number; errored?: number }>;
+  onSent: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState("");
+  const [link, setLink] = useState("");
+  const [linkLabel, setLinkLabel] = useState("Book your interview time");
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Same reasoning as runScreenSelected above — chunk the recipient list so
+  // a large selection can't outlive the platform's own request timeout.
+  const CHUNK_SIZE = 5;
+
+  function runSend() {
+    const trimmedBody = body.trim();
+    if (!trimmedBody || selectedIds.length === 0) return;
+    setResult(null);
+    const trimmedLink = link.trim() || null;
+    const trimmedLabel = linkLabel.trim() || null;
+    startTransition(async () => {
+      let sent = 0;
+      let errored = 0;
+      for (let i = 0; i < selectedIds.length; i += CHUNK_SIZE) {
+        const chunk = selectedIds.slice(i, i + CHUNK_SIZE);
+        const outcome = await action(chunk, trimmedBody, trimmedLink, trimmedLabel);
+        if (!outcome.ok) {
+          setResult(outcome);
+          return;
+        }
+        sent += outcome.sent ?? 0;
+        errored += outcome.errored ?? 0;
+        const done = i + CHUNK_SIZE >= selectedIds.length;
+        setResult({
+          ok: true,
+          message: `Sent ${sent}${errored > 0 ? `, ${errored} error${errored === 1 ? "" : "s"}` : ""}${done ? "." : "…"}`,
+        });
+      }
+      setBody("");
+      setLink("");
+      setOpen(false);
+      onSent();
+    });
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={selectedIds.length === 0}
+        className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+      >
+        Send message{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-md border border-slate-200 bg-white p-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        Send message to {selectedIds.length} selected candidate{selectedIds.length === 1 ? "" : "s"}
+      </p>
+      <div className="mt-2 space-y-2">
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={3}
+          placeholder="Write your message…"
+          className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+        />
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="url"
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="Booking link (optional), e.g. https://calendly.com/…"
+            className="min-w-[16rem] flex-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          />
+          <input
+            type="text"
+            value={linkLabel}
+            onChange={(e) => setLinkLabel(e.target.value)}
+            placeholder="Link button text"
+            className="w-56 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={runSend}
+            disabled={pending || !body.trim()}
+            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+          >
+            {pending ? "Sending…" : `Send to ${selectedIds.length}`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-xs text-slate-500 underline"
+          >
+            Cancel
+          </button>
+          {pending && <IndeterminateProgressBar />}
+        </div>
+        {result && (
+          <p className={`text-xs ${result.ok ? "text-emerald-600" : "text-red-600"}`}>{result.message}</p>
+        )}
       </div>
     </div>
   );
