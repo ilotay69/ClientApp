@@ -22,6 +22,7 @@ import {
   addCandidateAction,
   bulkUploadResumesAction,
   scheduleInterviewAction,
+  sendCandidateReplyAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -88,29 +89,36 @@ export default async function RecruitmentPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: connection }, { data: postings }, { data: allInterviews }] = await Promise.all([
-    supabase
-      .from("mail_connections")
-      .select("resume_folder_name, resume_sync_last_synced_at")
-      .eq("user_id", user?.id ?? "")
-      .maybeSingle(),
-    supabase
-      .from("job_postings")
-      .select("id, title, description, created_at")
-      .order("created_at", { ascending: false }),
-    // Every invite ever sent, oldest first — both the top "Upcoming
-    // interviews" section (filtered to now-or-later below, unless the
-    // "show past" toggle is on) and each candidate's own interview history
-    // in the table below are built from this one fetch. resumes(...) is a
-    // nested embed via resume_interviews.resume_id's FK, not a separate
-    // round-trip.
-    supabase
-      .from("resume_interviews")
-      .select(
-        "id, resume_id, scheduled_at, duration_minutes, location, resumes(candidate_name, sender_name, candidate_email, sender_email)"
-      )
-      .order("scheduled_at", { ascending: true }),
-  ]);
+  const [{ data: connection }, { data: postings }, { data: allInterviews }, { data: allMessages }] =
+    await Promise.all([
+      supabase
+        .from("mail_connections")
+        .select("resume_folder_name, resume_sync_last_synced_at")
+        .eq("user_id", user?.id ?? "")
+        .maybeSingle(),
+      supabase
+        .from("job_postings")
+        .select("id, title, description, created_at")
+        .order("created_at", { ascending: false }),
+      // Every invite ever sent, oldest first — both the top "Upcoming
+      // interviews" section (filtered to now-or-later below, unless the
+      // "show past" toggle is on) and each candidate's own interview history
+      // in the table below are built from this one fetch. resumes(...) is a
+      // nested embed via resume_interviews.resume_id's FK, not a separate
+      // round-trip.
+      supabase
+        .from("resume_interviews")
+        .select(
+          "id, resume_id, scheduled_at, duration_minutes, location, resumes(candidate_name, sender_name, candidate_email, sender_email)"
+        )
+        .order("scheduled_at", { ascending: true }),
+      // Full two-way thread (both directions), oldest first — grouped by
+      // resume_id below into each candidate's own Messages section.
+      supabase
+        .from("resume_messages")
+        .select("id, resume_id, direction, body_text, sent_at")
+        .order("sent_at", { ascending: true }),
+    ]);
 
   const currentPosting = postings?.[0] ?? null;
   const pastPostings = postings?.slice(1) ?? [];
@@ -144,6 +152,20 @@ export default async function RecruitmentPage({
     const list = interviewsByResumeId.get(iv.resume_id) ?? [];
     list.push(iv);
     interviewsByResumeId.set(iv.resume_id, list);
+  }
+
+  type MessageRow = {
+    id: string;
+    resume_id: string;
+    direction: "inbound" | "outbound";
+    body_text: string | null;
+    sent_at: string;
+  };
+  const messagesByResumeId = new Map<string, MessageRow[]>();
+  for (const m of (allMessages ?? []) as MessageRow[]) {
+    const list = messagesByResumeId.get(m.resume_id) ?? [];
+    list.push(m);
+    messagesByResumeId.set(m.resume_id, list);
   }
 
   let resumeQuery = supabase
@@ -223,6 +245,12 @@ export default async function RecruitmentPage({
       scheduledAt: iv.scheduled_at,
       durationMinutes: iv.duration_minutes,
       location: iv.location,
+    })),
+    messages: (messagesByResumeId.get(r.id) ?? []).map((m) => ({
+      id: m.id,
+      direction: m.direction,
+      bodyText: m.body_text,
+      sentAt: m.sent_at,
     })),
   }));
 
@@ -383,6 +411,7 @@ export default async function RecruitmentPage({
         screenSelectedAction={screenSelectedResumesAction}
         screenPendingAction={screenPendingResumesAction}
         scheduleInterviewAction={scheduleInterviewAction}
+        sendCandidateReplyAction={sendCandidateReplyAction}
       />
     </div>
   );

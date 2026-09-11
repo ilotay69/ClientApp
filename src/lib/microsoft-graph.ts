@@ -88,6 +88,47 @@ async function requestToken(params: Record<string, string>): Promise<TokenRespon
   return res.json();
 }
 
+export type AppOnlyToken = { accessToken: string; expiresAt: string };
+
+/**
+ * App-only (client-credentials) Graph token for THIS app's own tenant/app
+ * registration — deliberately not the delegated per-user OAuth flow the rest
+ * of this file is built around. Delegated refresh_token grants are what left
+ * /api/mail-sync's cron permanently paused (AADSTS53003 — a tenant
+ * Conditional Access policy blocks silent token refresh with no interactive
+ * user present); a client-credentials grant has no per-user session or
+ * refresh token to blow up in the first place, the same reasoning
+ * m365-partner.ts's fetchAppOnlyToken already relies on for M365 partner
+ * sync. Requires Application permissions (not just the delegated ones
+ * MAIL_SCOPES requests) granted with admin consent on the app registration,
+ * restricted via an Exchange Application Access Policy to only the intended
+ * mailbox — see the shared-mailbox integration's own setup notes.
+ */
+export async function fetchAppOnlyGraphToken(): Promise<AppOnlyToken> {
+  const res = await fetch(`${AUTHORITY()}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: process.env.AZURE_CLIENT_ID!,
+      client_secret: process.env.AZURE_CLIENT_SECRET!,
+      scope: "https://graph.microsoft.com/.default",
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Microsoft app-only token request failed (${res.status}): ${text}`);
+  }
+  const json = await res.json();
+  if (!json.access_token) throw new Error("Microsoft app-only token response did not include an access_token.");
+
+  return {
+    accessToken: json.access_token,
+    expiresAt: new Date(Date.now() + (json.expires_in ?? 3600) * 1000).toISOString(),
+  };
+}
+
 export type GraphMessage = {
   id: string;
   subject: string;
@@ -535,4 +576,109 @@ export async function fetchMailboxEmail(accessToken: string): Promise<string> {
   }
   const json = await res.json();
   return json.mail ?? json.userPrincipalName;
+}
+
+export type SharedMailboxAttachment = {
+  filename: string;
+  contentBase64: string;
+  contentType: string;
+};
+
+/**
+ * Sends mail AS the given mailbox via app-only Graph auth — `/users/{id}/
+ * sendMail`, not `/me/sendMail`, since there's no delegated "me" under
+ * client-credentials. Requires the Mail.Send Application permission,
+ * restricted (via an Exchange Application Access Policy) to just this
+ * mailbox — without that restriction, app-only Mail.Send can act as any
+ * mailbox in the tenant, which is why that policy is a hard requirement of
+ * this integration, not an optional hardening step. `saveToSentItems: true`
+ * is what makes a sent message show up in the mailbox's own Sent folder in
+ * Outlook, same as sending normally would.
+ */
+export async function sendMailAsSharedMailbox(
+  accessToken: string,
+  mailboxEmail: string,
+  message: {
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+    attachments?: SharedMailboxAttachment[];
+  }
+): Promise<void> {
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}/sendMail`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: {
+          subject: message.subject,
+          body: { contentType: "HTML", content: message.html },
+          toRecipients: [{ emailAddress: { address: message.to } }],
+          attachments: (message.attachments ?? []).map((a) => ({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            name: a.filename,
+            contentType: a.contentType,
+            contentBytes: a.contentBase64,
+          })),
+        },
+        saveToSentItems: true,
+      }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Microsoft Graph sendMail failed (${res.status}): ${text}`);
+  }
+}
+
+export type SharedMailboxMessage = {
+  id: string;
+  subject: string;
+  receivedDateTime: string;
+  from?: { emailAddress?: { name?: string; address?: string } };
+  body?: { contentType: "html" | "text"; content: string };
+};
+
+/**
+ * Every message in the shared mailbox received on or after sinceIso —
+ * `/users/{id}/messages`, mailbox-wide (not one folder), same reasoning as
+ * fetchMailboxWideMessages: a candidate's reply could land anywhere a mail
+ * rule files it, not necessarily Inbox.
+ */
+export async function fetchSharedMailboxMessagesSince(
+  accessToken: string,
+  mailboxEmail: string,
+  sinceIso: string,
+  maxPages = 10
+): Promise<SharedMailboxMessage[]> {
+  const base = new URL(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}/messages`
+  );
+  base.searchParams.set("$select", "id,subject,from,receivedDateTime,body");
+  base.searchParams.set("$filter", `receivedDateTime ge ${sinceIso}`);
+  base.searchParams.set("$orderby", "receivedDateTime asc");
+  base.searchParams.set("$top", "50");
+
+  let url: string | null = base.toString();
+  const messages: SharedMailboxMessage[] = [];
+  let pages = 0;
+
+  while (url && pages < maxPages) {
+    const res: Response = await graphFetch(url, accessToken);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Microsoft Graph shared-mailbox request failed (${res.status}): ${text}`);
+    }
+    const json = await res.json();
+    messages.push(...(json.value ?? []));
+    url = json["@odata.nextLink"] ?? null;
+    pages += 1;
+  }
+
+  return messages;
 }

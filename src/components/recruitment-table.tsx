@@ -7,7 +7,12 @@ import { DeleteButton } from "@/components/delete-button";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
 import { ScreenPendingResumesButton } from "@/components/screen-pending-resumes-button";
 import { ScheduleInterviewForm } from "@/components/schedule-interview-form";
-import type { ResumeScreenState, ScheduleInterviewState } from "@/app/(dashboard)/recruitment/actions";
+import { CandidateReplyForm } from "@/components/candidate-reply-form";
+import type {
+  ResumeScreenState,
+  ScheduleInterviewState,
+  SendCandidateReplyState,
+} from "@/app/(dashboard)/recruitment/actions";
 import { formatDate } from "@/lib/format";
 import { ResumeStatusSelect } from "@/components/resume-status-select";
 import type { Resume, ResumeStatus } from "@/lib/types";
@@ -53,6 +58,14 @@ export type RecruitmentTableRow = Pick<
     durationMinutes: number;
     location: string | null;
   }[];
+  /** Full message thread (both directions) with this candidate through the
+   * shared recruitment mailbox — from resume_messages (see page.tsx). */
+  messages?: {
+    id: string;
+    direction: "inbound" | "outbound";
+    bodyText: string | null;
+    sentAt: string;
+  }[];
 };
 
 /** Renders a boolean|null screening signal as a Yes/No badge, or "—" before
@@ -96,6 +109,7 @@ export function RecruitmentTable({
   screenSelectedAction,
   screenPendingAction,
   scheduleInterviewAction,
+  sendCandidateReplyAction,
 }: {
   rows: RecruitmentTableRow[];
   nameQuery: string;
@@ -109,6 +123,11 @@ export function RecruitmentTable({
     prev: ScheduleInterviewState,
     formData: FormData
   ) => Promise<ScheduleInterviewState>;
+  sendCandidateReplyAction: (
+    resumeId: string,
+    prev: SendCandidateReplyState,
+    formData: FormData
+  ) => Promise<SendCandidateReplyState>;
   screenSelectedAction: (
     resumeIds: string[]
   ) => Promise<{ ok: boolean; message: string; screened?: number; errored?: number }>;
@@ -290,6 +309,7 @@ export function RecruitmentTable({
                 pasteTextAction={pasteTextAction}
                 deleteAction={deleteAction}
                 scheduleInterviewAction={scheduleInterviewAction}
+                sendCandidateReplyAction={sendCandidateReplyAction}
               />
             ))}
             {rows.length === 0 && (
@@ -317,6 +337,7 @@ function ApplicantRow({
   pasteTextAction,
   deleteAction,
   scheduleInterviewAction,
+  sendCandidateReplyAction,
 }: {
   row: RecruitmentTableRow;
   selected: boolean;
@@ -332,6 +353,11 @@ function ApplicantRow({
     prev: ScheduleInterviewState,
     formData: FormData
   ) => Promise<ScheduleInterviewState>;
+  sendCandidateReplyAction: (
+    resumeId: string,
+    prev: SendCandidateReplyState,
+    formData: FormData
+  ) => Promise<SendCandidateReplyState>;
 }) {
   const hasResumeContent = Boolean(row.file_name || row.pasted_resume_text);
   const { overview, detail } = splitComment(row.ai_comment);
@@ -502,6 +528,33 @@ function ApplicantRow({
                 </ul>
               </div>
             )}
+            <div className="text-xs" onClick={(e) => e.stopPropagation()}>
+              <p className="font-semibold uppercase tracking-wider text-slate-500">Messages</p>
+              {row.messages && row.messages.length > 0 && (
+                <ul className="mt-1 max-h-48 space-y-1.5 overflow-y-auto rounded-md bg-white p-2">
+                  {row.messages.map((m) => (
+                    <li key={m.id} className={m.direction === "outbound" ? "text-right" : "text-left"}>
+                      <span
+                        className={`inline-block max-w-[85%] rounded-md px-2 py-1 text-left ${
+                          m.direction === "outbound"
+                            ? "bg-brand/10 text-slate-800"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        <span className="block whitespace-pre-line">{m.bodyText}</span>
+                        <span className="mt-0.5 block text-[10px] text-slate-400">
+                          {m.direction === "outbound" ? "You" : "Candidate"} ·{" "}
+                          {formatDate(m.sentAt)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-2">
+                <CandidateReplyForm resumeId={row.id} action={sendCandidateReplyAction} />
+              </div>
+            </div>
             {overview && (
               <p className="whitespace-pre-line text-sm font-medium text-slate-900">{overview}</p>
             )}

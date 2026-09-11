@@ -19,6 +19,8 @@ import { getWizerSettings } from "@/lib/wizer-settings";
 import { testNordLayerConnection, type NordLayerCredentials } from "@/lib/nordlayer";
 import { getNordLayerSettings } from "@/lib/nordlayer-settings";
 import { getNordPassSettings } from "@/lib/nordpass-settings";
+import { fetchAppOnlyGraphToken } from "@/lib/microsoft-graph";
+import { syncSharedMailboxMessages } from "@/lib/shared-mailbox-sync";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -571,4 +573,64 @@ export async function saveSalesNotificationSettings(
 
   revalidatePath("/settings/integrations");
   return { error: null, success: "Saved." };
+}
+
+/** Confirms the app-only Graph credentials + Application Access Policy are
+ * actually working — a live token mint plus one real Graph call against the
+ * shared mailbox (fetching its own profile), rather than just checking that
+ * an env var is set. A 403 here specifically means the Application Access
+ * Policy isn't scoped to this mailbox yet (or admin consent wasn't granted),
+ * not a bug in this app. */
+export async function testSharedMailboxConnectionAction(): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const mailboxEmail = process.env.RECRUITMENT_MAILBOX_EMAIL;
+  if (!mailboxEmail) {
+    return { ok: false, message: "Set the RECRUITMENT_MAILBOX_EMAIL environment variable first." };
+  }
+
+  try {
+    const { accessToken } = await fetchAppOnlyGraphToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}?$select=mail,userPrincipalName`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      return {
+        ok: false,
+        message:
+          res.status === 403
+            ? "Permission denied — check the Application Access Policy is scoped to this mailbox and that admin consent was granted."
+            : `Graph request failed (${res.status}): ${text}`,
+      };
+    }
+    return { ok: true, message: `Connected — reached ${mailboxEmail} successfully.` };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Connection test failed." };
+  }
+}
+
+/** Manual counterpart to the /api/candidate-messages-sync cron — same
+ * underlying sync function, so results are identical regardless of which
+ * one triggered it. */
+export async function syncSharedMailboxNowAction(): Promise<{ ok: boolean; message: string }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { ok: false, message: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  try {
+    const result = await syncSharedMailboxMessages(admin);
+    revalidatePath("/settings/integrations");
+    revalidatePath("/recruitment");
+    return {
+      ok: true,
+      message: `Scanned ${result.scanned} message${result.scanned === 1 ? "" : "s"}, matched ${result.matched} to a candidate.`,
+    };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Sync failed." };
+  }
 }

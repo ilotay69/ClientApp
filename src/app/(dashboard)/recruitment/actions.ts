@@ -8,8 +8,10 @@ import { screenPendingResumes, extractCandidateContactInfo } from "@/lib/resume-
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import type { ActiveAiSettings } from "@/lib/ai";
 import type { MailConnection, ResumeStatus } from "@/lib/types";
-import { getResendClient, buildInterviewInviteEmail } from "@/lib/resend";
+import { buildInterviewInviteEmail } from "@/lib/resend";
 import { buildInterviewIcs, interviewDateTimeToUtc } from "@/lib/ics";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 
 /** Updates the signed-in user's own watched folder name. One row per staff
  * user on mail_connections, same as every other per-user mailbox setting
@@ -409,17 +411,22 @@ export async function scheduleInterviewAction(
     timeZoneName: "short",
   }).format(start);
 
-  const fromAddress = process.env.REMINDERS_FROM_EMAIL ?? "CG Ops <reminders@example.com>";
-  // Deliberately the shared Resend/company send-from address, not any
-  // individual staff member's own email — nothing here should expose a
-  // personal company address to the candidate, in the ICS content or
-  // otherwise. Both the calendar app's Accept/Decline RSVP reply and any
-  // reply to the email itself go to this same shared address.
-  const organizerEmail = fromAddress.match(/<(.+)>/)?.[1] ?? fromAddress;
+  // The shared recruitment mailbox, not any individual staff member's own
+  // email — nothing here should expose a personal company address to the
+  // candidate, in the ICS content or otherwise. Both the calendar app's
+  // Accept/Decline RSVP reply and any reply to the email itself go to this
+  // same shared address (and get picked up by the candidate-messaging sync).
+  const mailboxEmail = process.env.RECRUITMENT_MAILBOX_EMAIL;
+  if (!mailboxEmail) {
+    return {
+      error: "The recruitment mailbox isn't configured yet — set RECRUITMENT_MAILBOX_EMAIL.",
+      success: null,
+    };
+  }
 
   const ics = buildInterviewIcs({
     uid: `interview-${resumeId}-${Date.now()}@cgtechnologies.com`,
-    organizerEmail,
+    organizerEmail: mailboxEmail,
     organizerName: "CG Technologies",
     attendeeEmail: candidateEmail,
     attendeeName: candidateName,
@@ -440,37 +447,27 @@ export async function scheduleInterviewAction(
   });
 
   try {
-    const resend = getResendClient();
-    const { error: sendError } = await resend.emails.send({
-      from: fromAddress,
+    const settings = await getSharedMailboxSettings(admin);
+    if (!settings) {
+      return { error: "The recruitment mailbox integration hasn't been set up yet.", success: null };
+    }
+    const accessToken = await getValidSharedMailboxToken(admin, settings);
+    // saveToSentItems (set inside sendMailAsSharedMailbox) already puts a
+    // copy in the mailbox's own Sent folder — no separate cc needed to get
+    // a "sent copy" the way Resend's send-only API required.
+    await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: candidateEmail,
-      // CC'd to the same shared address it's sent from — a plain send has
-      // no "sent" copy anywhere on its own, so this is what actually gets
-      // it (and the .ics) into a shared, monitored inbox. Reply-To is left
-      // unset, which defaults to the From address itself.
-      cc: fromAddress,
       subject: `Interview invite: ${jobTitle}`,
       html,
       text,
-      // Explicitly base64-encoded rather than passing the raw Buffer — an
-      // already-base64 string is unambiguous either way. contentType is
-      // camelCase here despite Resend's own public API reference showing
-      // snake_case content_type — the installed `resend` package's actual
-      // TypeScript Attachment type (the real build-time authority on this,
-      // confirmed by a genuine TS2561 build failure using content_type)
-      // disagrees with its own docs and only accepts camelCase.
       attachments: [
         {
           filename: "interview.ics",
-          content: Buffer.from(ics, "utf-8").toString("base64"),
+          contentBase64: Buffer.from(ics, "utf-8").toString("base64"),
           contentType: "text/calendar; charset=utf-8; method=REQUEST",
         },
       ],
     });
-    if (sendError) {
-      console.error("scheduleInterviewAction: Resend rejected the email", sendError);
-      return { error: "Couldn't send the invite — check Resend settings.", success: null };
-    }
   } catch (err) {
     console.error("scheduleInterviewAction: email send failed", err);
     return {
@@ -500,6 +497,89 @@ export async function scheduleInterviewAction(
   revalidatePath("/recruitment");
 
   return { error: null, success: `Invite sent to ${candidateEmail}.` };
+}
+
+export type SendCandidateReplyState = { error: string | null; success: string | null };
+
+/** Staff-side half of the candidate messaging thread — sends through the
+ * same shared mailbox as scheduleInterviewAction, and logs an outbound
+ * resume_messages row so it shows up in the thread alongside whatever the
+ * candidate-messages-sync cron files as inbound. */
+export async function sendCandidateReplyAction(
+  resumeId: string,
+  _prevState: SendCandidateReplyState,
+  formData: FormData
+): Promise<SendCandidateReplyState> {
+  const user = await requirePermission("manage_recruitment");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) {
+    return { error: "Write a message first.", success: null };
+  }
+
+  const mailboxEmail = process.env.RECRUITMENT_MAILBOX_EMAIL;
+  if (!mailboxEmail) {
+    return {
+      error: "The recruitment mailbox isn't configured yet — set RECRUITMENT_MAILBOX_EMAIL.",
+      success: null,
+    };
+  }
+
+  const admin = createAdminClient();
+  const { data: resume } = await admin
+    .from("resumes")
+    .select("candidate_name, candidate_email, sender_name, sender_email")
+    .eq("id", resumeId)
+    .maybeSingle();
+  if (!resume) return { error: "Candidate not found.", success: null };
+
+  const candidateEmail = resume.candidate_email ?? resume.sender_email;
+  if (!candidateEmail) {
+    return { error: "No email on file for this candidate.", success: null };
+  }
+  const candidateName = resume.candidate_name ?? resume.sender_name ?? "there";
+  const firstName = candidateName.split(" ")[0] || candidateName;
+
+  const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+    <p>Hi ${firstName},</p>
+    <p style="white-space:pre-line;">${body.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+    <p style="margin-top:24px;color:#64748b;font-size:13px;">CG Technologies</p>
+  </div>`;
+  const text = `Hi ${firstName},\n\n${body}\n\nCG Technologies`;
+
+  try {
+    const settings = await getSharedMailboxSettings(admin);
+    if (!settings) {
+      return { error: "The recruitment mailbox integration hasn't been set up yet.", success: null };
+    }
+    const accessToken = await getValidSharedMailboxToken(admin, settings);
+    await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
+      to: candidateEmail,
+      subject: "Message from CG Technologies",
+      html,
+      text,
+    });
+  } catch (err) {
+    console.error("sendCandidateReplyAction: send failed", err);
+    return { error: err instanceof Error ? err.message : "Couldn't send the message.", success: null };
+  }
+
+  await admin.from("resume_messages").insert({
+    resume_id: resumeId,
+    direction: "outbound",
+    subject: "Message from CG Technologies",
+    body_text: body,
+    sent_at: new Date().toISOString(),
+    from_email: mailboxEmail,
+    to_email: candidateEmail,
+    sent_by: user.id,
+  });
+
+  revalidatePath("/recruitment");
+  return { error: null, success: `Sent to ${candidateEmail}.` };
 }
 
 const MAX_RESUME_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB, same cap as client documents

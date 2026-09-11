@@ -13,6 +13,7 @@ import { NordLayerSettingsForm } from "@/components/nordlayer-settings-form";
 import { NordPassSettingsForm } from "@/components/nordpass-settings-form";
 import { ForticloudAccountsPanel } from "@/components/forticloud-accounts-panel";
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
+import { SharedMailboxSettingsForm } from "@/components/shared-mailbox-settings-form";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import {
   saveAiProviderSettings,
@@ -33,6 +34,8 @@ import {
   testNordLayerConnectionAction,
   saveNordPassSettings,
   saveSalesNotificationSettings,
+  testSharedMailboxConnectionAction,
+  syncSharedMailboxNowAction,
 } from "./actions";
 import {
   listForticloudAccountsAction,
@@ -71,6 +74,7 @@ export default async function IntegrationsSettingsPage({
     { data: nordLayerRow },
     { data: nordPassRow },
     { data: salesNotifyRow },
+    { data: sharedMailboxRow },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
@@ -90,6 +94,11 @@ export default async function IntegrationsSettingsPage({
     admin.from("nordlayer_settings").select("api_key").eq("id", true).maybeSingle(),
     admin.from("nordpass_settings").select("private_key").eq("id", true).maybeSingle(),
     admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
+    admin
+      .from("shared_mailbox_settings")
+      .select("last_synced_at, last_sync_error, last_sync_error_at")
+      .eq("id", true)
+      .maybeSingle(),
   ]);
 
   type ProviderRow = {
@@ -186,6 +195,19 @@ export default async function IntegrationsSettingsPage({
                     currentBaseUrl={huduRow?.base_url ?? null}
                     saveAction={saveHuduSettings}
                     testAction={testHuduConnectionAction}
+                  />
+                ),
+              },
+              {
+                label: "Recruitment Mailbox",
+                content: (
+                  <SharedMailboxSettingsForm
+                    mailboxEmail={process.env.RECRUITMENT_MAILBOX_EMAIL ?? null}
+                    lastSyncedAt={sharedMailboxRow?.last_synced_at ?? null}
+                    lastSyncError={sharedMailboxRow?.last_sync_error ?? null}
+                    lastSyncErrorAt={sharedMailboxRow?.last_sync_error_at ?? null}
+                    testAction={testSharedMailboxConnectionAction}
+                    syncAction={syncSharedMailboxNowAction}
                   />
                 ),
               },
