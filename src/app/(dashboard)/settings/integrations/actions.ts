@@ -593,8 +593,14 @@ export async function testSharedMailboxConnectionAction(): Promise<{ ok: boolean
 
   try {
     const { accessToken } = await fetchAppOnlyGraphToken();
+    // Deliberately a mail-scoped endpoint (mailFolders), not GET /users/{id}
+    // — that's a directory profile read gated by User.Read.All, a
+    // completely different permission this integration was never given
+    // (correctly — it doesn't need it). Mail.Read (Application) plus the
+    // Exchange Application Access Policy are what actually gate this call,
+    // so it's the real test of what this integration depends on.
     const res = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}?$select=mail,userPrincipalName`,
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}/mailFolders/inbox?$select=displayName`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     if (!res.ok) {
