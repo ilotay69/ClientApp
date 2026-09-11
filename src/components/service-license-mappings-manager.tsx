@@ -16,12 +16,17 @@ export function ServiceLicenseMappingsManager({
   mappings,
   unmappedServiceNames,
   allSkus,
+  unmappedSkus,
   saveMappingAction,
   deleteMappingAction,
 }: {
   mappings: ServiceLicenseMapping[];
   unmappedServiceNames: string[];
   allSkus: Sku[];
+  /** Licences not yet used by any mapping — the "add a mapping" form only
+   * offers these, so what's left in that dropdown is exactly what's still
+   * pending a match. Editing an existing row still picks from `allSkus`. */
+  unmappedSkus: Sku[];
   saveMappingAction: (prev: SaveMappingState, formData: FormData) => Promise<SaveMappingState>;
   deleteMappingAction: (serviceName: string) => Promise<void>;
 }) {
@@ -38,7 +43,7 @@ export function ServiceLicenseMappingsManager({
 
       <AddMappingForm
         unmappedServiceNames={unmappedServiceNames}
-        allSkus={allSkus}
+        unmappedSkus={unmappedSkus}
         saveMappingAction={saveMappingAction}
       />
 
@@ -63,11 +68,11 @@ export function ServiceLicenseMappingsManager({
 
 function AddMappingForm({
   unmappedServiceNames,
-  allSkus,
+  unmappedSkus,
   saveMappingAction,
 }: {
   unmappedServiceNames: string[];
-  allSkus: Sku[];
+  unmappedSkus: Sku[];
   saveMappingAction: (prev: SaveMappingState, formData: FormData) => Promise<SaveMappingState>;
 }) {
   const [state, formAction, pending] = useActionState<SaveMappingState, FormData>(saveMappingAction, {
@@ -95,7 +100,7 @@ function AddMappingForm({
   // before, and nothing here saves the mapping automatically.
   function handleServiceChange(e: ChangeEvent<HTMLSelectElement>) {
     const chosen = e.target.value.trim().toLowerCase();
-    const match = allSkus.find((s) => s.friendlyName.trim().toLowerCase() === chosen);
+    const match = unmappedSkus.find((s) => s.friendlyName.trim().toLowerCase() === chosen);
     setSkuValue(match?.skuPartNumber ?? "");
   }
 
@@ -139,7 +144,7 @@ function AddMappingForm({
           <option value="" disabled>
             Choose a licence…
           </option>
-          {allSkus.map((s) => (
+          {unmappedSkus.map((s) => (
             <option key={s.skuPartNumber} value={s.skuPartNumber}>
               {s.friendlyName}
             </option>

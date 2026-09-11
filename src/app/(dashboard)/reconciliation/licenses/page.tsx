@@ -40,6 +40,13 @@ export default async function LicenseReconciliationPage({
     (name) => !mappedServiceNames.has(name.trim().toLowerCase())
   );
 
+  // Same idea for the "add a mapping" licence dropdown — a SKU already used
+  // by some other mapping is dropped from the create-new picklist, so what's
+  // left is exactly what's still pending a match. The edit-row dropdown
+  // (changing an existing mapping) still gets every SKU, unfiltered.
+  const mappedSkus = new Set(mappings.map((m) => m.skuPartNumber));
+  const unmappedSkus = allSkus.filter((s) => !mappedSkus.has(s.skuPartNumber));
+
   const selectedClient = clientId ? (clientList.find((c) => c.id === clientId) ?? null) : null;
 
   const result = selectedClient ? await fetchReconciliationForClient(selectedClient.id) : null;
@@ -58,6 +65,7 @@ export default async function LicenseReconciliationPage({
         mappings={mappings}
         unmappedServiceNames={unmappedServiceNames}
         allSkus={allSkus}
+        unmappedSkus={unmappedSkus}
         saveMappingAction={saveServiceLicenseMapping}
         deleteMappingAction={deleteServiceLicenseMapping}
       />
