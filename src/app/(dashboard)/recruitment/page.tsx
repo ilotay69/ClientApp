@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
@@ -342,13 +343,21 @@ export default async function RecruitmentPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Recruitment</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Applicants pulled in from one folder in your connected mailbox, screened against
-          your current job posting. A message with no resume attached still creates a row —
-          click it to add the resume by upload or paste once you have one.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Recruitment</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Applicants pulled in from one folder in your connected mailbox, screened against
+            your current job posting. A message with no resume attached still creates a row —
+            click it to add the resume by upload or paste once you have one.
+          </p>
+        </div>
+        <Link
+          href="/recruitment/prompt"
+          className="shrink-0 whitespace-nowrap text-sm font-medium text-brand underline"
+        >
+          View AI screening prompt
+        </Link>
       </div>
 
       <details className="rounded-xl border border-slate-200 bg-white shadow-sm">

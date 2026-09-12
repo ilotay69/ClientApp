@@ -133,7 +133,7 @@ const TOOL_SCHEMA = {
 // which is every model this app uses), 32MB/request. A resume is typically
 // 1-3 pages, so 5/call stays far clear of either ceiling while keeping one
 // bad file's blast radius to a single small chunk rather than a whole batch.
-const BATCH_SIZE = 5;
+export const BATCH_SIZE = 5;
 
 // Per-invocation cap for the "whatever's pending" path (no explicit
 // resumeIds) — kept equal to BATCH_SIZE, i.e. exactly one Anthropic call per
@@ -245,7 +245,10 @@ async function buildResumeContentBlocks(
   return blocks;
 }
 
-function buildScreeningPrompt(posting: { title: string; description: string }, count: number): string {
+/** Exported so the "View screening prompt" page (recruitment/prompt) can show
+ * staff the EXACT text sent to the AI, rather than a separately-maintained
+ * description of the criteria that could drift out of sync with this. */
+export function buildScreeningPrompt(posting: { title: string; description: string }, count: number): string {
   const today = new Date().toISOString().slice(0, 10);
 
   return `You are screening job applicants for CG Technologies. Today's date is ${today} —
