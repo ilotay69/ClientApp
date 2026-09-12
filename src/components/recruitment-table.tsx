@@ -780,6 +780,8 @@ function ApplicantRow({
           {row.file_name ? (
             <Link
               href={`/api/resumes/${row.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               title={row.file_name}
               className="block truncate text-brand underline"
