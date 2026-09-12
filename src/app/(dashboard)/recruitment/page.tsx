@@ -198,18 +198,21 @@ export default async function RecruitmentPage({
   }
   // Already newest-first (the query itself is ordered that way) — every
   // candidate's own thread and this flattened cross-candidate view share
-  // that same order, just grouped differently.
-  const recentMessages = messages.map((m) => {
-    const resumeInfo = Array.isArray(m.resumes) ? m.resumes[0] : m.resumes;
-    return {
-      id: m.id,
-      resumeId: m.resume_id,
-      candidateName: resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate",
-      direction: m.direction,
-      bodyText: m.body_text,
-      sentAt: m.sent_at,
-    };
-  });
+  // that same order, just grouped differently. Inbound only — this rollup
+  // is meant to surface candidate replies staff might not have seen yet,
+  // not a log of what staff themselves already sent.
+  const recentMessages = messages
+    .filter((m) => m.direction === "inbound")
+    .map((m) => {
+      const resumeInfo = Array.isArray(m.resumes) ? m.resumes[0] : m.resumes;
+      return {
+        id: m.id,
+        resumeId: m.resume_id,
+        candidateName: resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate",
+        bodyText: m.body_text,
+        sentAt: m.sent_at,
+      };
+    });
 
   type InterviewNoteRow = {
     id: string;
@@ -464,7 +467,9 @@ export default async function RecruitmentPage({
           Candidate messages{recentMessages.length > 0 ? ` (${recentMessages.length})` : ""}
         </summary>
         <div className="border-t border-slate-100 px-6 py-2">
-          <span className="text-xs text-slate-400">Every message, both directions, newest first — across all candidates.</span>
+          <span className="text-xs text-slate-400">
+            Messages received from candidates, newest first — across all candidates.
+          </span>
         </div>
         <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto border-t border-slate-100">
           {recentMessages.length === 0 ? (
@@ -478,11 +483,6 @@ export default async function RecruitmentPage({
                 >
                   {m.candidateName}
                 </a>
-                <span
-                  className={`text-xs font-medium ${m.direction === "outbound" ? "text-slate-500" : "text-indigo-600"}`}
-                >
-                  {m.direction === "outbound" ? "Sent" : "Received"}
-                </span>
                 <p className="min-w-0 flex-1 truncate text-sm text-slate-600">{m.bodyText}</p>
                 <span className="shrink-0 text-xs text-slate-400">{formatDate(m.sentAt)}</span>
               </div>
