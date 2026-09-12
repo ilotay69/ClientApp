@@ -1018,3 +1018,15 @@ export async function pasteResumeTextAction(
   revalidatePath("/recruitment");
   return { error: null };
 }
+
+/** Hides one message from the top-of-page "Candidate messages" rollup only
+ * — the message row itself, and its place in that candidate's own thread
+ * under their row, are untouched. Nothing keys off dismissed_at anywhere
+ * else, so this can't accidentally affect anything under the candidate. */
+export async function dismissMessageAction(messageId: string): Promise<void> {
+  if (!(await requirePermission("manage_recruitment"))) return;
+
+  const admin = createAdminClient();
+  await admin.from("resume_messages").update({ dismissed_at: new Date().toISOString() }).eq("id", messageId);
+  revalidatePath("/recruitment");
+}

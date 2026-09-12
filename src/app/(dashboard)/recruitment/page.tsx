@@ -29,7 +29,9 @@ import {
   scheduleInterviewAction,
   sendCandidateReplyAction,
   sendBulkCandidateMessageAction,
+  dismissMessageAction,
 } from "./actions";
+import { DismissMessageButton } from "@/components/dismiss-message-button";
 
 export const dynamic = "force-dynamic";
 
@@ -133,7 +135,7 @@ export default async function RecruitmentPage({
       // resume_id's FK, not a separate round-trip.
       supabase
         .from("resume_messages")
-        .select("id, resume_id, direction, body_text, sent_at, resumes(candidate_name, sender_name)")
+        .select("id, resume_id, direction, body_text, sent_at, dismissed_at, resumes(candidate_name, sender_name)")
         .order("sent_at", { ascending: false }),
       // Every interview note ever added, oldest first — grouped by
       // resume_id below into each candidate's own Interview Notes section.
@@ -188,6 +190,7 @@ export default async function RecruitmentPage({
     direction: "inbound" | "outbound";
     body_text: string | null;
     sent_at: string;
+    dismissed_at: string | null;
     resumes: { candidate_name: string | null; sender_name: string | null } | { candidate_name: string | null; sender_name: string | null }[] | null;
   };
   const messages = (allMessages ?? []) as MessageRow[];
@@ -201,9 +204,12 @@ export default async function RecruitmentPage({
   // candidate's own thread and this flattened cross-candidate view share
   // that same order, just grouped differently. Inbound only — this rollup
   // is meant to surface candidate replies staff might not have seen yet,
-  // not a log of what staff themselves already sent.
+  // not a log of what staff themselves already sent. dismissed_at is only
+  // ever checked here — messagesByResumeId (each candidate's own thread)
+  // uses the same underlying rows with no such filter, so dismissing a
+  // message from this rollup can never hide it from the candidate's thread.
   const recentMessages = messages
-    .filter((m) => m.direction === "inbound")
+    .filter((m) => m.direction === "inbound" && !m.dismissed_at)
     .map((m) => {
       const resumeInfo = Array.isArray(m.resumes) ? m.resumes[0] : m.resumes;
       return {
@@ -494,6 +500,7 @@ export default async function RecruitmentPage({
                 </a>
                 <p className="min-w-0 flex-1 truncate text-sm text-slate-600">{m.bodyText}</p>
                 <span className="shrink-0 text-xs text-slate-400">{formatDate(m.sentAt)}</span>
+                <DismissMessageButton messageId={m.id} action={dismissMessageAction} />
               </div>
             ))
           )}
