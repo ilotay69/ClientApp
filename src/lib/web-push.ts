@@ -140,7 +140,7 @@ export async function sendWebPush(
       TTL: "86400",
       Authorization: `vapid t=${jwt}, k=${vapidPublicKey}`,
     },
-    body,
+    body: body as BodyInit,
   });
 
   if (res.ok) return { ok: true, status: res.status };
