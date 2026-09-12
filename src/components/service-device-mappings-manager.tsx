@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { DEVICE_CLASS_LABELS, type DeviceClass, type ServiceDeviceMapping } from "@/lib/reconciliation-data";
+import { DEVICE_CLASS_LABELS, type DeviceClass } from "@/lib/device-classes";
+import type { ServiceDeviceMapping } from "@/lib/reconciliation-data";
 import type { SaveMappingState } from "@/app/(dashboard)/reconciliation/actions";
 
 const DEVICE_CLASS_OPTIONS = Object.entries(DEVICE_CLASS_LABELS) as [DeviceClass, string][];

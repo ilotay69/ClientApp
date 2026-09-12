@@ -1,5 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { friendlyM365SkuName } from "@/lib/m365-sku-names";
+import { DEVICE_CLASS_LABELS, type DeviceClass } from "@/lib/device-classes";
+
+export { DEVICE_CLASS_LABELS, type DeviceClass };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
@@ -8,14 +11,6 @@ export type ServiceLicenseMapping = {
   id: string;
   serviceName: string;
   skuPartNumber: string;
-};
-
-export type DeviceClass = "workstation" | "server" | "mac";
-
-export const DEVICE_CLASS_LABELS: Record<DeviceClass, string> = {
-  workstation: "Workstations",
-  server: "Servers",
-  mac: "Macs",
 };
 
 export type ServiceDeviceMapping = {
