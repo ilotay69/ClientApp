@@ -125,12 +125,15 @@ export default async function RecruitmentPage({
           "id, resume_id, scheduled_at, duration_minutes, location, rsvp_status, rsvp_at, teams_join_url, resumes(candidate_name, sender_name, candidate_email, sender_email)"
         )
         .order("scheduled_at", { ascending: true }),
-      // Full two-way thread (both directions), oldest first — grouped by
-      // resume_id below into each candidate's own Messages section.
+      // Full two-way thread (both directions), newest first — grouped by
+      // resume_id below into each candidate's own Messages section, and
+      // also flattened (with candidate name) into the "Candidate messages"
+      // rollup above the filter bar. resumes(...) is a nested embed via
+      // resume_id's FK, not a separate round-trip.
       supabase
         .from("resume_messages")
-        .select("id, resume_id, direction, body_text, sent_at")
-        .order("sent_at", { ascending: true }),
+        .select("id, resume_id, direction, body_text, sent_at, resumes(candidate_name, sender_name)")
+        .order("sent_at", { ascending: false }),
       // Every interview note ever added, oldest first — grouped by
       // resume_id below into each candidate's own Interview Notes section.
       // profiles(...) is a nested embed via created_by's FK, not a separate
@@ -184,13 +187,29 @@ export default async function RecruitmentPage({
     direction: "inbound" | "outbound";
     body_text: string | null;
     sent_at: string;
+    resumes: { candidate_name: string | null; sender_name: string | null } | { candidate_name: string | null; sender_name: string | null }[] | null;
   };
+  const messages = (allMessages ?? []) as MessageRow[];
   const messagesByResumeId = new Map<string, MessageRow[]>();
-  for (const m of (allMessages ?? []) as MessageRow[]) {
+  for (const m of messages) {
     const list = messagesByResumeId.get(m.resume_id) ?? [];
     list.push(m);
     messagesByResumeId.set(m.resume_id, list);
   }
+  // Already newest-first (the query itself is ordered that way) — every
+  // candidate's own thread and this flattened cross-candidate view share
+  // that same order, just grouped differently.
+  const recentMessages = messages.map((m) => {
+    const resumeInfo = Array.isArray(m.resumes) ? m.resumes[0] : m.resumes;
+    return {
+      id: m.id,
+      resumeId: m.resume_id,
+      candidateName: resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate",
+      direction: m.direction,
+      bodyText: m.body_text,
+      sentAt: m.sent_at,
+    };
+  });
 
   type InterviewNoteRow = {
     id: string;
@@ -436,6 +455,38 @@ export default async function RecruitmentPage({
                 </div>
               );
             })
+          )}
+        </div>
+      </details>
+
+      <details className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary className="cursor-pointer px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Candidate messages{recentMessages.length > 0 ? ` (${recentMessages.length})` : ""}
+        </summary>
+        <div className="border-t border-slate-100 px-6 py-2">
+          <span className="text-xs text-slate-400">Every message, both directions, newest first — across all candidates.</span>
+        </div>
+        <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto border-t border-slate-100">
+          {recentMessages.length === 0 ? (
+            <p className="px-6 py-4 text-sm text-slate-500">No messages yet.</p>
+          ) : (
+            recentMessages.map((m) => (
+              <div key={m.id} className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 px-6 py-2">
+                <a
+                  href={`/recruitment?q=${encodeURIComponent(m.candidateName)}`}
+                  className="w-48 shrink-0 truncate text-sm font-medium text-brand underline"
+                >
+                  {m.candidateName}
+                </a>
+                <span
+                  className={`text-xs font-medium ${m.direction === "outbound" ? "text-slate-500" : "text-indigo-600"}`}
+                >
+                  {m.direction === "outbound" ? "Sent" : "Received"}
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm text-slate-600">{m.bodyText}</p>
+                <span className="shrink-0 text-xs text-slate-400">{formatDate(m.sentAt)}</span>
+              </div>
+            ))
           )}
         </div>
       </details>
