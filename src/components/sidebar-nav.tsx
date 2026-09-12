@@ -162,7 +162,7 @@ export function SidebarNav({
     ...(canManageReconciliation
       ? [
           {
-            href: "/reconciliation/licenses",
+            href: "/reconciliation",
             label: "Reconciliation",
             icon: IconRefresh,
             ownerOnly: reconciliationOwnerOnly,

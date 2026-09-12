@@ -4,14 +4,23 @@ import { hasPermission } from "@/lib/permissions";
 import {
   fetchReconciliationForClient,
   fetchServiceLicenseMappings,
+  fetchServiceDeviceMappings,
   fetchAllKnownSkus,
   fetchAllContractedServiceNames,
 } from "@/lib/reconciliation-data";
-import { saveServiceLicenseMapping, deleteServiceLicenseMapping } from "../actions";
+import {
+  saveServiceLicenseMapping,
+  deleteServiceLicenseMapping,
+  saveServiceDeviceMapping,
+  deleteServiceDeviceMapping,
+  saveReconciliationWaiver,
+  deleteReconciliationWaiver,
+} from "../actions";
 import { updateClientM365PurchaseNoteAction } from "../../clients/actions";
 import { ClientPicker } from "@/components/reconciliation-client-picker";
 import { ReconciliationTable } from "@/components/reconciliation-table";
 import { ServiceLicenseMappingsManager } from "@/components/service-license-mappings-manager";
+import { ServiceDeviceMappingsManager } from "@/components/service-device-mappings-manager";
 import { ClientPurchaseNoteField } from "@/components/client-purchase-note-field";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +38,10 @@ export default async function LicenseReconciliationPage({
   const { client_id: clientId } = await searchParams;
 
   const admin = createAdminClient();
-  const [{ data: clients }, mappings, allSkus, allServiceNames] = await Promise.all([
+  const [{ data: clients }, licenseMappings, deviceMappings, allSkus, allServiceNames] = await Promise.all([
     admin.from("clients").select("id, name, m365_license_purchase_note").order("name"),
     fetchServiceLicenseMappings(admin),
+    fetchServiceDeviceMappings(admin),
     fetchAllKnownSkus(),
     fetchAllContractedServiceNames(),
   ]);
@@ -41,7 +51,14 @@ export default async function LicenseReconciliationPage({
     m365_license_purchase_note: string | null;
   }[];
 
-  const mappedServiceNames = new Set(mappings.map((m) => m.serviceName.trim().toLowerCase()));
+  // A service only needs to disappear from BOTH pick-lists once it has
+  // EITHER a licence or a device-class mapping — it's one or the other,
+  // never both, so there's no reason to keep offering it in the second
+  // manager once the first one has claimed it.
+  const mappedServiceNames = new Set([
+    ...licenseMappings.map((m) => m.serviceName.trim().toLowerCase()),
+    ...deviceMappings.map((m) => m.serviceName.trim().toLowerCase()),
+  ]);
   const unmappedServiceNames = allServiceNames.filter(
     (name) => !mappedServiceNames.has(name.trim().toLowerCase())
   );
@@ -53,19 +70,26 @@ export default async function LicenseReconciliationPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">365 licence reconciliation</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Service reconciliation</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Compares a client&apos;s active contracted services against their Microsoft 365
-          licence counts.
+          Compares a client&apos;s active contracted services against their Microsoft 365 licence
+          counts and their NinjaOne-managed device counts.
         </p>
       </div>
 
       <ServiceLicenseMappingsManager
-        mappings={mappings}
+        mappings={licenseMappings}
         unmappedServiceNames={unmappedServiceNames}
         allSkus={allSkus}
         saveMappingAction={saveServiceLicenseMapping}
         deleteMappingAction={deleteServiceLicenseMapping}
+      />
+
+      <ServiceDeviceMappingsManager
+        mappings={deviceMappings}
+        unmappedServiceNames={unmappedServiceNames}
+        saveMappingAction={saveServiceDeviceMapping}
+        deleteMappingAction={deleteServiceDeviceMapping}
       />
 
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -90,9 +114,13 @@ export default async function LicenseReconciliationPage({
         </div>
       ) : (
         <ReconciliationTable
+          clientId={selectedClient.id}
           clientName={selectedClient.name}
           rows={result.rows}
           unmatchedLicenses={result.unmatchedLicenses}
+          unmatchedDevices={result.unmatchedDevices}
+          saveWaiverAction={saveReconciliationWaiver}
+          deleteWaiverAction={deleteReconciliationWaiver}
         />
       )}
     </div>
