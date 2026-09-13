@@ -142,6 +142,16 @@ export async function saveQuarterlyReviewHoursAction(reviewId: string, hours: nu
   revalidatePath("/quarterly-reviews");
 }
 
+/** Which Autotask ticket (if any) this review relates to — same
+ * always-editable, internal-only posture as the hours field above. */
+export async function saveQuarterlyReviewTicketNumberAction(reviewId: string, ticketNumber: string | null): Promise<void> {
+  if (!(await requirePermission("manage_quarterly_reviews"))) return;
+
+  const admin = createAdminClient();
+  await admin.from("quarterly_reviews").update({ ticket_number: ticketNumber }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+}
+
 /** Best-effort AI draft of the client-facing summary — analyzes the
  * current checklist results and overwrites the summary field. Staff can
  * edit the result afterward same as if they'd typed it themselves. */

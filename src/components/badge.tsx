@@ -135,10 +135,13 @@ const COLORS: Record<string, string> = {
   na: NEUTRAL_MUTED,
   pending: NEUTRAL_MUTED,
 
-  // quarterly client review item status (na reuses the entry above)
+  // quarterly client review item status (na reuses the entry above) —
+  // "recommended" is a suggestion, not a health problem, hence the
+  // category color rather than one of the status tiers.
   healthy: SUCCESS,
   attention: ATTENTION,
   urgent: URGENT,
+  recommended: CATEGORY_INDIGO,
 
   // quarterly client review workflow status ("approved" reuses the sales-
   // request-stage entry above)

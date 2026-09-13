@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { SearchableClientSelect } from "@/components/searchable-client-select";
 
 const MONTHS = [
   "January",
@@ -62,23 +63,18 @@ export function NewQuarterlyReviewForm({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-end gap-2">
-        <div>
+        <div className="w-56">
           <label className="block text-xs font-medium text-slate-700">Client</label>
-          <select
-            value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
-              setWarning(null);
-            }}
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-          >
-            <option value="">Choose a client…</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <div className="mt-1">
+            <SearchableClientSelect
+              clients={clients}
+              value={clientId || null}
+              onChange={(id) => {
+                setClientId(id);
+                setWarning(null);
+              }}
+            />
+          </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-700">Month</label>

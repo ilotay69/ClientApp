@@ -11,19 +11,22 @@ import { DeleteButton } from "@/components/delete-button";
 import { QuarterlyReviewItemRow } from "@/components/quarterly-review-item-row";
 import { QuarterlyReviewSummary } from "@/components/quarterly-review-summary";
 import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-field";
+import { QuarterlyReviewTicketNumberField } from "@/components/quarterly-review-ticket-number-field";
 import { SendReviewToClientForm } from "@/components/send-review-to-client-form";
 import { QuarterlyReviewScreenshots } from "@/components/quarterly-review-screenshots";
-import { QUARTERLY_REVIEW_SECTIONS } from "@/lib/quarterly-review-sections";
+import { QUARTERLY_REVIEW_SECTIONS, QUARTERLY_STATUS_LABELS } from "@/lib/quarterly-review-sections";
 import {
   getQuarterlyReview,
   fetchAllClientsForPicker,
   fetchReviewAttachments,
+  fetchPreviousReviewSnapshot,
   QUARTERLY_REVIEW_APPROVER_EMAIL,
 } from "@/lib/quarterly-review-data";
 import {
   saveQuarterlyReviewItemAction,
   saveQuarterlyReviewSummaryAction,
   saveQuarterlyReviewHoursAction,
+  saveQuarterlyReviewTicketNumberAction,
   generateQuarterlyReviewSummaryAction,
   submitQuarterlyReviewAction,
   approveQuarterlyReviewAction,
@@ -64,7 +67,11 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   // send it back to draft first just to touch the wording.
   const summaryLocked = itemsLocked && !(isApprover && review.status === "submitted");
 
-  const [clients, attachments] = await Promise.all([fetchAllClientsForPicker(), fetchReviewAttachments(review.id)]);
+  const [clients, attachments, previousReview] = await Promise.all([
+    fetchAllClientsForPicker(),
+    fetchReviewAttachments(review.id),
+    fetchPreviousReviewSnapshot(review.clientId, review.id),
+  ]);
   const client = clients.find((c) => c.id === review.clientId);
 
   const itemStatusByKey = new Map(review.items.map((i) => [i.itemKey, i]));
@@ -95,6 +102,11 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
             reviewId={review.id}
             value={review.hoursSpent}
             action={saveQuarterlyReviewHoursAction}
+          />
+          <QuarterlyReviewTicketNumberField
+            reviewId={review.id}
+            value={review.ticketNumber}
+            action={saveQuarterlyReviewTicketNumberAction}
           />
           {canDelete && (
             <DeleteButton
@@ -189,30 +201,57 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
       )}
 
       <div className="space-y-4">
-        {QUARTERLY_REVIEW_SECTIONS.map((section) => (
-          <div key={section.key} className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-slate-50 px-4 py-2">
-              <p className="text-sm font-semibold text-slate-900">{section.label}</p>
+        {QUARTERLY_REVIEW_SECTIONS.map((section) => {
+          const previousRows = previousReview
+            ? section.items
+                .map((item) => ({ item, prev: previousReview.itemsByKey.get(item.key) }))
+                .filter((r) => r.prev && (r.prev.status !== "na" || r.prev.comments))
+            : [];
+          return (
+            <div key={section.key} className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50 px-4 py-2">
+                <p className="text-sm font-semibold text-slate-900">{section.label}</p>
+              </div>
+              <div>
+                {section.items.map((item) => {
+                  const row = itemStatusByKey.get(item.key);
+                  return (
+                    <QuarterlyReviewItemRow
+                      key={item.key}
+                      reviewId={review.id}
+                      itemKey={item.key}
+                      label={item.label}
+                      status={row?.status ?? "na"}
+                      comments={row?.comments ?? null}
+                      disabled={itemsLocked}
+                      action={saveQuarterlyReviewItemAction}
+                    />
+                  );
+                })}
+              </div>
+              {previousReview && (
+                <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500">
+                    From last review ({previousReview.reviewPeriod}) — staff/approver only, never sent to the
+                    client:
+                  </p>
+                  {previousRows.length === 0 ? (
+                    <p className="mt-1 text-xs text-slate-400">Nothing notable in this section last time.</p>
+                  ) : (
+                    <ul className="mt-1 space-y-0.5">
+                      {previousRows.map(({ item, prev }) => (
+                        <li key={item.key} className="text-xs text-slate-500">
+                          {item.label}: {QUARTERLY_STATUS_LABELS[prev!.status]}
+                          {prev!.comments ? ` — ${prev!.comments}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
-            <div>
-              {section.items.map((item) => {
-                const row = itemStatusByKey.get(item.key);
-                return (
-                  <QuarterlyReviewItemRow
-                    key={item.key}
-                    reviewId={review.id}
-                    itemKey={item.key}
-                    label={item.label}
-                    status={row?.status ?? "na"}
-                    comments={row?.comments ?? null}
-                    disabled={itemsLocked}
-                    action={saveQuarterlyReviewItemAction}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <QuarterlyReviewScreenshots

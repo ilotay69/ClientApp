@@ -63,13 +63,17 @@ export type QuarterlyReview = {
    * old round's acknowledgment can't be confused for the current one. */
   clientAcknowledgedAt: string | null;
   clientAckRemarks: string | null;
+  /** Free text — which Autotask ticket (if any) this review relates to.
+   * Internal-only, same posture as hoursSpent: never passed to
+   * buildQuarterlyReviewClientEmail/buildQuarterlyReviewPdf. */
+  ticketNumber: string | null;
   items: QuarterlyReviewItemRow[];
 };
 
 const SELECT = `
   id, review_period, status, created_by, submitted_at, approved_at, sent_at, sent_to_email, created_at,
   summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
-  client_acknowledged_at, client_ack_remarks,
+  client_acknowledged_at, client_ack_remarks, ticket_number,
   clients(name),
   created_profile:created_by(full_name, email),
   submitted_profile:submitted_by(full_name),
@@ -127,6 +131,7 @@ function mapReview(row: any): QuarterlyReview {
     pdfStoragePath: row.pdf_storage_path ?? null,
     clientAcknowledgedAt: row.client_acknowledged_at ?? null,
     clientAckRemarks: row.client_ack_remarks ?? null,
+    ticketNumber: row.ticket_number ?? null,
     items,
   };
 }
@@ -211,6 +216,37 @@ export async function fetchReviewsForClient(
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
   return ((data ?? []) as unknown[]).map(mapReview);
+}
+
+export type PreviousReviewSnapshot = {
+  reviewPeriod: string;
+  itemsByKey: Map<string, { status: QuarterlyReviewItemStatus; comments: string | null }>;
+};
+
+/** The most recent OTHER review for this client (any status), for the
+ * read-only "what we filled in last time" reference shown below each
+ * section on the edit page — staff/approver only, never included in the
+ * PDF or client email. Null if this is the client's first review. */
+export async function fetchPreviousReviewSnapshot(
+  clientId: string,
+  excludeReviewId: string,
+  admin: AdminClient = createAdminClient()
+): Promise<PreviousReviewSnapshot | null> {
+  const { data } = await admin
+    .from("quarterly_reviews")
+    .select("id, review_period, quarterly_review_items(item_key, status, comments)")
+    .eq("client_id", clientId)
+    .neq("id", excludeReviewId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+
+  type Row = { item_key: string; status: QuarterlyReviewItemStatus; comments: string | null };
+  const itemsByKey = new Map<string, { status: QuarterlyReviewItemStatus; comments: string | null }>(
+    ((data.quarterly_review_items ?? []) as Row[]).map((i) => [i.item_key, { status: i.status, comments: i.comments }])
+  );
+  return { reviewPeriod: data.review_period, itemsByKey };
 }
 
 /** Every review across every client, newest first — used by the

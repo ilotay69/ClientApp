@@ -1,12 +1,25 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Badge } from "@/components/badge";
-import { QUARTERLY_STATUS_LABELS, type QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
+import {
+  QUARTERLY_STATUS_LABELS,
+  QUARTERLY_STATUS_ORDER,
+  type QuarterlyReviewItemStatus,
+} from "@/lib/quarterly-review-sections";
 
-/** One review line item — status select (Healthy/Need Attention/Need
- * Urgent Attention/N/A, matching the original document's own legend) plus
- * a comments field. Status saves immediately; comments save on blur. */
+const ACTIVE_CLASSES: Record<QuarterlyReviewItemStatus, string> = {
+  na: "bg-slate-600 text-white border-slate-600",
+  healthy: "bg-emerald-600 text-white border-emerald-600",
+  recommended: "bg-indigo-600 text-white border-indigo-600",
+  attention: "bg-amber-500 text-white border-amber-500",
+  urgent: "bg-red-600 text-white border-red-600",
+};
+
+/** One review line item — a quick-pick button per status (N/A / Healthy /
+ * Recommended / Need Attention / Need Urgent Attention) instead of a
+ * dropdown, so filling out ~46 items doesn't mean opening a select each
+ * time, plus a comments field. Status saves immediately on click;
+ * comments save on blur. */
 export function QuarterlyReviewItemRow({
   reviewId,
   itemKey,
@@ -48,22 +61,22 @@ export function QuarterlyReviewItemRow({
     <div className="border-b border-slate-100 px-4 py-3 last:border-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-sm text-slate-900">{label}</p>
-        <div className="flex shrink-0 items-center gap-2">
-          <Badge value={currentStatus} />
-          <select
-            value={currentStatus}
-            disabled={isDisabled}
-            onChange={(e) => saveStatus(e.target.value as QuarterlyReviewItemStatus)}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none disabled:opacity-60"
-          >
-            {(Object.entries(QUARTERLY_STATUS_LABELS) as [QuarterlyReviewItemStatus, string][]).map(
-              ([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              )
-            )}
-          </select>
+        <div className="flex shrink-0 flex-wrap gap-1">
+          {QUARTERLY_STATUS_ORDER.map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => saveStatus(value)}
+              className={`rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-60 ${
+                currentStatus === value
+                  ? ACTIVE_CLASSES[value]
+                  : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {QUARTERLY_STATUS_LABELS[value]}
+            </button>
+          ))}
         </div>
       </div>
       <textarea

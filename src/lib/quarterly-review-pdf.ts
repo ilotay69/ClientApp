@@ -11,6 +11,7 @@ const STATUS_COLORS: Record<QuarterlyReviewItemStatus, [number, number, number]>
   attention: [0.851, 0.467, 0.024],
   urgent: [0.863, 0.149, 0.149],
   na: [0.58, 0.639, 0.722],
+  recommended: [0.263, 0.220, 0.792],
 };
 
 /** Builds the full review as a standalone PDF — client-facing detail moves

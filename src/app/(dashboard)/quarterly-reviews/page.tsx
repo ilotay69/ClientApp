@@ -7,10 +7,12 @@ import { Badge } from "@/components/badge";
 import {
   fetchAllClientsForPicker,
   fetchReviewsForClient,
+  fetchAllReviews,
   reviewBucket,
   reviewActorLabel,
   REVIEW_TABS,
   REVIEW_TAB_LABELS,
+  QUARTERLY_REVIEW_APPROVER_EMAIL,
   type QuarterlyReview,
   type ReviewTab,
 } from "@/lib/quarterly-review-data";
@@ -33,13 +35,31 @@ export default async function QuarterlyReviewsPage({
   const { client_id: clientId, tab } = await searchParams;
   const activeTab: ReviewTab = tab === "approved" || tab === "sent" ? tab : "incomplete";
 
-  const clients = await fetchAllClientsForPicker();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isApprover = (user?.email ?? "").toLowerCase() === QUARTERLY_REVIEW_APPROVER_EMAIL.toLowerCase();
+
+  const [clients, allReviews] = await Promise.all([fetchAllClientsForPicker(), fetchAllReviews()]);
   const selectedClient = clientId ? (clients.find((c) => c.id === clientId) ?? null) : null;
   const reviews = selectedClient ? await fetchReviewsForClient(selectedClient.id) : [];
 
   const counts: Record<ReviewTab, number> = { incomplete: 0, approved: 0, sent: 0 };
   for (const r of reviews) counts[reviewBucket(r.status)]++;
   const visibleReviews = reviews.filter((r) => reviewBucket(r.status) === activeTab);
+
+  // Cross-client — "what am I actually on the hook for right now": reviews
+  // still incomplete or awaiting a decision that either I created, or (if
+  // I'm the approver) are sitting in my queue. Deliberately excludes
+  // "sent" — those are done, nothing left for me to do.
+  const myReviews = (user?.id
+    ? allReviews.filter(
+        (r) =>
+          reviewBucket(r.status) !== "sent" &&
+          (r.createdById === user.id || (isApprover && r.status === "submitted"))
+      )
+    : []
+  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <div className="space-y-6">
@@ -62,9 +82,38 @@ export default async function QuarterlyReviewsPage({
         <NewReviewPanel clients={clients} defaultClientId={selectedClient?.id ?? null} action={createQuarterlyReviewAction} />
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">Client</label>
-          <QuarterlyReviewClientPicker clients={clients} selectedId={selectedClient?.id ?? null} tab={activeTab} />
+          <div className="w-56">
+            <QuarterlyReviewClientPicker clients={clients} selectedId={selectedClient?.id ?? null} tab={activeTab} />
+          </div>
         </div>
       </div>
+
+      {myReviews.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">My Reviews</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Reviews you created or need to approve that aren&apos;t sent yet.
+          </p>
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="divide-y divide-slate-100">
+              {myReviews.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/quarterly-reviews/${r.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-slate-50"
+                >
+                  <div>
+                    <span className="font-medium text-slate-900">{r.clientName}</span>
+                    <span className="mx-2 text-slate-300">·</span>
+                    <span className="text-slate-700">{r.reviewPeriod}</span>
+                  </div>
+                  <Badge value={r.status} />
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="text-lg font-semibold text-slate-900">

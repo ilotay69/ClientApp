@@ -112,7 +112,7 @@ export async function acknowledgeReviewByTokenAction(token: string, remarks: str
   return {
     ok: true,
     message: wantsDiscussion
-      ? "Thank you — we'll follow up with you about this."
-      : "Thank you — your acknowledgment has been recorded.",
+      ? "Thank you — someone will contact you within a business day."
+      : "Thank you for acknowledging this review.",
   };
 }

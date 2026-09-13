@@ -4,14 +4,26 @@
 // status legend). Pure data, no imports — safe to use from both server code
 // (the emailed report) and client components (the checklist form).
 
-export type QuarterlyReviewItemStatus = "healthy" | "attention" | "urgent" | "na";
+export type QuarterlyReviewItemStatus = "healthy" | "attention" | "urgent" | "na" | "recommended";
 
 export const QUARTERLY_STATUS_LABELS: Record<QuarterlyReviewItemStatus, string> = {
   healthy: "Healthy",
   attention: "Need Attention",
   urgent: "Need Urgent Attention",
   na: "N/A",
+  recommended: "Recommended",
 };
+
+// Display order for the item status buttons (see quarterly-review-item-row.tsx)
+// — low-concern to high-concern, with the "suggest something" option
+// between Healthy and Need Attention rather than at either end.
+export const QUARTERLY_STATUS_ORDER: QuarterlyReviewItemStatus[] = [
+  "na",
+  "healthy",
+  "recommended",
+  "attention",
+  "urgent",
+];
 
 export type QuarterlyReviewItem = { key: string; label: string };
 export type QuarterlyReviewSection = { key: string; label: string; items: QuarterlyReviewItem[] };

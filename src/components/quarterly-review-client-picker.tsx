@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { SearchableClientSelect } from "@/components/searchable-client-select";
 
 export function QuarterlyReviewClientPicker({
   clients,
@@ -13,19 +14,11 @@ export function QuarterlyReviewClientPicker({
 }) {
   const router = useRouter();
   return (
-    <select
-      defaultValue={selectedId ?? ""}
-      onChange={(e) => router.push(`/quarterly-reviews?client_id=${e.target.value}${tab ? `&tab=${tab}` : ""}`)}
-      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-    >
-      <option value="" disabled>
-        Choose a client…
-      </option>
-      {clients.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.name}
-        </option>
-      ))}
-    </select>
+    <SearchableClientSelect
+      clients={clients}
+      value={selectedId}
+      onChange={(id) => router.push(`/quarterly-reviews?client_id=${id}${tab ? `&tab=${tab}` : ""}`)}
+      placeholder="Search clients…"
+    />
   );
 }
