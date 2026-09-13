@@ -364,6 +364,12 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
   const settings = await getSharedMailboxSettings(admin);
   if (!settings) return { ok: false, message: "The shared mailbox integration isn't set up yet." };
 
+  // Declared here (not inside the try block below) so the final status
+  // update after it can still read them — a block-scoped const/let inside
+  // a try {} isn't visible once that block ends.
+  const pdfStoragePath = `${reviewId}.pdf`;
+  let pdfPersisted = false;
+
   try {
     const accessToken = await getValidSharedMailboxToken(admin, settings);
 
@@ -405,8 +411,6 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
     // clients, not just manage_quarterly_reviews holders) and from the
     // client's own portal login. Best-effort: a storage hiccup shouldn't
     // block the actual send, which is the part the client is waiting on.
-    const pdfStoragePath = `${reviewId}.pdf`;
-    let pdfPersisted = false;
     try {
       const { error: pdfUploadError } = await admin.storage
         .from(QUARTERLY_REVIEW_PDF_BUCKET)
