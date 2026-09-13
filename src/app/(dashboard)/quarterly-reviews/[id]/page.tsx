@@ -7,13 +7,16 @@ import { Badge } from "@/components/badge";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
 import { QuarterlyReviewItemRow } from "@/components/quarterly-review-item-row";
 import { SendReviewToClientForm } from "@/components/send-review-to-client-form";
+import { QuarterlyReviewScreenshots } from "@/components/quarterly-review-screenshots";
 import { QUARTERLY_REVIEW_SECTIONS } from "@/lib/quarterly-review-sections";
-import { getQuarterlyReview, fetchAllClientsForPicker } from "@/lib/quarterly-review-data";
+import { getQuarterlyReview, fetchAllClientsForPicker, fetchReviewAttachments } from "@/lib/quarterly-review-data";
 import {
   saveQuarterlyReviewItemAction,
   submitQuarterlyReviewAction,
   approveQuarterlyReviewAction,
   sendQuarterlyReviewToClientAction,
+  uploadQuarterlyReviewAttachmentAction,
+  deleteQuarterlyReviewAttachmentAction,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +41,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   const isApprover = (user?.email ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
   const itemsLocked = review.status !== "draft";
 
-  const clients = await fetchAllClientsForPicker();
+  const [clients, attachments] = await Promise.all([fetchAllClientsForPicker(), fetchReviewAttachments(review.id)]);
   const client = clients.find((c) => c.id === review.clientId);
 
   const itemStatusByKey = new Map(review.items.map((i) => [i.itemKey, i]));
@@ -129,6 +132,14 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
           </div>
         ))}
       </div>
+
+      <QuarterlyReviewScreenshots
+        reviewId={review.id}
+        attachments={attachments}
+        disabled={itemsLocked}
+        uploadAction={uploadQuarterlyReviewAttachmentAction}
+        deleteAction={deleteQuarterlyReviewAttachmentAction}
+      />
     </div>
   );
 }

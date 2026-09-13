@@ -582,6 +582,11 @@ export type SharedMailboxAttachment = {
   filename: string;
   contentBase64: string;
   contentType: string;
+  /** Set both together to embed the image inline in the HTML body via
+   * `<img src="cid:{contentId}">` (quarterly review screenshots) — omit
+   * both for a normal, visible-in-the-attachment-list file. */
+  contentId?: string;
+  isInline?: boolean;
 };
 
 /**
@@ -624,6 +629,7 @@ export async function sendMailAsSharedMailbox(
             name: a.filename,
             contentType: a.contentType,
             contentBytes: a.contentBase64,
+            ...(a.contentId ? { contentId: a.contentId, isInline: a.isInline ?? true } : {}),
           })),
         },
         saveToSentItems: true,

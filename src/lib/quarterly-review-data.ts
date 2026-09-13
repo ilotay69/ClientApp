@@ -131,3 +131,45 @@ export async function fetchAllClientsForPicker(
     primaryContactEmail: c.primary_contact_email,
   }));
 }
+
+export const QUARTERLY_REVIEW_ATTACHMENTS_BUCKET = "quarterly-review-attachments";
+
+export type QuarterlyReviewAttachment = {
+  id: string;
+  storagePath: string;
+  fileName: string;
+  label: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  createdAt: string;
+};
+
+export async function fetchReviewAttachments(
+  reviewId: string,
+  admin: AdminClient = createAdminClient()
+): Promise<QuarterlyReviewAttachment[]> {
+  const { data } = await admin
+    .from("quarterly_review_attachments")
+    .select("id, storage_path, file_name, label, content_type, file_size_bytes, created_at")
+    .eq("review_id", reviewId)
+    .order("created_at", { ascending: true });
+  return (
+    (data ?? []) as {
+      id: string;
+      storage_path: string;
+      file_name: string;
+      label: string | null;
+      content_type: string | null;
+      file_size_bytes: number | null;
+      created_at: string;
+    }[]
+  ).map((a) => ({
+    id: a.id,
+    storagePath: a.storage_path,
+    fileName: a.file_name,
+    label: a.label,
+    contentType: a.content_type,
+    sizeBytes: a.file_size_bytes,
+    createdAt: a.created_at,
+  }));
+}

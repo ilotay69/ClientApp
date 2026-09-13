@@ -5,12 +5,19 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import type { QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
-import { createQuarterlyReview, getQuarterlyReview } from "@/lib/quarterly-review-data";
+import {
+  createQuarterlyReview,
+  getQuarterlyReview,
+  fetchReviewAttachments,
+  QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
+} from "@/lib/quarterly-review-data";
 import {
   buildQuarterlyReviewSubmittedEmail,
   buildQuarterlyReviewApprovedEmail,
   buildQuarterlyReviewClientEmail,
+  type QuarterlyReviewEmailScreenshot,
 } from "@/lib/resend";
+import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 
@@ -176,12 +183,45 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
   try {
     const accessToken = await getValidSharedMailboxToken(admin, settings);
     const itemsByKey = new Map(review.items.map((i) => [i.itemKey, { status: i.status, comments: i.comments }]));
-    const { html, text } = buildQuarterlyReviewClientEmail(review.clientName, review.reviewPeriod, itemsByKey);
+
+    // Screenshots are embedded inline in the email body (cid: reference),
+    // not just attached — matches how the original document shows them
+    // directly in its own appendix rather than as separate files to open.
+    const attachments = await fetchReviewAttachments(reviewId, admin);
+    const screenshots: QuarterlyReviewEmailScreenshot[] = [];
+    const graphAttachments: SharedMailboxAttachment[] = [];
+    for (const a of attachments) {
+      try {
+        const { data: blob, error: downloadError } = await admin.storage
+          .from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET)
+          .download(a.storagePath);
+        if (downloadError || !blob) continue;
+        const contentBase64 = Buffer.from(await blob.arrayBuffer()).toString("base64");
+        graphAttachments.push({
+          filename: a.fileName,
+          contentBase64,
+          contentType: a.contentType || "image/png",
+          contentId: a.id,
+          isInline: true,
+        });
+        screenshots.push({ contentId: a.id, label: a.label, fileName: a.fileName });
+      } catch (attachErr) {
+        console.error("sendQuarterlyReviewToClientAction: attachment fetch failed", a.id, attachErr);
+      }
+    }
+
+    const { html, text } = buildQuarterlyReviewClientEmail(
+      review.clientName,
+      review.reviewPeriod,
+      itemsByKey,
+      screenshots
+    );
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,
       subject: `Quarterly Systems Review — ${review.reviewPeriod} — ${review.clientName}`,
       html,
       text,
+      attachments: graphAttachments,
     });
   } catch (err) {
     console.error("sendQuarterlyReviewToClientAction: send failed", err);
@@ -195,4 +235,86 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
   return { ok: true, message: `Sent to ${trimmedEmail}.` };
+}
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10MB — a screenshot, not a document
+const ACCEPTED_ATTACHMENT_TYPES: Record<string, true> = {
+  "image/png": true,
+  "image/jpeg": true,
+  "image/gif": true,
+  "image/webp": true,
+};
+
+export type UploadAttachmentState = { error: string | null };
+
+/** Same upload-then-rollback-on-DB-failure shape as the resume file
+ * upload — path is `${reviewId}/${uuid}-${safeName}` in the
+ * quarterly-review-attachments bucket (private, staff-only RLS). */
+export async function uploadQuarterlyReviewAttachmentAction(
+  reviewId: string,
+  _prevState: UploadAttachmentState,
+  formData: FormData
+): Promise<UploadAttachmentState> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return { error: "You don't have permission to do that." };
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Choose an image first." };
+  }
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    return { error: "That image is larger than 10MB." };
+  }
+  const extMatch = /\.(png|jpe?g|gif|webp)$/i.test(file.name);
+  if (!ACCEPTED_ATTACHMENT_TYPES[file.type] && !extMatch) {
+    return { error: "Only PNG, JPG, GIF, or WEBP images are supported." };
+  }
+
+  const label = String(formData.get("label") ?? "").trim() || null;
+  const admin = createAdminClient();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${reviewId}/${crypto.randomUUID()}-${safeName}`;
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { error: uploadError } = await admin.storage
+    .from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET)
+    .upload(path, bytes, { contentType: file.type || "image/png" });
+  if (uploadError) {
+    console.error("uploadQuarterlyReviewAttachmentAction: upload failed", uploadError);
+    return { error: "Couldn't upload that image." };
+  }
+
+  const { error: insertError } = await admin.from("quarterly_review_attachments").insert({
+    review_id: reviewId,
+    storage_path: path,
+    file_name: file.name,
+    file_size_bytes: file.size,
+    content_type: file.type || null,
+    label,
+    created_by: user.id,
+  });
+  if (insertError) {
+    console.error("uploadQuarterlyReviewAttachmentAction: insert failed", insertError);
+    await admin.storage.from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET).remove([path]);
+    return { error: "Couldn't save that image." };
+  }
+
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+  return { error: null };
+}
+
+export async function deleteQuarterlyReviewAttachmentAction(attachmentId: string, reviewId: string): Promise<void> {
+  if (!(await requirePermission("manage_quarterly_reviews"))) return;
+
+  const admin = createAdminClient();
+  const { data: attachment } = await admin
+    .from("quarterly_review_attachments")
+    .select("storage_path")
+    .eq("id", attachmentId)
+    .maybeSingle();
+  if (!attachment) return;
+
+  await admin.from("quarterly_review_attachments").delete().eq("id", attachmentId);
+  await admin.storage.from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET).remove([attachment.storage_path]);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
 }

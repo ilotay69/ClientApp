@@ -321,10 +321,13 @@ const QUARTERLY_STATUS_COLOR: Record<QuarterlyReviewItemStatus, string> = {
   na: "#94a3b8",
 };
 
+export type QuarterlyReviewEmailScreenshot = { contentId: string; label: string | null; fileName: string };
+
 export function buildQuarterlyReviewClientEmail(
   clientName: string,
   reviewPeriod: string,
-  itemsByKey: Map<string, QuarterlyReviewEmailItem>
+  itemsByKey: Map<string, QuarterlyReviewEmailItem>,
+  screenshots: QuarterlyReviewEmailScreenshot[] = []
 ) {
   const sectionsHtml = QUARTERLY_REVIEW_SECTIONS.map((section) => {
     const rows = section.items
@@ -355,6 +358,21 @@ export function buildQuarterlyReviewClientEmail(
     return `${section.label}:\n${rows}`;
   }).join("\n\n");
 
+  const screenshotsHtml =
+    screenshots.length > 0
+      ? `
+      <h3 style="color:#0f172a;margin-top:28px;">Screenshots</h3>
+      ${screenshots
+        .map(
+          (s) => `
+        <div style="margin:12px 0;">
+          ${s.label ? `<p style="font-weight:600;color:#0f172a;margin:0 0 4px;">${escapeHtml(s.label)}</p>` : ""}
+          <img src="cid:${s.contentId}" alt="${escapeHtml(s.label ?? s.fileName)}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" />
+        </div>`
+        )
+        .join("")}`
+      : "";
+
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;">
       <h2 style="color:#0f172a;">Quarterly Systems Review — ${escapeHtml(reviewPeriod)}</h2>
@@ -369,10 +387,15 @@ export function buildQuarterlyReviewClientEmail(
         </thead>
         <tbody>${sectionsHtml}</tbody>
       </table>
+      ${screenshotsHtml}
       <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Technologies.</p>
     </div>
   `;
-  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n\n${sectionsText}`;
+  const screenshotsText =
+    screenshots.length > 0
+      ? `\n\nScreenshots:\n${screenshots.map((s) => `  - ${s.label ?? s.fileName} (see attached images)`).join("\n")}`
+      : "";
+  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n\n${sectionsText}${screenshotsText}`;
 
   return { html, text };
 }
