@@ -202,6 +202,42 @@ export async function reopenQuarterlyReviewAction(reviewId: string): Promise<Rev
   return { ok: true, message: "Reopened for editing." };
 }
 
+/** Owner-only, checked by role like reopenQuarterlyReviewAction — but with
+ * no status restriction at all, unlike everything else on this page: an
+ * Owner can delete a review in any state, including "sent". The client
+ * already has their own copy via email regardless, so this only removes
+ * CG Ops's own record, its screenshots, and the stored PDF. Items and
+ * attachments rows cascade-delete with the review (102/103's `on delete
+ * cascade`); the actual storage objects don't, so those are removed here
+ * explicitly first. */
+export async function deleteQuarterlyReviewAction(reviewId: string): Promise<void> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return;
+
+  const supabase = await createClient();
+  const me = await getMyPermissions(supabase);
+  if (me?.role !== "owner") return;
+
+  const admin = createAdminClient();
+  const review = await getQuarterlyReview(reviewId, admin);
+  if (!review) redirect("/quarterly-reviews");
+
+  const attachments = await fetchReviewAttachments(reviewId, admin);
+  if (attachments.length > 0) {
+    await admin.storage.from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET).remove(attachments.map((a) => a.storagePath));
+  }
+  if (review.pdfStoragePath) {
+    await admin.storage.from(QUARTERLY_REVIEW_PDF_BUCKET).remove([review.pdfStoragePath]);
+  }
+
+  await admin.from("quarterly_reviews").delete().eq("id", reviewId);
+
+  revalidatePath("/quarterly-reviews");
+  revalidatePath("/quarterly-reviews/all");
+  revalidatePath(`/clients/${review.clientId}`);
+  redirect("/quarterly-reviews");
+}
+
 export type ReviewActionState = { ok: boolean; message: string };
 
 /** Submits the draft for approval — alerts the approver (not the creator)

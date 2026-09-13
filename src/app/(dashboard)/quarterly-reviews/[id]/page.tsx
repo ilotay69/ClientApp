@@ -7,6 +7,7 @@ import { Badge } from "@/components/badge";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
 import { SaveDraftButton } from "@/components/save-draft-button";
 import { ApproverDecisionForm } from "@/components/approver-decision-form";
+import { DeleteButton } from "@/components/delete-button";
 import { QuarterlyReviewItemRow } from "@/components/quarterly-review-item-row";
 import { QuarterlyReviewSummary } from "@/components/quarterly-review-summary";
 import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-field";
@@ -28,6 +29,7 @@ import {
   approveQuarterlyReviewAction,
   requestQuarterlyReviewAdjustmentAction,
   reopenQuarterlyReviewAction,
+  deleteQuarterlyReviewAction,
   sendQuarterlyReviewToClientAction,
   uploadQuarterlyReviewAttachmentAction,
   deleteQuarterlyReviewAttachmentAction,
@@ -88,11 +90,19 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
             {review.sentAt ? ` · Sent ${formatDate(review.sentAt)} to ${review.sentToEmail}` : ""}
           </p>
         </div>
-        <QuarterlyReviewHoursField
-          reviewId={review.id}
-          value={review.hoursSpent}
-          action={saveQuarterlyReviewHoursAction}
-        />
+        <div className="flex items-start gap-3">
+          <QuarterlyReviewHoursField
+            reviewId={review.id}
+            value={review.hoursSpent}
+            action={saveQuarterlyReviewHoursAction}
+          />
+          {isOwner && (
+            <DeleteButton
+              action={deleteQuarterlyReviewAction.bind(null, review.id)}
+              confirmText={`Delete this review (${review.clientName} — ${review.reviewPeriod})? This removes it entirely, even though it's already been ${review.status === "sent" ? "sent to the client" : review.status}. This can't be undone.`}
+            />
+          )}
+        </div>
       </div>
 
       {review.adjustmentNotes && (
