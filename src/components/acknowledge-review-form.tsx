@@ -7,11 +7,13 @@ type AckState = { ok: boolean; message: string };
 export function AcknowledgeReviewForm({
   token,
   action,
+  initialMode = "choose",
 }: {
   token: string;
   action: (token: string, remarks: string) => Promise<AckState>;
+  initialMode?: "choose" | "discuss";
 }) {
-  const [mode, setMode] = useState<"choose" | "discuss">("choose");
+  const [mode, setMode] = useState<"choose" | "discuss">(initialMode);
   const [remarks, setRemarks] = useState("");
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<AckState | null>(null);

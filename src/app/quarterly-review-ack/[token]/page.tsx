@@ -5,14 +5,22 @@ import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-// Public — no login of any kind. Reached only via the "Acknowledge This
-// Review" link in the client-facing email (see
-// buildQuarterlyReviewClientEmail), keyed by a random, unguessable token
-// rather than the review's own id. See src/lib/supabase/middleware.ts's
-// PUBLIC_PREFIX_PATHS for why this route is excluded from the normal
-// login gate.
-export default async function QuarterlyReviewAckPage({ params }: { params: Promise<{ token: string }> }) {
+// Public — no login of any kind. Reached via one of the two links in the
+// client-facing email (see buildQuarterlyReviewClientEmail), keyed by a
+// random, unguessable token rather than the review's own id. See
+// src/lib/supabase/middleware.ts's PUBLIC_PREFIX_PATHS for why this route
+// is excluded from the normal login gate. ?discuss=1 (the email's "Need to
+// Discuss" link) just pre-opens the remarks field below — it doesn't skip
+// the button click that actually submits anything.
+export default async function QuarterlyReviewAckPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ discuss?: string }>;
+}) {
   const { token } = await params;
+  const { discuss } = await searchParams;
   const review = await getQuarterlyReviewByAckToken(token);
 
   return (
@@ -51,7 +59,11 @@ export default async function QuarterlyReviewAckPage({ params }: { params: Promi
               rather discuss any of the items first, choose <strong>Need to Discuss</strong> and add a
               note.
             </p>
-            <AcknowledgeReviewForm token={token} action={acknowledgeReviewByTokenAction} />
+            <AcknowledgeReviewForm
+              token={token}
+              action={acknowledgeReviewByTokenAction}
+              initialMode={discuss === "1" ? "discuss" : "choose"}
+            />
           </>
         )}
       </div>

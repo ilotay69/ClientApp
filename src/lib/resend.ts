@@ -243,17 +243,18 @@ export function buildQuarterlyReviewClientEmail(
       <p style="color:#334155;">The full review is attached as a PDF.</p>
       <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
         <p style="color:#334155;font-size:14px;margin:0 0 12px;">
-          Some items above may need attention. If you'd like to acknowledge that you've received
-          this review — and accept the risk of any outstanding items not being addressed — please
-          click below. You can add any remarks first.
+          Some items above may need attention. <strong>Acknowledge</strong> confirms you've received this
+          review and accept the risk of any outstanding items not being addressed. If you'd rather discuss
+          any of the items first, choose <strong>Need to Discuss</strong> instead.
         </p>
-        <a href="${ackUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;">Acknowledge This Review</a>
+        <a href="${ackUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;margin-right:10px;">Acknowledge</a>
+        <a href="${ackUrl}?discuss=1" style="display:inline-block;background:#ffffff;color:#0f172a;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;border:1px solid #cbd5e1;">Need to Discuss</a>
       </div>
       <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Technologies.</p>
     </div>
   `;
   const summaryText = summary ? `\n${summary}\n` : "";
-  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.\n\nAcknowledge this review (and accept the risk of any outstanding items): ${ackUrl}`;
+  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.\n\nAcknowledge (accept the risk of any outstanding items): ${ackUrl}\nNeed to discuss instead: ${ackUrl}?discuss=1`;
 
   return { html, text };
 }
