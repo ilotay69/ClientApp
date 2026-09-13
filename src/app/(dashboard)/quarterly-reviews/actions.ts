@@ -20,6 +20,7 @@ import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { createAlert } from "@/lib/alerts";
+import { sendPushToUser } from "@/lib/push-notifications";
 
 /** Whether a review's checklist/summary/screenshots can still be edited —
  * only while "draft". An Owner reopening a sent/approved/submitted review
@@ -226,6 +227,13 @@ export async function submitQuarterlyReviewAction(reviewId: string): Promise<Rev
     `Submitted by ${profile?.full_name ?? "someone"}`,
     `/quarterly-reviews/${reviewId}`
   );
+  if (approverProfile?.id) {
+    sendPushToUser(admin, approverProfile.id, {
+      title: "Review awaiting approval",
+      body: `${review.clientName} — ${review.reviewPeriod}`,
+      url: `/quarterly-reviews/${reviewId}`,
+    }).catch((err) => console.error("submitQuarterlyReviewAction: push failed", err));
+  }
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
   return { ok: true, message: "Submitted for review." };
@@ -266,6 +274,13 @@ export async function approveQuarterlyReviewAction(reviewId: string): Promise<Re
     "Ready to send to the client.",
     `/quarterly-reviews/${reviewId}`
   );
+  if (review.createdById) {
+    sendPushToUser(admin, review.createdById, {
+      title: "Review approved",
+      body: `${review.clientName} — ${review.reviewPeriod}`,
+      url: `/quarterly-reviews/${reviewId}`,
+    }).catch((err) => console.error("approveQuarterlyReviewAction: push failed", err));
+  }
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
   return { ok: true, message: "Approved." };
@@ -311,6 +326,13 @@ export async function requestQuarterlyReviewAdjustmentAction(reviewId: string, n
     trimmedNotes,
     `/quarterly-reviews/${reviewId}`
   );
+  if (review.createdById) {
+    sendPushToUser(admin, review.createdById, {
+      title: "Changes requested on a review",
+      body: `${review.clientName} — ${review.reviewPeriod}`,
+      url: `/quarterly-reviews/${reviewId}`,
+    }).catch((err) => console.error("requestQuarterlyReviewAdjustmentAction: push failed", err));
+  }
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
   revalidatePath("/quarterly-reviews");
