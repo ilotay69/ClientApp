@@ -56,57 +56,6 @@ export function buildDigestEmail(recipientName: string, items: DigestItem[]) {
   return { html, text };
 }
 
-export type TaskAssignedInfo = {
-  title: string;
-  detail: string | null;
-  clientName: string | null;
-  priority: string;
-  dueDate: string | null;
-  assignedByName: string | null;
-};
-
-export function buildTaskAssignedEmail(recipientName: string, task: TaskAssignedInfo) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const firstName = recipientName.split(" ")[0] || recipientName;
-
-  const meta = [
-    task.clientName ? `Client: ${task.clientName}` : "Internal task",
-    `Priority: ${task.priority}`,
-    task.dueDate ? `Due: ${task.dueDate}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  const html = `
-    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <h2 style="color:#0f172a;">Hi ${escapeHtml(firstName)}, you've been assigned a task</h2>
-      <p style="margin:16px 0 4px;">
-        <a href="${appUrl}/tasks" style="color:#0f172a;font-weight:600;text-decoration:none;font-size:16px;">${escapeHtml(
-          task.title
-        )}</a>
-      </p>
-      ${task.detail ? `<p style="color:#334155;font-size:14px;margin:4px 0;">${escapeHtml(task.detail)}</p>` : ""}
-      <p style="color:#64748b;font-size:13px;margin-top:8px;">${escapeHtml(meta)}</p>
-      ${
-        task.assignedByName
-          ? `<p style="margin-top:16px;color:#64748b;font-size:13px;">Assigned by ${escapeHtml(
-              task.assignedByName
-            )}.</p>`
-          : ""
-      }
-      <p style="margin-top:24px;color:#64748b;font-size:13px;">
-        Sent by CG Ops.
-      </p>
-    </div>
-  `;
-
-  const text = `You've been assigned: ${task.title}${task.detail ? `\n${task.detail}` : ""}\n${meta}${
-    appUrl ? `\n${appUrl}/tasks` : ""
-  }`;
-
-  return { html, text };
-}
-
 export type SalesRequestNotifyInfo = {
   title: string;
   stage: string;
@@ -268,66 +217,6 @@ export function buildBackupReportEmail(
     aiAnalysis ? `\n\nAI analysis — last 2 weeks:\n${aiAnalysis}` : ""
   }`;
 
-  return { html, text };
-}
-
-export function buildQuarterlyReviewSubmittedEmail(clientName: string, reviewPeriod: string, submittedByName: string, reviewUrl: string) {
-  const html = `
-    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <h2 style="color:#0f172a;">A quarterly review is waiting on your approval</h2>
-      <p style="color:#334155;">
-        ${escapeHtml(submittedByName)} submitted the <strong>${escapeHtml(reviewPeriod)}</strong> review for
-        <strong>${escapeHtml(clientName)}</strong>.
-      </p>
-      <p style="margin:16px 0;">
-        <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
-      </p>
-      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
-    </div>
-  `;
-  const text = `${submittedByName} submitted the ${reviewPeriod} review for ${clientName}.\n\n${reviewUrl}`;
-  return { html, text };
-}
-
-export function buildQuarterlyReviewApprovedEmail(clientName: string, reviewPeriod: string, reviewUrl: string) {
-  const html = `
-    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <h2 style="color:#0f172a;">Your quarterly review was approved</h2>
-      <p style="color:#334155;">
-        The <strong>${escapeHtml(reviewPeriod)}</strong> review for <strong>${escapeHtml(clientName)}</strong> has
-        been approved and is ready to send to the client.
-      </p>
-      <p style="margin:16px 0;">
-        <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
-      </p>
-      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
-    </div>
-  `;
-  const text = `The ${reviewPeriod} review for ${clientName} was approved and is ready to send to the client.\n\n${reviewUrl}`;
-  return { html, text };
-}
-
-export function buildQuarterlyReviewAdjustmentRequestedEmail(
-  clientName: string,
-  reviewPeriod: string,
-  notes: string,
-  reviewUrl: string
-) {
-  const html = `
-    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <h2 style="color:#0f172a;">Changes requested on a quarterly review</h2>
-      <p style="color:#334155;">
-        The <strong>${escapeHtml(reviewPeriod)}</strong> review for <strong>${escapeHtml(clientName)}</strong> was sent
-        back for adjustments before it can be approved.
-      </p>
-      <p style="color:#334155;font-size:15px;white-space:pre-line;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">${escapeHtml(notes)}</p>
-      <p style="margin:16px 0;">
-        <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
-      </p>
-      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
-    </div>
-  `;
-  const text = `The ${reviewPeriod} review for ${clientName} was sent back for adjustments:\n\n${notes}\n\n${reviewUrl}`;
   return { html, text };
 }
 

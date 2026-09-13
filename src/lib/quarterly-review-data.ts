@@ -19,6 +19,10 @@ export type QuarterlyReview = {
   clientName: string;
   reviewPeriod: string;
   status: QuarterlyReviewStatus;
+  /** The creator's profile id — used to route an in-app alert to them
+   * (approved / adjustment-requested), separate from createdByName/Email
+   * which come off the joined profile. */
+  createdById: string | null;
   createdByName: string | null;
   createdByEmail: string | null;
   submittedAt: string | null;
@@ -50,7 +54,7 @@ export type QuarterlyReview = {
 };
 
 const SELECT = `
-  id, review_period, status, submitted_at, approved_at, sent_at, sent_to_email, created_at,
+  id, review_period, status, created_by, submitted_at, approved_at, sent_at, sent_to_email, created_at,
   summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
   clients(name),
   created_profile:created_by(full_name, email),
@@ -90,6 +94,7 @@ function mapReview(row: any): QuarterlyReview {
     clientName: client?.name ?? "Unknown client",
     reviewPeriod: row.review_period,
     status: row.status,
+    createdById: row.created_by ?? null,
     createdByName: createdProfile?.full_name ?? null,
     createdByEmail: createdProfile?.email ?? null,
     submittedAt: row.submitted_at,

@@ -12,15 +12,17 @@ type OwnerBucket = {
   email: string;
   name: string;
   items: DigestItem[];
-  logEntries: { kind: "touchpoint" | "project" | "task" | "service_check"; entity_id: string }[];
+  logEntries: { kind: "touchpoint" | "project" | "task" | "service_check" | "alert"; entity_id: string }[];
 };
 
 /**
  * Daily reminder digest. Call this once a day (e.g. from a Railway cron
  * service) with header `X-Cron-Secret: <CRON_SECRET>`. It emails each team
  * member a summary of their assigned tasks, touchpoints, projects, and
- * service checks that are due, overdue, or past their cadence, skipping
- * anything already reminded about today.
+ * service checks that are due, overdue, or past their cadence, plus
+ * whatever in-app alerts (src/lib/alerts.ts) they haven't acknowledged yet
+ * on the Overview page — this is meant to stay the one email that matters,
+ * skipping anything already reminded about today.
  */
 export async function GET(request: NextRequest) {
   const secret = request.headers.get("x-cron-secret");
@@ -37,6 +39,7 @@ export async function GET(request: NextRequest) {
     { data: touchpoints },
     { data: projects },
     { data: serviceChecks },
+    { data: alerts },
     { data: alreadySent },
   ] = await Promise.all([
     supabase
@@ -65,6 +68,13 @@ export async function GET(request: NextRequest) {
         "id, client_id, cadence_days, last_checked_at, assigned_to, clients(name), service_catalog(name, default_cadence_days), profiles:assigned_to(email, full_name)"
       )
       .not("assigned_to", "is", null),
+    // Anything still unacknowledged on the Overview page (task assignments,
+    // quarterly review workflow) — folded into the same digest instead of
+    // its own separate email, per the "one email that matters" goal.
+    supabase
+      .from("alerts")
+      .select("id, recipient_id, title, detail, href, profiles:recipient_id(email, full_name)")
+      .is("acknowledged_at", null),
     supabase.from("reminder_log").select("kind, entity_id").gte("sent_at", todayStart),
   ]);
 
@@ -77,7 +87,7 @@ export async function GET(request: NextRequest) {
   function addItem(
     ownerId: string | null,
     profile: { email: string; full_name: string } | null,
-    kind: "touchpoint" | "project" | "task" | "service_check",
+    kind: "touchpoint" | "project" | "task" | "service_check" | "alert",
     entityId: string,
     item: DigestItem
   ) {
@@ -162,6 +172,14 @@ export async function GET(request: NextRequest) {
         href: `/clients/${sc.client_id}`,
       }
     );
+  }
+
+  for (const a of alerts ?? []) {
+    addItem(a.recipient_id, a.profiles as unknown as { email: string; full_name: string } | null, "alert", a.id, {
+      label: a.title,
+      detail: a.detail ?? "",
+      href: a.href ?? "/dashboard",
+    });
   }
 
   if (buckets.size === 0) {

@@ -2,9 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { buildTaskAssignedEmail } from "@/lib/resend";
-import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
-import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+import { createAlert } from "@/lib/alerts";
 import { sendPushToUsers } from "@/lib/push-notifications";
 import { formatDate } from "@/lib/format";
 import { requirePermission, requireStaff } from "@/lib/permissions";
@@ -27,8 +25,11 @@ function addDaysISO(dateStr: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Emails everyone newly assigned to a task. Best-effort: a missing API key
- * or send failure never blocks the assignment itself. */
+/** Notifies everyone newly assigned to a task — a push notification (an
+ * ambient nudge) plus a persistent in-app alert on the Overview page
+ * (see src/lib/alerts.ts), instead of an immediate email. The daily
+ * reminder digest is the only email that still goes out for this, and
+ * only for as long as the alert stays unacknowledged. */
 async function notifyNewAssignees(taskId: string, newAssigneeIds: string[]) {
   if (newAssigneeIds.length === 0) return;
 
@@ -52,52 +53,23 @@ async function notifyNewAssignees(taskId: string, newAssigneeIds: string[]) {
   if (!task || !recipients?.length) return;
 
   const admin = createAdminClient();
+  const clientName = (task.clients as unknown as { name: string } | null)?.name ?? null;
 
-  // Push and email are independent channels — a push notification
-  // shouldn't wait on (or be skipped because of) the shared mailbox not
-  // being configured.
   sendPushToUsers(
     admin,
     recipients.map((r) => r.id),
     { title: "New task assigned", body: task.title, url: "/tasks" }
   ).catch((err) => console.error("notifyNewAssignees: push failed", err));
 
-  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
-  if (!mailboxEmail) {
-    console.error("notifyNewAssignees: SHARED_MAILBOX_EMAIL isn't set, skipping notification email");
-    return;
-  }
-
-  try {
-    const settings = await getSharedMailboxSettings(admin);
-    if (!settings) {
-      console.error("notifyNewAssignees: shared mailbox integration isn't set up yet");
-      return;
-    }
-    const accessToken = await getValidSharedMailboxToken(admin, settings);
-    const clientName = (task.clients as unknown as { name: string } | null)?.name ?? null;
-
-    await Promise.all(
-      recipients.map((r) => {
-        const { html, text } = buildTaskAssignedEmail(r.full_name, {
-          title: task.title,
-          detail: task.detail,
-          clientName,
-          priority: task.priority,
-          dueDate: task.due_date ? formatDate(task.due_date) : null,
-          assignedByName: assigner?.full_name ?? null,
-        });
-        return sendMailAsSharedMailbox(accessToken, mailboxEmail, {
-          to: r.email,
-          subject: `You've been assigned: ${task.title}`,
-          html,
-          text,
-        });
-      })
-    );
-  } catch (err) {
-    console.error("Failed to send task-assigned email", err);
-  }
+  const detailParts = [clientName, task.due_date ? `due ${formatDate(task.due_date)}` : null].filter(Boolean);
+  await createAlert(
+    admin,
+    recipients.map((r) => r.id),
+    "task_assigned",
+    task.title,
+    `Assigned by ${assigner?.full_name ?? "someone"}${detailParts.length ? ` · ${detailParts.join(" · ")}` : ""}`,
+    "/tasks"
+  );
 }
 
 export async function createTask(

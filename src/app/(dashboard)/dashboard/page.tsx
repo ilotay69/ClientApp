@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
+import { AlertRow } from "@/components/alert-row";
 import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
+import { acknowledgeAlertAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,7 @@ export default async function DashboardPage() {
     { data: dueTouchpoints },
     { data: activeProjects },
     { data: serviceChecks },
+    { data: myAlerts },
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -66,6 +69,12 @@ export default async function DashboardPage() {
     supabase
       .from("client_service_checks")
       .select("id, cadence_days, last_checked_at, clients(name), service_catalog(name, default_cadence_days)"),
+    supabase
+      .from("alerts")
+      .select("id, title, detail, href")
+      .eq("recipient_id", user?.id ?? "")
+      .is("acknowledged_at", null)
+      .order("created_at", { ascending: false }),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -93,6 +102,14 @@ export default async function DashboardPage() {
           {me?.full_name ? ` — hey ${me.full_name.split(" ")[0]}` : ""}.
         </p>
       </div>
+
+      {(myAlerts ?? []).length > 0 && (
+        <Section title="Alerts" emptyText="Nothing outstanding.">
+          {(myAlerts ?? []).map((a) => (
+            <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
+          ))}
+        </Section>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="My open tasks" value={myTasks?.length ?? 0} href="/tasks?mine=1" />

@@ -15,15 +15,11 @@ import {
 import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
-import {
-  buildQuarterlyReviewSubmittedEmail,
-  buildQuarterlyReviewApprovedEmail,
-  buildQuarterlyReviewAdjustmentRequestedEmail,
-  buildQuarterlyReviewClientEmail,
-} from "@/lib/resend";
+import { buildQuarterlyReviewClientEmail } from "@/lib/resend";
 import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+import { createAlert } from "@/lib/alerts";
 
 /** Whether a review's checklist/summary/screenshots can still be edited —
  * only while "draft". An Owner reopening a sent/approved/submitted review
@@ -55,11 +51,6 @@ async function canEditSummary(
   const { data } = await admin.from("quarterly_reviews").select("status").eq("id", reviewId).maybeSingle();
   if (data?.status === "draft") return true;
   return data?.status === "submitted" && (userEmail ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
-}
-
-function reviewUrl(reviewId: string): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  return `${appUrl}/quarterly-reviews/${reviewId}`;
 }
 
 export type CreateReviewState = { error: string } | undefined;
@@ -207,9 +198,9 @@ export async function reopenQuarterlyReviewAction(reviewId: string): Promise<Rev
 
 export type ReviewActionState = { ok: boolean; message: string };
 
-/** Submits the draft for approval — emails the approver (not the creator)
- * that a review is waiting. Best-effort on the email: a misconfigured
- * mailbox shouldn't block moving the review to "submitted". */
+/** Submits the draft for approval — alerts the approver (not the creator)
+ * that a review is waiting, on the Overview page, rather than an
+ * immediate email (see src/lib/alerts.ts). */
 export async function submitQuarterlyReviewAction(reviewId: string): Promise<ReviewActionState> {
   const user = await requirePermission("manage_quarterly_reviews");
   if (!user) return { ok: false, message: "You don't have permission to do that." };
@@ -223,36 +214,21 @@ export async function submitQuarterlyReviewAction(reviewId: string): Promise<Rev
     .update({ status: "submitted", submitted_at: new Date().toISOString(), submitted_by: user.id })
     .eq("id", reviewId);
 
-  let emailNote = "";
-  try {
-    const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
-    const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
-    if (!mailboxEmail || !settings) {
-      emailNote = " (Shared mailbox isn't configured, so no notification was sent.)";
-    } else {
-      const accessToken = await getValidSharedMailboxToken(admin, settings);
-      const { data: profile } = await admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-      const { html, text } = buildQuarterlyReviewSubmittedEmail(
-        review.clientName,
-        review.reviewPeriod,
-        profile?.full_name ?? "Someone",
-        reviewUrl(reviewId)
-      );
-      await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
-        to: APPROVER_EMAIL,
-        subject: `Review waiting: ${review.clientName} — ${review.reviewPeriod}`,
-        html,
-        text,
-      });
-      emailNote = ` Notified ${APPROVER_EMAIL}.`;
-    }
-  } catch (err) {
-    console.error("submitQuarterlyReviewAction: notify failed", err);
-    emailNote = " (Notifying the approver failed — check the shared mailbox settings.)";
-  }
+  const [{ data: profile }, { data: approverProfile }] = await Promise.all([
+    admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    admin.from("profiles").select("id").eq("email", APPROVER_EMAIL).maybeSingle(),
+  ]);
+  await createAlert(
+    admin,
+    [approverProfile?.id],
+    "quarterly_review_submitted",
+    `Review awaiting approval: ${review.clientName} — ${review.reviewPeriod}`,
+    `Submitted by ${profile?.full_name ?? "someone"}`,
+    `/quarterly-reviews/${reviewId}`
+  );
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
-  return { ok: true, message: `Submitted for review.${emailNote}` };
+  return { ok: true, message: "Submitted for review." };
 }
 
 /** Gated by the specific approver's own email, not a permission — anyone
@@ -282,30 +258,17 @@ export async function approveQuarterlyReviewAction(reviewId: string): Promise<Re
     })
     .eq("id", reviewId);
 
-  let emailNote = "";
-  try {
-    const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
-    const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
-    if (!mailboxEmail || !settings || !review.createdByEmail) {
-      emailNote = " (Couldn't notify the creator — shared mailbox or their email isn't available.)";
-    } else {
-      const accessToken = await getValidSharedMailboxToken(admin, settings);
-      const { html, text } = buildQuarterlyReviewApprovedEmail(review.clientName, review.reviewPeriod, reviewUrl(reviewId));
-      await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
-        to: review.createdByEmail,
-        subject: `Approved: ${review.clientName} — ${review.reviewPeriod}`,
-        html,
-        text,
-      });
-      emailNote = ` Notified ${review.createdByEmail}.`;
-    }
-  } catch (err) {
-    console.error("approveQuarterlyReviewAction: notify failed", err);
-    emailNote = " (Notifying the creator failed — check the shared mailbox settings.)";
-  }
+  await createAlert(
+    admin,
+    [review.createdById],
+    "quarterly_review_approved",
+    `Approved: ${review.clientName} — ${review.reviewPeriod}`,
+    "Ready to send to the client.",
+    `/quarterly-reviews/${reviewId}`
+  );
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
-  return { ok: true, message: `Approved.${emailNote}` };
+  return { ok: true, message: "Approved." };
 }
 
 /** The approver's other option besides Approve — sends a submitted review
@@ -340,36 +303,18 @@ export async function requestQuarterlyReviewAdjustmentAction(reviewId: string, n
     })
     .eq("id", reviewId);
 
-  let emailNote = "";
-  try {
-    const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
-    const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
-    if (!mailboxEmail || !settings || !review.createdByEmail) {
-      emailNote = " (Couldn't notify the creator — shared mailbox or their email isn't available.)";
-    } else {
-      const accessToken = await getValidSharedMailboxToken(admin, settings);
-      const { html, text } = buildQuarterlyReviewAdjustmentRequestedEmail(
-        review.clientName,
-        review.reviewPeriod,
-        trimmedNotes,
-        reviewUrl(reviewId)
-      );
-      await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
-        to: review.createdByEmail,
-        subject: `Changes requested: ${review.clientName} — ${review.reviewPeriod}`,
-        html,
-        text,
-      });
-      emailNote = ` Notified ${review.createdByEmail}.`;
-    }
-  } catch (err) {
-    console.error("requestQuarterlyReviewAdjustmentAction: notify failed", err);
-    emailNote = " (Notifying the creator failed — check the shared mailbox settings.)";
-  }
+  await createAlert(
+    admin,
+    [review.createdById],
+    "quarterly_review_adjustment_requested",
+    `Changes requested: ${review.clientName} — ${review.reviewPeriod}`,
+    trimmedNotes,
+    `/quarterly-reviews/${reviewId}`
+  );
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
   revalidatePath("/quarterly-reviews");
-  return { ok: true, message: `Sent back for adjustments.${emailNote}` };
+  return { ok: true, message: "Sent back for adjustments." };
 }
 
 /** Only reachable once a review is "approved" — enforced here too, not

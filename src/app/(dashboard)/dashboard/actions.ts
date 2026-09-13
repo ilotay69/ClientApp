@@ -271,6 +271,28 @@ export async function updateSuggestionStatus(id: string, status: SuggestionStatu
   revalidatePath("/dashboard");
 }
 
+/** Dismisses one of the signed-in user's own alerts (see src/lib/alerts.ts)
+ * — scoped by matching recipient_id to the caller, not a permission check,
+ * since any signed-in staff member should be able to acknowledge their own
+ * alerts (and only their own — the eq("recipient_id", ...) is the real
+ * boundary here, not just requireStaff()). */
+export async function acknowledgeAlertAction(alertId: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const admin = createAdminClient();
+  await admin
+    .from("alerts")
+    .update({ acknowledged_at: new Date().toISOString() })
+    .eq("id", alertId)
+    .eq("recipient_id", user.id);
+
+  revalidatePath("/dashboard");
+}
+
 export type SnapshotPreviewRow = {
   id: string;
   receivedAt: string;
