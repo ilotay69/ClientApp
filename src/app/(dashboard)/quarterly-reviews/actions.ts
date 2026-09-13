@@ -13,11 +13,11 @@ import {
 } from "@/lib/quarterly-review-data";
 import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
 import { getActiveAiSettings } from "@/lib/ai/settings";
+import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
 import {
   buildQuarterlyReviewSubmittedEmail,
   buildQuarterlyReviewApprovedEmail,
   buildQuarterlyReviewClientEmail,
-  type QuarterlyReviewEmailScreenshot,
 } from "@/lib/resend";
 import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
@@ -164,19 +164,21 @@ export async function generateQuarterlyReviewSummaryAction(reviewId: string): Pr
   }
 }
 
-/** Owner-only, checked by role, not by the manage_quarterly_reviews
- * permission — anyone with that permission can create/submit/work a
- * review, but reopening a submitted/approved/sent one back to draft (e.g.
- * a mistake was found after sending, and it needs fixing and resending)
- * is deliberately restricted further. */
+/** Owner OR the named approver — checked by role/email, not by the
+ * manage_quarterly_reviews permission. Anyone with that permission can
+ * create/submit/work a review, but reopening a submitted/approved/sent one
+ * back to draft (e.g. a mistake was found after sending, and it needs
+ * fixing and resending) is deliberately restricted further, to the same
+ * two people who can approve or who own the account. */
 export async function reopenQuarterlyReviewAction(reviewId: string): Promise<ReviewActionState> {
   const user = await requirePermission("manage_quarterly_reviews");
   if (!user) return { ok: false, message: "You don't have permission to do that." };
 
   const supabase = await createClient();
   const me = await getMyPermissions(supabase);
-  if (me?.role !== "owner") {
-    return { ok: false, message: "Only an Owner can reopen a review." };
+  const isApprover = (user.email ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
+  if (me?.role !== "owner" && !isApprover) {
+    return { ok: false, message: "Only an Owner or the approver can reopen a review." };
   }
 
   const admin = createAdminClient();
@@ -201,7 +203,7 @@ export async function submitQuarterlyReviewAction(reviewId: string): Promise<Rev
 
   await admin
     .from("quarterly_reviews")
-    .update({ status: "submitted", submitted_at: new Date().toISOString() })
+    .update({ status: "submitted", submitted_at: new Date().toISOString(), submitted_by: user.id })
     .eq("id", reviewId);
 
   let emailNote = "";
@@ -307,41 +309,60 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
 
   try {
     const accessToken = await getValidSharedMailboxToken(admin, settings);
-    const itemsByKey = new Map(review.items.map((i) => [i.itemKey, { status: i.status, comments: i.comments }]));
 
-    // Screenshots are embedded inline in the email body (cid: reference),
-    // not just attached — matches how the original document shows them
-    // directly in its own appendix rather than as separate files to open.
+    // The checklist/comments/screenshots now live in an attached PDF rather
+    // than the email body — download each screenshot once, try to embed it
+    // in the PDF (PNG/JPEG only), and fall back to attaching the original
+    // file directly for anything that couldn't be embedded (GIF/WEBP) so
+    // nothing the reviewer added gets silently dropped.
     const attachments = await fetchReviewAttachments(reviewId, admin);
-    const screenshots: QuarterlyReviewEmailScreenshot[] = [];
-    const graphAttachments: SharedMailboxAttachment[] = [];
+    const images: { id: string; buffer: Buffer; label: string | null; fileName: string; contentType: string }[] = [];
     for (const a of attachments) {
       try {
         const { data: blob, error: downloadError } = await admin.storage
           .from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET)
           .download(a.storagePath);
         if (downloadError || !blob) continue;
-        const contentBase64 = Buffer.from(await blob.arrayBuffer()).toString("base64");
-        graphAttachments.push({
-          filename: a.fileName,
-          contentBase64,
+        images.push({
+          id: a.id,
+          buffer: Buffer.from(await blob.arrayBuffer()),
+          label: a.label,
+          fileName: a.fileName,
           contentType: a.contentType || "image/png",
-          contentId: a.id,
-          isInline: true,
         });
-        screenshots.push({ contentId: a.id, label: a.label, fileName: a.fileName });
       } catch (attachErr) {
         console.error("sendQuarterlyReviewToClientAction: attachment fetch failed", a.id, attachErr);
       }
     }
 
-    const { html, text } = buildQuarterlyReviewClientEmail(
-      review.clientName,
-      review.reviewPeriod,
-      itemsByKey,
-      screenshots,
-      review.summary
-    );
+    const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
+      clientName: review.clientName,
+      reviewPeriod: review.reviewPeriod,
+      summary: review.summary,
+      items: review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
+      images: images.map((i) => ({ id: i.id, buffer: i.buffer, label: i.label, fileName: i.fileName })),
+    });
+
+    const graphAttachments: SharedMailboxAttachment[] = [
+      {
+        filename: `${review.clientName} Quarterly Review - ${review.reviewPeriod}.pdf`,
+        contentBase64: pdf.toString("base64"),
+        contentType: "application/pdf",
+        isInline: false,
+      },
+    ];
+    for (const image of images) {
+      if (!embeddedImageIds.has(image.id)) {
+        graphAttachments.push({
+          filename: image.fileName,
+          contentBase64: image.buffer.toString("base64"),
+          contentType: image.contentType,
+          isInline: false,
+        });
+      }
+    }
+
+    const { html, text } = buildQuarterlyReviewClientEmail(review.clientName, review.reviewPeriod, review.summary);
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,
       subject: `Quarterly Systems Review — ${review.reviewPeriod} — ${review.clientName}`,
@@ -356,7 +377,7 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
 
   await admin
     .from("quarterly_reviews")
-    .update({ status: "sent", sent_at: new Date().toISOString(), sent_to_email: trimmedEmail })
+    .update({ status: "sent", sent_at: new Date().toISOString(), sent_to_email: trimmedEmail, sent_by: user.id })
     .eq("id", reviewId);
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);

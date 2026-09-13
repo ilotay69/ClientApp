@@ -48,6 +48,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
 
   const isApprover = (user?.email ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
   const isOwner = me?.role === "owner";
+  const canReopen = isOwner || isApprover;
   const itemsLocked = review.status !== "draft";
 
   const [clients, attachments] = await Promise.all([fetchAllClientsForPicker(), fetchReviewAttachments(review.id)]);
@@ -124,7 +125,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
             />
           </div>
         )}
-        {isOwner && itemsLocked && (
+        {canReopen && itemsLocked && (
           <div className="mt-3 border-t border-slate-100 pt-3">
             <AsyncActionButton
               label="Reopen for editing"
@@ -138,7 +139,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
       {itemsLocked && (
         <p className="text-xs text-slate-500">
           This review has been {review.status} — items are locked.
-          {isOwner ? " Use “Reopen for editing” above if something needs correcting." : " Ask an Owner to reopen it if something needs correcting."}
+          {canReopen ? " Use “Reopen for editing” above if something needs correcting." : " Ask an Owner or the approver to reopen it if something needs correcting."}
         </p>
       )}
 

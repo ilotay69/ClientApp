@@ -22,9 +22,11 @@ export type QuarterlyReview = {
   createdByName: string | null;
   createdByEmail: string | null;
   submittedAt: string | null;
+  submittedByName: string | null;
   approvedAt: string | null;
   approvedByName: string | null;
   sentAt: string | null;
+  sentByName: string | null;
   sentToEmail: string | null;
   createdAt: string;
   /** Client-facing, editable — starts as an AI draft, staff can rewrite it
@@ -42,7 +44,9 @@ const SELECT = `
   summary, hours_spent,
   clients(name),
   created_profile:created_by(full_name, email),
+  submitted_profile:submitted_by(full_name),
   approved_profile:approved_by(full_name),
+  sent_profile:sent_by(full_name),
   quarterly_review_items(id, item_key, status, comments)
 `;
 
@@ -50,7 +54,9 @@ const SELECT = `
 function mapReview(row: any): QuarterlyReview {
   const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
   const createdProfile = Array.isArray(row.created_profile) ? row.created_profile[0] : row.created_profile;
+  const submittedProfile = Array.isArray(row.submitted_profile) ? row.submitted_profile[0] : row.submitted_profile;
   const approvedProfile = Array.isArray(row.approved_profile) ? row.approved_profile[0] : row.approved_profile;
+  const sentProfile = Array.isArray(row.sent_profile) ? row.sent_profile[0] : row.sent_profile;
   const itemByKey = new Map<string, QuarterlyReviewItemRow>(
     (row.quarterly_review_items ?? []).map(
       (i: { id: string; item_key: string; status: QuarterlyReviewItemStatus; comments: string | null }) => [
@@ -75,9 +81,11 @@ function mapReview(row: any): QuarterlyReview {
     createdByName: createdProfile?.full_name ?? null,
     createdByEmail: createdProfile?.email ?? null,
     submittedAt: row.submitted_at,
+    submittedByName: submittedProfile?.full_name ?? null,
     approvedAt: row.approved_at,
     approvedByName: approvedProfile?.full_name ?? null,
     sentAt: row.sent_at,
+    sentByName: sentProfile?.full_name ?? null,
     sentToEmail: row.sent_to_email,
     createdAt: row.created_at,
     summary: row.summary,

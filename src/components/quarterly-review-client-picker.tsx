@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 export function QuarterlyReviewClientPicker({
   clients,
   selectedId,
+  tab,
 }: {
   clients: { id: string; name: string }[];
   selectedId: string | null;
+  tab?: string;
 }) {
   const router = useRouter();
   return (
     <select
       defaultValue={selectedId ?? ""}
-      onChange={(e) => router.push(`/quarterly-reviews?client_id=${e.target.value}`)}
+      onChange={(e) => router.push(`/quarterly-reviews?client_id=${e.target.value}${tab ? `&tab=${tab}` : ""}`)}
       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
     >
       <option value="" disabled>

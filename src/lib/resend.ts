@@ -1,9 +1,4 @@
 import { Resend } from "resend";
-import {
-  QUARTERLY_REVIEW_SECTIONS,
-  QUARTERLY_STATUS_LABELS,
-  type QuarterlyReviewItemStatus,
-} from "@/lib/quarterly-review-sections";
 
 let client: Resend | null = null;
 
@@ -312,97 +307,25 @@ export function buildQuarterlyReviewApprovedEmail(clientName: string, reviewPeri
   return { html, text };
 }
 
-export type QuarterlyReviewEmailItem = { status: QuarterlyReviewItemStatus; comments: string | null };
-
-const QUARTERLY_STATUS_COLOR: Record<QuarterlyReviewItemStatus, string> = {
-  healthy: "#16a34a",
-  attention: "#d97706",
-  urgent: "#dc2626",
-  na: "#94a3b8",
-};
-
-export type QuarterlyReviewEmailScreenshot = { contentId: string; label: string | null; fileName: string };
-
-export function buildQuarterlyReviewClientEmail(
-  clientName: string,
-  reviewPeriod: string,
-  itemsByKey: Map<string, QuarterlyReviewEmailItem>,
-  screenshots: QuarterlyReviewEmailScreenshot[] = [],
-  summary: string | null = null
-) {
-  const sectionsHtml = QUARTERLY_REVIEW_SECTIONS.map((section) => {
-    const rows = section.items
-      .map((item) => {
-        const row = itemsByKey.get(item.key);
-        const status = row?.status ?? "na";
-        return `
-          <tr>
-            <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:#0f172a;">${escapeHtml(item.label)}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:${QUARTERLY_STATUS_COLOR[status]};font-weight:600;">${escapeHtml(QUARTERLY_STATUS_LABELS[status])}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:#334155;white-space:pre-line;">${row?.comments ? escapeHtml(row.comments) : ""}</td>
-          </tr>`;
-      })
-      .join("");
-    return `
-      <tr><td colspan="3" style="padding:14px 10px 4px;font-weight:700;color:#0f172a;">${escapeHtml(section.label)}</td></tr>
-      ${rows}`;
-  }).join("");
-
-  const sectionsText = QUARTERLY_REVIEW_SECTIONS.map((section) => {
-    const rows = section.items
-      .map((item) => {
-        const row = itemsByKey.get(item.key);
-        const status = row?.status ?? "na";
-        return `  - ${item.label}: ${QUARTERLY_STATUS_LABELS[status]}${row?.comments ? ` — ${row.comments}` : ""}`;
-      })
-      .join("\n");
-    return `${section.label}:\n${rows}`;
-  }).join("\n\n");
-
-  const screenshotsHtml =
-    screenshots.length > 0
-      ? `
-      <h3 style="color:#0f172a;margin-top:28px;">Screenshots</h3>
-      ${screenshots
-        .map(
-          (s) => `
-        <div style="margin:12px 0;">
-          ${s.label ? `<p style="font-weight:600;color:#0f172a;margin:0 0 4px;">${escapeHtml(s.label)}</p>` : ""}
-          <img src="cid:${s.contentId}" alt="${escapeHtml(s.label ?? s.fileName)}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" />
-        </div>`
-        )
-        .join("")}`
-      : "";
-
+/** Detail (the checklist, comments, screenshots) lives in the attached PDF
+ * now, not in the email body — this is just the cover note announcing it,
+ * plus the short editable Summary as a preview. */
+export function buildQuarterlyReviewClientEmail(clientName: string, reviewPeriod: string, summary: string | null) {
   const summaryHtml = summary
     ? `<p style="color:#334155;font-size:15px;white-space:pre-line;background:#f8fafc;border-radius:8px;padding:12px 14px;">${escapeHtml(summary)}</p>`
     : "";
 
   const html = `
-    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;">
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;">
       <h2 style="color:#0f172a;">Quarterly Systems Review — ${escapeHtml(reviewPeriod)}</h2>
       <p style="color:#64748b;">Prepared for ${escapeHtml(clientName)}</p>
       ${summaryHtml}
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <thead>
-          <tr style="text-align:left;">
-            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Review Item</th>
-            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Status</th>
-            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Comments</th>
-          </tr>
-        </thead>
-        <tbody>${sectionsHtml}</tbody>
-      </table>
-      ${screenshotsHtml}
+      <p style="color:#334155;">The full review is attached as a PDF.</p>
       <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Technologies.</p>
     </div>
   `;
-  const screenshotsText =
-    screenshots.length > 0
-      ? `\n\nScreenshots:\n${screenshots.map((s) => `  - ${s.label ?? s.fileName} (see attached images)`).join("\n")}`
-      : "";
   const summaryText = summary ? `\n${summary}\n` : "";
-  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\n${sectionsText}${screenshotsText}`;
+  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.`;
 
   return { html, text };
 }
