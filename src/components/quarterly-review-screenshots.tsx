@@ -11,13 +11,16 @@ function AttachmentThumbnail({
   attachment,
   disabled,
   deleteAction,
+  updateLabelAction,
 }: {
   reviewId: string;
   attachment: QuarterlyReviewAttachment;
   disabled: boolean;
   deleteAction: (attachmentId: string, reviewId: string) => Promise<void>;
+  updateLabelAction: (attachmentId: string, reviewId: string, label: string | null) => Promise<void>;
 }) {
   const [removing, setRemoving] = useState(false);
+  const [savePending, startSaveTransition] = useTransition();
 
   return (
     <div className="w-48 rounded-md border border-slate-200 p-2">
@@ -28,9 +31,26 @@ function AttachmentThumbnail({
           className="h-28 w-full rounded object-cover"
         />
       </a>
-      <p className="mt-1 truncate text-xs font-medium text-slate-700" title={attachment.label ?? attachment.fileName}>
-        {attachment.label ?? attachment.fileName}
-      </p>
+      {/* Uncontrolled + keyed on the saved value, same reasoning as
+          QuarterlyReviewSummary: this needs to resync if the label changes
+          from outside this input (e.g. router.refresh() after a paste),
+          which a plain controlled state wouldn't do. A pasted screenshot
+          starts with no caption at all — this is what lets one be added
+          afterward instead of only at manual-upload time. */}
+      <textarea
+        key={attachment.label ?? ""}
+        defaultValue={attachment.label ?? ""}
+        disabled={disabled || savePending}
+        onBlur={(e) => {
+          const next = e.target.value.trim() || null;
+          if (next !== attachment.label) {
+            startSaveTransition(() => updateLabelAction(attachment.id, reviewId, next));
+          }
+        }}
+        rows={2}
+        placeholder="Add a comment…"
+        className="mt-1 w-full resize-none rounded-md border border-slate-200 px-1.5 py-1 text-xs focus:border-slate-400 focus:outline-none disabled:opacity-60"
+      />
       {!disabled && (
         <button
           type="button"
@@ -219,6 +239,7 @@ export function QuarterlyReviewScreenshots({
   disabled,
   uploadAction,
   deleteAction,
+  updateLabelAction,
 }: {
   reviewId: string;
   attachments: QuarterlyReviewAttachment[];
@@ -229,6 +250,7 @@ export function QuarterlyReviewScreenshots({
     formData: FormData
   ) => Promise<UploadAttachmentState>;
   deleteAction: (attachmentId: string, reviewId: string) => Promise<void>;
+  updateLabelAction: (attachmentId: string, reviewId: string, label: string | null) => Promise<void>;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -245,6 +267,7 @@ export function QuarterlyReviewScreenshots({
                 attachment={a}
                 disabled={disabled}
                 deleteAction={deleteAction}
+                updateLabelAction={updateLabelAction}
               />
             ))}
           </div>

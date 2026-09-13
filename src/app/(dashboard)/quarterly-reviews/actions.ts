@@ -621,3 +621,21 @@ export async function deleteQuarterlyReviewAttachmentAction(attachmentId: string
   await admin.storage.from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET).remove([attachment.storage_path]);
   revalidatePath(`/quarterly-reviews/${reviewId}`);
 }
+
+/** A pasted screenshot starts with no caption at all (there's no dialog to
+ * fill one in mid-paste) — this lets that comment be added or edited
+ * afterward, directly on the thumbnail, same as an uploaded one's caption
+ * could already be set at upload time. */
+export async function updateQuarterlyReviewAttachmentLabelAction(
+  attachmentId: string,
+  reviewId: string,
+  label: string | null
+): Promise<void> {
+  if (!(await requirePermission("manage_quarterly_reviews"))) return;
+
+  const admin = createAdminClient();
+  if (!(await isReviewEditable(reviewId, admin))) return;
+
+  await admin.from("quarterly_review_attachments").update({ label }).eq("id", attachmentId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+}

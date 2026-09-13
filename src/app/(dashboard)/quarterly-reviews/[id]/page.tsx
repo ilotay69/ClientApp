@@ -36,6 +36,7 @@ import {
   sendQuarterlyReviewToClientAction,
   uploadQuarterlyReviewAttachmentAction,
   deleteQuarterlyReviewAttachmentAction,
+  updateQuarterlyReviewAttachmentLabelAction,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -260,6 +261,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
         disabled={itemsLocked}
         uploadAction={uploadQuarterlyReviewAttachmentAction}
         deleteAction={deleteQuarterlyReviewAttachmentAction}
+        updateLabelAction={updateQuarterlyReviewAttachmentLabelAction}
       />
     </div>
   );
