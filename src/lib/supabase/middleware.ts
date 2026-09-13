@@ -3,6 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/auth"];
 
+// Accessible with or without a session — unlike PUBLIC_PATHS above, a
+// signed-in visitor is never redirected away from these. A client
+// acknowledging a quarterly review has no login at all, but a staff
+// member testing the link (or a client who separately holds a portal
+// login) must still be able to open it while already signed in.
+const PUBLIC_PREFIX_PATHS = ["/quarterly-review-ack"];
+
 // PWA install assets — a browser's installability check (and a service
 // worker's own registration) fetches these directly, without necessarily
 // carrying the session cookie a normal page navigation would. Gating them
@@ -50,8 +57,15 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith(path)
   );
   const isPublicAsset = PUBLIC_ASSET_PATHS.some((path) => request.nextUrl.pathname === path);
+  const isPublicPrefixPath = PUBLIC_PREFIX_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
 
-  if (!user && !isPublicPath && !isPublicAsset && !request.nextUrl.pathname.startsWith("/api")) {
+  if (
+    !user &&
+    !isPublicPath &&
+    !isPublicAsset &&
+    !isPublicPrefixPath &&
+    !request.nextUrl.pathname.startsWith("/api")
+  ) {
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(redirectUrl);

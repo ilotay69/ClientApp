@@ -13,7 +13,12 @@ import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-f
 import { SendReviewToClientForm } from "@/components/send-review-to-client-form";
 import { QuarterlyReviewScreenshots } from "@/components/quarterly-review-screenshots";
 import { QUARTERLY_REVIEW_SECTIONS } from "@/lib/quarterly-review-sections";
-import { getQuarterlyReview, fetchAllClientsForPicker, fetchReviewAttachments } from "@/lib/quarterly-review-data";
+import {
+  getQuarterlyReview,
+  fetchAllClientsForPicker,
+  fetchReviewAttachments,
+  QUARTERLY_REVIEW_APPROVER_EMAIL,
+} from "@/lib/quarterly-review-data";
 import {
   saveQuarterlyReviewItemAction,
   saveQuarterlyReviewSummaryAction,
@@ -30,9 +35,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Kept in sync with the same constant in ../actions.ts — only this exact
+// Single source of truth in quarterly-review-data.ts — only this exact
 // account sees the Approve button at all (not a permission).
-const APPROVER_EMAIL = "ilotay@cgtechnologies.com";
+const APPROVER_EMAIL = QUARTERLY_REVIEW_APPROVER_EMAIL;
 
 export default async function QuarterlyReviewDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
@@ -98,6 +103,19 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
             {review.adjustmentRequestedAt ? ` on ${formatDate(review.adjustmentRequestedAt)}` : ""}:
           </p>
           <p className="mt-2 whitespace-pre-line text-sm text-amber-900">{review.adjustmentNotes}</p>
+        </div>
+      )}
+
+      {review.clientAcknowledgedAt && (
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
+          <p className="text-sm font-semibold text-emerald-900">Client Acknowledged</p>
+          <p className="mt-1 text-xs text-emerald-700">
+            {review.clientName} acknowledged this review on {formatDate(review.clientAcknowledgedAt)}
+            {review.clientAckRemarks ? ":" : "."}
+          </p>
+          {review.clientAckRemarks && (
+            <p className="mt-2 whitespace-pre-line text-sm text-emerald-900">{review.clientAckRemarks}</p>
+          )}
         </div>
       )}
 

@@ -4,6 +4,13 @@ import { QUARTERLY_REVIEW_SECTIONS, type QuarterlyReviewItemStatus } from "@/lib
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
 
+/** The one person who can approve a submitted review, and who also always
+ * gets alerted/emailed alongside the review's creator when a client
+ * acknowledges one — a specific named account, not a permission. Single
+ * source of truth: actions.ts and [id]/page.tsx both import this instead
+ * of each declaring their own copy. */
+export const QUARTERLY_REVIEW_APPROVER_EMAIL = "ilotay@cgtechnologies.com";
+
 export type QuarterlyReviewStatus = "draft" | "submitted" | "approved" | "sent";
 
 export type QuarterlyReviewItemRow = {
@@ -50,12 +57,19 @@ export type QuarterlyReview = {
   /** Set once the review has actually been emailed (sendQuarterlyReviewToClientAction) —
    * the storage path of that exact PDF, re-downloadable afterward. */
   pdfStoragePath: string | null;
+  /** Set when the client clicks the acknowledgment link in their email
+   * (src/app/quarterly-review-ack) — never set by anything in-app. Resets
+   * to null on every new send, along with a fresh client_ack_token, so an
+   * old round's acknowledgment can't be confused for the current one. */
+  clientAcknowledgedAt: string | null;
+  clientAckRemarks: string | null;
   items: QuarterlyReviewItemRow[];
 };
 
 const SELECT = `
   id, review_period, status, created_by, submitted_at, approved_at, sent_at, sent_to_email, created_at,
   summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
+  client_acknowledged_at, client_ack_remarks,
   clients(name),
   created_profile:created_by(full_name, email),
   submitted_profile:submitted_by(full_name),
@@ -111,6 +125,8 @@ function mapReview(row: any): QuarterlyReview {
     adjustmentRequestedAt: row.adjustment_requested_at ?? null,
     adjustmentRequestedByName: adjustmentProfile?.full_name ?? null,
     pdfStoragePath: row.pdf_storage_path ?? null,
+    clientAcknowledgedAt: row.client_acknowledged_at ?? null,
+    clientAckRemarks: row.client_ack_remarks ?? null,
     items,
   };
 }
@@ -146,6 +162,43 @@ export async function getQuarterlyReview(
     .maybeSingle();
   if (error || !data) return null;
   return mapReview(data);
+}
+
+export type QuarterlyReviewAckLookup = {
+  id: string;
+  clientName: string;
+  reviewPeriod: string;
+  createdById: string | null;
+  alreadyAcknowledged: boolean;
+  acknowledgedAt: string | null;
+  remarks: string | null;
+};
+
+/** Looked up by the random, unguessable client_ack_token from the public
+ * acknowledgment link (src/app/quarterly-review-ack) — never by review id,
+ * since that page has no login at all and must not accept an arbitrary id
+ * straight from the URL. */
+export async function getQuarterlyReviewByAckToken(
+  token: string,
+  admin: AdminClient = createAdminClient()
+): Promise<QuarterlyReviewAckLookup | null> {
+  const { data, error } = await admin
+    .from("quarterly_reviews")
+    .select("id, review_period, created_by, client_acknowledged_at, client_ack_remarks, clients(name)")
+    .eq("client_ack_token", token)
+    .maybeSingle();
+  if (error || !data) return null;
+
+  const client = Array.isArray(data.clients) ? data.clients[0] : data.clients;
+  return {
+    id: data.id,
+    clientName: client?.name ?? "Unknown client",
+    reviewPeriod: data.review_period,
+    createdById: data.created_by ?? null,
+    alreadyAcknowledged: Boolean(data.client_acknowledged_at),
+    acknowledgedAt: data.client_acknowledged_at ?? null,
+    remarks: data.client_ack_remarks ?? null,
+  };
 }
 
 export async function fetchReviewsForClient(

@@ -11,6 +11,7 @@ import {
   fetchReviewAttachments,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
   QUARTERLY_REVIEW_PDF_BUCKET,
+  QUARTERLY_REVIEW_APPROVER_EMAIL,
 } from "@/lib/quarterly-review-data";
 import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
 import { getActiveAiSettings } from "@/lib/ai/settings";
@@ -36,8 +37,12 @@ async function isReviewEditable(reviewId: string, admin: ReturnType<typeof creat
 /** The one person who can approve a submitted review — a specific named
  * approver, not a permission, per how this workflow was asked for. Anyone
  * else with manage_quarterly_reviews can create/submit reviews; only this
- * exact account sees the Approve button at all. */
-const APPROVER_EMAIL = "ilotay@cgtechnologies.com";
+ * exact account sees the Approve button at all. Kept as a local alias so
+ * every existing reference below doesn't need renaming — the actual value
+ * lives in quarterly-review-data.ts (QUARTERLY_REVIEW_APPROVER_EMAIL), the
+ * single source of truth shared with [id]/page.tsx and the public
+ * acknowledgment action. */
+const APPROVER_EMAIL = QUARTERLY_REVIEW_APPROVER_EMAIL;
 
 /** Same idea as isReviewEditable, but the Summary specifically stays
  * editable for the approver even while a review is "submitted" and
@@ -373,6 +378,12 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
   // a try {} isn't visible once that block ends.
   const pdfStoragePath = `${reviewId}.pdf`;
   let pdfPersisted = false;
+  // Regenerated on every send — invalidates any link from a previous round
+  // (see 110_quarterly_review_client_ack.sql) and resets the acknowledgment
+  // fields below so an earlier round's acknowledgment can't be mistaken for
+  // this one.
+  const ackToken = crypto.randomUUID();
+  const ackUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/quarterly-review-ack/${ackToken}`;
 
   try {
     const accessToken = await getValidSharedMailboxToken(admin, settings);
@@ -444,7 +455,7 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       }
     }
 
-    const { html, text } = buildQuarterlyReviewClientEmail(review.clientName, review.reviewPeriod, review.summary);
+    const { html, text } = buildQuarterlyReviewClientEmail(review.clientName, review.reviewPeriod, review.summary, ackUrl);
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,
       subject: `Quarterly Systems Review — ${review.reviewPeriod} — ${review.clientName}`,
@@ -464,6 +475,9 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       sent_at: new Date().toISOString(),
       sent_to_email: trimmedEmail,
       sent_by: user.id,
+      client_ack_token: ackToken,
+      client_acknowledged_at: null,
+      client_ack_remarks: null,
       ...(pdfPersisted ? { pdf_storage_path: pdfStoragePath } : {}),
     })
     .eq("id", reviewId);

@@ -222,8 +222,15 @@ export function buildBackupReportEmail(
 
 /** Detail (the checklist, comments, screenshots) lives in the attached PDF
  * now, not in the email body — this is just the cover note announcing it,
- * plus the short editable Summary as a preview. */
-export function buildQuarterlyReviewClientEmail(clientName: string, reviewPeriod: string, summary: string | null) {
+ * plus the short editable Summary as a preview, plus a link the client can
+ * use to acknowledge the review (with optional remarks) without logging
+ * into anything — see src/app/quarterly-review-ack. */
+export function buildQuarterlyReviewClientEmail(
+  clientName: string,
+  reviewPeriod: string,
+  summary: string | null,
+  ackUrl: string
+) {
   const summaryHtml = summary
     ? `<p style="color:#334155;font-size:15px;white-space:pre-line;background:#f8fafc;border-radius:8px;padding:12px 14px;">${escapeHtml(summary)}</p>`
     : "";
@@ -234,12 +241,54 @@ export function buildQuarterlyReviewClientEmail(clientName: string, reviewPeriod
       <p style="color:#64748b;">Prepared for ${escapeHtml(clientName)}</p>
       ${summaryHtml}
       <p style="color:#334155;">The full review is attached as a PDF.</p>
+      <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
+        <p style="color:#334155;font-size:14px;margin:0 0 12px;">
+          Some items above may need attention. If you'd like to acknowledge that you've received
+          this review — and accept the risk of any outstanding items not being addressed — please
+          click below. You can add any remarks first.
+        </p>
+        <a href="${ackUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;">Acknowledge This Review</a>
+      </div>
       <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Technologies.</p>
     </div>
   `;
   const summaryText = summary ? `\n${summary}\n` : "";
-  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.`;
+  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.\n\nAcknowledge this review (and accept the risk of any outstanding items): ${ackUrl}`;
 
+  return { html, text };
+}
+
+/** Sent to the review's creator and the approver (QUARTERLY_REVIEW_APPROVER_EMAIL)
+ * the moment a client acknowledges a review through the link above —
+ * alongside the same event as an in-app alert (src/lib/alerts.ts). This is
+ * deliberately still a real email, not just an alert: a client accepting
+ * risk on outstanding items is significant enough, and rare enough, to
+ * warrant one. */
+export function buildQuarterlyReviewClientAcknowledgedEmail(
+  clientName: string,
+  reviewPeriod: string,
+  remarks: string | null,
+  reviewUrl: string
+) {
+  const remarksHtml = remarks
+    ? `<p style="color:#334155;font-size:15px;white-space:pre-line;background:#f8fafc;border-radius:8px;padding:12px 14px;">${escapeHtml(remarks)}</p>`
+    : `<p style="color:#64748b;font-size:14px;">No remarks were left.</p>`;
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">${escapeHtml(clientName)} acknowledged their quarterly review</h2>
+      <p style="color:#334155;">
+        <strong>${escapeHtml(reviewPeriod)}</strong> for <strong>${escapeHtml(clientName)}</strong> has been
+        acknowledged by the client.
+      </p>
+      ${remarksHtml}
+      <p style="margin:16px 0;">
+        <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
+      </p>
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
+    </div>
+  `;
+  const text = `${clientName} acknowledged the ${reviewPeriod} review.\n\n${remarks ?? "No remarks were left."}\n\n${reviewUrl}`;
   return { html, text };
 }
 
