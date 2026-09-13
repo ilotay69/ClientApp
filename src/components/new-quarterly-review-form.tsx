@@ -2,9 +2,28 @@
 
 import { useState, useTransition } from "react";
 
-/** clientId is pre-selected when arriving with ?client_id= already in the
- * URL, but this is a standalone create form either way — it doesn't
- * require a client to already be "selected" elsewhere on the page. */
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** Month/year dropdowns rather than a free-text period field — guarantees
+ * every review is labeled in the same "{Month} {Year}" format (matching
+ * the existing "April 2026" style already used in past reviews) instead
+ * of staff typing something like "Apr 2026" or "2026 April" that would
+ * read inconsistently in the reviews list. clientId is pre-selected when
+ * arriving with ?client_id= already in the URL, but this is a standalone
+ * create form either way. */
 export function NewQuarterlyReviewForm({
   clients,
   defaultClientId,
@@ -12,52 +31,111 @@ export function NewQuarterlyReviewForm({
 }: {
   clients: { id: string; name: string }[];
   defaultClientId: string | null;
-  action: (clientId: string, reviewPeriod: string) => Promise<void>;
+  action: (
+    clientId: string,
+    reviewPeriod: string,
+    confirmDuplicate: boolean
+  ) => Promise<{ error: string } | undefined>;
 }) {
-  const [clientId, setClientId] = useState(defaultClientId ?? "");
-  const [period, setPeriod] = useState("");
-  const [pending, startTransition] = useTransition();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const years = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
 
-  function run() {
-    if (!clientId || !period.trim()) return;
-    startTransition(() => action(clientId, period.trim()));
+  const [clientId, setClientId] = useState(defaultClientId ?? "");
+  const [month, setMonth] = useState(MONTHS[now.getMonth()]);
+  const [year, setYear] = useState(String(currentYear));
+  const [pending, startTransition] = useTransition();
+  const [warning, setWarning] = useState<string | null>(null);
+
+  function run(confirmDuplicate: boolean) {
+    if (!clientId) return;
+    const period = `${month} ${year}`;
+    setWarning(null);
+    startTransition(async () => {
+      const result = await action(clientId, period, confirmDuplicate);
+      // No result at all means createQuarterlyReviewAction hit its own
+      // redirect() — there's nothing left to show here either way.
+      if (result?.error) setWarning(result.error);
+    });
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <div>
-        <label className="block text-xs font-medium text-slate-700">Client</label>
-        <select
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="block text-xs font-medium text-slate-700">Client</label>
+          <select
+            value={clientId}
+            onChange={(e) => {
+              setClientId(e.target.value);
+              setWarning(null);
+            }}
+            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          >
+            <option value="">Choose a client…</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-700">Month</label>
+          <select
+            value={month}
+            onChange={(e) => {
+              setMonth(e.target.value);
+              setWarning(null);
+            }}
+            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          >
+            {MONTHS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-700">Year</label>
+          <select
+            value={year}
+            onChange={(e) => {
+              setYear(e.target.value);
+              setWarning(null);
+            }}
+            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => run(false)}
+          disabled={pending || !clientId}
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
         >
-          <option value="">Choose a client…</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          {pending ? "Starting…" : "Start review"}
+        </button>
       </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-700">Review period</label>
-        <input
-          type="text"
-          value={period}
-          onChange={(e) => setPeriod(e.target.value)}
-          placeholder="e.g. April 2026"
-          className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-        />
-      </div>
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending || !clientId || !period.trim()}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
-      >
-        {pending ? "Starting…" : "Start review"}
-      </button>
+      {warning && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {warning}{" "}
+          <button
+            type="button"
+            onClick={() => run(true)}
+            disabled={pending}
+            className="font-medium underline disabled:opacity-60"
+          >
+            Create it anyway
+          </button>
+        </div>
+      )}
     </div>
   );
 }

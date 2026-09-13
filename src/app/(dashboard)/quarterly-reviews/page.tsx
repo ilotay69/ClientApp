@@ -7,7 +7,7 @@ import { Badge } from "@/components/badge";
 import { fetchAllClientsForPicker, fetchReviewsForClient } from "@/lib/quarterly-review-data";
 import { createQuarterlyReviewAction } from "./actions";
 import { QuarterlyReviewClientPicker } from "@/components/quarterly-review-client-picker";
-import { NewQuarterlyReviewForm } from "@/components/new-quarterly-review-form";
+import { NewReviewPanel } from "@/components/new-review-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -33,37 +33,29 @@ export default async function QuarterlyReviewsPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Quarterly Client Reviews</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          We do these quarterly for some clients — pick a client to see their past reviews, or
-          start a new one below.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">We do these quarterly for some clients.</p>
       </div>
 
-      <div className="max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label className="block text-sm font-medium text-slate-700">Client</label>
-        <div className="mt-1">
+      <div className="flex flex-wrap items-center gap-4">
+        <NewReviewPanel clients={clients} defaultClientId={selectedClient?.id ?? null} action={createQuarterlyReviewAction} />
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-700">Client</label>
           <QuarterlyReviewClientPicker clients={clients} selectedId={selectedClient?.id ?? null} />
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-900">Start a new review</p>
-        <div className="mt-2">
-          <NewQuarterlyReviewForm
-            clients={clients}
-            defaultClientId={selectedClient?.id ?? null}
-            action={createQuarterlyReviewAction}
-          />
-        </div>
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">
+          Existing Reviews{selectedClient ? ` — ${selectedClient.name}` : ""}
+        </h2>
+        {!selectedClient && <p className="mt-1 text-sm text-slate-500">Choose a client above to see their reviews.</p>}
       </div>
 
       {selectedClient && (
         <>
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-900">
-                Incomplete reviews for {selectedClient.name}
-              </p>
+              <p className="text-sm font-semibold text-slate-900">Incomplete</p>
               <p className="mt-0.5 text-xs text-slate-500">Still in draft — pick one up where it was left off.</p>
             </div>
             <div className="divide-y divide-slate-100">
@@ -77,7 +69,7 @@ export default async function QuarterlyReviewsPage({
 
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-900">Past reviews for {selectedClient.name}</p>
+              <p className="text-sm font-semibold text-slate-900">Past</p>
             </div>
             <div className="divide-y divide-slate-100">
               {pastReviews.length === 0 ? (

@@ -45,14 +45,38 @@ function reviewUrl(reviewId: string): string {
   return `${appUrl}/quarterly-reviews/${reviewId}`;
 }
 
-export async function createQuarterlyReviewAction(clientId: string, reviewPeriod: string): Promise<void> {
+export type CreateReviewState = { error: string } | undefined;
+
+/** confirmDuplicate lets the form re-submit past the warning once the user
+ * has actually seen it and decided to proceed anyway — the check itself is
+ * server-side (an exact match on client_id + review_period), not just a
+ * client-side guess, since the month/year dropdowns guarantee a consistent
+ * format but two people could still race to create the same one. */
+export async function createQuarterlyReviewAction(
+  clientId: string,
+  reviewPeriod: string,
+  confirmDuplicate: boolean
+): Promise<CreateReviewState> {
   const user = await requirePermission("manage_quarterly_reviews");
-  if (!user) return;
+  if (!user) return { error: "You don't have permission to do that." };
 
   const trimmedPeriod = reviewPeriod.trim();
-  if (!clientId || !trimmedPeriod) return;
+  if (!clientId || !trimmedPeriod) return { error: "Choose a client, month, and year." };
 
   const admin = createAdminClient();
+
+  if (!confirmDuplicate) {
+    const { data: existing } = await admin
+      .from("quarterly_reviews")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("review_period", trimmedPeriod)
+      .maybeSingle();
+    if (existing) {
+      return { error: `A review for ${trimmedPeriod} already exists for this client.` };
+    }
+  }
+
   const reviewId = await createQuarterlyReview(clientId, trimmedPeriod, user.id, admin);
   redirect(`/quarterly-reviews/${reviewId}`);
 }
