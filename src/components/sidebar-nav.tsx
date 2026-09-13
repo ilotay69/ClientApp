@@ -22,6 +22,7 @@ import {
   IconMenu,
   IconX,
   IconLock,
+  IconDatabase,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -52,12 +53,14 @@ export function SidebarNav({
   canViewSalesRequests,
   canManageRecruitment,
   canManageReconciliation,
+  canManageBackups,
   teamOwnerOnly,
   integrationsOwnerOnly,
   touchpointsOwnerOnly,
   domainHealthOwnerOnly,
   recruitmentOwnerOnly,
   reconciliationOwnerOnly,
+  backupsOwnerOnly,
   signOutAction,
 }: {
   userLabel: string;
@@ -74,6 +77,7 @@ export function SidebarNav({
   canViewSalesRequests: boolean;
   canManageRecruitment: boolean;
   canManageReconciliation: boolean;
+  canManageBackups: boolean;
   /** True only while no non-Owner role has been granted the permission —
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
@@ -82,6 +86,7 @@ export function SidebarNav({
   domainHealthOwnerOnly: boolean;
   recruitmentOwnerOnly: boolean;
   reconciliationOwnerOnly: boolean;
+  backupsOwnerOnly: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -166,6 +171,16 @@ export function SidebarNav({
             label: "Reconciliation",
             icon: IconRefresh,
             ownerOnly: reconciliationOwnerOnly,
+          },
+        ]
+      : []),
+    ...(canManageBackups
+      ? [
+          {
+            href: "/backups",
+            label: "Backups",
+            icon: IconDatabase,
+            ownerOnly: backupsOwnerOnly,
           },
         ]
       : []),

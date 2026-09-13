@@ -46,6 +46,7 @@ export default async function DashboardLayout({
   const canViewSalesRequests = me?.permissions.has("view_sales_requests") ?? false;
   const canManageRecruitment = me?.permissions.has("manage_recruitment") ?? false;
   const canManageReconciliation = me?.permissions.has("manage_reconciliation") ?? false;
+  const canManageBackups = me?.permissions.has("manage_backups") ?? false;
 
   const [
     teamOwnerOnly,
@@ -54,6 +55,7 @@ export default async function DashboardLayout({
     domainHealthOwnerOnly,
     recruitmentOwnerOnly,
     reconciliationOwnerOnly,
+    backupsOwnerOnly,
   ] = await Promise.all([
     isPermissionOwnerOnly(supabase, "manage_team"),
     isPermissionOwnerOnly(supabase, "manage_integrations"),
@@ -61,6 +63,7 @@ export default async function DashboardLayout({
     isPermissionOwnerOnly(supabase, "view_domain_health"),
     isPermissionOwnerOnly(supabase, "manage_recruitment"),
     isPermissionOwnerOnly(supabase, "manage_reconciliation"),
+    isPermissionOwnerOnly(supabase, "manage_backups"),
   ]);
 
   return (
@@ -80,12 +83,14 @@ export default async function DashboardLayout({
         canViewSalesRequests={canViewSalesRequests}
         canManageRecruitment={canManageRecruitment}
         canManageReconciliation={canManageReconciliation}
+        canManageBackups={canManageBackups}
         teamOwnerOnly={teamOwnerOnly}
         integrationsOwnerOnly={integrationsOwnerOnly}
         touchpointsOwnerOnly={touchpointsOwnerOnly}
         domainHealthOwnerOnly={domainHealthOwnerOnly}
         recruitmentOwnerOnly={recruitmentOwnerOnly}
         reconciliationOwnerOnly={reconciliationOwnerOnly}
+        backupsOwnerOnly={backupsOwnerOnly}
         signOutAction={signOut}
       />
       <main className="px-4 py-8 md:pl-64">

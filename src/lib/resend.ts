@@ -206,6 +206,71 @@ If you didn't request this, contact CG Technologies right away.`;
   return { html, text };
 }
 
+export type BackupReportEmailItem = {
+  label: string;
+  okLabel: string;
+  status: "pending" | "ok" | "issue" | "na";
+  notes: string | null;
+};
+
+export function buildBackupReportEmail(
+  reportDate: string,
+  items: BackupReportEmailItem[],
+  aiAnalysis: string | null
+) {
+  const statusText = (s: BackupReportEmailItem["status"], okLabel: string) =>
+    s === "ok" ? okLabel : s === "issue" ? "ISSUE" : s === "na" ? "N/A" : "Not checked";
+  const statusColor = (s: BackupReportEmailItem["status"]) =>
+    s === "issue" ? "#dc2626" : s === "ok" ? "#0f172a" : "#94a3b8";
+
+  const rows = items
+    .map(
+      (item) => `
+        <tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#0f172a;">${escapeHtml(item.label)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:${statusColor(item.status)};font-weight:600;">${escapeHtml(statusText(item.status, item.okLabel))}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:#334155;white-space:pre-line;">${item.notes ? escapeHtml(item.notes) : ""}</td>
+        </tr>`
+    )
+    .join("");
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Daily Backup Report — ${escapeHtml(reportDate)}</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="text-align:left;">
+            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Section</th>
+            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Result</th>
+            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Notes</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${
+        aiAnalysis
+          ? `<div style="margin-top:24px;padding:14px 16px;background:#eef2ff;border-radius:8px;">
+              <p style="margin:0 0 6px;font-weight:700;color:#3730a3;">AI analysis — last 2 weeks</p>
+              <p style="margin:0;white-space:pre-line;color:#334155;">${escapeHtml(aiAnalysis)}</p>
+            </div>`
+          : ""
+      }
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">
+        Sent by CG Ops.
+      </p>
+    </div>
+  `;
+
+  const textRows = items
+    .map((item) => `${item.label}: ${statusText(item.status, item.okLabel)}${item.notes ? ` — ${item.notes}` : ""}`)
+    .join("\n");
+  const text = `Daily Backup Report — ${reportDate}\n\n${textRows}${
+    aiAnalysis ? `\n\nAI analysis — last 2 weeks:\n${aiAnalysis}` : ""
+  }`;
+
+  return { html, text };
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")

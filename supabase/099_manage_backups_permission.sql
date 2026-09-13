@@ -1,0 +1,14 @@
+-- ============================================================================
+-- Backup reporting permission — enum value only.
+--
+-- Run this in the Supabase SQL Editor AFTER 098.
+--
+-- No companion seed migration, same reasoning as manage_recruitment (069)
+-- and manage_reconciliation (078): guards entirely new functionality with
+-- no prior access to preserve, so zero role_permissions rows for this key
+-- defaults it to Owner-only until an Owner deliberately grants it.
+--
+-- 55P04: a newly added enum value can't be used in the same transaction
+-- that added it, hence this is its own migration.
+-- ============================================================================
+alter type public.permission_key add value if not exists 'manage_backups';

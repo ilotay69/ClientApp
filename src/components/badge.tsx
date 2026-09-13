@@ -128,15 +128,21 @@ const COLORS: Record<string, string> = {
   accepted: SUCCESS,
   declined: URGENT,
   tentative: ATTENTION,
+
+  // daily backup checklist item status
+  ok: SUCCESS,
+  issue: URGENT,
+  na: NEUTRAL_MUTED,
+  pending: NEUTRAL_MUTED,
 };
 
-export function Badge({ value }: { value: string }) {
+export function Badge({ value, label }: { value: string; label?: string }) {
   const classes = COLORS[value] ?? NEUTRAL;
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${classes}`}
     >
-      {humanizeLabel(value)}
+      {label ?? humanizeLabel(value)}
     </span>
   );
 }
