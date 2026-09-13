@@ -43,12 +43,15 @@ export type QuarterlyReview = {
   adjustmentNotes: string | null;
   adjustmentRequestedAt: string | null;
   adjustmentRequestedByName: string | null;
+  /** Set once the review has actually been emailed (sendQuarterlyReviewToClientAction) —
+   * the storage path of that exact PDF, re-downloadable afterward. */
+  pdfStoragePath: string | null;
   items: QuarterlyReviewItemRow[];
 };
 
 const SELECT = `
   id, review_period, status, submitted_at, approved_at, sent_at, sent_to_email, created_at,
-  summary, hours_spent, adjustment_notes, adjustment_requested_at,
+  summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
   clients(name),
   created_profile:created_by(full_name, email),
   submitted_profile:submitted_by(full_name),
@@ -102,6 +105,7 @@ function mapReview(row: any): QuarterlyReview {
     adjustmentNotes: row.adjustment_notes ?? null,
     adjustmentRequestedAt: row.adjustment_requested_at ?? null,
     adjustmentRequestedByName: adjustmentProfile?.full_name ?? null,
+    pdfStoragePath: row.pdf_storage_path ?? null,
     items,
   };
 }
@@ -209,6 +213,11 @@ export async function fetchAllClientsForPicker(
 }
 
 export const QUARTERLY_REVIEW_ATTACHMENTS_BUCKET = "quarterly-review-attachments";
+/** Holds the actual PDF sent to the client (see sendQuarterlyReviewToClientAction)
+ * so it can be opened/downloaded again afterward — from a client's own
+ * record (normal staff, not just manage_quarterly_reviews holders) and
+ * from the client's own portal login. */
+export const QUARTERLY_REVIEW_PDF_BUCKET = "quarterly-review-pdfs";
 
 export type QuarterlyReviewAttachment = {
   id: string;

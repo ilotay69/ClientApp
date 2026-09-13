@@ -11,6 +11,7 @@ const PAGE_LABELS: Record<PortalPageKey, string> = {
   devices: "Devices",
   security: "Security",
   licences: "Microsoft 365",
+  reviews: "Quarterly Reviews",
 };
 
 /** Same look and pattern as PermissionMatrix (Team -> Roles & permissions),

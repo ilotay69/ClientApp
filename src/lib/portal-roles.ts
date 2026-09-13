@@ -11,7 +11,7 @@
  * client-portal sub-role (see client_portal_permissions, 081) — Overview
  * is deliberately not here, it's the one page every portal login can
  * always reach regardless of role, so there's never a zero-page dead end. */
-export const PORTAL_PAGE_KEYS = ["tickets", "contracts", "devices", "security", "licences"] as const;
+export const PORTAL_PAGE_KEYS = ["tickets", "contracts", "devices", "security", "licences", "reviews"] as const;
 export type PortalPageKey = (typeof PORTAL_PAGE_KEYS)[number];
 
 export type ClientPortalRole = "client_tech" | "client_manager" | "client_owner";

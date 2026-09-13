@@ -10,6 +10,7 @@ import {
   IconLock,
   IconTag,
   IconCheckSquare,
+  IconClipboardCheck,
   IconLogOut,
   IconMenu,
   IconX,
@@ -30,6 +31,7 @@ const LINKS: {
   { href: "/portal/devices", label: "Devices", icon: IconList, portalPage: "devices" },
   { href: "/portal/security", label: "Security", icon: IconLock, portalPage: "security" },
   { href: "/portal/licences", label: "Microsoft 365", icon: IconTag, portalPage: "licences" },
+  { href: "/portal/reviews", label: "Quarterly Reviews", icon: IconClipboardCheck, portalPage: "reviews" },
 ];
 
 export function PortalNav({

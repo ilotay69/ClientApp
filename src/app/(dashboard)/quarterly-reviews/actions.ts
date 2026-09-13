@@ -10,6 +10,7 @@ import {
   getQuarterlyReview,
   fetchReviewAttachments,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
+  QUARTERLY_REVIEW_PDF_BUCKET,
 } from "@/lib/quarterly-review-data";
 import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
 import { getActiveAiSettings } from "@/lib/ai/settings";
@@ -432,6 +433,23 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       images: images.map((i) => ({ id: i.id, buffer: i.buffer, label: i.label, fileName: i.fileName })),
     });
 
+    // Keeps the exact sent PDF around so it can be opened/downloaded again
+    // later — from the client's own record (any staff who can view
+    // clients, not just manage_quarterly_reviews holders) and from the
+    // client's own portal login. Best-effort: a storage hiccup shouldn't
+    // block the actual send, which is the part the client is waiting on.
+    const pdfStoragePath = `${reviewId}.pdf`;
+    let pdfPersisted = false;
+    try {
+      const { error: pdfUploadError } = await admin.storage
+        .from(QUARTERLY_REVIEW_PDF_BUCKET)
+        .upload(pdfStoragePath, pdf, { contentType: "application/pdf", upsert: true });
+      pdfPersisted = !pdfUploadError;
+      if (pdfUploadError) console.error("sendQuarterlyReviewToClientAction: PDF upload failed", pdfUploadError);
+    } catch (uploadErr) {
+      console.error("sendQuarterlyReviewToClientAction: PDF upload threw", uploadErr);
+    }
+
     const graphAttachments: SharedMailboxAttachment[] = [
       {
         filename: `${review.clientName} Quarterly Review - ${review.reviewPeriod}.pdf`,
@@ -466,10 +484,17 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
 
   await admin
     .from("quarterly_reviews")
-    .update({ status: "sent", sent_at: new Date().toISOString(), sent_to_email: trimmedEmail, sent_by: user.id })
+    .update({
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      sent_to_email: trimmedEmail,
+      sent_by: user.id,
+      ...(pdfPersisted ? { pdf_storage_path: pdfStoragePath } : {}),
+    })
     .eq("id", reviewId);
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath(`/clients/${review.clientId}`);
   return { ok: true, message: `Sent to ${trimmedEmail}.` };
 }
 

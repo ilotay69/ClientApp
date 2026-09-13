@@ -24,6 +24,7 @@ import { DomainHealthPanel } from "@/components/domain-health-panel";
 import { formatDate, isOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
 import { extractDomainFromEmail } from "@/lib/domain-health";
 import { hasPermission } from "@/lib/permissions";
+import { fetchReviewsForClient } from "@/lib/quarterly-review-data";
 import {
   deleteClientRecord,
   removeClientContact,
@@ -187,6 +188,8 @@ export default async function ClientDetailPage({
   ]);
 
   if (!client) notFound();
+
+  const sentReviews = (await fetchReviewsForClient(id)).filter((r) => r.status === "sent");
 
   // m365_client_credentials has no RLS policy for authenticated — service-
   // role only, since it holds a secret — so this needs the admin client.
@@ -549,6 +552,40 @@ export default async function ClientDetailPage({
                     detailAction={ticketDetailAction}
                     analyzeAction={analyzeTicketsForClientAction}
                   />
+                ),
+              },
+              {
+                label: "Quarterly Reviews",
+                content: (
+                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="border-b border-slate-200 px-5 py-2">
+                      <h2 className="text-sm font-semibold text-slate-900">Sent reviews</h2>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Quarterly systems reviews already sent to this client — open or download the PDF.
+                      </p>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {sentReviews.length === 0 ? (
+                        <p className="px-5 py-4 text-sm text-slate-500">None sent yet.</p>
+                      ) : (
+                        sentReviews.map((r) => (
+                          <a
+                            key={r.id}
+                            href={`/api/quarterly-review-pdf/${r.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-between px-5 py-3 text-sm hover:bg-slate-50"
+                          >
+                            <span className="font-medium text-slate-900">{r.reviewPeriod}</span>
+                            <span className="text-xs text-slate-500">
+                              Sent {r.sentAt ? formatDate(r.sentAt) : ""}
+                              {r.sentToEmail ? ` to ${r.sentToEmail}` : ""}
+                            </span>
+                          </a>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 ),
               },
             ]}
