@@ -52,6 +52,10 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   const isOwner = me?.role === "owner";
   const canReopen = isOwner || isApprover;
   const itemsLocked = review.status !== "draft";
+  // The approver can still tighten up (or regenerate) the summary while a
+  // review is submitted and awaiting their decision, without needing to
+  // send it back to draft first just to touch the wording.
+  const summaryLocked = itemsLocked && !(isApprover && review.status === "submitted");
 
   const [clients, attachments] = await Promise.all([fetchAllClientsForPicker(), fetchReviewAttachments(review.id)]);
   const client = clients.find((c) => c.id === review.clientId);
@@ -100,7 +104,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
       <QuarterlyReviewSummary
         reviewId={review.id}
         value={review.summary}
-        disabled={itemsLocked}
+        disabled={summaryLocked}
         saveAction={saveQuarterlyReviewSummaryAction}
         generateAction={generateQuarterlyReviewSummaryAction}
       />

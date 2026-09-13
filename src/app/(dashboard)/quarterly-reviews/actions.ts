@@ -41,6 +41,21 @@ async function isReviewEditable(reviewId: string, admin: ReturnType<typeof creat
  * exact account sees the Approve button at all. */
 const APPROVER_EMAIL = "ilotay@cgtechnologies.com";
 
+/** Same idea as isReviewEditable, but the Summary specifically stays
+ * editable for the approver even while a review is "submitted" and
+ * awaiting their decision — so they can tighten the client-facing wording
+ * (or regenerate it with AI) while reviewing it, without first sending it
+ * back to draft just to touch the summary. */
+async function canEditSummary(
+  reviewId: string,
+  admin: ReturnType<typeof createAdminClient>,
+  userEmail: string | null | undefined
+): Promise<boolean> {
+  const { data } = await admin.from("quarterly_reviews").select("status").eq("id", reviewId).maybeSingle();
+  if (data?.status === "draft") return true;
+  return data?.status === "submitted" && (userEmail ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
+}
+
 function reviewUrl(reviewId: string): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   return `${appUrl}/quarterly-reviews/${reviewId}`;
@@ -109,7 +124,7 @@ export async function saveQuarterlyReviewSummaryAction(reviewId: string, summary
   if (!user) return;
 
   const admin = createAdminClient();
-  if (!(await isReviewEditable(reviewId, admin))) return;
+  if (!(await canEditSummary(reviewId, admin, user.email))) return;
 
   await admin.from("quarterly_reviews").update({ summary }).eq("id", reviewId);
   revalidatePath(`/quarterly-reviews/${reviewId}`);
@@ -137,7 +152,7 @@ export async function generateQuarterlyReviewSummaryAction(reviewId: string): Pr
   if (!user) return { ok: false, message: "You don't have permission to do that." };
 
   const admin = createAdminClient();
-  if (!(await isReviewEditable(reviewId, admin))) {
+  if (!(await canEditSummary(reviewId, admin, user.email))) {
     return { ok: false, message: "This review is locked — an Owner needs to reopen it first." };
   }
 
