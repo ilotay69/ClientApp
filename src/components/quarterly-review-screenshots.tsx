@@ -144,6 +144,16 @@ function PasteScreenshotZone({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
 
+  // Reverts back to the paste-hint text on its own after a moment, rather
+  // than leaving "Pasted." showing until the whole page is reloaded — the
+  // zone itself never actually stopped accepting pastes, it just looked
+  // "done" and prompted a manual refresh that wasn't needed.
+  useEffect(() => {
+    if (!message) return;
+    const timeout = setTimeout(() => setMessage(null), 2500);
+    return () => clearTimeout(timeout);
+  }, [message]);
+
   function handlePaste(e: ClipboardEvent<HTMLDivElement>) {
     if (disabled) return;
     const items = e.clipboardData?.items;
