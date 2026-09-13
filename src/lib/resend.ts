@@ -264,31 +264,32 @@ export function buildQuarterlyReviewClientEmail(
  * deliberately still a real email, not just an alert: a client accepting
  * risk on outstanding items is significant enough, and rare enough, to
  * warrant one. */
-export function buildQuarterlyReviewClientAcknowledgedEmail(
+/** Only sent for the "Need to Discuss" path — a plain "Acknowledge" (no
+ * remarks) is quiet on purpose (an in-app alert is enough for that one, per
+ * how this was asked for); this is the one case significant enough for a
+ * real email too, since it means the client left a note they want a
+ * response to. */
+export function buildQuarterlyReviewDiscussionRequestedEmail(
   clientName: string,
   reviewPeriod: string,
-  remarks: string | null,
+  remarks: string,
   reviewUrl: string
 ) {
-  const remarksHtml = remarks
-    ? `<p style="color:#334155;font-size:15px;white-space:pre-line;background:#f8fafc;border-radius:8px;padding:12px 14px;">${escapeHtml(remarks)}</p>`
-    : `<p style="color:#64748b;font-size:14px;">No remarks were left.</p>`;
-
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
-      <h2 style="color:#0f172a;">${escapeHtml(clientName)} acknowledged their quarterly review</h2>
+      <h2 style="color:#0f172a;">${escapeHtml(clientName)} wants to discuss their quarterly review</h2>
       <p style="color:#334155;">
-        <strong>${escapeHtml(reviewPeriod)}</strong> for <strong>${escapeHtml(clientName)}</strong> has been
-        acknowledged by the client.
+        <strong>${escapeHtml(reviewPeriod)}</strong> for <strong>${escapeHtml(clientName)}</strong> — the client left
+        a note instead of a plain acknowledgment:
       </p>
-      ${remarksHtml}
+      <p style="color:#334155;font-size:15px;white-space:pre-line;background:#f8fafc;border-radius:8px;padding:12px 14px;">${escapeHtml(remarks)}</p>
       <p style="margin:16px 0;">
         <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
       </p>
       <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
     </div>
   `;
-  const text = `${clientName} acknowledged the ${reviewPeriod} review.\n\n${remarks ?? "No remarks were left."}\n\n${reviewUrl}`;
+  const text = `${clientName} wants to discuss the ${reviewPeriod} review:\n\n${remarks}\n\n${reviewUrl}`;
   return { html, text };
 }
 

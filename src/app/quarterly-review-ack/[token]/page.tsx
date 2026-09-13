@@ -41,14 +41,15 @@ export default async function QuarterlyReviewAckPage({ params }: { params: Promi
           </>
         ) : (
           <>
-            <h1 className="text-lg font-semibold text-slate-900">Acknowledge your Quarterly Systems Review</h1>
+            <h1 className="text-lg font-semibold text-slate-900">Your Quarterly Systems Review</h1>
             <p className="mt-2 text-sm text-slate-500">
               {review.clientName} — {review.reviewPeriod}
             </p>
             <p className="mt-4 text-sm text-slate-600">
-              Some items in this review may need attention. Acknowledging confirms you&apos;ve received it
-              and accept the risk of any outstanding items not being addressed. You can add remarks below
-              first.
+              Some items in this review may need attention. <strong>Acknowledge</strong> confirms you&apos;ve
+              received it and accept the risk of any outstanding items not being addressed. If you&apos;d
+              rather discuss any of the items first, choose <strong>Need to Discuss</strong> and add a
+              note.
             </p>
             <AcknowledgeReviewForm token={token} action={acknowledgeReviewByTokenAction} />
           </>

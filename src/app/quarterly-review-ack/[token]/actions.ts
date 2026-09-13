@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getQuarterlyReviewByAckToken, QUARTERLY_REVIEW_APPROVER_EMAIL } from "@/lib/quarterly-review-data";
-import { buildQuarterlyReviewClientAcknowledgedEmail } from "@/lib/resend";
+import { buildQuarterlyReviewDiscussionRequestedEmail } from "@/lib/resend";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { createAlert } from "@/lib/alerts";
@@ -40,6 +40,14 @@ export async function acknowledgeReviewByTokenAction(token: string, remarks: str
     return { ok: true, message: "This review was already acknowledged — thank you." };
   }
 
+  // The client's choice of button is exactly this: "Acknowledge" always
+  // submits with empty remarks, "Need to Discuss" won't submit without
+  // some text. So remarks presence alone tells us which one they picked —
+  // no separate flag needed. Per how this was asked for: a plain
+  // acknowledgment only needs the in-app alert; a discussion request also
+  // gets a real email, since that one wants an actual response.
+  const wantsDiscussion = Boolean(trimmedRemarks);
+
   const { data: approverProfile } = await admin
     .from("profiles")
     .select("id, email")
@@ -53,49 +61,58 @@ export async function acknowledgeReviewByTokenAction(token: string, remarks: str
   await createAlert(
     admin,
     recipientIds,
-    "quarterly_review_client_acknowledged",
-    `${review.clientName} acknowledged their review — ${review.reviewPeriod}`,
-    trimmedRemarks ?? "No remarks were left.",
+    wantsDiscussion ? "quarterly_review_client_discussion_requested" : "quarterly_review_client_acknowledged",
+    wantsDiscussion
+      ? `${review.clientName} wants to discuss their review — ${review.reviewPeriod}`
+      : `${review.clientName} acknowledged their review — ${review.reviewPeriod}`,
+    trimmedRemarks,
     `/quarterly-reviews/${review.id}`
   );
   for (const id of new Set(recipientIds.filter((id): id is string => Boolean(id)))) {
     sendPushToUser(admin, id, {
-      title: "Client acknowledged their review",
+      title: wantsDiscussion ? "Client wants to discuss their review" : "Client acknowledged their review",
       body: `${review.clientName} — ${review.reviewPeriod}`,
       url: `/quarterly-reviews/${review.id}`,
     }).catch((err) => console.error("acknowledgeReviewByTokenAction: push failed", err));
   }
 
-  try {
-    const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
-    const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
-    if (mailboxEmail && settings) {
-      const accessToken = await getValidSharedMailboxToken(admin, settings);
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-      const { html, text } = buildQuarterlyReviewClientAcknowledgedEmail(
-        review.clientName,
-        review.reviewPeriod,
-        trimmedRemarks,
-        `${appUrl}/quarterly-reviews/${review.id}`
-      );
-      const emailRecipients = new Set<string>([QUARTERLY_REVIEW_APPROVER_EMAIL]);
-      if (creatorProfile?.email) emailRecipients.add(creatorProfile.email);
+  if (wantsDiscussion && trimmedRemarks) {
+    try {
+      const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+      const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
+      if (mailboxEmail && settings) {
+        const accessToken = await getValidSharedMailboxToken(admin, settings);
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+        const { html, text } = buildQuarterlyReviewDiscussionRequestedEmail(
+          review.clientName,
+          review.reviewPeriod,
+          trimmedRemarks,
+          `${appUrl}/quarterly-reviews/${review.id}`
+        );
+        const emailRecipients = new Set<string>([QUARTERLY_REVIEW_APPROVER_EMAIL]);
+        if (creatorProfile?.email) emailRecipients.add(creatorProfile.email);
 
-      await Promise.all(
-        [...emailRecipients].map((to) =>
-          sendMailAsSharedMailbox(accessToken, mailboxEmail, {
-            to,
-            subject: `Client acknowledged: ${review.clientName} — ${review.reviewPeriod}`,
-            html,
-            text,
-          })
-        )
-      );
+        await Promise.all(
+          [...emailRecipients].map((to) =>
+            sendMailAsSharedMailbox(accessToken, mailboxEmail, {
+              to,
+              subject: `Client wants to discuss: ${review.clientName} — ${review.reviewPeriod}`,
+              html,
+              text,
+            })
+          )
+        );
+      }
+    } catch (err) {
+      console.error("acknowledgeReviewByTokenAction: notify email failed", err);
     }
-  } catch (err) {
-    console.error("acknowledgeReviewByTokenAction: notify email failed", err);
   }
 
   revalidatePath(`/quarterly-reviews/${review.id}`);
-  return { ok: true, message: "Thank you — your acknowledgment has been recorded." };
+  return {
+    ok: true,
+    message: wantsDiscussion
+      ? "Thank you — we'll follow up with you about this."
+      : "Thank you — your acknowledgment has been recorded.",
+  };
 }
