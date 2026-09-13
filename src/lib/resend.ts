@@ -1,4 +1,9 @@
 import { Resend } from "resend";
+import {
+  QUARTERLY_REVIEW_SECTIONS,
+  QUARTERLY_STATUS_LABELS,
+  type QuarterlyReviewItemStatus,
+} from "@/lib/quarterly-review-sections";
 
 let client: Resend | null = null;
 
@@ -267,6 +272,107 @@ export function buildBackupReportEmail(
   const text = `Daily Backup Report — ${reportDate}\n\n${textRows}${
     aiAnalysis ? `\n\nAI analysis — last 2 weeks:\n${aiAnalysis}` : ""
   }`;
+
+  return { html, text };
+}
+
+export function buildQuarterlyReviewSubmittedEmail(clientName: string, reviewPeriod: string, submittedByName: string, reviewUrl: string) {
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">A quarterly review is waiting on your approval</h2>
+      <p style="color:#334155;">
+        ${escapeHtml(submittedByName)} submitted the <strong>${escapeHtml(reviewPeriod)}</strong> review for
+        <strong>${escapeHtml(clientName)}</strong>.
+      </p>
+      <p style="margin:16px 0;">
+        <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
+      </p>
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
+    </div>
+  `;
+  const text = `${submittedByName} submitted the ${reviewPeriod} review for ${clientName}.\n\n${reviewUrl}`;
+  return { html, text };
+}
+
+export function buildQuarterlyReviewApprovedEmail(clientName: string, reviewPeriod: string, reviewUrl: string) {
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Your quarterly review was approved</h2>
+      <p style="color:#334155;">
+        The <strong>${escapeHtml(reviewPeriod)}</strong> review for <strong>${escapeHtml(clientName)}</strong> has
+        been approved and is ready to send to the client.
+      </p>
+      <p style="margin:16px 0;">
+        <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
+      </p>
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
+    </div>
+  `;
+  const text = `The ${reviewPeriod} review for ${clientName} was approved and is ready to send to the client.\n\n${reviewUrl}`;
+  return { html, text };
+}
+
+export type QuarterlyReviewEmailItem = { status: QuarterlyReviewItemStatus; comments: string | null };
+
+const QUARTERLY_STATUS_COLOR: Record<QuarterlyReviewItemStatus, string> = {
+  healthy: "#16a34a",
+  attention: "#d97706",
+  urgent: "#dc2626",
+  na: "#94a3b8",
+};
+
+export function buildQuarterlyReviewClientEmail(
+  clientName: string,
+  reviewPeriod: string,
+  itemsByKey: Map<string, QuarterlyReviewEmailItem>
+) {
+  const sectionsHtml = QUARTERLY_REVIEW_SECTIONS.map((section) => {
+    const rows = section.items
+      .map((item) => {
+        const row = itemsByKey.get(item.key);
+        const status = row?.status ?? "na";
+        return `
+          <tr>
+            <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:#0f172a;">${escapeHtml(item.label)}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:${QUARTERLY_STATUS_COLOR[status]};font-weight:600;">${escapeHtml(QUARTERLY_STATUS_LABELS[status])}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;color:#334155;white-space:pre-line;">${row?.comments ? escapeHtml(row.comments) : ""}</td>
+          </tr>`;
+      })
+      .join("");
+    return `
+      <tr><td colspan="3" style="padding:14px 10px 4px;font-weight:700;color:#0f172a;">${escapeHtml(section.label)}</td></tr>
+      ${rows}`;
+  }).join("");
+
+  const sectionsText = QUARTERLY_REVIEW_SECTIONS.map((section) => {
+    const rows = section.items
+      .map((item) => {
+        const row = itemsByKey.get(item.key);
+        const status = row?.status ?? "na";
+        return `  - ${item.label}: ${QUARTERLY_STATUS_LABELS[status]}${row?.comments ? ` — ${row.comments}` : ""}`;
+      })
+      .join("\n");
+    return `${section.label}:\n${rows}`;
+  }).join("\n\n");
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Quarterly Systems Review — ${escapeHtml(reviewPeriod)}</h2>
+      <p style="color:#64748b;">Prepared for ${escapeHtml(clientName)}</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="text-align:left;">
+            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Review Item</th>
+            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Status</th>
+            <th style="padding:6px 10px;border-bottom:2px solid #cbd5e1;">Comments</th>
+          </tr>
+        </thead>
+        <tbody>${sectionsHtml}</tbody>
+      </table>
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Technologies.</p>
+    </div>
+  `;
+  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n\n${sectionsText}`;
 
   return { html, text };
 }

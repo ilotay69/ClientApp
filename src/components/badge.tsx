@@ -134,6 +134,17 @@ const COLORS: Record<string, string> = {
   issue: URGENT,
   na: NEUTRAL_MUTED,
   pending: NEUTRAL_MUTED,
+
+  // quarterly client review item status (na reuses the entry above)
+  healthy: SUCCESS,
+  attention: ATTENTION,
+  urgent: URGENT,
+
+  // quarterly client review workflow status ("approved" reuses the sales-
+  // request-stage entry above)
+  draft: NEUTRAL,
+  submitted: ATTENTION,
+  sent: SUCCESS,
 };
 
 export function Badge({ value, label }: { value: string; label?: string }) {

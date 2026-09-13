@@ -23,6 +23,7 @@ import {
   IconX,
   IconLock,
   IconDatabase,
+  IconClipboardCheck,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -54,6 +55,7 @@ export function SidebarNav({
   canManageRecruitment,
   canManageReconciliation,
   canManageBackups,
+  canManageQuarterlyReviews,
   teamOwnerOnly,
   integrationsOwnerOnly,
   touchpointsOwnerOnly,
@@ -61,6 +63,7 @@ export function SidebarNav({
   recruitmentOwnerOnly,
   reconciliationOwnerOnly,
   backupsOwnerOnly,
+  quarterlyReviewsOwnerOnly,
   signOutAction,
 }: {
   userLabel: string;
@@ -78,6 +81,7 @@ export function SidebarNav({
   canManageRecruitment: boolean;
   canManageReconciliation: boolean;
   canManageBackups: boolean;
+  canManageQuarterlyReviews: boolean;
   /** True only while no non-Owner role has been granted the permission —
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
@@ -87,6 +91,7 @@ export function SidebarNav({
   recruitmentOwnerOnly: boolean;
   reconciliationOwnerOnly: boolean;
   backupsOwnerOnly: boolean;
+  quarterlyReviewsOwnerOnly: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -181,6 +186,16 @@ export function SidebarNav({
             label: "Backups",
             icon: IconDatabase,
             ownerOnly: backupsOwnerOnly,
+          },
+        ]
+      : []),
+    ...(canManageQuarterlyReviews
+      ? [
+          {
+            href: "/quarterly-reviews",
+            label: "Quarterly Reviews",
+            icon: IconClipboardCheck,
+            ownerOnly: quarterlyReviewsOwnerOnly,
           },
         ]
       : []),

@@ -141,6 +141,16 @@ export function IconDatabase({ className }: IconProps) {
   );
 }
 
+export function IconClipboardCheck({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" />
+      <path d="M9 13l2 2 4-4" />
+    </svg>
+  );
+}
+
 export function IconBell({ className }: IconProps) {
   return (
     <svg className={className} {...base}>
