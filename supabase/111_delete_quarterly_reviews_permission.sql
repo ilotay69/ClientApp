@@ -1,0 +1,17 @@
+-- ============================================================================
+-- Separate permission for deleting a quarterly review (deleteQuarterlyReviewAction)
+-- — same reasoning as delete_tasks being split out from the general
+-- manage_* permission for that feature: an Owner always has it implicitly,
+-- but a Manager/Tech shouldn't automatically get delete access just
+-- because they can create/submit/approve reviews (manage_quarterly_reviews).
+--
+-- Run this in the Supabase SQL Editor AFTER 110.
+--
+-- No companion seed migration — zero role_permissions rows for this key
+-- defaults it to Owner-only until an Owner grants it, same as every other
+-- permission introduced this way (see 101's own comment).
+--
+-- 55P04: a newly added enum value can't be used in the same transaction
+-- that added it, hence this is its own migration.
+-- ============================================================================
+alter type public.permission_key add value if not exists 'delete_quarterly_reviews';

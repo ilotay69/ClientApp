@@ -24,7 +24,8 @@ export type PermissionKey =
   | "manage_recruitment"
   | "manage_reconciliation"
   | "manage_backups"
-  | "manage_quarterly_reviews";
+  | "manage_quarterly_reviews"
+  | "delete_quarterly_reviews";
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_team: "Add team members & change roles",
@@ -50,6 +51,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_reconciliation: "View & manage the licence reconciliation report (service↔licence mappings)",
   manage_backups: "Fill in & complete the daily backup report",
   manage_quarterly_reviews: "Create, submit, approve & send quarterly client system reviews",
+  delete_quarterly_reviews: "Delete a quarterly client system review, in any state",
 };
 
 export const ALL_PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as PermissionKey[];

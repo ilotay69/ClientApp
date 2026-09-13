@@ -49,7 +49,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const me = await getMyPermissions(supabase);
+  const [me, canDelete] = await Promise.all([getMyPermissions(supabase), hasPermission(supabase, "delete_quarterly_reviews")]);
 
   const { id } = await params;
   const review = await getQuarterlyReview(id);
@@ -96,7 +96,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
             value={review.hoursSpent}
             action={saveQuarterlyReviewHoursAction}
           />
-          {isOwner && (
+          {canDelete && (
             <DeleteButton
               action={deleteQuarterlyReviewAction.bind(null, review.id)}
               confirmText={`Delete this review (${review.clientName} — ${review.reviewPeriod})? This removes it entirely, even though it's already been ${review.status === "sent" ? "sent to the client" : review.status}. This can't be undone.`}
