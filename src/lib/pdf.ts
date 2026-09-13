@@ -271,26 +271,29 @@ function decodeImage(buf: Buffer): DecodedImage | null {
   return null;
 }
 
+type Color = [number, number, number]; // 0-1 RGB, for status text
+
 type Block =
-  | { type: "heading"; text: string; level: 1 | 2 }
-  | { type: "paragraph"; text: string }
-  | { type: "item"; label: string; status: string; comments: string | null }
+  | { type: "heading"; text: string; level: 1 | 2; center?: boolean }
+  | { type: "paragraph"; text: string; center?: boolean }
+  | { type: "item"; label: string; status: string; comments: string | null; statusColor?: Color }
   | { type: "image"; buffer: Buffer; label: string | null; id: string }
-  | { type: "spacer"; amount: number };
+  | { type: "spacer"; amount: number }
+  | { type: "pagebreak" };
 
 export class PdfContentBuilder {
   private blocks: Block[] = [];
 
-  heading(text: string, level: 1 | 2 = 1) {
-    this.blocks.push({ type: "heading", text, level });
+  heading(text: string, level: 1 | 2 = 1, opts?: { center?: boolean }) {
+    this.blocks.push({ type: "heading", text, level, center: opts?.center });
     return this;
   }
-  paragraph(text: string) {
-    this.blocks.push({ type: "paragraph", text });
+  paragraph(text: string, opts?: { center?: boolean }) {
+    this.blocks.push({ type: "paragraph", text, center: opts?.center });
     return this;
   }
-  item(label: string, status: string, comments: string | null) {
-    this.blocks.push({ type: "item", label, status, comments });
+  item(label: string, status: string, comments: string | null, statusColor?: Color) {
+    this.blocks.push({ type: "item", label, status, comments, statusColor });
     return this;
   }
   image(buffer: Buffer, label: string | null, id: string) {
@@ -299,6 +302,13 @@ export class PdfContentBuilder {
   }
   spacer(amount = 10) {
     this.blocks.push({ type: "spacer", amount });
+    return this;
+  }
+  /** Starts a fresh page regardless of how much room is left on the
+   * current one — used to keep the cover (title) page standalone, the
+   * same way the original Word template had its own title page. */
+  pagebreak() {
+    this.blocks.push({ type: "pagebreak" });
     return this;
   }
 
@@ -336,9 +346,15 @@ export class PdfContentBuilder {
     let cursorY = PAGE_HEIGHT - MARGIN;
     let pageImageRefs: { name: string; objId: number }[] = [];
 
-    const drawText = (x: number, y: number, text: string, size: number, bold: boolean) => {
+    const drawText = (x: number, y: number, text: string, size: number, bold: boolean, color?: Color) => {
       const font = bold ? "/F2" : "/F1";
-      content += `BT ${font} ${size} Tf 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${escapePdfString(text)}) Tj ET\n`;
+      const colorCmd = color ? `${color[0].toFixed(3)} ${color[1].toFixed(3)} ${color[2].toFixed(3)} rg\n` : "";
+      const resetCmd = color ? "\n0 0 0 rg" : "";
+      content += `${colorCmd}BT ${font} ${size} Tf 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${escapePdfString(text)}) Tj ET${resetCmd}\n`;
+    };
+    const centerX = (text: string, size: number, bold: boolean) => {
+      const w = textWidth(text, size, bold);
+      return w < USABLE_WIDTH ? MARGIN + (USABLE_WIDTH - w) / 2 : MARGIN;
     };
 
     const finishPage = () => {
@@ -396,23 +412,35 @@ export class PdfContentBuilder {
         const size = block.level === 1 ? 18 : 13;
         ensureSpace(size * 1.6);
         cursorY -= size;
-        drawText(MARGIN, cursorY, block.text, size, true);
+        const x = block.center ? centerX(block.text, size, true) : MARGIN;
+        drawText(x, cursorY, block.text, size, true);
         cursorY -= size * 0.6;
       } else if (block.type === "paragraph") {
         const lines = wrapText(block.text, USABLE_WIDTH, 10, false);
         for (const line of lines) {
           ensureSpace(12);
           cursorY -= 10;
-          drawText(MARGIN, cursorY, line, 10, false);
+          const x = block.center ? centerX(line, 10, false) : MARGIN;
+          drawText(x, cursorY, line, 10, false);
           cursorY -= 2;
         }
         cursorY -= 6;
       } else if (block.type === "item") {
-        ensureSpace(12);
-        cursorY -= 10;
-        drawText(MARGIN, cursorY, block.label, 10, false);
-        drawText(MARGIN + 320, cursorY, block.status, 10, true);
-        cursorY -= 2;
+        // Reserve a fixed right-hand column for the status label (the
+        // longest one, "Need Urgent Attention", is ~130pt wide at 10pt
+        // bold) and wrap the item label into the remaining width — a long
+        // label used to be drawn unwrapped and could run straight into the
+        // status text.
+        const statusColumnWidth = 160;
+        const labelLines = wrapText(block.label, USABLE_WIDTH - statusColumnWidth, 10, false);
+        const statusX = MARGIN + USABLE_WIDTH - textWidth(block.status, 10, true);
+        labelLines.forEach((line, i) => {
+          ensureSpace(12);
+          cursorY -= 10;
+          drawText(MARGIN, cursorY, line, 10, false);
+          if (i === 0) drawText(statusX, cursorY, block.status, 10, true, block.statusColor);
+          cursorY -= 2;
+        });
         if (block.comments) {
           const lines = wrapText(block.comments, USABLE_WIDTH - 20, 9, false);
           for (const line of lines) {
@@ -425,6 +453,8 @@ export class PdfContentBuilder {
         cursorY -= 4;
       } else if (block.type === "spacer") {
         cursorY -= block.amount;
+      } else if (block.type === "pagebreak") {
+        newPage();
       } else {
         const decoded = decodeImage(block.buffer);
         if (!decoded) continue; // unsupported format — caller attaches it separately

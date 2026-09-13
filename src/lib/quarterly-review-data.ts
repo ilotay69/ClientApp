@@ -139,6 +139,52 @@ export async function fetchReviewsForClient(
   return ((data ?? []) as unknown[]).map(mapReview);
 }
 
+/** Every review across every client, newest first — used by the
+ * portfolio-wide "All Clients" view (as opposed to fetchReviewsForClient,
+ * scoped to one). */
+export async function fetchAllReviews(admin: AdminClient = createAdminClient()): Promise<QuarterlyReview[]> {
+  const { data } = await admin
+    .from("quarterly_reviews")
+    .select(`client_id, ${SELECT}`)
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as unknown[]).map(mapReview);
+}
+
+export type ReviewTab = "incomplete" | "approved" | "sent";
+export const REVIEW_TABS: ReviewTab[] = ["incomplete", "approved", "sent"];
+export const REVIEW_TAB_LABELS: Record<ReviewTab, string> = {
+  incomplete: "Incomplete",
+  approved: "Approved",
+  sent: "Sent to Client",
+};
+
+// A review is only ever in exactly one of these three buckets —
+// "submitted" (waiting on the approver) still counts as Incomplete since
+// it isn't done yet, it just isn't editable by most staff while it waits.
+export function reviewBucket(status: QuarterlyReviewStatus): ReviewTab {
+  if (status === "sent") return "sent";
+  if (status === "approved") return "approved";
+  return "incomplete";
+}
+
+// Whoever's name is shown here is "the person currently working on it" for
+// that status — the creator while it's still a draft, the submitter while
+// it waits on approval, then the approver, then whoever actually sent it.
+export function reviewActorLabel(review: QuarterlyReview): string {
+  switch (review.status) {
+    case "draft":
+      return review.createdByName ? `${review.createdByName} — drafting` : "Drafting";
+    case "submitted":
+      return review.submittedByName
+        ? `${review.submittedByName} — submitted, awaiting approval`
+        : "Awaiting approval";
+    case "approved":
+      return review.approvedByName ? `${review.approvedByName} — approved` : "Approved";
+    case "sent":
+      return review.sentByName ? `${review.sentByName} — sent` : "Sent";
+  }
+}
+
 export async function fetchAllClientsForPicker(
   admin: AdminClient = createAdminClient()
 ): Promise<{ id: string; name: string; primaryContactEmail: string | null }[]> {
