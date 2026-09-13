@@ -457,12 +457,37 @@ export class PdfContentBuilder {
         newPage();
       } else {
         const decoded = decodeImage(block.buffer);
-        if (!decoded) continue; // unsupported format — caller attaches it separately
+        if (!decoded) {
+          // Couldn't decode/embed this one (unsupported format, or a
+          // decode failure) — say so instead of leaving no trace at all;
+          // the caller (sendQuarterlyReviewToClientAction) attaches the
+          // original file separately for anything that lands here, so
+          // it's not lost, just not inline.
+          ensureSpace(14);
+          cursorY -= 10;
+          drawText(MARGIN, cursorY, `[${block.label ?? "Screenshot"} — attached separately]`, 9, false);
+          cursorY -= 4;
+          continue;
+        }
         const maxW = USABLE_WIDTH;
         const maxH = 380;
         const scale = Math.min(maxW / decoded.widthPx, maxH / decoded.heightPx);
         const w = decoded.widthPx * scale;
         const h = decoded.heightPx * scale;
+        // A bad width/height (0, or a decode bug) would otherwise put
+        // "Infinity"/"NaN" straight into the content stream's cm matrix —
+        // not valid PDF number syntax, which some viewers silently drop
+        // the whole Do (image-draw) operator for rather than erroring, so
+        // it just looks like the image never rendered. Caught here instead
+        // of downstream, so it fails the same visible way as any other
+        // unembeddable image.
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+          ensureSpace(14);
+          cursorY -= 10;
+          drawText(MARGIN, cursorY, `[${block.label ?? "Screenshot"} — attached separately]`, 9, false);
+          cursorY -= 4;
+          continue;
+        }
         const neededLabel = block.label ? 14 : 0;
         ensureSpace(h + neededLabel + 10);
         if (block.label) {
@@ -470,13 +495,21 @@ export class PdfContentBuilder {
           drawText(MARGIN, cursorY, block.label, 9, true);
           cursorY -= 4;
         }
-        const objId = embedImage(decoded);
-        const name = `Im${++imageObjSeq}`;
-        pageImageRefs.push({ name, objId });
-        cursorY -= h;
-        content += `q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${MARGIN.toFixed(2)} ${cursorY.toFixed(2)} cm /${name} Do Q\n`;
-        cursorY -= 10;
-        embeddedImageIds.add(block.id);
+        try {
+          const objId = embedImage(decoded);
+          const name = `Im${++imageObjSeq}`;
+          pageImageRefs.push({ name, objId });
+          cursorY -= h;
+          content += `q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${MARGIN.toFixed(2)} ${cursorY.toFixed(2)} cm /${name} Do Q\n`;
+          cursorY -= 10;
+          embeddedImageIds.add(block.id);
+        } catch (err) {
+          // Never let one bad image take down the whole PDF (and with it
+          // the whole send) — same fallback as an undecodable format.
+          console.error("PdfContentBuilder: embedding image failed", block.id, err);
+          drawText(MARGIN, cursorY, `[${block.label ?? "Screenshot"} — attached separately]`, 9, false);
+          cursorY -= 14;
+        }
       }
     }
     finishPage();

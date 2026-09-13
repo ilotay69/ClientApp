@@ -60,7 +60,10 @@ export function buildQuarterlyReviewPdf(params: {
   }
 
   if (images.length > 0) {
-    doc.spacer(4);
+    // Its own page, same as the title page — keeps it visually distinct
+    // from the last checklist section rather than starting wherever the
+    // previous section happened to end.
+    doc.pagebreak();
     doc.heading("Screenshots", 2);
     for (const image of images) {
       doc.image(image.buffer, image.label, image.id);
