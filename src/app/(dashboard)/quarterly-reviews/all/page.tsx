@@ -80,13 +80,14 @@ function ReviewRow({ review }: { review: QuarterlyReview }) {
       href={`/quarterly-reviews/${review.id}`}
       className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-slate-50"
     >
-      <div>
-        <span className="font-medium text-slate-900">{review.clientName}</span>
-        <span className="mx-2 text-slate-300">·</span>
-        <span className="text-slate-700">{review.reviewPeriod}</span>
-        <p className="mt-0.5 text-xs text-slate-500">{reviewActorLabel(review)}</p>
+      <div className="flex min-w-0 items-baseline gap-2">
+        <span className="shrink-0 font-medium text-slate-900">{review.clientName}</span>
+        <span className="shrink-0 text-slate-300">·</span>
+        <span className="shrink-0 text-slate-700">{review.reviewPeriod}</span>
+        <span className="shrink-0 text-slate-300">·</span>
+        <span className="truncate text-xs text-slate-500">{reviewActorLabel(review)}</span>
       </div>
-      <span className="flex items-center gap-3 text-xs text-slate-500">
+      <span className="flex shrink-0 items-center gap-3 text-xs text-slate-500">
         {review.hoursSpent !== null && <span>{review.hoursSpent}h</span>}
         <Badge value={review.status} />
         {formatDate(review.createdAt)}

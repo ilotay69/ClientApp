@@ -17,6 +17,7 @@ import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
 import {
   buildQuarterlyReviewSubmittedEmail,
   buildQuarterlyReviewApprovedEmail,
+  buildQuarterlyReviewAdjustmentRequestedEmail,
   buildQuarterlyReviewClientEmail,
 } from "@/lib/resend";
 import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
@@ -253,7 +254,16 @@ export async function approveQuarterlyReviewAction(reviewId: string): Promise<Re
 
   await admin
     .from("quarterly_reviews")
-    .update({ status: "approved", approved_at: new Date().toISOString(), approved_by: user.id })
+    .update({
+      status: "approved",
+      approved_at: new Date().toISOString(),
+      approved_by: user.id,
+      // Closes out any earlier round of requested changes — this is now a
+      // clean approval, not a reflection of stale feedback.
+      adjustment_notes: null,
+      adjustment_requested_at: null,
+      adjustment_requested_by: null,
+    })
     .eq("id", reviewId);
 
   let emailNote = "";
@@ -280,6 +290,70 @@ export async function approveQuarterlyReviewAction(reviewId: string): Promise<Re
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
   return { ok: true, message: `Approved.${emailNote}` };
+}
+
+/** The approver's other option besides Approve — sends a submitted review
+ * back to draft with their remarks attached, so the creator sees exactly
+ * what to fix (shown as a "Needs Adjustment" section on the review page)
+ * instead of just being told to redo it with no explanation. Gated the
+ * same way approveQuarterlyReviewAction is. */
+export async function requestQuarterlyReviewAdjustmentAction(reviewId: string, notes: string): Promise<ReviewActionState> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return { ok: false, message: "You don't have permission to do that." };
+  if ((user.email ?? "").toLowerCase() !== APPROVER_EMAIL.toLowerCase()) {
+    return { ok: false, message: "Only the approver can request changes." };
+  }
+
+  const trimmedNotes = notes.trim();
+  if (!trimmedNotes) return { ok: false, message: "Add a note about what needs adjusting." };
+
+  const admin = createAdminClient();
+  const review = await getQuarterlyReview(reviewId, admin);
+  if (!review) return { ok: false, message: "Review not found." };
+  if (review.status !== "submitted") {
+    return { ok: false, message: "This review isn't awaiting approval." };
+  }
+
+  await admin
+    .from("quarterly_reviews")
+    .update({
+      status: "draft",
+      adjustment_notes: trimmedNotes,
+      adjustment_requested_at: new Date().toISOString(),
+      adjustment_requested_by: user.id,
+    })
+    .eq("id", reviewId);
+
+  let emailNote = "";
+  try {
+    const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+    const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
+    if (!mailboxEmail || !settings || !review.createdByEmail) {
+      emailNote = " (Couldn't notify the creator — shared mailbox or their email isn't available.)";
+    } else {
+      const accessToken = await getValidSharedMailboxToken(admin, settings);
+      const { html, text } = buildQuarterlyReviewAdjustmentRequestedEmail(
+        review.clientName,
+        review.reviewPeriod,
+        trimmedNotes,
+        reviewUrl(reviewId)
+      );
+      await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
+        to: review.createdByEmail,
+        subject: `Changes requested: ${review.clientName} — ${review.reviewPeriod}`,
+        html,
+        text,
+      });
+      emailNote = ` Notified ${review.createdByEmail}.`;
+    }
+  } catch (err) {
+    console.error("requestQuarterlyReviewAdjustmentAction: notify failed", err);
+    emailNote = " (Notifying the creator failed — check the shared mailbox settings.)";
+  }
+
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath("/quarterly-reviews");
+  return { ok: true, message: `Sent back for adjustments.${emailNote}` };
 }
 
 /** Only reachable once a review is "approved" — enforced here too, not

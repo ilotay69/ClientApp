@@ -36,17 +36,25 @@ export type QuarterlyReview = {
    * buildQuarterlyReviewClientEmail, so there's no code path that could
    * leak it to the client. */
   hoursSpent: number | null;
+  /** Set when the approver sends a submitted review back for changes
+   * instead of approving it — cleared again once it's actually approved,
+   * so it only reflects the current, unresolved round of feedback (if
+   * any), not history. */
+  adjustmentNotes: string | null;
+  adjustmentRequestedAt: string | null;
+  adjustmentRequestedByName: string | null;
   items: QuarterlyReviewItemRow[];
 };
 
 const SELECT = `
   id, review_period, status, submitted_at, approved_at, sent_at, sent_to_email, created_at,
-  summary, hours_spent,
+  summary, hours_spent, adjustment_notes, adjustment_requested_at,
   clients(name),
   created_profile:created_by(full_name, email),
   submitted_profile:submitted_by(full_name),
   approved_profile:approved_by(full_name),
   sent_profile:sent_by(full_name),
+  adjustment_profile:adjustment_requested_by(full_name),
   quarterly_review_items(id, item_key, status, comments)
 `;
 
@@ -57,6 +65,7 @@ function mapReview(row: any): QuarterlyReview {
   const submittedProfile = Array.isArray(row.submitted_profile) ? row.submitted_profile[0] : row.submitted_profile;
   const approvedProfile = Array.isArray(row.approved_profile) ? row.approved_profile[0] : row.approved_profile;
   const sentProfile = Array.isArray(row.sent_profile) ? row.sent_profile[0] : row.sent_profile;
+  const adjustmentProfile = Array.isArray(row.adjustment_profile) ? row.adjustment_profile[0] : row.adjustment_profile;
   const itemByKey = new Map<string, QuarterlyReviewItemRow>(
     (row.quarterly_review_items ?? []).map(
       (i: { id: string; item_key: string; status: QuarterlyReviewItemStatus; comments: string | null }) => [
@@ -90,6 +99,9 @@ function mapReview(row: any): QuarterlyReview {
     createdAt: row.created_at,
     summary: row.summary,
     hoursSpent: row.hours_spent === null || row.hours_spent === undefined ? null : Number(row.hours_spent),
+    adjustmentNotes: row.adjustment_notes ?? null,
+    adjustmentRequestedAt: row.adjustment_requested_at ?? null,
+    adjustmentRequestedByName: adjustmentProfile?.full_name ?? null,
     items,
   };
 }

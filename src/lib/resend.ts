@@ -307,6 +307,30 @@ export function buildQuarterlyReviewApprovedEmail(clientName: string, reviewPeri
   return { html, text };
 }
 
+export function buildQuarterlyReviewAdjustmentRequestedEmail(
+  clientName: string,
+  reviewPeriod: string,
+  notes: string,
+  reviewUrl: string
+) {
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Changes requested on a quarterly review</h2>
+      <p style="color:#334155;">
+        The <strong>${escapeHtml(reviewPeriod)}</strong> review for <strong>${escapeHtml(clientName)}</strong> was sent
+        back for adjustments before it can be approved.
+      </p>
+      <p style="color:#334155;font-size:15px;white-space:pre-line;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">${escapeHtml(notes)}</p>
+      <p style="margin:16px 0;">
+        <a href="${reviewUrl}" style="color:#0f172a;font-weight:600;text-decoration:none;">Open the review →</a>
+      </p>
+      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Ops.</p>
+    </div>
+  `;
+  const text = `The ${reviewPeriod} review for ${clientName} was sent back for adjustments:\n\n${notes}\n\n${reviewUrl}`;
+  return { html, text };
+}
+
 /** Detail (the checklist, comments, screenshots) lives in the attached PDF
  * now, not in the email body — this is just the cover note announcing it,
  * plus the short editable Summary as a preview. */

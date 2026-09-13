@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/badge";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
 import { SaveDraftButton } from "@/components/save-draft-button";
+import { ApproverDecisionForm } from "@/components/approver-decision-form";
 import { QuarterlyReviewItemRow } from "@/components/quarterly-review-item-row";
 import { QuarterlyReviewSummary } from "@/components/quarterly-review-summary";
 import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-field";
@@ -20,6 +21,7 @@ import {
   generateQuarterlyReviewSummaryAction,
   submitQuarterlyReviewAction,
   approveQuarterlyReviewAction,
+  requestQuarterlyReviewAdjustmentAction,
   reopenQuarterlyReviewAction,
   sendQuarterlyReviewToClientAction,
   uploadQuarterlyReviewAttachmentAction,
@@ -84,6 +86,17 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
         />
       </div>
 
+      {review.adjustmentNotes && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">Needs Adjustment</p>
+          <p className="mt-1 text-xs text-amber-700">
+            {review.adjustmentRequestedByName ?? "The approver"} requested changes
+            {review.adjustmentRequestedAt ? ` on ${formatDate(review.adjustmentRequestedAt)}` : ""}:
+          </p>
+          <p className="mt-2 whitespace-pre-line text-sm text-amber-900">{review.adjustmentNotes}</p>
+        </div>
+      )}
+
       <QuarterlyReviewSummary
         reviewId={review.id}
         value={review.summary}
@@ -107,10 +120,10 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
           <p className="text-sm text-slate-500">Waiting for approval.</p>
         )}
         {review.status === "submitted" && isApprover && (
-          <AsyncActionButton
-            label="Approve"
-            pendingLabel="Approving…"
-            action={approveQuarterlyReviewAction.bind(null, review.id)}
+          <ApproverDecisionForm
+            reviewId={review.id}
+            approveAction={approveQuarterlyReviewAction}
+            requestAdjustmentAction={requestQuarterlyReviewAdjustmentAction}
           />
         )}
         {(review.status === "approved" || review.status === "sent") && (
