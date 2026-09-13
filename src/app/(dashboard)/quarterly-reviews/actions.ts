@@ -217,7 +217,11 @@ export async function submitQuarterlyReviewAction(reviewId: string): Promise<Rev
 
   const [{ data: profile }, { data: approverProfile }] = await Promise.all([
     admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    admin.from("profiles").select("id").eq("email", APPROVER_EMAIL).maybeSingle(),
+    // Case-insensitive on purpose — every other APPROVER_EMAIL comparison
+    // in this file lowercases both sides in JS before comparing; a raw
+    // .eq() here would silently match nothing (and silently skip creating
+    // the alert) if the stored email's casing differs at all.
+    admin.from("profiles").select("id").ilike("email", APPROVER_EMAIL).maybeSingle(),
   ]);
   await createAlert(
     admin,
