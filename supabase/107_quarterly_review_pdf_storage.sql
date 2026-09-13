@@ -33,8 +33,15 @@ create policy "quarterly-review-pdfs bucket updatable by staff" on storage.objec
 -- New portal page: a client login can see their own sent reviews. Seeded
 -- enabled for every existing sub-role, same as every other page was when
 -- it was introduced (081) — narrow it later from Team -> Client access ->
--- Client portal roles if desired.
-insert into public.client_portal_permissions (client_role, portal_page, enabled)
-select r.role, 'reviews', true
-from unnest(enum_range(null::public.client_portal_role)) as r(role)
-on conflict (client_role, portal_page) do nothing;
+-- Client portal roles if desired. Guarded: this database may not have run
+-- 080/081 (client portal sub-roles) at all, in which case there's nothing
+-- to seed here and the rest of this migration should still succeed.
+do $$
+begin
+  if to_regclass('public.client_portal_permissions') is not null then
+    insert into public.client_portal_permissions (client_role, portal_page, enabled)
+    select r.role, 'reviews', true
+    from unnest(enum_range(null::public.client_portal_role)) as r(role)
+    on conflict (client_role, portal_page) do nothing;
+  end if;
+end $$;
