@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition, type ClipboardEvent } from "react";
+import { useRouter } from "next/navigation";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
 import type { QuarterlyReviewAttachment } from "@/lib/quarterly-review-data";
 import type { UploadAttachmentState } from "@/app/(dashboard)/quarterly-reviews/actions";
@@ -115,6 +116,87 @@ function UploadAttachmentForm({
   );
 }
 
+/** A focusable drop zone for Cmd+V/Ctrl+V — no file dialog needed for a
+ * screen capture already on the clipboard (Cmd+Shift+4 on Mac, Win+Shift+S
+ * on Windows both put the image straight on the clipboard). Calls the
+ * upload Server Action directly with a hand-built FormData rather than
+ * through useActionState/a real <form> submit, since a paste event isn't a
+ * form submission — router.refresh() afterward is what actually reflects
+ * the new attachment, since revalidatePath alone (inside the action) only
+ * marks the route stale for the NEXT navigation, not a bare function call
+ * like this one. Only ever intercepts the paste when the clipboard
+ * actually contains an image — plain text paste (e.g. into the caption
+ * field below) passes through untouched. */
+function PasteScreenshotZone({
+  reviewId,
+  disabled,
+  action,
+}: {
+  reviewId: string;
+  disabled: boolean;
+  action: (
+    reviewId: string,
+    prev: UploadAttachmentState,
+    formData: FormData
+  ) => Promise<UploadAttachmentState>;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
+
+  function handlePaste(e: ClipboardEvent<HTMLDivElement>) {
+    if (disabled) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageItem = Array.from(items).find((item) => item.type.startsWith("image/"));
+    if (!imageItem) return; // Not an image paste — let it through normally.
+
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    const ext = imageItem.type.split("/")[1] || "png";
+    const named = new File([file], file.name || `screenshot-${Date.now()}.${ext}`, { type: imageItem.type });
+
+    const formData = new FormData();
+    formData.set("file", named);
+    formData.set("label", "");
+
+    setMessage(null);
+    startTransition(async () => {
+      const result = await action(reviewId, { error: null }, formData);
+      if (result.error) {
+        setMessage({ error: true, text: result.error });
+      } else {
+        setMessage({ error: false, text: "Pasted." });
+        router.refresh();
+      }
+    });
+  }
+
+  if (disabled) return null;
+
+  return (
+    <div
+      tabIndex={0}
+      onPaste={handlePaste}
+      className="flex items-center justify-center rounded-md border-2 border-dashed border-slate-300 px-4 py-3 text-xs text-slate-500 focus:border-brand focus:outline-none"
+    >
+      {pending ? (
+        <span className="flex items-center gap-2">
+          Pasting…
+          <IndeterminateProgressBar />
+        </span>
+      ) : message ? (
+        <span className={message.error ? "text-red-600" : "text-emerald-600"}>{message.text}</span>
+      ) : (
+        <span>Click here, then press ⌘V / Ctrl+V to paste a screenshot — no file dialog needed.</span>
+      )}
+    </div>
+  );
+}
+
 /** The review's own "Screenshots" appendix — matches the sample document's
  * final section (server resource graphs, VM lists, backup dashboards,
  * etc.), embedded inline in the client email (see
@@ -157,6 +239,7 @@ export function QuarterlyReviewScreenshots({
             ))}
           </div>
         )}
+        {!disabled && <PasteScreenshotZone reviewId={reviewId} disabled={disabled} action={uploadAction} />}
         {!disabled && <UploadAttachmentForm reviewId={reviewId} action={uploadAction} />}
       </div>
     </div>
