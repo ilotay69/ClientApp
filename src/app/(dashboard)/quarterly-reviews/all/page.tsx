@@ -17,8 +17,10 @@ import {
 export const dynamic = "force-dynamic";
 
 // Portfolio-wide view — every client's reviews together, unlike the main
-// Quarterly Reviews page which is scoped to one client at a time. Meant to
-// be opened as its own page/tab (linked with target="_blank" from there).
+// Quarterly Reviews page which is scoped to one client at a time. Linked
+// from there as a normal same-window navigation (not target="_blank" — on
+// the installed Mac/PWA build, "_blank" opens a whole new standalone app
+// window instead of a browser tab, and one per click).
 export default async function AllQuarterlyReviewsPage({
   searchParams,
 }: {

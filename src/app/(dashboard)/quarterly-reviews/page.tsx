@@ -70,8 +70,6 @@ export default async function QuarterlyReviewsPage({
         </div>
         <Link
           href="/quarterly-reviews/all"
-          target="_blank"
-          rel="noopener noreferrer"
           className="whitespace-nowrap text-sm font-medium text-brand underline"
         >
           View all clients →
