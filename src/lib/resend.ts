@@ -327,7 +327,8 @@ export function buildQuarterlyReviewClientEmail(
   clientName: string,
   reviewPeriod: string,
   itemsByKey: Map<string, QuarterlyReviewEmailItem>,
-  screenshots: QuarterlyReviewEmailScreenshot[] = []
+  screenshots: QuarterlyReviewEmailScreenshot[] = [],
+  summary: string | null = null
 ) {
   const sectionsHtml = QUARTERLY_REVIEW_SECTIONS.map((section) => {
     const rows = section.items
@@ -373,10 +374,15 @@ export function buildQuarterlyReviewClientEmail(
         .join("")}`
       : "";
 
+  const summaryHtml = summary
+    ? `<p style="color:#334155;font-size:15px;white-space:pre-line;background:#f8fafc;border-radius:8px;padding:12px 14px;">${escapeHtml(summary)}</p>`
+    : "";
+
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;">
       <h2 style="color:#0f172a;">Quarterly Systems Review — ${escapeHtml(reviewPeriod)}</h2>
       <p style="color:#64748b;">Prepared for ${escapeHtml(clientName)}</p>
+      ${summaryHtml}
       <table style="width:100%;border-collapse:collapse;font-size:14px;">
         <thead>
           <tr style="text-align:left;">
@@ -395,7 +401,8 @@ export function buildQuarterlyReviewClientEmail(
     screenshots.length > 0
       ? `\n\nScreenshots:\n${screenshots.map((s) => `  - ${s.label ?? s.fileName} (see attached images)`).join("\n")}`
       : "";
-  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n\n${sectionsText}${screenshotsText}`;
+  const summaryText = summary ? `\n${summary}\n` : "";
+  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\n${sectionsText}${screenshotsText}`;
 
   return { html, text };
 }

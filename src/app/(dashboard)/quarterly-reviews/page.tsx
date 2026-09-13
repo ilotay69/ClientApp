@@ -26,6 +26,8 @@ export default async function QuarterlyReviewsPage({
   const clients = await fetchAllClientsForPicker();
   const selectedClient = clientId ? (clients.find((c) => c.id === clientId) ?? null) : null;
   const reviews = selectedClient ? await fetchReviewsForClient(selectedClient.id) : [];
+  const incompleteReviews = reviews.filter((r) => r.status === "draft");
+  const pastReviews = reviews.filter((r) => r.status !== "draft");
 
   return (
     <div className="space-y-6">
@@ -56,31 +58,57 @@ export default async function QuarterlyReviewsPage({
       </div>
 
       {selectedClient && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <p className="text-sm font-semibold text-slate-900">Past reviews for {selectedClient.name}</p>
+        <>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">
+                Incomplete reviews for {selectedClient.name}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">Still in draft — pick one up where it was left off.</p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {incompleteReviews.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-slate-500">Nothing in progress.</p>
+              ) : (
+                incompleteReviews.map((r) => <ReviewListRow key={r.id} review={r} />)
+              )}
+            </div>
           </div>
-          <div className="divide-y divide-slate-100">
-            {reviews.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-slate-500">No reviews yet.</p>
-            ) : (
-              reviews.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/quarterly-reviews/${r.id}`}
-                  className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
-                >
-                  <span className="font-medium text-slate-900">{r.reviewPeriod}</span>
-                  <span className="flex items-center gap-3 text-xs text-slate-500">
-                    <Badge value={r.status} />
-                    {formatDate(r.createdAt)}
-                  </span>
-                </Link>
-              ))
-            )}
+
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">Past reviews for {selectedClient.name}</p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {pastReviews.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-slate-500">No reviews yet.</p>
+              ) : (
+                pastReviews.map((r) => <ReviewListRow key={r.id} review={r} />)
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
+  );
+}
+
+function ReviewListRow({
+  review,
+}: {
+  review: { id: string; reviewPeriod: string; status: string; createdAt: string; hoursSpent: number | null };
+}) {
+  return (
+    <Link
+      href={`/quarterly-reviews/${review.id}`}
+      className="flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-50"
+    >
+      <span className="font-medium text-slate-900">{review.reviewPeriod}</span>
+      <span className="flex items-center gap-3 text-xs text-slate-500">
+        {review.hoursSpent !== null && <span>{review.hoursSpent}h</span>}
+        <Badge value={review.status} />
+        {formatDate(review.createdAt)}
+      </span>
+    </Link>
   );
 }

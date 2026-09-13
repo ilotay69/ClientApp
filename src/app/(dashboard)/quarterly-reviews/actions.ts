@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/server";
-import { requirePermission } from "@/lib/permissions";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { requirePermission, getMyPermissions } from "@/lib/permissions";
 import type { QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
 import {
   createQuarterlyReview,
@@ -11,6 +11,8 @@ import {
   fetchReviewAttachments,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
 } from "@/lib/quarterly-review-data";
+import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
+import { getActiveAiSettings } from "@/lib/ai/settings";
 import {
   buildQuarterlyReviewSubmittedEmail,
   buildQuarterlyReviewApprovedEmail,
@@ -20,6 +22,17 @@ import {
 import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+
+/** Whether a review's checklist/summary/screenshots can still be edited —
+ * only while "draft". An Owner reopening a sent/approved/submitted review
+ * (reopenQuarterlyReviewAction) is the only way back to this state.
+ * Checked server-side in every edit action, not just by the UI hiding the
+ * controls, since this is a real access boundary once a review has gone to
+ * the client. */
+async function isReviewEditable(reviewId: string, admin: ReturnType<typeof createAdminClient>): Promise<boolean> {
+  const { data } = await admin.from("quarterly_reviews").select("status").eq("id", reviewId).maybeSingle();
+  return data?.status === "draft";
+}
 
 /** The one person who can approve a submitted review — a specific named
  * approver, not a permission, per how this workflow was asked for. Anyone
@@ -54,11 +67,99 @@ export async function saveQuarterlyReviewItemAction(
   if (!user) return;
 
   const admin = createAdminClient();
+  if (!(await isReviewEditable(reviewId, admin))) return;
+
   await admin.from("quarterly_review_items").upsert(
     { review_id: reviewId, item_key: itemKey, status, comments, updated_by: user.id, updated_at: new Date().toISOString() },
     { onConflict: "review_id,item_key" }
   );
   revalidatePath(`/quarterly-reviews/${reviewId}`);
+}
+
+/** Client-facing, editable — starts as an AI draft (see
+ * generateQuarterlyReviewSummaryAction), staff can rewrite it freely.
+ * Locked the same as checklist items once the review leaves draft. */
+export async function saveQuarterlyReviewSummaryAction(reviewId: string, summary: string | null): Promise<void> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return;
+
+  const admin = createAdminClient();
+  if (!(await isReviewEditable(reviewId, admin))) return;
+
+  await admin.from("quarterly_reviews").update({ summary }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+}
+
+/** Internal-only time tracking — deliberately NOT gated by
+ * isReviewEditable, unlike everything else on the review: a completed
+ * review's logged hours can still legitimately change after it's sent
+ * (e.g. wrap-up time), and this never reaches the client either way. Shown
+ * on both the review page and the reviews list. */
+export async function saveQuarterlyReviewHoursAction(reviewId: string, hours: number | null): Promise<void> {
+  if (!(await requirePermission("manage_quarterly_reviews"))) return;
+
+  const admin = createAdminClient();
+  await admin.from("quarterly_reviews").update({ hours_spent: hours }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath("/quarterly-reviews");
+}
+
+/** Best-effort AI draft of the client-facing summary — analyzes the
+ * current checklist results and overwrites the summary field. Staff can
+ * edit the result afterward same as if they'd typed it themselves. */
+export async function generateQuarterlyReviewSummaryAction(reviewId: string): Promise<ReviewActionState> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return { ok: false, message: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  if (!(await isReviewEditable(reviewId, admin))) {
+    return { ok: false, message: "This review is locked — an Owner needs to reopen it first." };
+  }
+
+  const review = await getQuarterlyReview(reviewId, admin);
+  if (!review) return { ok: false, message: "Review not found." };
+
+  const settings = await getActiveAiSettings(admin);
+  if (!settings) return { ok: false, message: "No AI provider is configured (Settings → Integrations)." };
+
+  try {
+    const summary = await generateQuarterlyReviewSummary(
+      review.clientName,
+      review.reviewPeriod,
+      review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
+      settings
+    );
+    if (!summary) return { ok: false, message: "Couldn't generate a summary — try again." };
+
+    await admin.from("quarterly_reviews").update({ summary }).eq("id", reviewId);
+    revalidatePath(`/quarterly-reviews/${reviewId}`);
+    return { ok: true, message: "Summary generated." };
+  } catch (err) {
+    console.error("generateQuarterlyReviewSummaryAction failed", err);
+    return { ok: false, message: "Generating a summary failed." };
+  }
+}
+
+/** Owner-only, checked by role, not by the manage_quarterly_reviews
+ * permission — anyone with that permission can create/submit/work a
+ * review, but reopening a submitted/approved/sent one back to draft (e.g.
+ * a mistake was found after sending, and it needs fixing and resending)
+ * is deliberately restricted further. */
+export async function reopenQuarterlyReviewAction(reviewId: string): Promise<ReviewActionState> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return { ok: false, message: "You don't have permission to do that." };
+
+  const supabase = await createClient();
+  const me = await getMyPermissions(supabase);
+  if (me?.role !== "owner") {
+    return { ok: false, message: "Only an Owner can reopen a review." };
+  }
+
+  const admin = createAdminClient();
+  await admin.from("quarterly_reviews").update({ status: "draft" }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath("/quarterly-reviews");
+  return { ok: true, message: "Reopened for editing." };
 }
 
 export type ReviewActionState = { ok: boolean; message: string };
@@ -214,7 +315,8 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       review.clientName,
       review.reviewPeriod,
       itemsByKey,
-      screenshots
+      screenshots,
+      review.summary
     );
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,
@@ -272,6 +374,9 @@ export async function uploadQuarterlyReviewAttachmentAction(
 
   const label = String(formData.get("label") ?? "").trim() || null;
   const admin = createAdminClient();
+  if (!(await isReviewEditable(reviewId, admin))) {
+    return { error: "This review is locked — an Owner needs to reopen it first." };
+  }
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${reviewId}/${crypto.randomUUID()}-${safeName}`;
 
@@ -307,6 +412,8 @@ export async function deleteQuarterlyReviewAttachmentAction(attachmentId: string
   if (!(await requirePermission("manage_quarterly_reviews"))) return;
 
   const admin = createAdminClient();
+  if (!(await isReviewEditable(reviewId, admin))) return;
+
   const { data: attachment } = await admin
     .from("quarterly_review_attachments")
     .select("storage_path")

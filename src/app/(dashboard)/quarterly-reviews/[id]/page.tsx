@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, getMyPermissions } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/badge";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
+import { SaveDraftButton } from "@/components/save-draft-button";
 import { QuarterlyReviewItemRow } from "@/components/quarterly-review-item-row";
+import { QuarterlyReviewSummary } from "@/components/quarterly-review-summary";
+import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-field";
 import { SendReviewToClientForm } from "@/components/send-review-to-client-form";
 import { QuarterlyReviewScreenshots } from "@/components/quarterly-review-screenshots";
 import { QUARTERLY_REVIEW_SECTIONS } from "@/lib/quarterly-review-sections";
 import { getQuarterlyReview, fetchAllClientsForPicker, fetchReviewAttachments } from "@/lib/quarterly-review-data";
 import {
   saveQuarterlyReviewItemAction,
+  saveQuarterlyReviewSummaryAction,
+  saveQuarterlyReviewHoursAction,
+  generateQuarterlyReviewSummaryAction,
   submitQuarterlyReviewAction,
   approveQuarterlyReviewAction,
+  reopenQuarterlyReviewAction,
   sendQuarterlyReviewToClientAction,
   uploadQuarterlyReviewAttachmentAction,
   deleteQuarterlyReviewAttachmentAction,
@@ -33,12 +40,14 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const me = await getMyPermissions(supabase);
 
   const { id } = await params;
   const review = await getQuarterlyReview(id);
   if (!review) notFound();
 
   const isApprover = (user?.email ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
+  const isOwner = me?.role === "owner";
   const itemsLocked = review.status !== "draft";
 
   const [clients, attachments] = await Promise.all([fetchAllClientsForPicker(), fetchReviewAttachments(review.id)]);
@@ -48,32 +57,50 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/quarterly-reviews" className="text-sm font-medium text-brand underline">
-          ← Back to Quarterly Reviews
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold text-slate-900">
-            {review.clientName} — {review.reviewPeriod}
-          </h1>
-          <Badge value={review.status} />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link href="/quarterly-reviews" className="text-sm font-medium text-brand underline">
+            ← Back to Quarterly Reviews
+          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {review.clientName} — {review.reviewPeriod}
+            </h1>
+            <Badge value={review.status} />
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Created {formatDate(review.createdAt)}
+            {review.createdByName ? ` by ${review.createdByName}` : ""}
+            {review.submittedAt ? ` · Submitted ${formatDate(review.submittedAt)}` : ""}
+            {review.approvedAt ? ` · Approved ${formatDate(review.approvedAt)}${review.approvedByName ? ` by ${review.approvedByName}` : ""}` : ""}
+            {review.sentAt ? ` · Sent ${formatDate(review.sentAt)} to ${review.sentToEmail}` : ""}
+          </p>
         </div>
-        <p className="mt-1 text-xs text-slate-500">
-          Created {formatDate(review.createdAt)}
-          {review.createdByName ? ` by ${review.createdByName}` : ""}
-          {review.submittedAt ? ` · Submitted ${formatDate(review.submittedAt)}` : ""}
-          {review.approvedAt ? ` · Approved ${formatDate(review.approvedAt)}${review.approvedByName ? ` by ${review.approvedByName}` : ""}` : ""}
-          {review.sentAt ? ` · Sent ${formatDate(review.sentAt)} to ${review.sentToEmail}` : ""}
-        </p>
+        <QuarterlyReviewHoursField
+          reviewId={review.id}
+          value={review.hoursSpent}
+          action={saveQuarterlyReviewHoursAction}
+        />
       </div>
+
+      <QuarterlyReviewSummary
+        reviewId={review.id}
+        value={review.summary}
+        disabled={itemsLocked}
+        saveAction={saveQuarterlyReviewSummaryAction}
+        generateAction={generateQuarterlyReviewSummaryAction}
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         {review.status === "draft" && (
-          <AsyncActionButton
-            label="Submit for Review"
-            pendingLabel="Submitting…"
-            action={submitQuarterlyReviewAction.bind(null, review.id)}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <SaveDraftButton />
+            <AsyncActionButton
+              label="Submit for Review"
+              pendingLabel="Submitting…"
+              action={submitQuarterlyReviewAction.bind(null, review.id)}
+            />
+          </div>
         )}
         {review.status === "submitted" && !isApprover && (
           <p className="text-sm text-slate-500">Waiting for approval.</p>
@@ -97,12 +124,21 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
             />
           </div>
         )}
+        {isOwner && itemsLocked && (
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <AsyncActionButton
+              label="Reopen for editing"
+              pendingLabel="Reopening…"
+              action={reopenQuarterlyReviewAction.bind(null, review.id)}
+            />
+          </div>
+        )}
       </div>
 
       {itemsLocked && (
         <p className="text-xs text-slate-500">
-          This review has been submitted — items are locked. (Editing after approval isn&apos;t
-          wired up yet; ask an Owner if something needs correcting.)
+          This review has been {review.status} — items are locked.
+          {isOwner ? " Use “Reopen for editing” above if something needs correcting." : " Ask an Owner to reopen it if something needs correcting."}
         </p>
       )}
 

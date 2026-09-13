@@ -27,11 +27,19 @@ export type QuarterlyReview = {
   sentAt: string | null;
   sentToEmail: string | null;
   createdAt: string;
+  /** Client-facing, editable — starts as an AI draft, staff can rewrite it
+   * freely. Included in the client email. */
+  summary: string | null;
+  /** Internal-only time tracking — never passed to
+   * buildQuarterlyReviewClientEmail, so there's no code path that could
+   * leak it to the client. */
+  hoursSpent: number | null;
   items: QuarterlyReviewItemRow[];
 };
 
 const SELECT = `
   id, review_period, status, submitted_at, approved_at, sent_at, sent_to_email, created_at,
+  summary, hours_spent,
   clients(name),
   created_profile:created_by(full_name, email),
   approved_profile:approved_by(full_name),
@@ -72,6 +80,8 @@ function mapReview(row: any): QuarterlyReview {
     sentAt: row.sent_at,
     sentToEmail: row.sent_to_email,
     createdAt: row.created_at,
+    summary: row.summary,
+    hoursSpent: row.hours_spent === null || row.hours_spent === undefined ? null : Number(row.hours_spent),
     items,
   };
 }
