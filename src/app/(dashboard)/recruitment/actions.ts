@@ -309,13 +309,28 @@ export async function screenSelectedResumesAction(resumeIds: string[]): Promise<
 
 /** Exact shape of updateSuggestionStatus — a human overriding/marking a
  * durable, redisplayed result, mutated in place rather than a separate
- * dismissal table (see the plan's reasoning). */
-export async function updateResumeStatusAction(id: string, status: ResumeStatus): Promise<void> {
-  if (!(await requirePermission("manage_recruitment"))) return;
+ * dismissal table (see the plan's reasoning). Reports back whether the
+ * write actually landed — a status value the DB enum doesn't have yet
+ * (e.g. a new stage whose migration hasn't been run) fails silently
+ * otherwise, and the dropdown just looks like it "didn't save" with no
+ * clue why. */
+export async function updateResumeStatusAction(
+  id: string,
+  status: ResumeStatus
+): Promise<{ ok: boolean; error?: string }> {
+  if (!(await requirePermission("manage_recruitment"))) {
+    return { ok: false, error: "You don't have permission to do that." };
+  }
 
   const admin = createAdminClient();
-  await admin.from("resumes").update({ status }).eq("id", id);
+  const { error } = await admin.from("resumes").update({ status }).eq("id", id);
+  if (error) {
+    console.error("updateResumeStatusAction failed", error);
+    return { ok: false, error: error.message };
+  }
+
   revalidatePath("/recruitment");
+  return { ok: true };
 }
 
 /** Staff's own Yes/Maybe/No call — kept on a separate column from

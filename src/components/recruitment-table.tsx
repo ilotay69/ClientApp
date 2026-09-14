@@ -249,7 +249,7 @@ export function RecruitmentTable({
   rows: RecruitmentTableRow[];
   nameQuery: string;
   totalCount: number;
-  updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
+  updateStatusAction: (id: string, status: ResumeStatus) => Promise<{ ok: boolean; error?: string }>;
   updateHumanVerdictAction: (id: string, verdict: ResumeVerdict | null) => Promise<void>;
   updateFinalDecisionAction: (id: string, decision: string | null) => Promise<void>;
   addInterviewNoteAction: (
@@ -653,7 +653,7 @@ function ApplicantRow({
   onToggleSelected: () => void;
   expanded: boolean;
   onToggleExpanded: () => void;
-  updateStatusAction: (id: string, status: ResumeStatus) => Promise<void>;
+  updateStatusAction: (id: string, status: ResumeStatus) => Promise<{ ok: boolean; error?: string }>;
   updateHumanVerdictAction: (id: string, verdict: ResumeVerdict | null) => Promise<void>;
   updateFinalDecisionAction: (id: string, decision: string | null) => Promise<void>;
   addInterviewNoteAction: (
