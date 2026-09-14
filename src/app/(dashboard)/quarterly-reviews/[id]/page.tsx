@@ -245,18 +245,23 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
         </div>
       )}
 
-      {review.clientAcknowledgedAt && (
-        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
-          <p className="text-sm font-semibold text-emerald-900">Client Acknowledged</p>
-          <p className="mt-1 text-xs text-emerald-700">
-            {review.clientName} acknowledged this review on {formatDate(review.clientAcknowledgedAt)}
-            {review.clientAckRemarks ? ":" : "."}
-          </p>
-          {review.clientAckRemarks && (
-            <p className="mt-2 whitespace-pre-line text-sm text-emerald-900">{review.clientAckRemarks}</p>
-          )}
-        </div>
-      )}
+      {review.clientAcknowledgedAt &&
+        (review.clientAckRemarks ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-900">Client Wants to Discuss</p>
+            <p className="mt-1 text-xs text-amber-700">
+              {review.clientName} asked to discuss this review on {formatDate(review.clientAcknowledgedAt)}:
+            </p>
+            <p className="mt-2 whitespace-pre-line text-sm text-amber-900">{review.clientAckRemarks}</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
+            <p className="text-sm font-semibold text-emerald-900">Client Acknowledged</p>
+            <p className="mt-1 text-xs text-emerald-700">
+              {review.clientName} acknowledged this review on {formatDate(review.clientAcknowledgedAt)}.
+            </p>
+          </div>
+        ))}
 
       <QuarterlyReviewSummary
         reviewId={review.id}

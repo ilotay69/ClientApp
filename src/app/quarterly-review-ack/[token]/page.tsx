@@ -36,9 +36,13 @@ export default async function QuarterlyReviewAckPage({
           </>
         ) : review.alreadyAcknowledged ? (
           <>
-            <h1 className="text-lg font-semibold text-slate-900">Already acknowledged</h1>
+            <h1 className="text-lg font-semibold text-slate-900">
+              {review.remarks ? "Already sent for discussion" : "Already acknowledged"}
+            </h1>
             <p className="mt-2 text-sm text-slate-500">
-              {review.clientName} — {review.reviewPeriod} was acknowledged
+              {review.remarks
+                ? `You already asked to discuss ${review.clientName} — ${review.reviewPeriod}`
+                : `${review.clientName} — ${review.reviewPeriod} was acknowledged`}
               {review.acknowledgedAt ? ` on ${formatDate(review.acknowledgedAt)}` : ""}.
             </p>
             {review.remarks && (

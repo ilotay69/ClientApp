@@ -250,11 +250,14 @@ export function buildQuarterlyReviewClientEmail(
         <a href="${ackUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;margin-right:10px;">Acknowledge</a>
         <a href="${ackUrl}?discuss=1" style="display:inline-block;background:#ffffff;color:#0f172a;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;border:1px solid #cbd5e1;">Need to Discuss</a>
       </div>
-      <p style="margin-top:24px;color:#64748b;font-size:13px;">Sent by CG Technologies.</p>
+      <p style="margin-top:24px;color:#334155;font-size:14px;">
+        Best regards,<br />
+        CG Technologies Team
+      </p>
     </div>
   `;
   const summaryText = summary ? `\n${summary}\n` : "";
-  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.\n\nAcknowledge (accept the risk of any outstanding items): ${ackUrl}\nNeed to discuss instead: ${ackUrl}?discuss=1`;
+  const text = `Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.\n\nAcknowledge (accept the risk of any outstanding items): ${ackUrl}\nNeed to discuss instead: ${ackUrl}?discuss=1\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }

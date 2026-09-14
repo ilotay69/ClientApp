@@ -50,14 +50,17 @@ export default async function QuarterlyReviewsPage({
 
   // Cross-client — "what am I actually on the hook for right now": reviews
   // still incomplete or awaiting a decision that either I created, or (if
-  // I'm the approver) are sitting in my queue. Deliberately excludes
-  // "sent" — those are done, nothing left for me to do.
+  // I'm the approver) are sitting in my queue — plus, for ones I created,
+  // a "sent" review the client has actually responded to (acknowledged or
+  // asked to discuss). A "sent" review nobody's responded to yet is still
+  // excluded: there's genuinely nothing left to do on it.
   const myReviews = (user?.id
-    ? allReviews.filter(
-        (r) =>
-          reviewBucket(r.status) !== "sent" &&
-          (r.createdById === user.id || (isApprover && r.status === "submitted"))
-      )
+    ? allReviews.filter((r) => {
+        const isMine = r.createdById === user.id;
+        const isPendingMyApproval = isApprover && r.status === "submitted";
+        const clientResponded = r.status === "sent" && r.clientAcknowledgedAt !== null;
+        return isPendingMyApproval || (isMine && (reviewBucket(r.status) !== "sent" || clientResponded));
+      })
     : []
   ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -90,7 +93,7 @@ export default async function QuarterlyReviewsPage({
         <div>
           <h2 className="text-lg font-semibold text-slate-900">My Reviews</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Reviews you created or need to approve that aren&apos;t sent yet.
+            Reviews you created or need to approve, plus any sent review the client has responded to.
           </p>
           <div className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="divide-y divide-slate-100">
@@ -105,7 +108,19 @@ export default async function QuarterlyReviewsPage({
                     <span className="mx-2 text-slate-300">·</span>
                     <span className="text-slate-700">{r.reviewPeriod}</span>
                   </div>
-                  <Badge value={r.status} />
+                  {r.status === "sent" && r.clientAcknowledgedAt ? (
+                    r.clientAckRemarks ? (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        Client wants to discuss
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        Client acknowledged
+                      </span>
+                    )
+                  ) : (
+                    <Badge value={r.status} />
+                  )}
                 </Link>
               ))}
             </div>
