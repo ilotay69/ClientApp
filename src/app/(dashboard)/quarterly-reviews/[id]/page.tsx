@@ -10,6 +10,7 @@ import { ApproverDecisionForm } from "@/components/approver-decision-form";
 import { DeleteButton } from "@/components/delete-button";
 import { QuarterlyReviewItemRow } from "@/components/quarterly-review-item-row";
 import { QuarterlyReviewSummary } from "@/components/quarterly-review-summary";
+import { QuarterlyReviewEditableNotes } from "@/components/quarterly-review-editable-notes";
 import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-field";
 import { QuarterlyReviewTicketNumberField } from "@/components/quarterly-review-ticket-number-field";
 import { SendReviewToClientForm } from "@/components/send-review-to-client-form";
@@ -38,6 +39,10 @@ import {
   saveQuarterlyReviewHoursAction,
   saveQuarterlyReviewTicketNumberAction,
   generateQuarterlyReviewSummaryAction,
+  saveQuarterlyReviewActionItemsAction,
+  generateQuarterlyReviewActionItemsAction,
+  saveQuarterlyReviewChangesAction,
+  generateQuarterlyReviewChangesAction,
   submitQuarterlyReviewAction,
   approveQuarterlyReviewAction,
   requestQuarterlyReviewAdjustmentAction,
@@ -212,6 +217,14 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
               value={review.ticketNumber}
               action={saveQuarterlyReviewTicketNumberAction}
             />
+            <a
+              href={`/api/quarterly-review-pdf-preview/${review.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="self-center rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Preview PDF
+            </a>
             {canDelete && (
               <DeleteButton
                 action={deleteQuarterlyReviewAction.bind(null, review.id)}
@@ -251,6 +264,30 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
         disabled={summaryLocked}
         saveAction={saveQuarterlyReviewSummaryAction}
         generateAction={generateQuarterlyReviewSummaryAction}
+      />
+
+      <QuarterlyReviewEditableNotes
+        reviewId={review.id}
+        title="Action Items"
+        subtitle="Goes to the client. Leave blank to have the PDF list it automatically from the checklist."
+        placeholder="One line per item that needs action, or leave blank to auto-generate from the checklist…"
+        generateLabel="Generate from checklist"
+        value={review.actionItemsNotes}
+        disabled={summaryLocked}
+        saveAction={saveQuarterlyReviewActionItemsAction}
+        generateAction={generateQuarterlyReviewActionItemsAction}
+      />
+
+      <QuarterlyReviewEditableNotes
+        reviewId={review.id}
+        title="Changes Since Last Review"
+        subtitle="Goes to the client. Leave blank to have the PDF list it automatically by comparing against the client's previous review."
+        placeholder="One line per item that changed since last time, or leave blank to auto-generate…"
+        generateLabel="Generate from last review"
+        value={review.changesSinceLastReviewNotes}
+        disabled={summaryLocked}
+        saveAction={saveQuarterlyReviewChangesAction}
+        generateAction={generateQuarterlyReviewChangesAction}
       />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

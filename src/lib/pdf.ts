@@ -440,9 +440,10 @@ export class PdfContentBuilder {
         // longest one, "Need Urgent Attention", is ~130pt wide at 10pt
         // bold) and wrap the item label into the remaining width — a long
         // label used to be drawn unwrapped and could run straight into the
-        // status text. Label and comments are both tinted to the item's
-        // status color (not just the status word itself), so a page full
-        // of items can be scanned by color at a glance.
+        // status text. Only the status word itself is colored — the label
+        // and any comments (whatever staff actually typed) stay plain
+        // black; coloring every line of body text read as noisy rather
+        // than helpful.
         const statusColumnWidth = 160;
         const labelSize = 10.5;
         const labelLines = wrapText(block.label, USABLE_WIDTH - statusColumnWidth, labelSize, true);
@@ -450,7 +451,7 @@ export class PdfContentBuilder {
         labelLines.forEach((line, i) => {
           ensureSpace(13);
           cursorY -= labelSize;
-          drawText(MARGIN, cursorY, line, labelSize, true, block.statusColor);
+          drawText(MARGIN, cursorY, line, labelSize, true);
           if (i === 0) drawText(statusX, cursorY, block.status, 10, true, block.statusColor);
           cursorY -= 2;
         });
@@ -459,7 +460,7 @@ export class PdfContentBuilder {
           for (const line of lines) {
             ensureSpace(11);
             cursorY -= 9;
-            drawText(MARGIN + 20, cursorY, line, 9, false, block.statusColor);
+            drawText(MARGIN + 20, cursorY, line, 9, false);
             cursorY -= 2;
           }
         }

@@ -10,13 +10,14 @@ import {
   getQuarterlyReview,
   fetchReviewAttachments,
   fetchPreviousReviewSnapshot,
+  assembleQuarterlyReviewPdf,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
   QUARTERLY_REVIEW_PDF_BUCKET,
   QUARTERLY_REVIEW_APPROVER_EMAIL,
 } from "@/lib/quarterly-review-data";
 import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
+import { computeActionItemsText, computeChangesSinceLastReviewText } from "@/lib/quarterly-review-pdf";
 import { getActiveAiSettings } from "@/lib/ai/settings";
-import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
 import { buildQuarterlyReviewClientEmail } from "@/lib/resend";
 import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
@@ -187,6 +188,89 @@ export async function generateQuarterlyReviewSummaryAction(reviewId: string): Pr
     console.error("generateQuarterlyReviewSummaryAction failed", err);
     return { ok: false, message: "Generating a summary failed." };
   }
+}
+
+/** Client-facing, editable — same "generate a starting point, then rewrite
+ * freely" pattern as Summary, and the same editability rule (draft, or the
+ * approver while submitted). Left empty, the PDF just computes this
+ * section automatically from the checklist instead (computeActionItemsText). */
+export async function saveQuarterlyReviewActionItemsAction(reviewId: string, notes: string | null): Promise<void> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return;
+
+  const admin = createAdminClient();
+  if (!(await canEditSummary(reviewId, admin, user.email))) return;
+
+  await admin.from("quarterly_reviews").update({ action_items_notes: notes }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+}
+
+/** Pre-fills action_items_notes from the current checklist (same logic the
+ * PDF falls back to) so there's a starting point to edit, rather than
+ * writing one from scratch. */
+export async function generateQuarterlyReviewActionItemsAction(reviewId: string): Promise<ReviewActionState> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return { ok: false, message: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  if (!(await canEditSummary(reviewId, admin, user.email))) {
+    return { ok: false, message: "This review is locked — an Owner needs to reopen it first." };
+  }
+
+  const review = await getQuarterlyReview(reviewId, admin);
+  if (!review) return { ok: false, message: "Review not found." };
+
+  const text = computeActionItemsText(
+    review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments }))
+  );
+  if (!text) return { ok: false, message: "Nothing needs action right now — every item is Healthy or N/A." };
+
+  await admin.from("quarterly_reviews").update({ action_items_notes: text }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+  return { ok: true, message: "Action items generated." };
+}
+
+/** Same pattern as saveQuarterlyReviewActionItemsAction, for Changes Since
+ * Last Review. */
+export async function saveQuarterlyReviewChangesAction(reviewId: string, notes: string | null): Promise<void> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return;
+
+  const admin = createAdminClient();
+  if (!(await canEditSummary(reviewId, admin, user.email))) return;
+
+  await admin.from("quarterly_reviews").update({ changes_since_last_review_notes: notes }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+}
+
+/** Pre-fills changes_since_last_review_notes by diffing this review's
+ * items against the client's previous one (same logic the PDF falls back
+ * to). */
+export async function generateQuarterlyReviewChangesAction(reviewId: string): Promise<ReviewActionState> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return { ok: false, message: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  if (!(await canEditSummary(reviewId, admin, user.email))) {
+    return { ok: false, message: "This review is locked — an Owner needs to reopen it first." };
+  }
+
+  const review = await getQuarterlyReview(reviewId, admin);
+  if (!review) return { ok: false, message: "Review not found." };
+
+  const previousReview = await fetchPreviousReviewSnapshot(review.clientId, reviewId, admin);
+  if (!previousReview) return { ok: false, message: "No previous review for this client to compare against." };
+
+  const previousItems = new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]));
+  const text = computeChangesSinceLastReviewText(
+    review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
+    previousItems
+  );
+  if (!text) return { ok: false, message: "Nothing changed since the last review." };
+
+  await admin.from("quarterly_reviews").update({ changes_since_last_review_notes: text }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+  return { ok: true, message: "Changes generated." };
 }
 
 /** Owner OR the named approver — checked by role/email, not by the
@@ -437,47 +521,15 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
   try {
     const accessToken = await getValidSharedMailboxToken(admin, settings);
 
-    // The checklist/comments/screenshots now live in an attached PDF rather
-    // than the email body — download each screenshot once, try to embed it
-    // in the PDF (PNG/JPEG only), and fall back to attaching the original
-    // file directly for anything that couldn't be embedded (GIF/WEBP) so
-    // nothing the reviewer added gets silently dropped.
-    const attachments = await fetchReviewAttachments(reviewId, admin);
-    const images: { id: string; buffer: Buffer; label: string | null; fileName: string; contentType: string }[] = [];
-    for (const a of attachments) {
-      try {
-        const { data: blob, error: downloadError } = await admin.storage
-          .from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET)
-          .download(a.storagePath);
-        if (downloadError || !blob) continue;
-        images.push({
-          id: a.id,
-          buffer: Buffer.from(await blob.arrayBuffer()),
-          label: a.label,
-          fileName: a.fileName,
-          contentType: a.contentType || "image/png",
-        });
-      } catch (attachErr) {
-        console.error("sendQuarterlyReviewToClientAction: attachment fetch failed", a.id, attachErr);
-      }
-    }
-
-    // Only for the "Changes Since Last Review" section — status
-    // transitions, not the old comments, so this stays a plain "what
-    // changed" note rather than carrying over internal detail.
-    const previousReview = await fetchPreviousReviewSnapshot(review.clientId, reviewId, admin);
-    const previousItems = previousReview
-      ? new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]))
-      : null;
-
-    const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
-      clientName: review.clientName,
-      reviewPeriod: review.reviewPeriod,
-      summary: review.summary,
-      items: review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
-      images: images.map((i) => ({ id: i.id, buffer: i.buffer, label: i.label, fileName: i.fileName })),
-      previousItems,
-    });
+    // The checklist/comments/screenshots now live in an attached PDF
+    // rather than the email body — assembleQuarterlyReviewPdf handles
+    // downloading each screenshot, trying to embed it (PNG/JPEG only),
+    // and building the PDF; the preview route uses the exact same
+    // function, so there's one place assembling this instead of two
+    // copies of the same logic.
+    const assembled = await assembleQuarterlyReviewPdf(reviewId, admin);
+    if (!assembled) return { ok: false, message: "Review not found." };
+    const { pdf, embeddedImageIds, images } = assembled;
 
     // Keeps the exact sent PDF around so it can be opened/downloaded again
     // later — from the client's own record (any staff who can view

@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { QUARTERLY_REVIEW_SECTIONS, type QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
+import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
@@ -67,6 +68,11 @@ export type QuarterlyReview = {
    * Internal-only, same posture as hoursSpent: never passed to
    * buildQuarterlyReviewClientEmail/buildQuarterlyReviewPdf. */
   ticketNumber: string | null;
+  /** Client-facing, editable — same "generate a starting point, then
+   * rewrite freely" pattern as summary. When empty, buildQuarterlyReviewPdf
+   * computes this section automatically from the checklist instead. */
+  actionItemsNotes: string | null;
+  changesSinceLastReviewNotes: string | null;
   items: QuarterlyReviewItemRow[];
 };
 
@@ -74,6 +80,7 @@ const SELECT = `
   id, review_period, status, created_by, submitted_at, approved_at, sent_at, sent_to_email, created_at,
   summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
   client_acknowledged_at, client_ack_remarks, ticket_number,
+  action_items_notes, changes_since_last_review_notes,
   clients(name),
   created_profile:created_by(full_name, email),
   submitted_profile:submitted_by(full_name),
@@ -132,6 +139,8 @@ function mapReview(row: any): QuarterlyReview {
     clientAcknowledgedAt: row.client_acknowledged_at ?? null,
     clientAckRemarks: row.client_ack_remarks ?? null,
     ticketNumber: row.ticket_number ?? null,
+    actionItemsNotes: row.action_items_notes ?? null,
+    changesSinceLastReviewNotes: row.changes_since_last_review_notes ?? null,
     items,
   };
 }
@@ -351,4 +360,67 @@ export async function fetchReviewAttachments(
     sizeBytes: a.file_size_bytes,
     createdAt: a.created_at,
   }));
+}
+
+/** Fetches everything buildQuarterlyReviewPdf needs and builds the PDF —
+ * shared by sendQuarterlyReviewToClientAction (the real send) and the
+ * preview route (/api/quarterly-review-pdf-preview), so there's exactly
+ * one place that assembles a review's PDF rather than two copies of the
+ * same attachment-downloading/previous-review-lookup logic drifting apart.
+ * Null if the review itself doesn't exist. */
+export type AssembledQuarterlyReviewPdf = {
+  pdf: Buffer;
+  embeddedImageIds: Set<string>;
+  /** Every screenshot's raw bytes, downloaded once — reused by callers
+   * (sendQuarterlyReviewToClientAction) that need to attach anything NOT
+   * in embeddedImageIds separately, without downloading it all again. */
+  images: { id: string; buffer: Buffer; fileName: string; contentType: string }[];
+};
+
+export async function assembleQuarterlyReviewPdf(
+  reviewId: string,
+  admin: AdminClient = createAdminClient()
+): Promise<AssembledQuarterlyReviewPdf | null> {
+  const review = await getQuarterlyReview(reviewId, admin);
+  if (!review) return null;
+
+  const attachments = await fetchReviewAttachments(reviewId, admin);
+  const images: { id: string; buffer: Buffer; label: string | null; fileName: string; contentType: string }[] = [];
+  for (const a of attachments) {
+    try {
+      const { data: blob, error } = await admin.storage.from(QUARTERLY_REVIEW_ATTACHMENTS_BUCKET).download(a.storagePath);
+      if (error || !blob) continue;
+      images.push({
+        id: a.id,
+        buffer: Buffer.from(await blob.arrayBuffer()),
+        label: a.label,
+        fileName: a.fileName,
+        contentType: a.contentType || "image/png",
+      });
+    } catch (err) {
+      console.error("assembleQuarterlyReviewPdf: attachment fetch failed", a.id, err);
+    }
+  }
+
+  const previousReview = await fetchPreviousReviewSnapshot(review.clientId, reviewId, admin);
+  const previousItems = previousReview
+    ? new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]))
+    : null;
+
+  const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
+    clientName: review.clientName,
+    reviewPeriod: review.reviewPeriod,
+    summary: review.summary,
+    items: review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
+    images: images.map((i) => ({ id: i.id, buffer: i.buffer, label: i.label, fileName: i.fileName })),
+    previousItems,
+    actionItemsText: review.actionItemsNotes,
+    changesSinceLastReviewText: review.changesSinceLastReviewNotes,
+  });
+
+  return {
+    pdf,
+    embeddedImageIds,
+    images: images.map((i) => ({ id: i.id, buffer: i.buffer, fileName: i.fileName, contentType: i.contentType })),
+  };
 }

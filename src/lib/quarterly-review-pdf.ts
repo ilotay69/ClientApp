@@ -5,7 +5,10 @@ export type QuarterlyReviewPdfItem = { itemKey: string; status: QuarterlyReviewI
 export type QuarterlyReviewPdfImage = { id: string; buffer: Buffer; label: string | null; fileName: string };
 
 // Matches the color coding used elsewhere in the app for these same
-// statuses (badges, the old client-email table) — RGB 0-1, for pdf.ts.
+// statuses (badges, the checklist's own status tag) — RGB 0-1, for pdf.ts.
+// Only ever applied to the status word itself, never to a label or
+// comment someone typed — coloring every line of body text turned out to
+// read as noisy rather than helpful.
 const STATUS_COLORS: Record<QuarterlyReviewItemStatus, [number, number, number]> = {
   healthy: [0.086, 0.639, 0.29],
   attention: [0.851, 0.467, 0.024],
@@ -16,6 +19,8 @@ const STATUS_COLORS: Record<QuarterlyReviewItemStatus, [number, number, number]>
 
 const NAVY: [number, number, number] = [0.059, 0.09, 0.165];
 
+const LABEL_BY_KEY = new Map(QUARTERLY_REVIEW_SECTIONS.flatMap((s) => s.items).map((i) => [i.key, i.label]));
+
 /** Worst-first — the review's overall rating is just whichever of these is
  * present anywhere in the checklist, no separate field for staff to set. */
 function computeOverallRating(items: QuarterlyReviewPdfItem[]): { label: string; color: [number, number, number] } {
@@ -24,6 +29,42 @@ function computeOverallRating(items: QuarterlyReviewPdfItem[]): { label: string;
   if (statuses.has("attention")) return { label: "Needs Attention", color: STATUS_COLORS.attention };
   if (statuses.has("recommended")) return { label: "Healthy — Recommendations Available", color: STATUS_COLORS.recommended };
   return { label: "Healthy", color: STATUS_COLORS.healthy };
+}
+
+/** Plain-text default for the Action Items section — one line per item
+ * that isn't Healthy/N/A. Used both as the PDF's fallback (when nobody's
+ * generated/edited a custom version) and as the starting draft the
+ * "Generate" button fills the editable field with. */
+export function computeActionItemsText(items: QuarterlyReviewPdfItem[]): string {
+  return items
+    .filter((i) => i.status === "urgent" || i.status === "attention" || i.status === "recommended")
+    .map((i) => {
+      const label = LABEL_BY_KEY.get(i.itemKey) ?? i.itemKey;
+      const statusLabel = QUARTERLY_STATUS_LABELS[i.status];
+      return i.comments ? `${label} (${statusLabel}): ${i.comments}` : `${label} (${statusLabel})`;
+    })
+    .join("\n");
+}
+
+/** Plain-text default for the Changes Since Last Review section — one
+ * line per item whose status actually moved since the client's previous
+ * review. "->" rather than an arrow character: this hand-built PDF only
+ * supports Latin-1, and an arrow glyph was rendering as "?". */
+export function computeChangesSinceLastReviewText(
+  items: QuarterlyReviewPdfItem[],
+  previousItems: Map<string, QuarterlyReviewItemStatus> | null | undefined
+): string {
+  if (!previousItems) return "";
+  return items
+    .map((i) => ({ item: i, prevStatus: previousItems.get(i.itemKey) }))
+    .filter((r): r is { item: QuarterlyReviewPdfItem; prevStatus: QuarterlyReviewItemStatus } =>
+      Boolean(r.prevStatus && r.prevStatus !== r.item.status)
+    )
+    .map(({ item, prevStatus }) => {
+      const label = LABEL_BY_KEY.get(item.itemKey) ?? item.itemKey;
+      return `${label}: ${QUARTERLY_STATUS_LABELS[prevStatus]} -> ${QUARTERLY_STATUS_LABELS[item.status]}`;
+    })
+    .join("\n");
 }
 
 /** Builds the full review as a standalone PDF — client-facing detail moves
@@ -38,16 +79,20 @@ export function buildQuarterlyReviewPdf(params: {
   summary: string | null;
   items: QuarterlyReviewPdfItem[];
   images: QuarterlyReviewPdfImage[];
-  /** Item statuses from the client's previous review, if any — used only
-   * to compute the "Changes Since Last Review" section (status
-   * transitions). Never the old comments themselves, so this stays a
-   * plain "what changed" note rather than carrying over unrelated
-   * internal detail from the prior round. */
+  /** Item statuses from the client's previous review, if any — only used
+   * to compute a Changes Since Last Review fallback when actionItemsText/
+   * changesSinceLastReviewText below aren't set. */
   previousItems?: Map<string, QuarterlyReviewItemStatus> | null;
+  /** Editable overrides (quarterly_reviews.action_items_notes /
+   * .changes_since_last_review_notes) — when set (non-empty), used
+   * verbatim instead of the auto-computed list, so a staff edit actually
+   * sticks. Falls back to computing from items/previousItems otherwise. */
+  actionItemsText?: string | null;
+  changesSinceLastReviewText?: string | null;
 }): { pdf: Buffer; embeddedImageIds: Set<string> } {
-  const { clientName, reviewPeriod, summary, items, images, previousItems } = params;
+  const { clientName, reviewPeriod, summary, items, images, previousItems, actionItemsText, changesSinceLastReviewText } =
+    params;
   const itemByKey = new Map(items.map((i) => [i.itemKey, i]));
-  const labelByKey = new Map(QUARTERLY_REVIEW_SECTIONS.flatMap((s) => s.items).map((i) => [i.key, i.label]));
 
   const doc = new PdfContentBuilder();
 
@@ -74,36 +119,18 @@ export function buildQuarterlyReviewPdf(params: {
     doc.spacer(10);
   }
 
-  // Action items — auto-derived from anything not Healthy/N/A, so there's
-  // no separate field for staff to fill in beyond the checklist itself.
-  const actionItems = items.filter((i) => i.status === "urgent" || i.status === "attention" || i.status === "recommended");
-  if (actionItems.length > 0) {
+  const actionText = (actionItemsText ?? "").trim() || computeActionItemsText(items);
+  if (actionText) {
     doc.heading("Action Items", 2);
-    for (const i of actionItems) {
-      const label = labelByKey.get(i.itemKey) ?? i.itemKey;
-      doc.item(label, QUARTERLY_STATUS_LABELS[i.status], i.comments, STATUS_COLORS[i.status]);
-    }
+    doc.paragraph(actionText);
     doc.spacer(10);
   }
 
-  // Changes since last review — only for clients with a prior review, and
-  // only items whose status actually moved (either direction).
-  if (previousItems) {
-    const changes = items
-      .map((i) => ({ item: i, prevStatus: previousItems.get(i.itemKey) }))
-      .filter((r): r is { item: QuarterlyReviewPdfItem; prevStatus: QuarterlyReviewItemStatus } =>
-        Boolean(r.prevStatus && r.prevStatus !== r.item.status)
-      );
-    if (changes.length > 0) {
-      doc.heading("Changes Since Last Review", 2);
-      for (const { item, prevStatus } of changes) {
-        const label = labelByKey.get(item.itemKey) ?? item.itemKey;
-        doc.paragraph(`${label}: ${QUARTERLY_STATUS_LABELS[prevStatus]} → ${QUARTERLY_STATUS_LABELS[item.status]}`, {
-          color: STATUS_COLORS[item.status],
-        });
-      }
-      doc.spacer(10);
-    }
+  const changesText = (changesSinceLastReviewText ?? "").trim() || computeChangesSinceLastReviewText(items, previousItems);
+  if (changesText) {
+    doc.heading("Changes Since Last Review", 2);
+    doc.paragraph(changesText);
+    doc.spacer(10);
   }
 
   for (const section of QUARTERLY_REVIEW_SECTIONS) {
