@@ -9,6 +9,7 @@ import {
   createQuarterlyReview,
   getQuarterlyReview,
   fetchReviewAttachments,
+  fetchPreviousReviewSnapshot,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
   QUARTERLY_REVIEW_PDF_BUCKET,
   QUARTERLY_REVIEW_APPROVER_EMAIL,
@@ -461,12 +462,21 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       }
     }
 
+    // Only for the "Changes Since Last Review" section — status
+    // transitions, not the old comments, so this stays a plain "what
+    // changed" note rather than carrying over internal detail.
+    const previousReview = await fetchPreviousReviewSnapshot(review.clientId, reviewId, admin);
+    const previousItems = previousReview
+      ? new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]))
+      : null;
+
     const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
       clientName: review.clientName,
       reviewPeriod: review.reviewPeriod,
       summary: review.summary,
       items: review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
       images: images.map((i) => ({ id: i.id, buffer: i.buffer, label: i.label, fileName: i.fileName })),
+      previousItems,
     });
 
     // Keeps the exact sent PDF around so it can be opened/downloaded again

@@ -274,22 +274,23 @@ function decodeImage(buf: Buffer): DecodedImage | null {
 type Color = [number, number, number]; // 0-1 RGB, for status text
 
 type Block =
-  | { type: "heading"; text: string; level: 1 | 2; center?: boolean }
-  | { type: "paragraph"; text: string; center?: boolean }
+  | { type: "heading"; text: string; level: 1 | 2; center?: boolean; color?: Color; size?: number }
+  | { type: "paragraph"; text: string; center?: boolean; color?: Color; size?: number }
   | { type: "item"; label: string; status: string; comments: string | null; statusColor?: Color }
   | { type: "image"; buffer: Buffer; label: string | null; id: string }
   | { type: "spacer"; amount: number }
-  | { type: "pagebreak" };
+  | { type: "pagebreak" }
+  | { type: "icon" };
 
 export class PdfContentBuilder {
   private blocks: Block[] = [];
 
-  heading(text: string, level: 1 | 2 = 1, opts?: { center?: boolean }) {
-    this.blocks.push({ type: "heading", text, level, center: opts?.center });
+  heading(text: string, level: 1 | 2 = 1, opts?: { center?: boolean; color?: Color; size?: number }) {
+    this.blocks.push({ type: "heading", text, level, center: opts?.center, color: opts?.color, size: opts?.size });
     return this;
   }
-  paragraph(text: string, opts?: { center?: boolean }) {
-    this.blocks.push({ type: "paragraph", text, center: opts?.center });
+  paragraph(text: string, opts?: { center?: boolean; color?: Color; size?: number }) {
+    this.blocks.push({ type: "paragraph", text, center: opts?.center, color: opts?.color, size: opts?.size });
     return this;
   }
   item(label: string, status: string, comments: string | null, statusColor?: Color) {
@@ -309,6 +310,14 @@ export class PdfContentBuilder {
    * same way the original Word template had its own title page. */
   pagebreak() {
     this.blocks.push({ type: "pagebreak" });
+    return this;
+  }
+  /** A small vector "systems check" graphic (a monitor with a checkmark) —
+   * drawn from plain rectangles and a stroked path rather than an embedded
+   * bitmap, since this hand-built PDF writer has no source image to pull
+   * from and no way to fetch one. Used once, on the title page. */
+  icon() {
+    this.blocks.push({ type: "icon" });
     return this;
   }
 
@@ -409,19 +418,20 @@ export class PdfContentBuilder {
 
     for (const block of this.blocks) {
       if (block.type === "heading") {
-        const size = block.level === 1 ? 18 : 13;
-        ensureSpace(size * 1.6);
+        const size = block.size ?? (block.level === 1 ? 18 : 14);
+        ensureSpace(size * 1.9);
         cursorY -= size;
         const x = block.center ? centerX(block.text, size, true) : MARGIN;
-        drawText(x, cursorY, block.text, size, true);
-        cursorY -= size * 0.6;
+        drawText(x, cursorY, block.text, size, true, block.color);
+        cursorY -= size * 0.9; // extra breathing room below every heading
       } else if (block.type === "paragraph") {
-        const lines = wrapText(block.text, USABLE_WIDTH, 10, false);
+        const size = block.size ?? 10;
+        const lines = wrapText(block.text, USABLE_WIDTH, size, false);
         for (const line of lines) {
-          ensureSpace(12);
-          cursorY -= 10;
-          const x = block.center ? centerX(line, 10, false) : MARGIN;
-          drawText(x, cursorY, line, 10, false);
+          ensureSpace(size + 2);
+          cursorY -= size;
+          const x = block.center ? centerX(line, size, false) : MARGIN;
+          drawText(x, cursorY, line, size, false, block.color);
           cursorY -= 2;
         }
         cursorY -= 6;
@@ -430,14 +440,17 @@ export class PdfContentBuilder {
         // longest one, "Need Urgent Attention", is ~130pt wide at 10pt
         // bold) and wrap the item label into the remaining width — a long
         // label used to be drawn unwrapped and could run straight into the
-        // status text.
+        // status text. Label and comments are both tinted to the item's
+        // status color (not just the status word itself), so a page full
+        // of items can be scanned by color at a glance.
         const statusColumnWidth = 160;
-        const labelLines = wrapText(block.label, USABLE_WIDTH - statusColumnWidth, 10, false);
+        const labelSize = 10.5;
+        const labelLines = wrapText(block.label, USABLE_WIDTH - statusColumnWidth, labelSize, true);
         const statusX = MARGIN + USABLE_WIDTH - textWidth(block.status, 10, true);
         labelLines.forEach((line, i) => {
-          ensureSpace(12);
-          cursorY -= 10;
-          drawText(MARGIN, cursorY, line, 10, false);
+          ensureSpace(13);
+          cursorY -= labelSize;
+          drawText(MARGIN, cursorY, line, labelSize, true, block.statusColor);
           if (i === 0) drawText(statusX, cursorY, block.status, 10, true, block.statusColor);
           cursorY -= 2;
         });
@@ -446,15 +459,59 @@ export class PdfContentBuilder {
           for (const line of lines) {
             ensureSpace(11);
             cursorY -= 9;
-            drawText(MARGIN + 20, cursorY, line, 9, false);
+            drawText(MARGIN + 20, cursorY, line, 9, false, block.statusColor);
             cursorY -= 2;
           }
         }
-        cursorY -= 4;
+        cursorY -= 6;
       } else if (block.type === "spacer") {
         cursorY -= block.amount;
       } else if (block.type === "pagebreak") {
         newPage();
+      } else if (block.type === "icon") {
+        // A small vector "monitor with a checkmark" — plain filled
+        // rectangles plus one stroked path, all drawn directly as PDF
+        // content-stream operators (re/f for rects, m/l/S for the check).
+        // No bitmap involved, so nothing here can fail to embed.
+        const frameW = 150;
+        const frameH = 90;
+        const standW = 18;
+        const standH = 16;
+        const baseW = 60;
+        const baseH = 6;
+        const totalHeight = frameH + standH + baseH;
+        ensureSpace(totalHeight + 10);
+        const centerXpt = PAGE_WIDTH / 2;
+        const top = cursorY;
+        const frameX = centerXpt - frameW / 2;
+        const frameY = top - frameH;
+        content += `0.059 0.090 0.165 rg\n${frameX.toFixed(2)} ${frameY.toFixed(2)} ${frameW.toFixed(2)} ${frameH.toFixed(2)} re f\n`;
+        const inset = 10;
+        const screenW = frameW - inset * 2;
+        const screenH = frameH - inset * 2;
+        const screenX = frameX + inset;
+        const screenY = frameY + inset;
+        content += `0.90 0.94 0.98 rg\n${screenX.toFixed(2)} ${screenY.toFixed(2)} ${screenW.toFixed(2)} ${screenH.toFixed(2)} re f\n`;
+        const standX = centerXpt - standW / 2;
+        const standY = frameY - standH;
+        content += `0.059 0.090 0.165 rg\n${standX.toFixed(2)} ${standY.toFixed(2)} ${standW.toFixed(2)} ${standH.toFixed(2)} re f\n`;
+        const baseX = centerXpt - baseW / 2;
+        const baseY = standY - baseH;
+        content += `0.059 0.090 0.165 rg\n${baseX.toFixed(2)} ${baseY.toFixed(2)} ${baseW.toFixed(2)} ${baseH.toFixed(2)} re f\n`;
+        const chkY = screenY + screenH / 2;
+        const p1x = centerXpt - 22;
+        const p1y = chkY + 2;
+        const p2x = centerXpt - 6;
+        const p2y = chkY - 14;
+        const p3x = centerXpt + 26;
+        const p3y = chkY + 18;
+        content += `0.086 0.639 0.290 RG\n7 w\n1 J\n1 j\n${p1x.toFixed(2)} ${p1y.toFixed(2)} m ${p2x.toFixed(2)} ${p2y.toFixed(2)} l ${p3x.toFixed(2)} ${p3y.toFixed(2)} l S\n`;
+        // Reset both fill and stroke color back to black — otherwise
+        // whatever text comes next (if drawn without its own explicit
+        // color) would inherit the checkmark/frame color instead of the
+        // normal default.
+        content += "0 0 0 rg\n0 0 0 RG\n";
+        cursorY = baseY - 10;
       } else {
         const decoded = decodeImage(block.buffer);
         if (!decoded) {
