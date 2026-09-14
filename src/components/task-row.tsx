@@ -119,7 +119,7 @@ export function TaskRow({
         </span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientLabel}</span>
         {projectLabel !== undefined && (
-          <span className="w-28 shrink-0 truncate text-xs text-slate-500" title={projectLabel}>
+          <span className="w-44 shrink-0 truncate text-xs text-slate-500" title={projectLabel}>
             {projectLabel}
           </span>
         )}

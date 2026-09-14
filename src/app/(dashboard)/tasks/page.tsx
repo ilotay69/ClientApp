@@ -57,7 +57,7 @@ function statusOptionsFor(current: string) {
 // this is just a scan-friendly label, not the only place the full name
 // is available (the project's own page has that).
 function truncateProjectName(name: string): string {
-  return name.length > 20 ? `${name.slice(0, 20)}…` : name;
+  return name.length > 30 ? `${name.slice(0, 30)}…` : name;
 }
 
 type SortDir = "asc" | "desc";
@@ -404,7 +404,7 @@ export default async function TasksPage({
                   activeField={teamSortField}
                   activeDir={teamSortDir}
                   hrefFor={teamSortHrefFor}
-                  className="w-28"
+                  className="w-44"
                 />
                 <SortableColumnHeader
                   label="Assigned"
