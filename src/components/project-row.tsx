@@ -6,17 +6,15 @@ import { Badge } from "@/components/badge";
 import { formatDate } from "@/lib/format";
 import { IconChevronDown } from "@/components/icons";
 import { ProjectTaskQuickAdd } from "@/components/project-task-quick-add";
-import { AutotaskQuotePicker } from "@/components/autotask-quote-picker";
 import { ProjectDocumentUpload } from "@/components/project-document-upload";
 import { DeleteButton } from "@/components/delete-button";
 import type {
   ProjectTask,
-  ProjectQuoteLogEntry,
   ProjectNote,
   ProjectDocument,
   FormState as ProjectFormState,
 } from "@/app/(dashboard)/projects/actions";
-import type { FormState, AutotaskQuoteOption } from "@/app/(dashboard)/clients/actions";
+import type { FormState } from "@/app/(dashboard)/clients/actions";
 import type { FormState as TaskFormState } from "@/app/(dashboard)/tasks/actions";
 
 const initialNoteState: ProjectFormState = { error: null };
@@ -26,7 +24,6 @@ export type ProjectRowData = {
   name: string;
   status: string;
   client_id: string;
-  hasAutotaskCompany: boolean;
   quotedHours: number | null;
   actualHours: number | null;
   daysOpen: number;
@@ -112,9 +109,6 @@ export function ProjectRow({
   members,
   fetchTasksAction,
   createTaskAction,
-  listAutotaskQuotesAction,
-  logAutotaskQuoteAction,
-  fetchQuoteLogAction,
   fetchNotesAction,
   addNoteAction,
   fetchDocumentsAction,
@@ -127,17 +121,6 @@ export function ProjectRow({
   members: { id: string; full_name: string }[];
   fetchTasksAction: (projectId: string) => Promise<{ tasks: ProjectTask[] } | { error: string }>;
   createTaskAction: (prevState: TaskFormState, formData: FormData) => Promise<TaskFormState>;
-  listAutotaskQuotesAction: (
-    clientId: string
-  ) => Promise<{ quotes: AutotaskQuoteOption[] } | { error: string }>;
-  logAutotaskQuoteAction: (
-    clientId: string,
-    projectId: string,
-    quote: AutotaskQuoteOption
-  ) => Promise<FormState>;
-  fetchQuoteLogAction: (
-    projectId: string
-  ) => Promise<{ entries: ProjectQuoteLogEntry[] } | { error: string }>;
   fetchNotesAction: (projectId: string) => Promise<{ notes: ProjectNote[] } | { error: string }>;
   addNoteAction: (prevState: ProjectFormState, formData: FormData) => Promise<ProjectFormState>;
   fetchDocumentsAction: (
@@ -152,9 +135,6 @@ export function ProjectRow({
   const [tasks, setTasks] = useState<ProjectTask[] | null>(null);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [loadingTasks, startLoadTasks] = useTransition();
-  const [quoteLog, setQuoteLog] = useState<ProjectQuoteLogEntry[] | null>(null);
-  const [quoteLogError, setQuoteLogError] = useState<string | null>(null);
-  const [loadingQuoteLog, startLoadQuoteLog] = useTransition();
   const [notes, setNotes] = useState<ProjectNote[] | null>(null);
   const [notesError, setNotesError] = useState<string | null>(null);
   const [loadingNotes, startLoadNotes] = useTransition();
@@ -168,16 +148,6 @@ export function ProjectRow({
       const result = await fetchTasksAction(project.id);
       if ("error" in result) setTasksError(result.error);
       else setTasks(result.tasks);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded]);
-
-  useEffect(() => {
-    if (!expanded || !project.hasAutotaskCompany || quoteLog !== null) return;
-    startLoadQuoteLog(async () => {
-      const result = await fetchQuoteLogAction(project.id);
-      if ("error" in result) setQuoteLogError(result.error);
-      else setQuoteLog(result.entries);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
@@ -213,13 +183,6 @@ export function ProjectRow({
     startLoadTasks(async () => {
       const result = await fetchTasksAction(project.id);
       if (!("error" in result)) setTasks(result.tasks);
-    });
-  };
-
-  const refreshQuoteLog = () => {
-    startLoadQuoteLog(async () => {
-      const result = await fetchQuoteLogAction(project.id);
-      if (!("error" in result)) setQuoteLog(result.entries);
     });
   };
 
@@ -428,47 +391,6 @@ export function ProjectRow({
               }}
             />
           </div>
-
-          {project.hasAutotaskCompany && (
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Autotask quotes
-              </p>
-
-              {loadingQuoteLog && quoteLog === null && (
-                <p className="text-xs text-slate-500">Loading logged quotes…</p>
-              )}
-              {quoteLogError && <p className="text-xs text-red-600">{quoteLogError}</p>}
-              {quoteLog && quoteLog.length > 0 && (
-                <ul className="mb-3 space-y-2 divide-y divide-slate-100 rounded-md border border-slate-200">
-                  {quoteLog.map((entry) => (
-                    <li key={entry.id} className="px-3 py-2">
-                      <p className="text-sm font-medium text-slate-900">{entry.subject}</p>
-                      {entry.body && <p className="text-xs text-slate-500">{entry.body}</p>}
-                      {entry.externalLink && (
-                        <a
-                          href={entry.externalLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-0.5 inline-block text-xs text-slate-500 underline"
-                        >
-                          View in Autotask
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <AutotaskQuotePicker
-                listAutotaskQuotesAction={() => listAutotaskQuotesAction(project.client_id)}
-                logAutotaskQuoteAction={(quote) =>
-                  logAutotaskQuoteAction(project.client_id, project.id, quote)
-                }
-                onLogged={refreshQuoteLog}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>

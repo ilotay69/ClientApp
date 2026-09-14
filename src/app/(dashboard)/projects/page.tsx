@@ -10,7 +10,6 @@ import {
   syncAllAutotaskProjectsAction,
   autoSyncAutotaskProjectsIfStale,
   getProjectTasksAction,
-  getProjectQuoteLogAction,
   getProjectNotesAction,
   addProjectNote,
   getProjectDocumentsAction,
@@ -18,11 +17,7 @@ import {
   updateProjectQuotedHours,
 } from "./actions";
 import { createTask } from "../tasks/actions";
-import {
-  listAutotaskQuotesForClientAction,
-  logAutotaskQuoteReference,
-  uploadProjectDocument,
-} from "../clients/actions";
+import { uploadProjectDocument } from "../clients/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +44,7 @@ export default async function ProjectsPage({
   let projectsQuery = supabase
     .from("projects")
     .select(
-      "id, name, status, client_id, quoted_hours, actual_hours, start_date, created_at, clients(name, autotask_company_id)"
+      "id, name, status, client_id, quoted_hours, actual_hours, start_date, created_at, clients(name)"
     )
     .order("target_end_date", { ascending: true, nullsFirst: false });
 
@@ -142,13 +137,12 @@ export default async function ProjectsPage({
 
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
         {(projects ?? []).map((p) => {
-          const client = p.clients as unknown as { name: string; autotask_company_id: number | null } | null;
+          const client = p.clients as unknown as { name: string } | null;
           const row: ProjectRowData = {
             id: p.id,
             name: p.name,
             status: p.status,
             client_id: p.client_id,
-            hasAutotaskCompany: Boolean(client?.autotask_company_id),
             // numeric columns come back as strings over the wire
             quotedHours: p.quoted_hours !== null ? Number(p.quoted_hours) : null,
             actualHours: p.actual_hours !== null ? Number(p.actual_hours) : null,
@@ -168,10 +162,7 @@ export default async function ProjectsPage({
               clientName={client?.name ?? null}
               members={members ?? []}
               fetchTasksAction={getProjectTasksAction}
-              fetchQuoteLogAction={getProjectQuoteLogAction}
               createTaskAction={createTask}
-              listAutotaskQuotesAction={listAutotaskQuotesForClientAction}
-              logAutotaskQuoteAction={logAutotaskQuoteReference}
               fetchNotesAction={getProjectNotesAction}
               addNoteAction={addProjectNote.bind(null, p.id)}
               fetchDocumentsAction={getProjectDocumentsAction}

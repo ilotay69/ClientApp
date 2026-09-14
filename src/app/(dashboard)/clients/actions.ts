@@ -16,8 +16,6 @@ import {
   fetchTicketTimeEntries,
   fetchContactsForCompany,
   fetchPrimaryContactForCompany,
-  fetchQuotesForCompany,
-  buildAutotaskQuoteUrl,
   type AutotaskCompany,
   type AutotaskTicketNote,
   type AutotaskTimeEntry,
@@ -298,112 +296,6 @@ export async function uploadProjectDocument(
   const result = await uploadInteractionDocument(clientId, projectId, "document", formData);
   if (!result.error) revalidatePath("/projects");
   return result;
-}
-
-export type AutotaskQuoteOption = {
-  id: number;
-  name: string;
-  quoteNumber: number | null;
-  approvalStatus: string | null;
-  effectiveDate: string | null;
-  expirationDate: string | null;
-  webLink: string;
-};
-
-/** Every Autotask quote for this client (via its Opportunities — Quotes
- * have no direct company filter), each with a deep link to its own
- * quote.asp page — Autotask's Quotes API has no PDF/portal link of its
- * own, so this is the only clickable way back to the quote itself. */
-export async function listAutotaskQuotesForClientAction(
-  clientId: string
-): Promise<{ quotes: AutotaskQuoteOption[] } | { error: string }> {
-  // Guard first, before the service-role client. `clientId` is caller-supplied
-  // and this reads through the admin client, which bypasses RLS — so without
-  // this line anyone with any session could POST this action (Server Actions
-  // are POST endpoints; no layout or page render gates them) and read any
-  // company's Autotask quotes.
-  if (!(await requireStaff())) {
-    return { error: "You don't have permission to do that." };
-  }
-
-  const admin = createAdminClient();
-  const { data: client } = await admin
-    .from("clients")
-    .select("autotask_company_id")
-    .eq("id", clientId)
-    .maybeSingle();
-  if (!client?.autotask_company_id) {
-    return { error: "This client isn't linked to an Autotask company yet." };
-  }
-
-  const settings = await getAutotaskSettings(admin);
-  if (!settings?.zoneUrl) {
-    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
-  }
-  if (!settings.webZoneUrl) {
-    return {
-      error: "Re-test the Autotask connection under Settings → Integrations to enable quote links.",
-    };
-  }
-  const webZoneUrl = settings.webZoneUrl;
-
-  try {
-    const quotes = await fetchQuotesForCompany(
-      settings.credentials,
-      settings.zoneUrl,
-      client.autotask_company_id
-    );
-    return {
-      quotes: quotes.map((q) => ({ ...q, webLink: buildAutotaskQuoteUrl(webZoneUrl, q.id) })),
-    };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Autotask lookup failed." };
-  }
-}
-
-/** Logs a quote reference under one project (not the client's Timeline —
- * project_id being set is what keeps it out of there, see the Timeline
- * query's own .is("project_id", null) filter) — a text reference
- * (name/number/status/dates) plus a deep link back to the Autotask quote,
- * not a document. */
-export async function logAutotaskQuoteReference(
-  clientId: string,
-  projectId: string,
-  quote: {
-    name: string;
-    quoteNumber: number | null;
-    approvalStatus: string | null;
-    effectiveDate: string | null;
-    expirationDate: string | null;
-    webLink: string;
-  }
-): Promise<FormState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const details = [
-    quote.quoteNumber ? `Quote #${quote.quoteNumber}` : null,
-    quote.approvalStatus,
-    quote.effectiveDate ? `effective ${quote.effectiveDate.slice(0, 10)}` : null,
-    quote.expirationDate ? `expires ${quote.expirationDate.slice(0, 10)}` : null,
-  ].filter(Boolean);
-
-  const { error } = await supabase.from("client_interactions").insert({
-    client_id: clientId,
-    project_id: projectId,
-    type: "quote",
-    subject: quote.name,
-    body: details.length > 0 ? details.join(" · ") : "Referenced from Autotask.",
-    external_link: quote.webLink,
-    created_by: user?.id ?? null,
-  });
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/projects");
-  return { error: null };
 }
 
 /** Removes a Timeline entry — a wrong upload, a mistaken note, etc — and

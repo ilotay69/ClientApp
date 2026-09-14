@@ -1270,69 +1270,6 @@ export async function fetchContractServicesForCompany(
   });
 }
 
-export type AutotaskQuote = {
-  id: number;
-  name: string;
-  quoteNumber: number | null;
-  approvalStatus: string | null;
-  effectiveDate: string | null;
-  expirationDate: string | null;
-};
-
-/** Quotes have no direct company filter — a Quote only carries an
- * opportunityID, so this goes through the client's Opportunities first.
- * No dollar amounts read or returned (this app never surfaces those) and
- * no PDF/portal link either — Autotask's Quotes entity doesn't have one;
- * callers build a deep link to the quote's own classic-UI page instead. */
-export async function fetchQuotesForCompany(
-  creds: AutotaskCredentials,
-  zoneUrl: string,
-  companyId: number
-): Promise<AutotaskQuote[]> {
-  type RawOpportunity = { id: number };
-  const opportunities = (await autotaskQuery(creds, zoneUrl, "Opportunities", {
-    filter: [{ op: "eq", field: "companyID", value: companyId }],
-    MaxRecords: 200,
-  })) as RawOpportunity[];
-  if (opportunities.length === 0) return [];
-
-  type RawQuote = {
-    id: number;
-    name: string;
-    quoteNumber?: number;
-    approvalStatus?: number;
-    effectiveDate?: string;
-    expirationDate?: string;
-  };
-  const items = (await autotaskQuery(creds, zoneUrl, "Quotes", {
-    filter: [{ op: "in", field: "opportunityID", value: opportunities.map((o) => o.id) }],
-    MaxRecords: 200,
-  })) as RawQuote[];
-  if (items.length === 0) return [];
-
-  const fields = await fetchEntityFields(creds, zoneUrl, "Quotes");
-  const approvalStatusLabels = picklistMap(fields, "approvalStatus");
-
-  return items
-    .map((q) => ({
-      id: q.id,
-      name: q.name,
-      quoteNumber: q.quoteNumber ?? null,
-      approvalStatus:
-        q.approvalStatus != null ? (approvalStatusLabels.get(q.approvalStatus) ?? null) : null,
-      effectiveDate: q.effectiveDate ?? null,
-      expirationDate: q.expirationDate ?? null,
-    }))
-    .sort((a, b) => (b.effectiveDate ?? "").localeCompare(a.effectiveDate ?? ""));
-}
-
-/** The classic web UI's quote page — Autotask's REST API has nothing
- * equivalent to link to, so this is the only clickable way back to a
- * quote from outside Autotask itself. */
-export function buildAutotaskQuoteUrl(webZoneUrl: string, quoteId: number): string {
-  return `${webZoneUrl.replace(/\/$/, "")}/opportunity/quotes/quote.asp?QuoteID=${quoteId}`;
-}
-
 export type AutotaskTicketCreatedRow = { id: number; createDate: string };
 
 /** Every ticket created for one company in a date range, regardless of
