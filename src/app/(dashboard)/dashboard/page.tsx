@@ -170,6 +170,7 @@ export default async function DashboardPage() {
             icon={IconCheckSquare}
             accent="blue"
             href="/tasks?mine=1"
+            urgent={(myTasks ?? []).some((t) => isOverdue(t.due_date))}
           >
             {(myTasks ?? []).length === 0 ? (
               <EmptyRow text="Nothing assigned to you right now." />
@@ -200,6 +201,7 @@ export default async function DashboardPage() {
             icon={IconCalendar}
             accent="amber"
             href="/touchpoints"
+            urgent={overdueTouchpoints.length > 0}
           >
             {overdueTouchpoints.length === 0 ? (
               <EmptyRow text="Nothing overdue." />
@@ -227,6 +229,7 @@ export default async function DashboardPage() {
             icon={IconFolder}
             accent="purple"
             href="/projects"
+            urgent={(activeProjects ?? []).some((p) => isOverdue(p.target_end_date))}
           >
             {(activeProjects ?? []).length === 0 ? (
               <EmptyRow text="No active projects." />
@@ -260,20 +263,20 @@ export default async function DashboardPage() {
             {workloadByPerson.size === 0 ? (
               <EmptyRow text="Nothing assigned across the team." />
             ) : (
-              <div className="flex flex-wrap gap-2 px-5 py-3">
+              <div className="divide-y divide-slate-100">
                 {[...workloadByPerson.entries()]
                   .sort((a, b) => b[1] - a[1])
                   .slice(0, 8)
-                  .map(([name, count]) => (
-                    <span
-                      key={name}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700"
-                    >
-                      <span className="font-medium text-slate-900">{name}</span>{" "}
-                      <span className="text-slate-500">
-                        {count} open task{count === 1 ? "" : "s"}
+                  .map(([name, count], i) => (
+                    <div key={name} className="flex items-center gap-3 px-5 py-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">
+                        {i + 1}
                       </span>
-                    </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{name}</span>
+                      <span className="shrink-0 text-sm font-semibold text-slate-700">
+                        {count} <span className="font-normal text-slate-400">open</span>
+                      </span>
+                    </div>
                   ))}
               </div>
             )}
@@ -315,6 +318,7 @@ export default async function DashboardPage() {
             icon={IconClipboardCheck}
             accent="teal"
             href="/quarterly-reviews"
+            urgent={myReviews.length > 0}
           >
             {myReviews.length === 0 ? (
               <EmptyRow text="Nothing needs your attention." />

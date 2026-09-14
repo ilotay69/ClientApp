@@ -26,6 +26,7 @@ export function DashboardWidgetCard({
   icon: Icon,
   accent,
   href,
+  urgent = false,
   children,
 }: {
   title: string;
@@ -34,11 +35,24 @@ export function DashboardWidgetCard({
   icon: (props: { className?: string }) => React.ReactNode;
   accent: DashboardAccent;
   href: string;
+  /** A small red "!" badge on the card's corner — for when something inside
+   * it genuinely needs eyes on it right now (something overdue, something
+   * waiting on a decision), not just "here's a count." */
+  urgent?: boolean;
   children: React.ReactNode;
 }) {
   const colors = ACCENTS[accent];
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+      {urgent && (
+        <span
+          className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white shadow ring-2 ring-white"
+          title="Needs attention"
+          aria-hidden="true"
+        >
+          !
+        </span>
+      )}
       <Link href={href} className="flex items-center justify-between gap-3 px-5 py-4 hover:bg-slate-50">
         <div className="flex min-w-0 items-center gap-3">
           <span
