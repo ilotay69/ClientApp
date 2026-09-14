@@ -24,6 +24,7 @@ import {
   IconLock,
   IconDatabase,
   IconClipboardCheck,
+  IconSliders,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -102,7 +103,7 @@ export function SidebarNav({
   // signed-in user's own list) is always visible even without
   // view_team_tasks; only the "Team Tasks" tab inside that page is gated.
   const MAIN_LINKS: NavItem[] = [
-    ...(canViewDashboard ? [{ href: "/dashboard", label: "Overview", icon: IconGrid }] : []),
+    ...(canViewDashboard ? [{ href: "/dashboard", label: "Dashboard", icon: IconGrid }] : []),
     ...(canViewClients ? [{ href: "/clients", label: "Clients", icon: IconBriefcase }] : []),
     ...(canViewProjects ? [{ href: "/projects", label: "Projects", icon: IconFolder }] : []),
     { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
@@ -269,7 +270,15 @@ export function SidebarNav({
       </nav>
 
       <div className="border-t border-white/15 px-4 py-3">
-        <p className="truncate text-sm text-white/80">{userLabel}</p>
+        <Link
+          href="/settings/dashboard"
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center justify-between gap-2 truncate text-sm text-white/80 hover:text-white"
+          title="Choose what shows on your Dashboard"
+        >
+          <span className="truncate">{userLabel}</span>
+          <IconSliders className="h-3.5 w-3.5 shrink-0 opacity-70" />
+        </Link>
         <div className="mt-2">
           <NotificationBell />
         </div>

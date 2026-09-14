@@ -41,7 +41,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   view_domain_health: "View the Domain Health tool",
   view_lookups: "View the Lookups page (Autotask/NinjaOne/M365/security vendor data)",
   view_analysis: "View the Analysis page (trend charts & Security by Type)",
-  view_dashboard: "View the Overview dashboard",
+  view_dashboard: "View the Dashboard",
   view_clients: "View the client list & client detail pages",
   view_projects: "View the project list & project detail pages",
   view_team_tasks: "View the team-wide Tasks list (My To-Do is always visible)",
