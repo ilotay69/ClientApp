@@ -35,6 +35,7 @@ export type TaskRowData = {
 export function TaskRow({
   task,
   clientName,
+  projectLabel,
   assigneeNames,
   assigneeIds,
   members,
@@ -48,6 +49,11 @@ export function TaskRow({
 }: {
   task: TaskRowData;
   clientName: string | null;
+  /** Already resolved to display text (the project's name, truncated, or
+   * "No Project") — omit entirely to hide this column, since it's only
+   * meaningful on the Team Tasks list (My To-Do and a project's own task
+   * list both have no useful "which project" question to answer here). */
+  projectLabel?: string;
   assigneeNames: string;
   assigneeIds: string[];
   members: { id: string; full_name: string }[];
@@ -112,6 +118,11 @@ export function TaskRow({
           {task.due_date ? formatDate(task.due_date) : "—"}
         </span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientLabel}</span>
+        {projectLabel !== undefined && (
+          <span className="w-28 shrink-0 truncate text-xs text-slate-500" title={projectLabel}>
+            {projectLabel}
+          </span>
+        )}
         {personLabel && (
           <span className="w-32 shrink-0 truncate text-sm text-slate-700">{personLabel}</span>
         )}

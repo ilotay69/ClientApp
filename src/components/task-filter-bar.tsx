@@ -56,16 +56,23 @@ function PreserveParams({ params }: { params: Record<string, string | string[] |
   );
 }
 
+/** Value the "No Project" option submits — a task's project filter can't
+ * just be an empty string for "none" the way client/assignee are, since
+ * empty string already means "don't filter at all" (All projects). */
+export const NO_PROJECT_FILTER_VALUE = "__none__";
+
 const DEFAULT_FIELD_NAMES = {
   client: "client",
   priority: "priority",
   status: "status",
   assignee: "assignee",
+  project: "project",
 };
 
 export function TaskFilterBar({
   clients,
   members,
+  projects,
   priorityOptions,
   statusOptions,
   values,
@@ -73,25 +80,30 @@ export function TaskFilterBar({
   clearHref,
   fieldNames = DEFAULT_FIELD_NAMES,
   showAssignee = true,
+  showProject = false,
 }: {
   clients: { id: string; name: string }[];
   members: { id: string; full_name: string }[];
+  projects?: { id: string; name: string }[];
   priorityOptions: { value: string; label: string }[];
   statusOptions: { value: string; label: string }[];
-  values: { client: string; priorities: string[]; assignee: string; statuses: string[] };
+  values: { client: string; priorities: string[]; assignee: string; statuses: string[]; project?: string };
   /** Every other filter param (from either tab) so it survives this
    * form's own submission — see `PreserveParams`. */
   preserve: Record<string, string | string[] | undefined>;
   /** Where "Clear filters" goes — computed server-side so it can drop
    * this tab's filter params while keeping everything else intact. */
   clearHref: string;
-  fieldNames?: { client: string; priority: string; status: string; assignee: string };
+  fieldNames?: { client: string; priority: string; status: string; assignee: string; project?: string };
   showAssignee?: boolean;
+  /** Team Tasks only — My To-Do tasks have no project concept. */
+  showProject?: boolean;
 }) {
   const hasFilters =
     values.client ||
     values.priorities.length > 0 ||
     (showAssignee && values.assignee) ||
+    (showProject && values.project) ||
     values.statuses.length > 0;
 
   return (
@@ -124,6 +136,23 @@ export function TaskFilterBar({
             {members.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.full_name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {showProject && (
+          <select
+            name={fieldNames.project ?? "project"}
+            defaultValue={values.project ?? ""}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+          >
+            <option value="">All projects</option>
+            <option value={NO_PROJECT_FILTER_VALUE}>No Project</option>
+            {(projects ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>

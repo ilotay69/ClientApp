@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
-import { TaskFilterBar } from "@/components/task-filter-bar";
+import { TaskFilterBar, NO_PROJECT_FILTER_VALUE } from "@/components/task-filter-bar";
 import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { MailboxSnapshotPreview } from "@/components/mailbox-snapshot-preview";
 import { SyncMailboxButton } from "@/components/sync-mailbox-button";
@@ -52,6 +52,13 @@ function statusOptionsFor(current: string) {
   return [...STATUS_OPTIONS, { value: current, label: current }];
 }
 
+// Keeps a long project name from pushing the rest of the row around —
+// this is just a scan-friendly label, not the only place the full name
+// is available (the project's own page has that).
+function truncateProjectName(name: string): string {
+  return name.length > 20 ? `${name.slice(0, 20)}…` : name;
+}
+
 export default async function TasksPage({
   searchParams,
 }: {
@@ -62,6 +69,7 @@ export default async function TasksPage({
     project_id?: string;
     client_id?: string;
     client?: string;
+    project?: string;
     priority?: string | string[];
     assignee?: string;
     status?: string | string[];
@@ -77,6 +85,7 @@ export default async function TasksPage({
     project_id: defaultProjectId,
     client_id: defaultClientId,
     client: filterClient,
+    project: filterProject,
     priority: filterPriorityRaw,
     assignee: filterAssignee,
     status: filterStatusRaw,
@@ -149,6 +158,8 @@ export default async function TasksPage({
     clientName: (p.clients as unknown as { name: string } | null)?.name ?? null,
   }));
   const memberById = new Map((members ?? []).map((m) => [m.id, m.full_name]));
+  const projectNameById = new Map(projectSummaries.map((p) => [p.id, truncateProjectName(p.name)]));
+  const projectFilterOptions = projectSummaries.map((p) => ({ id: p.id, name: truncateProjectName(p.name) }));
 
   // Defaults to "my tasks": with no explicit assignee/mine/view param, a
   // logged-in tech lands on their own open tasks rather than everyone's.
@@ -182,6 +193,11 @@ export default async function TasksPage({
   }
   if (filterClient) {
     teamQuery = teamQuery.eq("client_id", filterClient);
+  }
+  if (filterProject === NO_PROJECT_FILTER_VALUE) {
+    teamQuery = teamQuery.is("project_id", null);
+  } else if (filterProject) {
+    teamQuery = teamQuery.eq("project_id", filterProject);
   }
   if (filterPriorities.length > 0) {
     teamQuery = teamQuery.in("priority", filterPriorities);
@@ -234,10 +250,13 @@ export default async function TasksPage({
       <TaskFilterBar
         clients={filterClients}
         members={members ?? []}
+        projects={projectFilterOptions}
+        showProject
         priorityOptions={PRIORITY_OPTIONS}
         statusOptions={STATUS_OPTIONS}
         values={{
           client: filterClient ?? "",
+          project: filterProject ?? "",
           priorities: filterPriorities,
           assignee: filterAssignee ?? "",
           statuses: filterStatuses,
@@ -284,6 +303,7 @@ export default async function TasksPage({
               key={t.id}
               task={t as TaskRowData}
               clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
+              projectLabel={t.project_id ? (projectNameById.get(t.project_id) ?? "Project") : "No Project"}
               assigneeNames={assigneeNames}
               assigneeIds={assigneeIds}
               members={members ?? []}
@@ -362,6 +382,7 @@ export default async function TasksPage({
           view,
           tab: "todo",
           client: filterClient,
+          project: filterProject,
           priority: filterPriorities,
           assignee: filterAssignee,
           status: filterStatuses,
@@ -371,6 +392,7 @@ export default async function TasksPage({
           view,
           tab: "todo",
           client: filterClient,
+          project: filterProject,
           priority: filterPriorities,
           assignee: filterAssignee,
           status: filterStatuses,
