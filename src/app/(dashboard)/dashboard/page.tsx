@@ -31,6 +31,22 @@ import { acknowledgeAlertAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
+// Same pipeline order and labels as resume-status-select.tsx/resume-filter-bar.tsx
+// (not exported from either — one's a "use client" component, the other's
+// scoped to its own filter bar) — kept in sync by hand since resume_status
+// only grows a new value a couple of times a year.
+const RECRUITMENT_STATUS_ORDER: { value: string; label: string }[] = [
+  { value: "new", label: "New" },
+  { value: "reviewing", label: "Reviewing" },
+  { value: "contacting", label: "Contacting" },
+  { value: "invited", label: "Invited" },
+  { value: "interviewing", label: "Interviewing" },
+  { value: "second_interview", label: "2nd Interview" },
+  { value: "both_done", label: "Both Done" },
+  { value: "rejected", label: "Rejected" },
+  { value: "hired", label: "Hired" },
+];
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -75,7 +91,7 @@ export default async function DashboardPage() {
     { data: myAlerts },
     allReviews,
     { data: openSalesRequests },
-    { count: newCandidateCount },
+    { data: recruitmentRows },
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -110,7 +126,7 @@ export default async function DashboardPage() {
       .select("id, title, stage, clients(name)")
       .not("stage", "in", "(delivered,cancelled)")
       .order("created_at", { ascending: false }),
-    supabase.from("resumes").select("id", { count: "exact", head: true }).eq("status", "new"),
+    supabase.from("resumes").select("status"),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -168,6 +184,15 @@ export default async function DashboardPage() {
     else if (p.status === "active") projectStatusCounts.active++;
     else if (p.status === "on_hold") projectStatusCounts.on_hold++;
   }
+
+  // A Map (not a plain object literal) specifically so tallying by a
+  // dynamic string key never hits the same "implicitly any" indexing
+  // problem projectStatusCounts did above.
+  const recruitmentStatusCounts = new Map<string, number>();
+  for (const r of recruitmentRows ?? []) {
+    recruitmentStatusCounts.set(r.status, (recruitmentStatusCounts.get(r.status) ?? 0) + 1);
+  }
+  const newCandidateCount = recruitmentStatusCounts.get("new") ?? 0;
 
   return (
     <div className="space-y-4">
@@ -453,23 +478,26 @@ export default async function DashboardPage() {
         {enabled.has("recruitment") && (
           <DashboardWidgetCard
             title="Recruitment"
-            count={newCandidateCount ?? 0}
+            count={newCandidateCount}
             countLabel="new candidates"
             icon={IconUsers}
             accent="pink"
             href="/recruitment"
           >
-            {(newCandidateCount ?? 0) === 0 ? (
-              <EmptyRow text="No new candidates waiting." />
-            ) : (
-              <div className="flex items-center gap-3 px-4 py-2">
-                <DashboardDot accent="pink" />
-                <p className="min-w-0 flex-1 text-sm text-slate-700">
-                  {newCandidateCount} candidate{newCandidateCount === 1 ? "" : "s"} waiting to be screened
-                </p>
-                <span className="shrink-0 text-xs font-medium text-pink-600">Screen now →</span>
-              </div>
-            )}
+            <div className="divide-y divide-slate-100">
+              {RECRUITMENT_STATUS_ORDER.map((s) => (
+                <Link
+                  key={s.value}
+                  href={`/recruitment?status=${s.value}`}
+                  className="flex items-center justify-between gap-3 px-4 py-1.5 hover:bg-slate-50"
+                >
+                  <Badge value={s.value} label={s.label} />
+                  <span className="text-sm font-semibold tabular-nums text-slate-700">
+                    {recruitmentStatusCounts.get(s.value) ?? 0}
+                  </span>
+                </Link>
+              ))}
+            </div>
           </DashboardWidgetCard>
         )}
       </div>
