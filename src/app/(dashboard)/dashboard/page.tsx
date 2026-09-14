@@ -164,8 +164,9 @@ export default async function DashboardPage() {
       : 100;
   const projectStatusCounts = { planning: 0, active: 0, on_hold: 0 };
   for (const p of activeProjects ?? []) {
-    if (p.status === "planning" || p.status === "active" || p.status === "on_hold") {
-      projectStatusCounts[p.status]++;
+    const status = p.status;
+    if (status === "planning" || status === "active" || status === "on_hold") {
+      projectStatusCounts[status]++;
     }
   }
 
