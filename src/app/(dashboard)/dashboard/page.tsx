@@ -9,6 +9,7 @@ import {
   DashboardDot,
   type DashboardAccent,
 } from "@/components/dashboard-widget-card";
+import { DashboardDonut, DashboardGauge } from "@/components/dashboard-charts";
 import {
   IconAlertTriangle,
   IconCheckSquare,
@@ -157,6 +158,16 @@ export default async function DashboardPage() {
     { label: "Alerts", value: alertCount, href: "/dashboard" },
   ];
   const maxWorkload = Math.max(0, ...workloadByPerson.values());
+  const onTimeRate =
+    (myTasks ?? []).length > 0
+      ? (((myTasks ?? []).length - overdueMyTasks.length) / (myTasks ?? []).length) * 100
+      : 100;
+  const projectStatusCounts = { planning: 0, active: 0, on_hold: 0 };
+  for (const p of activeProjects ?? []) {
+    if (p.status === "planning" || p.status === "active" || p.status === "on_hold") {
+      projectStatusCounts[p.status]++;
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -214,6 +225,11 @@ export default async function DashboardPage() {
             href="/tasks?mine=1"
             urgent={(myTasks ?? []).some((t) => isOverdue(t.due_date))}
           >
+            {(myTasks ?? []).length > 0 && (
+              <div className="border-b border-slate-100">
+                <DashboardGauge value={onTimeRate} label="on time" strokeClassName="stroke-blue-500" />
+              </div>
+            )}
             {(myTasks ?? []).length === 0 ? (
               <EmptyRow text="Nothing assigned to you right now." />
             ) : (
@@ -273,6 +289,32 @@ export default async function DashboardPage() {
             href="/projects"
             urgent={(activeProjects ?? []).some((p) => isOverdue(p.target_end_date))}
           >
+            {(activeProjects ?? []).length > 0 && (
+              <div className="border-b border-slate-100">
+                <DashboardDonut
+                  segments={[
+                    {
+                      label: "Active",
+                      value: projectStatusCounts.active,
+                      strokeClassName: "stroke-purple-500",
+                      dotClassName: "bg-purple-500",
+                    },
+                    {
+                      label: "Planning",
+                      value: projectStatusCounts.planning,
+                      strokeClassName: "stroke-purple-300",
+                      dotClassName: "bg-purple-300",
+                    },
+                    {
+                      label: "On hold",
+                      value: projectStatusCounts.on_hold,
+                      strokeClassName: "stroke-amber-400",
+                      dotClassName: "bg-amber-400",
+                    },
+                  ]}
+                />
+              </div>
+            )}
             {(activeProjects ?? []).length === 0 ? (
               <EmptyRow text="No active projects." />
             ) : (
