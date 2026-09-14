@@ -2,7 +2,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AlertRow } from "@/components/alert-row";
-import { DashboardWidgetCard } from "@/components/dashboard-widget-card";
+import {
+  DashboardWidgetCard,
+  DashboardHeroCard,
+  DashboardBar,
+  DashboardDot,
+  type DashboardAccent,
+} from "@/components/dashboard-widget-card";
 import {
   IconAlertTriangle,
   IconCheckSquare,
@@ -124,40 +130,76 @@ export default async function DashboardPage() {
       (isApprover && r.status === "submitted")
   );
 
+  const overdueMyTasks = (myTasks ?? []).filter((t) => isOverdue(t.due_date));
+  const dueTodayMyTasks = (myTasks ?? []).filter((t) => t.due_date === today);
+  const alertCount = (myAlerts ?? []).length;
+  const showsTouchpoints = eligibleKeys.has("touchpoints_due");
+  const needsYouTotal =
+    overdueMyTasks.length + alertCount + (showsTouchpoints ? overdueTouchpoints.length : 0);
+
+  // Explicit timezone — the server runs in UTC, so a plain getHours() would
+  // wish someone "good evening" over their Toronto lunch break.
+  const torontoHour = Number(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Toronto",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date())
+  );
+  const partOfDay = torontoHour < 12 ? "Good morning" : torontoHour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = me?.full_name ? me.full_name.split(" ")[0] : "";
+  const heroStats = [
+    { label: "Overdue tasks", value: overdueMyTasks.length, href: "/tasks?mine=1" },
+    { label: "Due today", value: dueTodayMyTasks.length, href: "/tasks?mine=1" },
+    ...(showsTouchpoints
+      ? [{ label: "Touchpoints due", value: overdueTouchpoints.length, href: "/touchpoints" }]
+      : []),
+    { label: "Alerts", value: alertCount, href: "/dashboard" },
+  ];
+  const maxWorkload = Math.max(0, ...workloadByPerson.values());
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          What needs attention today, {today}
-          {me?.full_name ? ` — hey ${me.full_name.split(" ")[0]}` : ""}.
-        </p>
-      </div>
+      <DashboardHeroCard
+        greeting={`${partOfDay}${firstName ? `, ${firstName}` : ""} — here's your day`}
+        subtitle={needsYouTotal === 1 ? "thing needs you right now" : "things need you right now"}
+        total={needsYouTotal}
+        stats={heroStats}
+      />
 
       {(myAlerts ?? []).length > 0 && enabled.has("alerts") && (
-        <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-5 py-2.5">
-            <IconAlertTriangle className="h-4 w-4 text-red-600" />
-            <h2 className="text-sm font-semibold text-red-800">Alerts</h2>
-            <span className="ml-auto text-xs font-medium text-red-700">{(myAlerts ?? []).length}</span>
+        <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 via-white to-white shadow-sm">
+          <div className="flex items-center gap-3 px-5 py-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500 text-white shadow-sm">
+              <IconAlertTriangle className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">Alerts</p>
+              <p className="truncate text-xs font-medium text-red-700/70">waiting on you</p>
+            </div>
+            <span className="ml-auto text-4xl font-bold tabular-nums text-red-600">
+              {(myAlerts ?? []).length}
+            </span>
           </div>
-          <div className="divide-y divide-slate-100">
-            {(myAlerts ?? []).slice(0, 5).map((a) => (
-              <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
-            ))}
+          <div className="mx-3 mb-3 overflow-hidden rounded-xl bg-white/80 ring-1 ring-slate-100">
+            <div className="divide-y divide-slate-100">
+              {(myAlerts ?? []).slice(0, 5).map((a) => (
+                <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
+              ))}
+            </div>
+            {(myAlerts ?? []).length > 5 && (
+              <details className="group border-t border-slate-100">
+                <summary className="cursor-pointer list-none px-4 py-2 text-xs font-medium text-brand hover:underline [&::-webkit-details-marker]:hidden">
+                  Show {(myAlerts ?? []).length - 5} more
+                </summary>
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
+                  {(myAlerts ?? []).slice(5).map((a) => (
+                    <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
-          {(myAlerts ?? []).length > 5 && (
-            <details className="group border-t border-slate-100">
-              <summary className="cursor-pointer list-none px-5 py-2 text-xs font-medium text-brand hover:underline [&::-webkit-details-marker]:hidden">
-                Show {(myAlerts ?? []).length - 5} more
-              </summary>
-              <div className="divide-y divide-slate-100 border-t border-slate-100">
-                {(myAlerts ?? []).slice(5).map((a) => (
-                  <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
-                ))}
-              </div>
-            </details>
-          )}
         </div>
       )}
 
@@ -176,7 +218,7 @@ export default async function DashboardPage() {
               <EmptyRow text="Nothing assigned to you right now." />
             ) : (
               (myTasks ?? []).slice(0, 5).map((t) => (
-                <WidgetRow key={t.id} href="/tasks">
+                <WidgetRow accent="blue" key={t.id} href="/tasks">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">{t.title}</p>
                     <p className="truncate text-xs text-slate-500">
@@ -207,7 +249,7 @@ export default async function DashboardPage() {
               <EmptyRow text="Nothing overdue." />
             ) : (
               overdueTouchpoints.slice(0, 5).map((t) => (
-                <WidgetRow key={t.id} href={`/touchpoints/${t.id}`}>
+                <WidgetRow accent="amber" key={t.id} href={`/touchpoints/${t.id}`}>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">
                       {(t.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
@@ -235,7 +277,7 @@ export default async function DashboardPage() {
               <EmptyRow text="No active projects." />
             ) : (
               (activeProjects ?? []).slice(0, 5).map((p) => (
-                <WidgetRow key={p.id} href={`/projects/${p.id}`}>
+                <WidgetRow accent="purple" key={p.id} href={`/projects/${p.id}`}>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">{p.name}</p>
                     <p className="truncate text-xs text-slate-500">
@@ -268,14 +310,17 @@ export default async function DashboardPage() {
                   .sort((a, b) => b[1] - a[1])
                   .slice(0, 8)
                   .map(([name, count], i) => (
-                    <div key={name} className="flex items-center gap-3 px-5 py-2">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{name}</span>
-                      <span className="shrink-0 text-sm font-semibold text-slate-700">
-                        {count} <span className="font-normal text-slate-400">open</span>
-                      </span>
+                    <div key={name} className="px-4 py-2">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-xs font-bold text-white">
+                          {i + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{name}</span>
+                        <span className="shrink-0 text-sm font-semibold text-indigo-600 tabular-nums">{count}</span>
+                      </div>
+                      <div className="mt-1.5 pl-9">
+                        <DashboardBar accent="indigo" value={count} max={maxWorkload} />
+                      </div>
                     </div>
                   ))}
               </div>
@@ -296,7 +341,7 @@ export default async function DashboardPage() {
               <EmptyRow text="No touchpoints scheduled." />
             ) : (
               upcomingTouchpoints.slice(0, 5).map((t) => (
-                <WidgetRow key={t.id} href={`/touchpoints/${t.id}`}>
+                <WidgetRow accent="amber" key={t.id} href={`/touchpoints/${t.id}`}>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">
                       {(t.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
@@ -324,7 +369,7 @@ export default async function DashboardPage() {
               <EmptyRow text="Nothing needs your attention." />
             ) : (
               myReviews.slice(0, 5).map((r) => (
-                <WidgetRow key={r.id} href={`/quarterly-reviews/${r.id}`}>
+                <WidgetRow accent="teal" key={r.id} href={`/quarterly-reviews/${r.id}`}>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">{r.clientName}</p>
                     <p className="truncate text-xs text-slate-500">{r.reviewPeriod}</p>
@@ -349,7 +394,7 @@ export default async function DashboardPage() {
               <EmptyRow text="Nothing open right now." />
             ) : (
               (openSalesRequests ?? []).slice(0, 5).map((r) => (
-                <WidgetRow key={r.id} href="/sales-requests">
+                <WidgetRow accent="emerald" key={r.id} href="/sales-requests">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">{r.title}</p>
                     <p className="truncate text-xs text-slate-500">
@@ -375,9 +420,13 @@ export default async function DashboardPage() {
             {(newCandidateCount ?? 0) === 0 ? (
               <EmptyRow text="No new candidates waiting." />
             ) : (
-              <p className="px-5 py-3 text-sm text-slate-600">
-                {newCandidateCount} candidate{newCandidateCount === 1 ? "" : "s"} waiting to be screened.
-              </p>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <DashboardDot accent="pink" />
+                <p className="min-w-0 flex-1 text-sm text-slate-700">
+                  {newCandidateCount} candidate{newCandidateCount === 1 ? "" : "s"} waiting to be screened
+                </p>
+                <span className="shrink-0 text-xs font-medium text-pink-600">Screen now →</span>
+              </div>
             )}
           </DashboardWidgetCard>
         )}
@@ -433,14 +482,25 @@ export default async function DashboardPage() {
   );
 }
 
-function WidgetRow({ href, children }: { href: string; children: React.ReactNode }) {
+function WidgetRow({
+  href,
+  accent,
+  children,
+}: {
+  href: string;
+  accent?: DashboardAccent;
+  children: React.ReactNode;
+}) {
   return (
-    <Link href={href} className="flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-slate-50">
-      {children}
+    <Link href={href} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+      {accent && <DashboardDot accent={accent} />}
+      {/* Keeps each caller's own left/right pair split as before, with the
+          dot sitting outside it rather than being pushed away by it. */}
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-3">{children}</span>
     </Link>
   );
 }
 
 function EmptyRow({ text }: { text: string }) {
-  return <p className="px-5 py-3 text-sm text-slate-500">{text}</p>;
+  return <p className="px-4 py-3 text-sm text-slate-500">{text}</p>;
 }
