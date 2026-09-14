@@ -212,13 +212,18 @@ export interface MailConnection {
 }
 
 export type ResumeVerdict = "yes" | "maybe" | "no";
-// Matches Indeed's own applicant status stages exactly.
+// new/reviewing/contacting/invited/interviewing/rejected/hired match
+// Indeed's own applicant status stages exactly. second_interview and
+// both_done are this app's own additions on top of that, for candidates
+// who go through a second round before a final decision.
 export type ResumeStatus =
   | "new"
   | "reviewing"
   | "contacting"
   | "invited"
   | "interviewing"
+  | "second_interview"
+  | "both_done"
   | "rejected"
   | "hired";
 

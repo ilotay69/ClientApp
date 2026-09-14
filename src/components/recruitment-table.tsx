@@ -148,8 +148,10 @@ const STATUS_RANK: Record<ResumeStatus, number> = {
   contacting: 2,
   invited: 3,
   interviewing: 4,
-  rejected: 5,
-  hired: 6,
+  second_interview: 5,
+  both_done: 6,
+  rejected: 7,
+  hired: 8,
 };
 
 function sortValue(row: RecruitmentTableRow, key: SortKey): string | number | boolean | null {

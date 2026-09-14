@@ -32,6 +32,10 @@ const COLORS: Record<string, string> = {
   contacting: ATTENTION,
   invited: ATTENTION,
   interviewing: INFO,
+  second_interview: INFO,
+  // Both rounds are done — waiting on a hire/reject call, same "needs
+  // someone's attention" tier as submitted/needs_adjustment elsewhere.
+  both_done: ATTENTION,
   rejected: URGENT,
   hired: SUCCESS,
 

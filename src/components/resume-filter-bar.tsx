@@ -51,13 +51,16 @@ function Chip({
 
 // Matches Indeed's own applicant status stages, plus "invited" for a
 // candidate who's been sent an interview invite/booking link but hasn't
-// interviewed yet.
+// interviewed yet, and "second_interview"/"both_done" for a candidate
+// going through a second round before a final decision.
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
   { value: "reviewing", label: "Reviewing" },
   { value: "contacting", label: "Contacting" },
   { value: "invited", label: "Invited" },
   { value: "interviewing", label: "Interviewing" },
+  { value: "second_interview", label: "2nd Interview" },
+  { value: "both_done", label: "Both Done" },
   { value: "rejected", label: "Rejected" },
   { value: "hired", label: "Hired" },
 ];

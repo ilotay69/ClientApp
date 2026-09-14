@@ -9,6 +9,8 @@ const OPTIONS: { value: ResumeStatus; label: string }[] = [
   { value: "contacting", label: "Contacting" },
   { value: "invited", label: "Invited" },
   { value: "interviewing", label: "Interviewing" },
+  { value: "second_interview", label: "2nd Interview" },
+  { value: "both_done", label: "Both Done" },
   { value: "rejected", label: "Rejected" },
   { value: "hired", label: "Hired" },
 ];
