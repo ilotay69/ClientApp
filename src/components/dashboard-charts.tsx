@@ -23,8 +23,8 @@ export type DonutSegment = {
  * skipped so they don't collapse into a hairline. */
 export function DashboardDonut({
   segments,
-  size = 84,
-  thickness = 13,
+  size = 68,
+  thickness = 11,
 }: {
   segments: DonutSegment[];
   size?: number;
@@ -36,7 +36,7 @@ export function DashboardDonut({
   let drawn = 0;
 
   return (
-    <div className="flex items-center gap-4 px-4 py-3">
+    <div className="flex items-center gap-3 px-4 py-2">
       <svg
         width={size}
         height={size}
@@ -68,7 +68,7 @@ export function DashboardDonut({
               );
             })}
       </svg>
-      <ul className="min-w-0 flex-1 space-y-1">
+      <ul className="min-w-0 flex-1 space-y-0.5">
         {segments.map((s) => (
           <li key={s.label} className="flex items-center gap-1.5 text-xs text-slate-600">
             <span className={`h-2 w-2 shrink-0 rounded-full ${s.dotClassName}`} aria-hidden="true" />
@@ -88,7 +88,7 @@ export function DashboardGauge({
   value,
   label,
   strokeClassName = "stroke-emerald-500",
-  size = 132,
+  size = 100,
 }: {
   /** 0-100. Values outside that range are clamped. */
   value: number;
@@ -105,7 +105,7 @@ export function DashboardGauge({
   const path = `M ${half} ${size / 2} A ${radius} ${radius} 0 0 1 ${size - half} ${size / 2}`;
 
   return (
-    <div className="flex flex-col items-center px-4 py-3">
+    <div className="flex flex-col items-center px-4 py-2">
       <svg width={size} height={size / 2 + half} viewBox={`0 0 ${size} ${size / 2 + half}`} role="img" aria-label={label}>
         <path d={path} fill="none" strokeWidth={thickness} strokeLinecap="round" className="stroke-slate-100" />
         <path
@@ -117,8 +117,8 @@ export function DashboardGauge({
           className={strokeClassName}
         />
       </svg>
-      <p className="-mt-7 text-2xl font-bold tabular-nums text-slate-900">{clamped}%</p>
-      <p className="mt-5 text-xs text-slate-500">{label}</p>
+      <p className="-mt-5 text-xl font-bold tabular-nums text-slate-900">{clamped}%</p>
+      <p className="mt-3 text-xs text-slate-500">{label}</p>
     </div>
   );
 }

@@ -170,7 +170,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <DashboardHeroCard
         greeting={`${partOfDay}${firstName ? `, ${firstName}` : ""} — here's your day`}
         subtitle={needsYouTotal === 1 ? "thing needs you right now" : "things need you right now"}
@@ -180,19 +180,19 @@ export default async function DashboardPage() {
 
       {(myAlerts ?? []).length > 0 && enabled.has("alerts") && (
         <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 via-white to-white shadow-sm">
-          <div className="flex items-center gap-3 px-5 py-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500 text-white shadow-sm">
-              <IconAlertTriangle className="h-5 w-5" />
+          <div className="flex items-center gap-2.5 px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500 text-white shadow-sm">
+              <IconAlertTriangle className="h-4 w-4" />
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-900">Alerts</p>
               <p className="truncate text-xs font-medium text-red-700/70">waiting on you</p>
             </div>
-            <span className="ml-auto text-4xl font-bold tabular-nums text-red-600">
+            <span className="ml-auto text-3xl font-bold tabular-nums text-red-600">
               {(myAlerts ?? []).length}
             </span>
           </div>
-          <div className="mx-3 mb-3 overflow-hidden rounded-xl bg-white/80 ring-1 ring-slate-100">
+          <div className="mx-2 mb-2 overflow-hidden rounded-xl bg-white/80 ring-1 ring-slate-100">
             <div className="divide-y divide-slate-100">
               {(myAlerts ?? []).slice(0, 5).map((a) => (
                 <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
@@ -214,7 +214,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {enabled.has("my_tasks") && (
           <DashboardWidgetCard
             title="My Open Tasks"
@@ -352,15 +352,15 @@ export default async function DashboardPage() {
                   .sort((a, b) => b[1] - a[1])
                   .slice(0, 8)
                   .map(([name, count], i) => (
-                    <div key={name} className="px-4 py-2">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-xs font-bold text-white">
+                    <div key={name} className="px-4 py-1.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-xs font-bold text-white">
                           {i + 1}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{name}</span>
                         <span className="shrink-0 text-sm font-semibold text-indigo-600 tabular-nums">{count}</span>
                       </div>
-                      <div className="mt-1.5 pl-9">
+                      <div className="mt-1 pl-7">
                         <DashboardBar accent="indigo" value={count} max={maxWorkload} />
                       </div>
                     </div>
@@ -462,7 +462,7 @@ export default async function DashboardPage() {
             {(newCandidateCount ?? 0) === 0 ? (
               <EmptyRow text="No new candidates waiting." />
             ) : (
-              <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex items-center gap-3 px-4 py-2">
                 <DashboardDot accent="pink" />
                 <p className="min-w-0 flex-1 text-sm text-slate-700">
                   {newCandidateCount} candidate{newCandidateCount === 1 ? "" : "s"} waiting to be screened
@@ -479,7 +479,7 @@ export default async function DashboardPage() {
         // both off but the user still has some due — keeps "my touchpoints"
         // reachable even with a pared-down widget selection.
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-5 py-2">
+          <div className="border-b border-slate-200 px-4 py-2">
             <h2 className="text-sm font-semibold text-slate-900">Your touchpoints coming up</h2>
           </div>
           <div className="divide-y divide-slate-100">
@@ -534,7 +534,7 @@ function WidgetRow({
   children: React.ReactNode;
 }) {
   return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+    <Link href={href} className="flex items-center gap-2.5 px-4 py-1.5 hover:bg-slate-50">
       {accent && <DashboardDot accent={accent} />}
       {/* Keeps each caller's own left/right pair split as before, with the
           dot sitting outside it rather than being pushed away by it. */}
@@ -544,5 +544,5 @@ function WidgetRow({
 }
 
 function EmptyRow({ text }: { text: string }) {
-  return <p className="px-4 py-3 text-sm text-slate-500">{text}</p>;
+  return <p className="px-4 py-2 text-sm text-slate-500">{text}</p>;
 }

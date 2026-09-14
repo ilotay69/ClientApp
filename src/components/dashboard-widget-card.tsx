@@ -73,9 +73,11 @@ const ACCENTS = {
 
 export type DashboardAccent = keyof typeof ACCENTS;
 
-/** The page's headline card — one gradient block answering "how much is on
- * me right now", with the breakdown underneath. Deliberately the only
- * gradient on the page: it stays the thing your eye lands on first. */
+/** The page's headline card — one dark block answering "how much is on me
+ * right now", with the breakdown underneath. Matches the sidebar's charcoal
+ * rather than a bright gradient, so it reads as this app's own color, not
+ * a generic marketing-dashboard hero — brand red stays just an accent
+ * (the blur glow, the number) instead of the dominant hue. */
 export function DashboardHeroCard({
   greeting,
   subtitle,
@@ -88,27 +90,26 @@ export function DashboardHeroCard({
   stats: { label: string; value: number; href: string }[];
 }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-rose-500 to-amber-400 p-6 text-white shadow-lg sm:p-8">
-      <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-20 right-24 h-44 w-44 rounded-full bg-white/10 blur-3xl" />
+    <div className="relative overflow-hidden rounded-2xl bg-charcoal p-4 text-white shadow-sm sm:p-5">
+      <div className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-brand/25 blur-3xl" />
 
       <div className="relative">
-        <p className="text-sm font-medium text-white/85">{greeting}</p>
-        <div className="mt-2 flex items-end gap-3">
-          <span className="text-6xl font-bold leading-none tabular-nums">{total}</span>
-          <span className="pb-1 text-sm text-white/85">{subtitle}</span>
+        <p className="text-sm font-medium text-white/75">{greeting}</p>
+        <div className="mt-1 flex items-end gap-2">
+          <span className="text-4xl font-bold leading-none tabular-nums text-brand">{total}</span>
+          <span className="pb-0.5 text-sm text-white/75">{subtitle}</span>
         </div>
 
         {stats.length > 0 && (
-          <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/25 pt-4 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/15 pt-3 sm:grid-cols-4">
             {stats.map((s) => (
               <Link
                 key={s.label}
                 href={s.href}
-                className="rounded-xl px-2 py-1 transition-colors hover:bg-white/15"
+                className="rounded-lg px-2 py-1 transition-colors hover:bg-white/10"
               >
-                <p className="text-2xl font-bold tabular-nums">{s.value}</p>
-                <p className="text-xs text-white/80">{s.label}</p>
+                <p className="text-lg font-bold tabular-nums">{s.value}</p>
+                <p className="text-xs text-white/65">{s.label}</p>
               </Link>
             ))}
           </div>
@@ -159,21 +160,21 @@ export function DashboardWidgetCard({
           !
         </span>
       )}
-      <Link href={href} className="flex items-center justify-between gap-3 rounded-t-2xl px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
+      <Link href={href} className="flex items-center justify-between gap-2.5 rounded-t-2xl px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
           <span
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${colors.tile} text-white shadow-sm`}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${colors.tile} text-white shadow-sm`}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900">{title}</p>
             <p className={`truncate text-xs font-medium ${colors.label}`}>{countLabel}</p>
           </div>
         </div>
-        <span className={`shrink-0 text-4xl font-bold tabular-nums ${colors.number}`}>{count}</span>
+        <span className={`shrink-0 text-3xl font-bold tabular-nums ${colors.number}`}>{count}</span>
       </Link>
-      <div className="mx-3 mb-3 overflow-hidden rounded-xl bg-white/80 ring-1 ring-slate-100">{children}</div>
+      <div className="mx-2 mb-2 overflow-hidden rounded-xl bg-white/80 ring-1 ring-slate-100">{children}</div>
     </div>
   );
 }
