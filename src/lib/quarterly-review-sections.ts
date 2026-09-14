@@ -26,12 +26,13 @@ export const QUARTERLY_STATUS_ORDER: QuarterlyReviewItemStatus[] = [
 ];
 
 export type QuarterlyReviewItem = { key: string; label: string };
-export type QuarterlyReviewSection = { key: string; label: string; items: QuarterlyReviewItem[] };
+export type QuarterlyReviewSection = { key: string; label: string; description: string; items: QuarterlyReviewItem[] };
 
 export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "physical_servers",
     label: "Physical Servers",
+    description: "Resource usage, updates, backups, and hardware age.",
     items: [
       { key: "ps_resources", label: "Resources Usage" },
       { key: "ps_mgmt_card", label: "Management Card Access & Notifications Test" },
@@ -47,6 +48,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "virtual_servers",
     label: "Virtual Servers",
+    description: "Hypervisor updates, resource usage, and virtual machine health.",
     items: [
       { key: "vs_windows_updates", label: "Windows Updates Status" },
       { key: "vs_resources", label: "Resources Usage" },
@@ -58,6 +60,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "workstations",
     label: "Workstations",
+    description: "Windows updates, antivirus, and resource usage.",
     items: [
       {
         key: "ws_windows_updates",
@@ -71,6 +74,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "network_devices",
     label: "Network Devices",
+    description: "Firewalls, switches, wireless access points, and NAS.",
     items: [
       { key: "nd_nas", label: "NAS — Resource Usage and Notifications Test" },
       { key: "nd_firewall_updates", label: "Firewall Version Updates" },
@@ -84,6 +88,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "internet_domains",
     label: "Internet and Domains",
+    description: "Connectivity, domain renewals, and SSL certificates.",
     items: [
       { key: "id_speed_test", label: "Internet Speed Test (flag if well below agreed ISP speed)" },
       { key: "id_backup_internet", label: "Backup Internet Status" },
@@ -94,6 +99,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "backups_servers",
     label: "Backups and Redundancy — Servers",
+    description: "Local and offsite server backup coverage and restore tests.",
     items: [
       { key: "bs_all_included", label: "All Servers Included in the Backup Job(s)" },
       { key: "bs_local_success", label: "Local Backups Successful" },
@@ -107,6 +113,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "backups_other",
     label: "Backups and Redundancy — Other",
+    description: "Microsoft 365 and workstation backup coverage.",
     items: [
       { key: "bo_365_restore", label: "365 Backups Restore Test" },
       { key: "bo_workstation_backups", label: "Workstation Backups" },
@@ -116,6 +123,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "active_directory",
     label: "Active Directory",
+    description: "Replication, stale accounts, and admin group membership.",
     items: [
       { key: "ad_dc_replication", label: "Domain Controller Replication Tests (multi-DC environments only)" },
       { key: "ad_deactivate_stale", label: "Deactivate Computers Not Logged In >90 Days" },
@@ -128,6 +136,7 @@ export const QUARTERLY_REVIEW_SECTIONS: QuarterlyReviewSection[] = [
   {
     key: "miscellaneous",
     label: "Miscellaneous",
+    description: "Additional services and vendor-specific checks.",
     items: [
       { key: "misc_phishfence", label: "Update Phish Fence VIP List" },
       { key: "misc_mdr", label: "MDR (Configuration — Check Endpoint Status)" },

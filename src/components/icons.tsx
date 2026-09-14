@@ -244,3 +244,65 @@ export function IconChevronDown({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconMonitor({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <line x1="8" y1="20" x2="16" y2="20" />
+      <line x1="12" y1="16" x2="12" y2="20" />
+    </svg>
+  );
+}
+
+export function IconNetwork({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <circle cx="12" cy="5" r="2.5" />
+      <circle cx="5" cy="19" r="2.5" />
+      <circle cx="19" cy="19" r="2.5" />
+      <line x1="12" y1="7.5" x2="5" y2="16.5" />
+      <line x1="12" y1="7.5" x2="19" y2="16.5" />
+    </svg>
+  );
+}
+
+export function IconSliders({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <circle cx="9" cy="6" r="2" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <circle cx="15" cy="12" r="2" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+      <circle cx="11" cy="18" r="2" />
+    </svg>
+  );
+}
+
+export function IconCheck({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <polyline points="4,13 9,18 20,6" />
+    </svg>
+  );
+}
+
+export function IconFlag({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M5 3v18" />
+      <path d="M5 4h11l-2.5 3.5L16 11H5" />
+    </svg>
+  );
+}
+
+export function IconAlertTriangle({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M12 3l9 16H3z" />
+      <line x1="12" y1="9" x2="12" y2="14" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
