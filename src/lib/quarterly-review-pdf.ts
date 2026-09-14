@@ -1,8 +1,12 @@
 import { PdfContentBuilder } from "@/lib/pdf";
 import { QUARTERLY_REVIEW_SECTIONS, QUARTERLY_STATUS_LABELS, type QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
+import { buildDeviceInsights, buildDeviceAgeBreakdown, deviceAgeDays, type DeviceInsightInput } from "@/lib/device-insights";
 
 export type QuarterlyReviewPdfItem = { itemKey: string; status: QuarterlyReviewItemStatus; comments: string | null };
 export type QuarterlyReviewPdfImage = { id: string; buffer: Buffer; label: string | null; fileName: string };
+/** Same shape client-ninjaone-devices.tsx queries — just the fields
+ * buildDeviceInsights/buildDeviceAgeBreakdown need plus an id to key rows. */
+export type QuarterlyReviewPdfDevice = DeviceInsightInput & { id: number };
 
 // Matches the color coding used elsewhere in the app for these same
 // statuses (badges, the checklist's own status tag) — RGB 0-1, for pdf.ts.
@@ -67,6 +71,13 @@ export function computeChangesSinceLastReviewText(
     .join("\n");
 }
 
+/** "2.3y old" — same age math as the Devices tab (deviceAgeDays), just
+ * rendered as a short inline label for a PDF item row's comment. */
+function deviceAgeLabel(d: Pick<DeviceInsightInput, "manufacturer_fulfillment_date" | "device_created_at">): string | null {
+  const days = deviceAgeDays(d);
+  return days !== null ? `${(days / 365).toFixed(1)}y old` : null;
+}
+
 /** Builds the full review as a standalone PDF — client-facing detail moves
  * here instead of living in the email body. Screenshots that can't be
  * decoded (only PNG/JPEG are supported — GIF/WEBP are rare in practice
@@ -89,9 +100,24 @@ export function buildQuarterlyReviewPdf(params: {
    * sticks. Falls back to computing from items/previousItems otherwise. */
   actionItemsText?: string | null;
   changesSinceLastReviewText?: string | null;
+  /** NinjaOne devices synced for this client — omitted (or empty) entirely
+   * skips the Device Health section, for a client with no NinjaOne mapping
+   * or nothing synced yet. Not editable like the fields above: this is
+   * computed fresh from current device data every time, same as the
+   * checklist's own item statuses aren't hand-typed prose. */
+  devices?: QuarterlyReviewPdfDevice[];
 }): { pdf: Buffer; embeddedImageIds: Set<string> } {
-  const { clientName, reviewPeriod, summary, items, images, previousItems, actionItemsText, changesSinceLastReviewText } =
-    params;
+  const {
+    clientName,
+    reviewPeriod,
+    summary,
+    items,
+    images,
+    previousItems,
+    actionItemsText,
+    changesSinceLastReviewText,
+    devices = [],
+  } = params;
   const itemByKey = new Map(items.map((i) => [i.itemKey, i]));
 
   const doc = new PdfContentBuilder();
@@ -139,6 +165,58 @@ export function buildQuarterlyReviewPdf(params: {
       const row = itemByKey.get(item.key);
       const status = row?.status ?? "na";
       doc.item(item.label, QUARTERLY_STATUS_LABELS[status], row?.comments ?? null, STATUS_COLORS[status]);
+    }
+    doc.spacer(14);
+  }
+
+  if (devices.length > 0) {
+    // Its own page, same reasoning as Screenshots below — supplementary
+    // automated data, kept visually distinct from the staff-assessed
+    // checklist above rather than just continuing on from it.
+    doc.pagebreak();
+    doc.heading("Device Health", 2);
+
+    const onlineCount = devices.filter((d) => d.is_offline === false).length;
+    const offlineCount = devices.filter((d) => d.is_offline === true).length;
+    doc.paragraph(
+      `${devices.length} device${devices.length === 1 ? "" : "s"} — ${onlineCount} online, ${offlineCount} offline.`
+    );
+    doc.spacer(8);
+
+    const insights = buildDeviceInsights(devices);
+    if (insights.length > 0) {
+      doc.heading("Needs Attention", 2, { size: 13 });
+      for (const insight of insights) {
+        doc.item(
+          insight.title,
+          insight.severity === "high" ? "High" : "Medium",
+          insight.detail,
+          insight.severity === "high" ? STATUS_COLORS.urgent : STATUS_COLORS.attention
+        );
+      }
+      doc.spacer(10);
+    }
+
+    const ageBreakdown = buildDeviceAgeBreakdown(devices);
+    if (ageBreakdown.length > 0) {
+      doc.heading("Device Age", 2, { size: 13 });
+      for (const entry of ageBreakdown) {
+        const bucketText = entry.buckets.map((b) => `${b.label}: ${b.count}`).join(", ");
+        const unknownText = entry.unknownCount > 0 ? `, Unknown: ${entry.unknownCount}` : "";
+        doc.paragraph(`${entry.label} — ${bucketText}${unknownText}`);
+      }
+      doc.spacer(10);
+    }
+
+    doc.heading("Device Inventory", 2, { size: 13 });
+    for (const d of [...devices].sort((a, b) => a.system_name.localeCompare(b.system_name))) {
+      const detail = [d.os_name, deviceAgeLabel(d)].filter(Boolean).join(" - ") || null;
+      doc.item(
+        d.system_name,
+        d.is_offline ? "Offline" : "Online",
+        detail,
+        d.is_offline ? STATUS_COLORS.urgent : STATUS_COLORS.healthy
+      );
     }
     doc.spacer(14);
   }

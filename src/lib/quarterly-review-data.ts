@@ -459,6 +459,18 @@ export async function assembleQuarterlyReviewPdf(
     ? new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]))
     : null;
 
+  // Same columns client-ninjaone-devices.tsx queries for the Clients page's
+  // own Devices tab — whatever's already synced there, no live NinjaOne API
+  // call needed here. Empty for a client with no NinjaOne mapping (or
+  // nothing synced yet), which just omits the PDF's Device Health section.
+  const { data: deviceRows } = await admin
+    .from("ninjaone_devices")
+    .select(
+      "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, disk_total_bytes, disk_free_bytes"
+    )
+    .eq("client_id", review.clientId)
+    .order("system_name");
+
   const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
     clientName: review.clientName,
     reviewPeriod: review.reviewPeriod,
@@ -468,6 +480,7 @@ export async function assembleQuarterlyReviewPdf(
     previousItems,
     actionItemsText: review.actionItemsNotes,
     changesSinceLastReviewText: review.changesSinceLastReviewNotes,
+    devices: deviceRows ?? [],
   });
 
   return {
