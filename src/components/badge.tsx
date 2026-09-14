@@ -148,6 +148,10 @@ const COLORS: Record<string, string> = {
   draft: NEUTRAL,
   submitted: ATTENTION,
   sent: SUCCESS,
+  // A draft the approver sent back for changes (adjustment_notes still
+  // set) — distinct from a plain never-submitted draft, same tier as
+  // "submitted" since it's also waiting on someone (the creator, this time).
+  needs_adjustment: ATTENTION,
 };
 
 export function Badge({ value, label }: { value: string; label?: string }) {
