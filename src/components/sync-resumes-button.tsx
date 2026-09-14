@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 /** Modeled on sync-mailbox-button.tsx's action-prop shape rather than
@@ -8,23 +9,32 @@ import { IndeterminateProgressBar } from "@/components/progress-bar";
  * of this file's actions (syncResumesNow, screenPendingResumesAction) take
  * zero arguments and read the caller's own session, so a plain useTransition
  * is simpler and doesn't need a FormData plumbing path that goes unused.
- * One generic button covers both; only the label/pending-label differ. */
+ * One generic button covers both; only the label/pending-label differ.
+ * `redirectTo` is optional — when set, a successful result navigates there
+ * instead of staying put (used for quarterly reviews' "Submit for Review",
+ * not for e.g. "Reopen for editing", where staying on the page is the
+ * point). */
 export function AsyncActionButton({
   label,
   pendingLabel,
   action,
+  redirectTo,
 }: {
   label: string;
   pendingLabel: string;
   action: () => Promise<{ ok: boolean; message: string }>;
+  redirectTo?: string;
 }) {
+  const router = useRouter();
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const run = () => {
     setResult(null);
     startTransition(async () => {
-      setResult(await action());
+      const outcome = await action();
+      setResult(outcome);
+      if (outcome.ok && redirectTo) router.push(redirectTo);
     });
   };
 

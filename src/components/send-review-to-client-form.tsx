@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
 
 /** The email box is deliberately blank/free-typed rather than a fixed
@@ -17,6 +18,7 @@ export function SendReviewToClientForm({
   defaultEmail: string | null;
   action: (reviewId: string, testEmail: string) => Promise<{ ok: boolean; message: string }>;
 }) {
+  const router = useRouter();
   const [email, setEmail] = useState(defaultEmail ?? "");
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -24,7 +26,9 @@ export function SendReviewToClientForm({
   function run() {
     setResult(null);
     startTransition(async () => {
-      setResult(await action(reviewId, email));
+      const outcome = await action(reviewId, email);
+      setResult(outcome);
+      if (outcome.ok) router.push("/quarterly-reviews");
     });
   }
 

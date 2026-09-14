@@ -303,6 +303,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
               label="Submit for Review"
               pendingLabel="Submitting…"
               action={submitQuarterlyReviewAction.bind(null, review.id)}
+              redirectTo="/quarterly-reviews"
             />
           </div>
         )}

@@ -15,38 +15,58 @@ export type AckActionState = { ok: boolean; message: string };
  * is the only credential here, same trust model as a password-reset link.
  * Re-validates everything server-side rather than trusting the page that
  * rendered the form, since a Server Action is its own independently
- * reachable POST endpoint regardless of what rendered it. */
-export async function acknowledgeReviewByTokenAction(token: string, remarks: string): Promise<AckActionState> {
+ * reachable POST endpoint regardless of what rendered it.
+ *
+ * `intent` is explicit rather than inferred from whether remarks is empty —
+ * it used to be inferred, which meant a "Need to Discuss" submission with
+ * an empty/whitespace-only note would silently get recorded as a plain
+ * Acknowledge instead of failing loudly or discussing correctly. Now the UI
+ * says exactly which button was pressed, and this only ever stores remarks
+ * for the "discuss" intent. */
+export async function acknowledgeReviewByTokenAction(
+  token: string,
+  intent: "acknowledge" | "discuss",
+  remarks: string
+): Promise<AckActionState> {
   const admin = createAdminClient();
   const review = await getQuarterlyReviewByAckToken(token, admin);
   if (!review) return { ok: false, message: "This link isn't valid." };
   if (review.alreadyAcknowledged) {
-    return { ok: true, message: "This review was already acknowledged — thank you." };
+    return {
+      ok: true,
+      message: review.remarks
+        ? "You already asked to discuss this review — thank you."
+        : "This review was already acknowledged — thank you.",
+    };
   }
 
+  const wantsDiscussion = intent === "discuss";
   const trimmedRemarks = remarks.trim() || null;
+  if (wantsDiscussion && !trimmedRemarks) {
+    return { ok: false, message: "Add a note about what you'd like to discuss first." };
+  }
+  // A plain Acknowledge never carries remarks into storage, even if some
+  // slipped through — only "discuss" ever populates client_ack_remarks.
+  const storedRemarks = wantsDiscussion ? trimmedRemarks : null;
 
   // The is("client_acknowledged_at", null) guards a double-submit race —
   // only the first submit actually updates anything, so a second click (or
   // two tabs) can't fire the alert/email twice.
   const { data: updated } = await admin
     .from("quarterly_reviews")
-    .update({ client_acknowledged_at: new Date().toISOString(), client_ack_remarks: trimmedRemarks })
+    .update({ client_acknowledged_at: new Date().toISOString(), client_ack_remarks: storedRemarks })
     .eq("id", review.id)
     .is("client_acknowledged_at", null)
     .select("id")
     .maybeSingle();
   if (!updated) {
-    return { ok: true, message: "This review was already acknowledged — thank you." };
+    return {
+      ok: true,
+      message: wantsDiscussion
+        ? "You already asked to discuss this review — thank you."
+        : "This review was already acknowledged — thank you.",
+    };
   }
-
-  // The client's choice of button is exactly this: "Acknowledge" always
-  // submits with empty remarks, "Need to Discuss" won't submit without
-  // some text. So remarks presence alone tells us which one they picked —
-  // no separate flag needed. Per how this was asked for: a plain
-  // acknowledgment only needs the in-app alert; a discussion request also
-  // gets a real email, since that one wants an actual response.
-  const wantsDiscussion = Boolean(trimmedRemarks);
 
   const { data: approverProfile } = await admin
     .from("profiles")
@@ -109,6 +129,8 @@ export async function acknowledgeReviewByTokenAction(token: string, remarks: str
   }
 
   revalidatePath(`/quarterly-reviews/${review.id}`);
+  revalidatePath("/quarterly-reviews");
+  revalidatePath("/quarterly-reviews/all");
   return {
     ok: true,
     message: wantsDiscussion

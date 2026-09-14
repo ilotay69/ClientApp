@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 type AckState = { ok: boolean; message: string };
+type Intent = "acknowledge" | "discuss";
 
 export function AcknowledgeReviewForm({
   token,
@@ -10,7 +11,7 @@ export function AcknowledgeReviewForm({
   initialMode = "choose",
 }: {
   token: string;
-  action: (token: string, remarks: string) => Promise<AckState>;
+  action: (token: string, intent: Intent, remarks: string) => Promise<AckState>;
   initialMode?: "choose" | "discuss";
 }) {
   const [mode, setMode] = useState<"choose" | "discuss">(initialMode);
@@ -18,9 +19,9 @@ export function AcknowledgeReviewForm({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<AckState | null>(null);
 
-  function submit(value: string) {
+  function submit(intent: Intent, value: string) {
     startTransition(async () => {
-      const res = await action(token, value);
+      const res = await action(token, intent, value);
       setResult(res);
     });
   }
@@ -48,7 +49,7 @@ export function AcknowledgeReviewForm({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => submit(remarks)}
+            onClick={() => submit("discuss", remarks)}
             disabled={pending || !remarks.trim()}
             className="flex-1 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
           >
@@ -63,6 +64,9 @@ export function AcknowledgeReviewForm({
             Back
           </button>
         </div>
+        {!remarks.trim() && (
+          <p className="text-xs text-slate-400">Add a note above before submitting.</p>
+        )}
         {result && !result.ok && <p className="text-xs text-red-600">{result.message}</p>}
       </div>
     );
@@ -72,7 +76,7 @@ export function AcknowledgeReviewForm({
     <div className="mt-4 flex flex-wrap gap-2">
       <button
         type="button"
-        onClick={() => submit("")}
+        onClick={() => submit("acknowledge", "")}
         disabled={pending}
         className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >

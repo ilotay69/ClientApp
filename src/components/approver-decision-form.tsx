@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 type DecisionState = { ok: boolean; message: string };
 
@@ -13,6 +14,7 @@ export function ApproverDecisionForm({
   approveAction: (reviewId: string) => Promise<DecisionState>;
   requestAdjustmentAction: (reviewId: string, notes: string) => Promise<DecisionState>;
 }) {
+  const router = useRouter();
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -22,6 +24,7 @@ export function ApproverDecisionForm({
     startTransition(async () => {
       const result = await approveAction(reviewId);
       setMessage(result.message);
+      if (result.ok) router.push("/quarterly-reviews");
     });
   }
 
@@ -33,6 +36,7 @@ export function ApproverDecisionForm({
     startTransition(async () => {
       const result = await requestAdjustmentAction(reviewId, notes);
       setMessage(result.message);
+      if (result.ok) router.push("/quarterly-reviews");
     });
   }
 

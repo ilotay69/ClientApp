@@ -378,6 +378,8 @@ export async function submitQuarterlyReviewAction(reviewId: string): Promise<Rev
   }
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath("/quarterly-reviews");
+  revalidatePath("/quarterly-reviews/all");
   return { ok: true, message: "Submitted for review." };
 }
 
@@ -425,6 +427,8 @@ export async function approveQuarterlyReviewAction(reviewId: string): Promise<Re
   }
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath("/quarterly-reviews");
+  revalidatePath("/quarterly-reviews/all");
   return { ok: true, message: "Approved." };
 }
 
@@ -593,6 +597,8 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
     .eq("id", reviewId);
 
   revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath("/quarterly-reviews");
+  revalidatePath("/quarterly-reviews/all");
   revalidatePath(`/clients/${review.clientId}`);
   return { ok: true, message: `Sent to ${trimmedEmail}.` };
 }

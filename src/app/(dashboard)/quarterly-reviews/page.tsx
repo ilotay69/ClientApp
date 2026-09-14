@@ -48,21 +48,24 @@ export default async function QuarterlyReviewsPage({
   for (const r of reviews) counts[reviewBucket(r.status)]++;
   const visibleReviews = reviews.filter((r) => reviewBucket(r.status) === activeTab);
 
-  // Cross-client — "what am I actually on the hook for right now": reviews
-  // still incomplete or awaiting a decision that either I created, or (if
-  // I'm the approver) are sitting in my queue — plus, for ones I created,
-  // a "sent" review the client has actually responded to (acknowledged or
-  // asked to discuss). A "sent" review nobody's responded to yet is still
-  // excluded: there's genuinely nothing left to do on it.
-  const myReviews = (user?.id
-    ? allReviews.filter((r) => {
-        const isMine = r.createdById === user.id;
-        const isPendingMyApproval = isApprover && r.status === "submitted";
-        const clientResponded = r.status === "sent" && r.clientAcknowledgedAt !== null;
-        return isPendingMyApproval || (isMine && (reviewBucket(r.status) !== "sent" || clientResponded));
-      })
-    : []
-  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Cross-client — "what am I actually on the hook for right now": every
+  // draft/submitted/approved review I created (always), anything sitting
+  // in my approval queue, and — so a sent review is never just invisible —
+  // my last 10 sent reviews regardless of whether the client's responded.
+  let myReviews: QuarterlyReview[] = [];
+  if (user?.id) {
+    const mine = allReviews.filter((r) => r.createdById === user.id);
+    const myActive = mine.filter((r) => reviewBucket(r.status) !== "sent");
+    const myPendingApproval = isApprover ? allReviews.filter((r) => r.status === "submitted") : [];
+    const mySent = mine
+      .filter((r) => r.status === "sent")
+      .sort((a, b) => new Date(b.sentAt ?? b.createdAt).getTime() - new Date(a.sentAt ?? a.createdAt).getTime())
+      .slice(0, 10);
+
+    const byId = new Map<string, QuarterlyReview>();
+    for (const r of [...myActive, ...myPendingApproval, ...mySent]) byId.set(r.id, r);
+    myReviews = [...byId.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
 
   return (
     <div className="space-y-6">
@@ -93,7 +96,7 @@ export default async function QuarterlyReviewsPage({
         <div>
           <h2 className="text-lg font-semibold text-slate-900">My Reviews</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Reviews you created or need to approve, plus any sent review the client has responded to.
+            Your drafts and approved reviews, anything awaiting your approval, and your last 10 sent.
           </p>
           <div className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="divide-y divide-slate-100">
