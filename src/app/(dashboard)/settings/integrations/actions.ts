@@ -640,3 +640,38 @@ export async function syncSharedMailboxNowAction(): Promise<{ ok: boolean; messa
     return { ok: false, message: err instanceof Error ? err.message : "Sync failed." };
   }
 }
+
+/** Who can approve a quarterly review (and gets alerted when a client
+ * acknowledges one) and how often an unacknowledged "sent" review gets
+ * re-emailed to the client — see getQuarterlyReviewReminderSettings and the
+ * weekly cron at src/app/api/quarterly-review-reminders. */
+export async function saveQuarterlyReviewReminderSettings(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) return { error: "You don't have permission to do that.", success: null };
+
+  const approverEmail = emptyToUndefined(formData.get("approver_email"));
+  if (!approverEmail) return { error: "Enter the approver's email.", success: null };
+
+  const intervalRaw = Number(formData.get("reminder_interval_days"));
+  if (!Number.isFinite(intervalRaw) || intervalRaw < 1 || intervalRaw > 90) {
+    return { error: "Reminder interval must be a number of days between 1 and 90.", success: null };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("quarterly_review_reminder_settings").upsert(
+    {
+      id: true,
+      approver_email: approverEmail,
+      reminder_interval_days: Math.round(intervalRaw),
+      updated_by: user.id,
+    },
+    { onConflict: "id" }
+  );
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}

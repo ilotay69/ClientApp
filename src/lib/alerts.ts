@@ -9,8 +9,7 @@ export type AlertKind =
   | "quarterly_review_submitted"
   | "quarterly_review_approved"
   | "quarterly_review_adjustment_requested"
-  | "quarterly_review_client_acknowledged"
-  | "quarterly_review_client_discussion_requested";
+  | "quarterly_review_client_acknowledged";
 
 /** Creates one in-app alert per recipient — shown on the Overview page
  * until acknowledged (acknowledgeAlertAction, dashboard/actions.ts), and

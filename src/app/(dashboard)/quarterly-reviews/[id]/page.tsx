@@ -14,6 +14,7 @@ import { QuarterlyReviewEditableNotes } from "@/components/quarterly-review-edit
 import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-field";
 import { QuarterlyReviewTicketNumberField } from "@/components/quarterly-review-ticket-number-field";
 import { SendReviewToClientForm } from "@/components/send-review-to-client-form";
+import { MarkClientAcknowledgedForm } from "@/components/mark-client-acknowledged-form";
 import { QuarterlyReviewScreenshots } from "@/components/quarterly-review-screenshots";
 import {
   IconDatabase,
@@ -31,7 +32,7 @@ import {
   fetchAllClientsForPicker,
   fetchReviewAttachments,
   fetchPreviousReviewSnapshot,
-  QUARTERLY_REVIEW_APPROVER_EMAIL,
+  getQuarterlyReviewApproverEmail,
 } from "@/lib/quarterly-review-data";
 import {
   saveQuarterlyReviewItemAction,
@@ -49,16 +50,13 @@ import {
   reopenQuarterlyReviewAction,
   deleteQuarterlyReviewAction,
   sendQuarterlyReviewToClientAction,
+  markClientAcknowledgedManuallyAction,
   uploadQuarterlyReviewAttachmentAction,
   deleteQuarterlyReviewAttachmentAction,
   updateQuarterlyReviewAttachmentLabelAction,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
-
-// Single source of truth in quarterly-review-data.ts — only this exact
-// account sees the Approve button at all (not a permission).
-const APPROVER_EMAIL = QUARTERLY_REVIEW_APPROVER_EMAIL;
 
 // Purely a display concern (which icon a section gets in the left-rail
 // nav and its own header) — kept here rather than in
@@ -95,13 +93,17 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const [me, canDelete] = await Promise.all([getMyPermissions(supabase), hasPermission(supabase, "delete_quarterly_reviews")]);
+  const [me, canDelete, approverEmail] = await Promise.all([
+    getMyPermissions(supabase),
+    hasPermission(supabase, "delete_quarterly_reviews"),
+    getQuarterlyReviewApproverEmail(),
+  ]);
 
   const { id } = await params;
   const review = await getQuarterlyReview(id);
   if (!review) notFound();
 
-  const isApprover = (user?.email ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
+  const isApprover = (user?.email ?? "").toLowerCase() === approverEmail.toLowerCase();
   const isOwner = me?.role === "owner";
   const canReopen = isOwner || isApprover;
   const itemsLocked = review.status !== "draft";
@@ -245,23 +247,19 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
         </div>
       )}
 
-      {review.clientAcknowledgedAt &&
-        (review.clientAckRemarks ? (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
-            <p className="text-sm font-semibold text-amber-900">Client Wants to Discuss</p>
-            <p className="mt-1 text-xs text-amber-700">
-              {review.clientName} asked to discuss this review on {formatDate(review.clientAcknowledgedAt)}:
-            </p>
-            <p className="mt-2 whitespace-pre-line text-sm text-amber-900">{review.clientAckRemarks}</p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
-            <p className="text-sm font-semibold text-emerald-900">Client Acknowledged</p>
-            <p className="mt-1 text-xs text-emerald-700">
-              {review.clientName} acknowledged this review on {formatDate(review.clientAcknowledgedAt)}.
-            </p>
-          </div>
-        ))}
+      {review.clientAcknowledgedAt && (
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
+          <p className="text-sm font-semibold text-emerald-900">Client Acknowledged</p>
+          <p className="mt-1 text-xs text-emerald-700">
+            {review.clientAckConfirmedByName
+              ? `Recorded by ${review.clientAckConfirmedByName} on ${formatDate(review.clientAcknowledgedAt)} — the client confirmed by email rather than the link.`
+              : `${review.clientName} acknowledged this review on ${formatDate(review.clientAcknowledgedAt)}.`}
+          </p>
+          {review.clientAckRemarks && (
+            <p className="mt-2 whitespace-pre-line text-sm text-emerald-900">{review.clientAckRemarks}</p>
+          )}
+        </div>
+      )}
 
       <QuarterlyReviewSummary
         reviewId={review.id}
@@ -327,6 +325,20 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
               defaultEmail={client?.primaryContactEmail ?? null}
               action={sendQuarterlyReviewToClientAction}
             />
+          </div>
+        )}
+        {review.status === "sent" && !review.clientAcknowledgedAt && (
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="text-xs text-slate-500">
+              {review.reminderCount > 0
+                ? `Still unacknowledged — ${review.reminderCount} reminder${review.reminderCount === 1 ? "" : "s"} sent${review.lastReminderAt ? `, last on ${formatDate(review.lastReminderAt)}` : ""}. A weekly reminder keeps going out automatically (Settings → Integrations → Quarterly Review Reminders).`
+                : "Not yet acknowledged. A weekly reminder will go out automatically (Settings → Integrations → Quarterly Review Reminders) until it is."}
+            </p>
+            {isApprover && (
+              <div className="mt-2">
+                <MarkClientAcknowledgedForm reviewId={review.id} action={markClientAcknowledgedManuallyAction} />
+              </div>
+            )}
           </div>
         )}
         {canReopen && itemsLocked && (

@@ -12,7 +12,7 @@ import {
   reviewActorLabel,
   REVIEW_TABS,
   REVIEW_TAB_LABELS,
-  QUARTERLY_REVIEW_APPROVER_EMAIL,
+  getQuarterlyReviewApproverEmail,
   type QuarterlyReview,
   type ReviewTab,
 } from "@/lib/quarterly-review-data";
@@ -38,9 +38,12 @@ export default async function QuarterlyReviewsPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const isApprover = (user?.email ?? "").toLowerCase() === QUARTERLY_REVIEW_APPROVER_EMAIL.toLowerCase();
-
-  const [clients, allReviews] = await Promise.all([fetchAllClientsForPicker(), fetchAllReviews()]);
+  const [clients, allReviews, approverEmail] = await Promise.all([
+    fetchAllClientsForPicker(),
+    fetchAllReviews(),
+    getQuarterlyReviewApproverEmail(),
+  ]);
+  const isApprover = (user?.email ?? "").toLowerCase() === approverEmail.toLowerCase();
   const selectedClient = clientId ? (clients.find((c) => c.id === clientId) ?? null) : null;
   const reviews = selectedClient ? await fetchReviewsForClient(selectedClient.id) : [];
 
@@ -112,15 +115,13 @@ export default async function QuarterlyReviewsPage({
                     <span className="text-slate-700">{r.reviewPeriod}</span>
                   </div>
                   {r.status === "sent" && r.clientAcknowledgedAt ? (
-                    r.clientAckRemarks ? (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
-                        Client wants to discuss
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                        Client acknowledged
-                      </span>
-                    )
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                      Client acknowledged
+                    </span>
+                  ) : r.status === "sent" && r.reminderCount > 0 ? (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                      Awaiting ack — reminder {r.reminderCount} sent
+                    </span>
                   ) : (
                     <Badge value={r.status} />
                   )}

@@ -5,22 +5,13 @@ import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-// Public — no login of any kind. Reached via one of the two links in the
-// client-facing email (see buildQuarterlyReviewClientEmail), keyed by a
-// random, unguessable token rather than the review's own id. See
-// src/lib/supabase/middleware.ts's PUBLIC_PREFIX_PATHS for why this route
-// is excluded from the normal login gate. ?discuss=1 (the email's "Need to
-// Discuss" link) just pre-opens the remarks field below — it doesn't skip
-// the button click that actually submits anything.
-export default async function QuarterlyReviewAckPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ token: string }>;
-  searchParams: Promise<{ discuss?: string }>;
-}) {
+// Public — no login of any kind. Reached via the link in the client-facing
+// email (see buildQuarterlyReviewClientEmail) and its weekly reminder
+// resends, keyed by a random, unguessable token rather than the review's
+// own id. See src/lib/supabase/middleware.ts's PUBLIC_PREFIX_PATHS for why
+// this route is excluded from the normal login gate.
+export default async function QuarterlyReviewAckPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const { discuss } = await searchParams;
   const review = await getQuarterlyReviewByAckToken(token);
 
   return (
@@ -36,20 +27,11 @@ export default async function QuarterlyReviewAckPage({
           </>
         ) : review.alreadyAcknowledged ? (
           <>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {review.remarks ? "Already sent for discussion" : "Already acknowledged"}
-            </h1>
+            <h1 className="text-lg font-semibold text-slate-900">Already acknowledged</h1>
             <p className="mt-2 text-sm text-slate-500">
-              {review.remarks
-                ? `You already asked to discuss ${review.clientName} — ${review.reviewPeriod}`
-                : `${review.clientName} — ${review.reviewPeriod} was acknowledged`}
+              {review.clientName} — {review.reviewPeriod} was acknowledged
               {review.acknowledgedAt ? ` on ${formatDate(review.acknowledgedAt)}` : ""}.
             </p>
-            {review.remarks && (
-              <p className="mt-3 whitespace-pre-line rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                {review.remarks}
-              </p>
-            )}
           </>
         ) : (
           <>
@@ -58,16 +40,12 @@ export default async function QuarterlyReviewAckPage({
               {review.clientName} — {review.reviewPeriod}
             </p>
             <p className="mt-4 text-sm text-slate-600">
-              Some items in this review may need attention. <strong>Acknowledge</strong> confirms you&apos;ve
-              received it and accept the risk of any outstanding items not being addressed. If you&apos;d
-              rather discuss any of the items first, choose <strong>Need to Discuss</strong> and add a
-              note.
+              Some items in this review may need attention. If you&apos;d like to discuss anything in it,
+              simply reply to the email this link came from and a team member will get back to you
+              shortly. Otherwise, please <strong>Acknowledge</strong> below to confirm you&apos;ve received
+              it and accept the risk of any outstanding items not being addressed.
             </p>
-            <AcknowledgeReviewForm
-              token={token}
-              action={acknowledgeReviewByTokenAction}
-              initialMode={discuss === "1" ? "discuss" : "choose"}
-            />
+            <AcknowledgeReviewForm token={token} action={acknowledgeReviewByTokenAction} />
           </>
         )}
       </div>

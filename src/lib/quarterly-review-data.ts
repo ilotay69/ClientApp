@@ -5,12 +5,48 @@ import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
 
-/** The one person who can approve a submitted review, and who also always
- * gets alerted/emailed alongside the review's creator when a client
- * acknowledges one — a specific named account, not a permission. Single
- * source of truth: actions.ts and [id]/page.tsx both import this instead
- * of each declaring their own copy. */
+/** Fallback default only — the real value is configurable under Settings ->
+ * Integrations (see getQuarterlyReviewApproverEmail below) and this constant
+ * only matters if that settings row is somehow missing. The one person who
+ * can approve a submitted review, and who also always gets alerted/emailed
+ * alongside the review's creator when a client acknowledges one — a
+ * specific named account, not a permission. */
 export const QUARTERLY_REVIEW_APPROVER_EMAIL = "ilotay@cgtechnologies.com";
+
+export type QuarterlyReviewReminderSettings = {
+  approverEmail: string;
+  reminderIntervalDays: number;
+};
+
+/** Configurable under Settings -> Integrations
+ * (quarterly-review-reminder-settings-form.tsx) instead of a hardcoded
+ * constant — who approves reviews, and how often an unacknowledged "sent"
+ * review gets re-emailed to the client. Falls back to the hardcoded default
+ * above if the settings row is somehow missing (it's seeded by
+ * 114_quarterly_review_reminders.sql, so this should only matter before
+ * that migration has run). */
+export async function getQuarterlyReviewReminderSettings(
+  admin: AdminClient = createAdminClient()
+): Promise<QuarterlyReviewReminderSettings> {
+  const { data } = await admin
+    .from("quarterly_review_reminder_settings")
+    .select("approver_email, reminder_interval_days")
+    .eq("id", true)
+    .maybeSingle();
+  return {
+    approverEmail: data?.approver_email || QUARTERLY_REVIEW_APPROVER_EMAIL,
+    reminderIntervalDays: data?.reminder_interval_days ?? 7,
+  };
+}
+
+/** Just the approver-email half of the settings above — most call sites
+ * only need this, not the reminder cadence too. */
+export async function getQuarterlyReviewApproverEmail(
+  admin: AdminClient = createAdminClient()
+): Promise<string> {
+  const settings = await getQuarterlyReviewReminderSettings(admin);
+  return settings.approverEmail;
+}
 
 export type QuarterlyReviewStatus = "draft" | "submitted" | "approved" | "sent";
 
@@ -64,6 +100,16 @@ export type QuarterlyReview = {
    * old round's acknowledgment can't be confused for the current one. */
   clientAcknowledgedAt: string | null;
   clientAckRemarks: string | null;
+  /** Set only when the approver manually recorded the acknowledgment
+   * (markClientAcknowledgedManuallyAction) because the client replied by
+   * email instead of clicking the link — null when the client acknowledged
+   * themselves via the public ack page. */
+  clientAckConfirmedByName: string | null;
+  /** How many reminder emails have gone out for the current "sent" round —
+   * reset to 0 on every fresh send, same as client_ack_token. Drives the
+   * "First Reminder"/"Second Reminder" label on the next one. */
+  reminderCount: number;
+  lastReminderAt: string | null;
   /** Free text — which Autotask ticket (if any) this review relates to.
    * Internal-only, same posture as hoursSpent: never passed to
    * buildQuarterlyReviewClientEmail/buildQuarterlyReviewPdf. */
@@ -81,12 +127,14 @@ const SELECT = `
   summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
   client_acknowledged_at, client_ack_remarks, ticket_number,
   action_items_notes, changes_since_last_review_notes,
+  reminder_count, last_reminder_at,
   clients(name),
   created_profile:created_by(full_name, email),
   submitted_profile:submitted_by(full_name),
   approved_profile:approved_by(full_name),
   sent_profile:sent_by(full_name),
   adjustment_profile:adjustment_requested_by(full_name),
+  ack_confirmed_profile:client_ack_confirmed_by(full_name),
   quarterly_review_items(id, item_key, status, comments)
 `;
 
@@ -98,6 +146,7 @@ function mapReview(row: any): QuarterlyReview {
   const approvedProfile = Array.isArray(row.approved_profile) ? row.approved_profile[0] : row.approved_profile;
   const sentProfile = Array.isArray(row.sent_profile) ? row.sent_profile[0] : row.sent_profile;
   const adjustmentProfile = Array.isArray(row.adjustment_profile) ? row.adjustment_profile[0] : row.adjustment_profile;
+  const ackConfirmedProfile = Array.isArray(row.ack_confirmed_profile) ? row.ack_confirmed_profile[0] : row.ack_confirmed_profile;
   const itemByKey = new Map<string, QuarterlyReviewItemRow>(
     (row.quarterly_review_items ?? []).map(
       (i: { id: string; item_key: string; status: QuarterlyReviewItemStatus; comments: string | null }) => [
@@ -138,6 +187,9 @@ function mapReview(row: any): QuarterlyReview {
     pdfStoragePath: row.pdf_storage_path ?? null,
     clientAcknowledgedAt: row.client_acknowledged_at ?? null,
     clientAckRemarks: row.client_ack_remarks ?? null,
+    clientAckConfirmedByName: ackConfirmedProfile?.full_name ?? null,
+    reminderCount: row.reminder_count ?? 0,
+    lastReminderAt: row.last_reminder_at ?? null,
     ticketNumber: row.ticket_number ?? null,
     actionItemsNotes: row.action_items_notes ?? null,
     changesSinceLastReviewNotes: row.changes_since_last_review_notes ?? null,

@@ -14,6 +14,7 @@ import { NordPassSettingsForm } from "@/components/nordpass-settings-form";
 import { ForticloudAccountsPanel } from "@/components/forticloud-accounts-panel";
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
 import { SharedMailboxSettingsForm } from "@/components/shared-mailbox-settings-form";
+import { QuarterlyReviewReminderSettingsForm } from "@/components/quarterly-review-reminder-settings-form";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import {
   saveAiProviderSettings,
@@ -36,6 +37,7 @@ import {
   saveSalesNotificationSettings,
   testSharedMailboxConnectionAction,
   syncSharedMailboxNowAction,
+  saveQuarterlyReviewReminderSettings,
 } from "./actions";
 import {
   listForticloudAccountsAction,
@@ -75,6 +77,7 @@ export default async function IntegrationsSettingsPage({
     { data: nordPassRow },
     { data: salesNotifyRow },
     { data: sharedMailboxRow },
+    { data: reviewReminderRow },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
@@ -97,6 +100,11 @@ export default async function IntegrationsSettingsPage({
     admin
       .from("shared_mailbox_settings")
       .select("last_synced_at, last_sync_error, last_sync_error_at")
+      .eq("id", true)
+      .maybeSingle(),
+    admin
+      .from("quarterly_review_reminder_settings")
+      .select("approver_email, reminder_interval_days")
       .eq("id", true)
       .maybeSingle(),
   ]);
@@ -288,6 +296,16 @@ export default async function IntegrationsSettingsPage({
                   <SalesNotificationSettingsForm
                     currentRepEmail={salesNotifyRow?.rep_email ?? null}
                     saveAction={saveSalesNotificationSettings}
+                  />
+                ),
+              },
+              {
+                label: "Quarterly Review Reminders",
+                content: (
+                  <QuarterlyReviewReminderSettingsForm
+                    currentApproverEmail={reviewReminderRow?.approver_email ?? "ilotay@cgtechnologies.com"}
+                    currentIntervalDays={reviewReminderRow?.reminder_interval_days ?? 7}
+                    saveAction={saveQuarterlyReviewReminderSettings}
                   />
                 ),
               },

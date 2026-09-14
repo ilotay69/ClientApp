@@ -11,9 +11,9 @@ import {
   fetchReviewAttachments,
   fetchPreviousReviewSnapshot,
   assembleQuarterlyReviewPdf,
+  getQuarterlyReviewApproverEmail,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
   QUARTERLY_REVIEW_PDF_BUCKET,
-  QUARTERLY_REVIEW_APPROVER_EMAIL,
 } from "@/lib/quarterly-review-data";
 import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
 import { computeActionItemsText, computeChangesSinceLastReviewText } from "@/lib/quarterly-review-pdf";
@@ -39,12 +39,10 @@ async function isReviewEditable(reviewId: string, admin: ReturnType<typeof creat
 /** The one person who can approve a submitted review — a specific named
  * approver, not a permission, per how this workflow was asked for. Anyone
  * else with manage_quarterly_reviews can create/submit reviews; only this
- * exact account sees the Approve button at all. Kept as a local alias so
- * every existing reference below doesn't need renaming — the actual value
- * lives in quarterly-review-data.ts (QUARTERLY_REVIEW_APPROVER_EMAIL), the
- * single source of truth shared with [id]/page.tsx and the public
- * acknowledgment action. */
-const APPROVER_EMAIL = QUARTERLY_REVIEW_APPROVER_EMAIL;
+ * exact account sees the Approve button at all. Configurable under Settings
+ * -> Integrations now (getQuarterlyReviewApproverEmail), rather than a
+ * hardcoded constant — looked up fresh in each action below instead of
+ * cached at module scope. */
 
 /** Same idea as isReviewEditable, but the Summary specifically stays
  * editable for the approver even while a review is "submitted" and
@@ -58,7 +56,9 @@ async function canEditSummary(
 ): Promise<boolean> {
   const { data } = await admin.from("quarterly_reviews").select("status").eq("id", reviewId).maybeSingle();
   if (data?.status === "draft") return true;
-  return data?.status === "submitted" && (userEmail ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
+  if (data?.status !== "submitted") return false;
+  const approverEmail = await getQuarterlyReviewApproverEmail(admin);
+  return (userEmail ?? "").toLowerCase() === approverEmail.toLowerCase();
 }
 
 export type CreateReviewState = { error: string } | undefined;
@@ -284,13 +284,13 @@ export async function reopenQuarterlyReviewAction(reviewId: string): Promise<Rev
   if (!user) return { ok: false, message: "You don't have permission to do that." };
 
   const supabase = await createClient();
-  const me = await getMyPermissions(supabase);
-  const isApprover = (user.email ?? "").toLowerCase() === APPROVER_EMAIL.toLowerCase();
+  const admin = createAdminClient();
+  const [me, approverEmail] = await Promise.all([getMyPermissions(supabase), getQuarterlyReviewApproverEmail(admin)]);
+  const isApprover = (user.email ?? "").toLowerCase() === approverEmail.toLowerCase();
   if (me?.role !== "owner" && !isApprover) {
     return { ok: false, message: "Only an Owner or the approver can reopen a review." };
   }
 
-  const admin = createAdminClient();
   await admin.from("quarterly_reviews").update({ status: "draft" }).eq("id", reviewId);
   revalidatePath(`/quarterly-reviews/${reviewId}`);
   revalidatePath("/quarterly-reviews");
@@ -353,13 +353,14 @@ export async function submitQuarterlyReviewAction(reviewId: string): Promise<Rev
     .update({ status: "submitted", submitted_at: new Date().toISOString(), submitted_by: user.id })
     .eq("id", reviewId);
 
+  const approverEmail = await getQuarterlyReviewApproverEmail(admin);
   const [{ data: profile }, { data: approverProfile }] = await Promise.all([
     admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-    // Case-insensitive on purpose — every other APPROVER_EMAIL comparison
+    // Case-insensitive on purpose — every other approver-email comparison
     // in this file lowercases both sides in JS before comparing; a raw
     // .eq() here would silently match nothing (and silently skip creating
     // the alert) if the stored email's casing differs at all.
-    admin.from("profiles").select("id").ilike("email", APPROVER_EMAIL).maybeSingle(),
+    admin.from("profiles").select("id").ilike("email", approverEmail).maybeSingle(),
   ]);
   await createAlert(
     admin,
@@ -388,11 +389,13 @@ export async function submitQuarterlyReviewAction(reviewId: string): Promise<Rev
 export async function approveQuarterlyReviewAction(reviewId: string): Promise<ReviewActionState> {
   const user = await requirePermission("manage_quarterly_reviews");
   if (!user) return { ok: false, message: "You don't have permission to do that." };
-  if ((user.email ?? "").toLowerCase() !== APPROVER_EMAIL.toLowerCase()) {
+
+  const admin = createAdminClient();
+  const approverEmail = await getQuarterlyReviewApproverEmail(admin);
+  if ((user.email ?? "").toLowerCase() !== approverEmail.toLowerCase()) {
     return { ok: false, message: "Only the approver can approve a review." };
   }
 
-  const admin = createAdminClient();
   const review = await getQuarterlyReview(reviewId, admin);
   if (!review) return { ok: false, message: "Review not found." };
 
@@ -440,14 +443,15 @@ export async function approveQuarterlyReviewAction(reviewId: string): Promise<Re
 export async function requestQuarterlyReviewAdjustmentAction(reviewId: string, notes: string): Promise<ReviewActionState> {
   const user = await requirePermission("manage_quarterly_reviews");
   if (!user) return { ok: false, message: "You don't have permission to do that." };
-  if ((user.email ?? "").toLowerCase() !== APPROVER_EMAIL.toLowerCase()) {
-    return { ok: false, message: "Only the approver can request changes." };
-  }
 
   const trimmedNotes = notes.trim();
   if (!trimmedNotes) return { ok: false, message: "Add a note about what needs adjusting." };
 
   const admin = createAdminClient();
+  const approverEmail = await getQuarterlyReviewApproverEmail(admin);
+  if ((user.email ?? "").toLowerCase() !== approverEmail.toLowerCase()) {
+    return { ok: false, message: "Only the approver can request changes." };
+  }
   const review = await getQuarterlyReview(reviewId, admin);
   if (!review) return { ok: false, message: "Review not found." };
   if (review.status !== "submitted") {
@@ -592,6 +596,11 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       client_ack_token: ackToken,
       client_acknowledged_at: null,
       client_ack_remarks: null,
+      client_ack_confirmed_by: null,
+      // A fresh round of reminders starts from zero — the weekly cron
+      // (src/app/api/quarterly-review-reminders) counts from this send.
+      reminder_count: 0,
+      last_reminder_at: null,
       ...(pdfPersisted ? { pdf_storage_path: pdfStoragePath } : {}),
     })
     .eq("id", reviewId);
@@ -706,4 +715,53 @@ export async function updateQuarterlyReviewAttachmentLabelAction(
 
   await admin.from("quarterly_review_attachments").update({ label }).eq("id", attachmentId);
   revalidatePath(`/quarterly-reviews/${reviewId}`);
+}
+
+/** Covers the case where the client acknowledges by replying to the review
+ * email instead of clicking the Acknowledge link — since there's no button
+ * for the client to click in that case, the approver records it here
+ * instead, with a short note (e.g. "confirmed by email 9/14"). Only reaches
+ * a review that's "sent" and not already acknowledged; stops the weekly
+ * reminder cron the same way a client's own click would. Gated to the
+ * approver specifically, same as approve/request-adjustment — this is
+ * effectively speaking for the client, so it shouldn't be anyone with
+ * manage_quarterly_reviews. */
+export async function markClientAcknowledgedManuallyAction(reviewId: string, notes: string): Promise<ReviewActionState> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return { ok: false, message: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  const approverEmail = await getQuarterlyReviewApproverEmail(admin);
+  if ((user.email ?? "").toLowerCase() !== approverEmail.toLowerCase()) {
+    return { ok: false, message: "Only the approver can record this." };
+  }
+
+  const review = await getQuarterlyReview(reviewId, admin);
+  if (!review) return { ok: false, message: "Review not found." };
+  if (review.status !== "sent") return { ok: false, message: "This review hasn't been sent yet." };
+  if (review.clientAcknowledgedAt) return { ok: false, message: "This review is already acknowledged." };
+
+  const trimmedNotes = notes.trim() || null;
+  await admin
+    .from("quarterly_reviews")
+    .update({
+      client_acknowledged_at: new Date().toISOString(),
+      client_ack_remarks: trimmedNotes,
+      client_ack_confirmed_by: user.id,
+    })
+    .eq("id", reviewId);
+
+  await createAlert(
+    admin,
+    [review.createdById],
+    "quarterly_review_client_acknowledged",
+    `${review.clientName} acknowledged their review — ${review.reviewPeriod}`,
+    trimmedNotes ? `Recorded manually: ${trimmedNotes}` : "Recorded manually by the approver.",
+    `/quarterly-reviews/${reviewId}`
+  );
+
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+  revalidatePath("/quarterly-reviews");
+  revalidatePath("/quarterly-reviews/all");
+  return { ok: true, message: "Recorded — this review is now marked as acknowledged." };
 }
