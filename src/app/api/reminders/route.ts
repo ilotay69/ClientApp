@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { buildDigestEmail, type DigestItem } from "@/lib/resend";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
-import { formatDate, isServiceCheckOverdue } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { sendPushToUser } from "@/lib/push-notifications";
 
 export const dynamic = "force-dynamic";
@@ -12,17 +12,16 @@ type OwnerBucket = {
   email: string;
   name: string;
   items: DigestItem[];
-  logEntries: { kind: "touchpoint" | "project" | "task" | "service_check" | "alert"; entity_id: string }[];
+  logEntries: { kind: "touchpoint" | "project" | "task" | "alert"; entity_id: string }[];
 };
 
 /**
  * Daily reminder digest. Call this once a day (e.g. from a Railway cron
  * service) with header `X-Cron-Secret: <CRON_SECRET>`. It emails each team
- * member a summary of their assigned tasks, touchpoints, projects, and
- * service checks that are due, overdue, or past their cadence, plus
- * whatever in-app alerts (src/lib/alerts.ts) they haven't acknowledged yet
- * on the Overview page — this is meant to stay the one email that matters,
- * skipping anything already reminded about today.
+ * member a summary of their assigned tasks, touchpoints, and projects that
+ * are due or overdue, plus whatever in-app alerts (src/lib/alerts.ts) they
+ * haven't acknowledged yet on the Overview page — this is meant to stay the
+ * one email that matters, skipping anything already reminded about today.
  */
 export async function GET(request: NextRequest) {
   const secret = request.headers.get("x-cron-secret");
@@ -38,7 +37,6 @@ export async function GET(request: NextRequest) {
     { data: tasks },
     { data: touchpoints },
     { data: projects },
-    { data: serviceChecks },
     { data: alerts },
     { data: alreadySent },
   ] = await Promise.all([
@@ -62,12 +60,6 @@ export async function GET(request: NextRequest) {
       .in("status", ["planning", "active", "on_hold"])
       .lte("target_end_date", today)
       .not("owner_id", "is", null),
-    supabase
-      .from("client_service_checks")
-      .select(
-        "id, client_id, cadence_days, last_checked_at, assigned_to, clients(name), service_catalog(name, default_cadence_days), profiles:assigned_to(email, full_name)"
-      )
-      .not("assigned_to", "is", null),
     // Anything still unacknowledged on the Overview page (task assignments,
     // quarterly review workflow) — folded into the same digest instead of
     // its own separate email, per the "one email that matters" goal.
@@ -87,7 +79,7 @@ export async function GET(request: NextRequest) {
   function addItem(
     ownerId: string | null,
     profile: { email: string; full_name: string } | null,
-    kind: "touchpoint" | "project" | "task" | "service_check" | "alert",
+    kind: "touchpoint" | "project" | "task" | "alert",
     entityId: string,
     item: DigestItem
   ) {
@@ -149,27 +141,6 @@ export async function GET(request: NextRequest) {
         label: `Project target date: ${p.name}`,
         detail: `${clientName} · target ${formatDate(p.target_end_date)}`,
         href: `/projects/${p.id}`,
-      }
-    );
-  }
-
-  for (const sc of serviceChecks ?? []) {
-    const clientName = (sc.clients as unknown as { name: string } | null)?.name ?? "a client";
-    const catalog = sc.service_catalog as unknown as {
-      name: string;
-      default_cadence_days: number;
-    } | null;
-    const cadence = sc.cadence_days ?? catalog?.default_cadence_days ?? 90;
-    if (!isServiceCheckOverdue(sc.last_checked_at, cadence)) continue;
-    addItem(
-      sc.assigned_to,
-      sc.profiles as unknown as { email: string; full_name: string } | null,
-      "service_check",
-      sc.id,
-      {
-        label: `${catalog?.name ?? "Service check"} overdue`,
-        detail: `${clientName} · last checked ${formatDate(sc.last_checked_at)}`,
-        href: `/clients/${sc.client_id}`,
       }
     );
   }

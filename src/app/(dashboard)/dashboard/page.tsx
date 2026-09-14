@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AlertRow } from "@/components/alert-row";
-import { formatDate, isOverdue, isServiceCheckOverdue } from "@/lib/format";
+import { formatDate, isOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import { acknowledgeAlertAction } from "./actions";
 
@@ -42,7 +42,6 @@ export default async function DashboardPage() {
     { data: allOpenTasks },
     { data: dueTouchpoints },
     { data: activeProjects },
-    { data: serviceChecks },
     { data: myAlerts },
   ] = await Promise.all([
     supabase
@@ -67,9 +66,6 @@ export default async function DashboardPage() {
       .in("status", ["planning", "active", "on_hold"])
       .order("target_end_date", { ascending: true, nullsFirst: false }),
     supabase
-      .from("client_service_checks")
-      .select("id, cadence_days, last_checked_at, clients(name), service_catalog(name, default_cadence_days)"),
-    supabase
       .from("alerts")
       .select("id, title, detail, href")
       .eq("recipient_id", user?.id ?? "")
@@ -79,11 +75,6 @@ export default async function DashboardPage() {
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
   const overdueTouchpoints = (dueTouchpoints ?? []).filter((t) => isOverdue(t.due_date));
-  const overdueServiceChecks = (serviceChecks ?? []).filter((sc) => {
-    const catalog = sc.service_catalog as unknown as { default_cadence_days: number } | null;
-    const cadence = sc.cadence_days ?? catalog?.default_cadence_days ?? 90;
-    return isServiceCheckOverdue(sc.last_checked_at, cadence);
-  });
 
   const workloadByPerson = new Map<string, number>();
   for (const t of allOpenTasks ?? []) {
@@ -120,11 +111,6 @@ export default async function DashboardPage() {
             href="/touchpoints"
           />
         )}
-        <StatCard
-          label="Service checks overdue"
-          value={overdueServiceChecks.length}
-          href="/clients"
-        />
         <StatCard
           label="Active projects"
           value={activeProjects?.length ?? 0}
@@ -174,31 +160,6 @@ export default async function DashboardPage() {
           </div>
         </Section>
       )}
-
-      <Section
-        title={canSeeTeamWide ? "Overdue service checks" : "Your overdue service checks"}
-        emptyText="Everything's within cadence."
-      >
-        {overdueServiceChecks.slice(0, 8).map((sc) => {
-          const catalog = sc.service_catalog as unknown as { name: string } | null;
-          return (
-            <Row key={sc.id} href="/clients">
-              <div>
-                <p className="text-sm font-medium text-slate-900">{catalog?.name ?? "Service"}</p>
-                <p className="text-xs text-slate-500">
-                  {(sc.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <OverdueBadge />
-                <span className="text-xs text-slate-500">
-                  Last checked {formatDate(sc.last_checked_at)}
-                </span>
-              </div>
-            </Row>
-          );
-        })}
-      </Section>
 
       {canManageTouchpoints && (
         <Section

@@ -445,27 +445,6 @@ export interface TaskAssignee {
   created_at: string;
 }
 
-export interface ServiceCatalogItem {
-  id: string;
-  name: string;
-  description: string | null;
-  default_cadence_days: number;
-  created_at: string;
-}
-
-export interface ClientServiceCheck {
-  id: string;
-  client_id: string;
-  service_id: string;
-  cadence_days: number | null;
-  last_checked_at: string | null;
-  last_checked_by: string | null;
-  assigned_to: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface ServiceOffering {
   id: string;
   name: string;
