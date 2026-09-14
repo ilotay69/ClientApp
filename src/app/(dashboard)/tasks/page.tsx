@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar, NO_PROJECT_FILTER_VALUE } from "@/components/task-filter-bar";
+import { SortableColumnHeader } from "@/components/sortable-column-header";
 import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
 import { MailboxSnapshotPreview } from "@/components/mailbox-snapshot-preview";
 import { SyncMailboxButton } from "@/components/sync-mailbox-button";
@@ -59,6 +60,24 @@ function truncateProjectName(name: string): string {
   return name.length > 20 ? `${name.slice(0, 20)}…` : name;
 }
 
+type SortDir = "asc" | "desc";
+
+// Nulls (no due date, no client, no project, unassigned) sort last
+// regardless of direction — a missing value isn't meaningfully "less than"
+// or "greater than" a real one, and burying blanks at the bottom either
+// way is more useful than having them jump to the top on a descending sort.
+function compareSortValues(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a.localeCompare(b);
+}
+
+function sortRows<T>(rows: T[], field: string, dir: SortDir, valueFor: (row: T, field: string) => string | null): T[] {
+  const sign = dir === "desc" ? -1 : 1;
+  return [...rows].sort((a, b) => sign * compareSortValues(valueFor(a, field), valueFor(b, field)));
+}
+
 export default async function TasksPage({
   searchParams,
 }: {
@@ -73,9 +92,13 @@ export default async function TasksPage({
     priority?: string | string[];
     assignee?: string;
     status?: string | string[];
+    sort?: string;
+    dir?: string;
     todoClient?: string;
     todoPriority?: string | string[];
     todoStatus?: string | string[];
+    todoSort?: string;
+    todoDir?: string;
   }>;
 }) {
   const {
@@ -89,10 +112,18 @@ export default async function TasksPage({
     priority: filterPriorityRaw,
     assignee: filterAssignee,
     status: filterStatusRaw,
+    sort: rawSort,
+    dir: rawDir,
     todoClient: filterTodoClient,
     todoPriority: filterTodoPriorityRaw,
     todoStatus: filterTodoStatusRaw,
+    todoSort: rawTodoSort,
+    todoDir: rawTodoDir,
   } = await searchParams;
+  const teamSortField = rawSort || "due_date";
+  const teamSortDir: SortDir = rawDir === "desc" ? "desc" : "asc";
+  const todoSortField = rawTodoSort || "due_date";
+  const todoSortDir: SortDir = rawTodoDir === "desc" ? "desc" : "asc";
   const filterStatuses = Array.isArray(filterStatusRaw)
     ? filterStatusRaw
     : filterStatusRaw
@@ -265,17 +296,25 @@ export default async function TasksPage({
           mine,
           view,
           tab: "team",
+          sort: rawSort,
+          dir: rawDir,
           todoClient: filterTodoClient,
           todoPriority: filterTodoPriorities,
           todoStatus: filterTodoStatuses,
+          todoSort: rawTodoSort,
+          todoDir: rawTodoDir,
         }}
         clearHref={filterHref("/tasks", {
           mine,
           view,
           tab: "team",
+          sort: rawSort,
+          dir: rawDir,
           todoClient: filterTodoClient,
           todoPriority: filterTodoPriorities,
           todoStatus: filterTodoStatuses,
+          todoSort: rawTodoSort,
+          todoDir: rawTodoDir,
         })}
       />
 
@@ -289,34 +328,130 @@ export default async function TasksPage({
       />
 
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        {(teamTasks ?? []).map((t) => {
-          const assigneeIds = (
-            (t.task_assignees as unknown as { profile_id: string }[] | null) ?? []
-          ).map((a) => a.profile_id);
-          const assigneeNames = assigneeIds
-            .map((id) => memberById.get(id))
-            .filter((n): n is string => Boolean(n))
-            .join(", ");
+        {(() => {
+          const teamSortHrefFor = (field: string, dir: SortDir) =>
+            filterHref("/tasks", {
+              mine,
+              view,
+              tab: "team",
+              client: filterClient,
+              project: filterProject,
+              priority: filterPriorities,
+              assignee: filterAssignee,
+              status: filterStatuses,
+              sort: field,
+              dir,
+              todoClient: filterTodoClient,
+              todoPriority: filterTodoPriorities,
+              todoStatus: filterTodoStatuses,
+              todoSort: rawTodoSort,
+              todoDir: rawTodoDir,
+            });
+
+          const teamRows = (teamTasks ?? []).map((t) => {
+            const assigneeIds = (
+              (t.task_assignees as unknown as { profile_id: string }[] | null) ?? []
+            ).map((a) => a.profile_id);
+            const assigneeNames = assigneeIds
+              .map((id) => memberById.get(id))
+              .filter((n): n is string => Boolean(n))
+              .join(", ");
+            const clientName = t.client_id ? (clientById.get(t.client_id) ?? null) : null;
+            const projectLabel = t.project_id ? (projectNameById.get(t.project_id) ?? "Project") : "No Project";
+            return { task: t, assigneeIds, assigneeNames, clientName, projectLabel };
+          });
+
+          const sortedTeamRows = sortRows(teamRows, teamSortField, teamSortDir, (row, field) => {
+            switch (field) {
+              case "title":
+                return row.task.title;
+              case "status":
+                return row.task.status;
+              case "client":
+                return row.clientName;
+              case "project":
+                return row.projectLabel;
+              case "assignee":
+                return row.assigneeNames || null;
+              case "due_date":
+              default:
+                return row.task.due_date;
+            }
+          });
 
           return (
-            <TaskRow
-              key={t.id}
-              task={t as TaskRowData}
-              clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
-              projectLabel={t.project_id ? (projectNameById.get(t.project_id) ?? "Project") : "No Project"}
-              assigneeNames={assigneeNames}
-              assigneeIds={assigneeIds}
-              members={members ?? []}
-              canDelete={canDeleteTasks}
-              statusOptions={statusOptionsFor(t.status)}
-              updateFieldAction={updateFieldAction}
-              updateAssigneesAction={setTaskAssignees}
-              deleteAction={deleteTask.bind(null, t.id)}
-              fetchNotesAction={getTaskNotesAction}
-              addNoteAction={addTaskNote.bind(null, t.id)}
-            />
+            <>
+              <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
+                <SortableColumnHeader
+                  label="Due"
+                  field="due_date"
+                  activeField={teamSortField}
+                  activeDir={teamSortDir}
+                  hrefFor={teamSortHrefFor}
+                  className="w-24"
+                />
+                <SortableColumnHeader
+                  label="Client"
+                  field="client"
+                  activeField={teamSortField}
+                  activeDir={teamSortDir}
+                  hrefFor={teamSortHrefFor}
+                  className="w-32"
+                />
+                <SortableColumnHeader
+                  label="Project"
+                  field="project"
+                  activeField={teamSortField}
+                  activeDir={teamSortDir}
+                  hrefFor={teamSortHrefFor}
+                  className="w-28"
+                />
+                <SortableColumnHeader
+                  label="Assigned"
+                  field="assignee"
+                  activeField={teamSortField}
+                  activeDir={teamSortDir}
+                  hrefFor={teamSortHrefFor}
+                  className="w-32"
+                />
+                <SortableColumnHeader
+                  label="Title"
+                  field="title"
+                  activeField={teamSortField}
+                  activeDir={teamSortDir}
+                  hrefFor={teamSortHrefFor}
+                  className="min-w-0 flex-1"
+                />
+                <SortableColumnHeader
+                  label="Status"
+                  field="status"
+                  activeField={teamSortField}
+                  activeDir={teamSortDir}
+                  hrefFor={teamSortHrefFor}
+                />
+                <span className="w-4 shrink-0" aria-hidden="true" />
+              </div>
+              {sortedTeamRows.map(({ task: t, assigneeIds, assigneeNames, clientName, projectLabel }) => (
+                <TaskRow
+                  key={t.id}
+                  task={t as TaskRowData}
+                  clientName={clientName}
+                  projectLabel={projectLabel}
+                  assigneeNames={assigneeNames}
+                  assigneeIds={assigneeIds}
+                  members={members ?? []}
+                  canDelete={canDeleteTasks}
+                  statusOptions={statusOptionsFor(t.status)}
+                  updateFieldAction={updateFieldAction}
+                  updateAssigneesAction={setTaskAssignees}
+                  deleteAction={deleteTask.bind(null, t.id)}
+                  fetchNotesAction={getTaskNotesAction}
+                  addNoteAction={addTaskNote.bind(null, t.id)}
+                />
+              ))}
+            </>
           );
-        })}
+        })()}
         {(teamTasks ?? []).length === 0 && (
           <p className="px-5 py-6 text-center text-sm text-slate-500">
             Nothing here. Add a task above, or promote an insight from the{" "}
@@ -386,6 +521,10 @@ export default async function TasksPage({
           priority: filterPriorities,
           assignee: filterAssignee,
           status: filterStatuses,
+          sort: rawSort,
+          dir: rawDir,
+          todoSort: rawTodoSort,
+          todoDir: rawTodoDir,
         }}
         clearHref={filterHref("/tasks", {
           mine,
@@ -396,6 +535,10 @@ export default async function TasksPage({
           priority: filterPriorities,
           assignee: filterAssignee,
           status: filterStatuses,
+          sort: rawSort,
+          dir: rawDir,
+          todoSort: rawTodoSort,
+          todoDir: rawTodoDir,
         })}
       />
 
@@ -408,23 +551,101 @@ export default async function TasksPage({
       />
 
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        {(personalTasks ?? []).map((t) => (
-          <TaskRow
-            key={t.id}
-            task={{ ...t, project_id: null } as TaskRowData}
-            clientName={t.client_id ? (clientById.get(t.client_id) ?? null) : null}
-            assigneeNames=""
-            assigneeIds={[]}
-            members={[]}
-            canDelete
-            statusOptions={statusOptionsFor(t.status)}
-            updateFieldAction={updateFieldAction}
-            updateAssigneesAction={setTaskAssignees}
-            deleteAction={deleteTask.bind(null, t.id)}
-            fetchNotesAction={getTaskNotesAction}
-            addNoteAction={addTaskNote.bind(null, t.id)}
-          />
-        ))}
+        {(() => {
+          const todoSortHrefFor = (field: string, dir: SortDir) =>
+            filterHref("/tasks", {
+              mine,
+              view,
+              tab: "todo",
+              client: filterClient,
+              project: filterProject,
+              priority: filterPriorities,
+              assignee: filterAssignee,
+              status: filterStatuses,
+              sort: rawSort,
+              dir: rawDir,
+              todoClient: filterTodoClient,
+              todoPriority: filterTodoPriorities,
+              todoStatus: filterTodoStatuses,
+              todoSort: field,
+              todoDir: dir,
+            });
+
+          const todoRows = (personalTasks ?? []).map((t) => ({
+            task: t,
+            clientName: t.client_id ? (clientById.get(t.client_id) ?? null) : null,
+          }));
+
+          const sortedTodoRows = sortRows(todoRows, todoSortField, todoSortDir, (row, field) => {
+            switch (field) {
+              case "title":
+                return row.task.title;
+              case "status":
+                return row.task.status;
+              case "client":
+                return row.clientName;
+              case "due_date":
+              default:
+                return row.task.due_date;
+            }
+          });
+
+          return (
+            <>
+              <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
+                <SortableColumnHeader
+                  label="Due"
+                  field="due_date"
+                  activeField={todoSortField}
+                  activeDir={todoSortDir}
+                  hrefFor={todoSortHrefFor}
+                  className="w-24"
+                />
+                <SortableColumnHeader
+                  label="Client"
+                  field="client"
+                  activeField={todoSortField}
+                  activeDir={todoSortDir}
+                  hrefFor={todoSortHrefFor}
+                  className="w-32"
+                />
+                <SortableColumnHeader
+                  label="Title"
+                  field="title"
+                  activeField={todoSortField}
+                  activeDir={todoSortDir}
+                  hrefFor={todoSortHrefFor}
+                  className="min-w-0 flex-1"
+                />
+                <SortableColumnHeader
+                  label="Status"
+                  field="status"
+                  activeField={todoSortField}
+                  activeDir={todoSortDir}
+                  hrefFor={todoSortHrefFor}
+                />
+                <span className="w-4 shrink-0" aria-hidden="true" />
+              </div>
+              {sortedTodoRows.map(({ task: t, clientName }) => (
+                <TaskRow
+                  key={t.id}
+                  task={{ ...t, project_id: null } as TaskRowData}
+                  clientName={clientName}
+                  assigneeNames=""
+                  assigneeIds={[]}
+                  members={[]}
+                  canDelete
+                  statusOptions={statusOptionsFor(t.status)}
+                  updateFieldAction={updateFieldAction}
+                  updateAssigneesAction={setTaskAssignees}
+                  deleteAction={deleteTask.bind(null, t.id)}
+                  fetchNotesAction={getTaskNotesAction}
+                  addNoteAction={addTaskNote.bind(null, t.id)}
+                />
+              ))}
+            </>
+          );
+        })()}
         {(personalTasks ?? []).length === 0 && (
           <p className="px-5 py-6 text-center text-sm text-slate-500">
             Nothing on your list yet. Add one above.
