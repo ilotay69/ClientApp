@@ -139,12 +139,25 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-5 py-2.5">
             <IconAlertTriangle className="h-4 w-4 text-red-600" />
             <h2 className="text-sm font-semibold text-red-800">Alerts</h2>
+            <span className="ml-auto text-xs font-medium text-red-700">{(myAlerts ?? []).length}</span>
           </div>
           <div className="divide-y divide-slate-100">
-            {(myAlerts ?? []).map((a) => (
+            {(myAlerts ?? []).slice(0, 5).map((a) => (
               <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
             ))}
           </div>
+          {(myAlerts ?? []).length > 5 && (
+            <details className="group border-t border-slate-100">
+              <summary className="cursor-pointer list-none px-5 py-2 text-xs font-medium text-brand hover:underline [&::-webkit-details-marker]:hidden">
+                Show {(myAlerts ?? []).length - 5} more
+              </summary>
+              <div className="divide-y divide-slate-100 border-t border-slate-100">
+                {(myAlerts ?? []).slice(5).map((a) => (
+                  <AlertRow key={a.id} id={a.id} title={a.title} detail={a.detail} href={a.href} action={acknowledgeAlertAction} />
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
 
