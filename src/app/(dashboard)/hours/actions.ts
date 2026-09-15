@@ -15,6 +15,7 @@ import {
 import { fetchTimeEntriesForAnalysis, type TimeEntryForAnalysis } from "@/lib/time-entry-insights";
 import { fetchContractBlockHours, type ContractBlockHoursRow } from "@/lib/contract-hours";
 import { fetchAgingOpenTickets, type AgingTicketRow } from "@/lib/ticket-aging";
+import { searchTicketsForCompany, type AutotaskTicketSearchRow } from "@/lib/autotask";
 
 /** Live from Autotask, on demand — not synced/stored anywhere, since "hours
  * worked today" is only ever meaningful as of right now, not as a cached
@@ -185,5 +186,49 @@ export async function fetchAgingOpenTicketsAction(): Promise<
     return { rows };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load open tickets." };
+  }
+}
+
+/** Live ticket search for one client, by subject text and open/completed
+ * status — unlike Aging Tickets above (account-wide, open only, from
+ * whatever's already synced), this looks up one client at a time and can
+ * also find completed tickets, since that's not something the local
+ * autotask_tickets cache ever holds. */
+export async function searchAutotaskTicketsAction(
+  clientId: string,
+  subjectQuery: string,
+  statusFilter: "open" | "completed"
+): Promise<{ rows: AutotaskTicketSearchRow[] } | { error: string }> {
+  if (!(await requirePermission("view_lookups"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!clientId) return { error: "Choose a client first." };
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("autotask_company_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client?.autotask_company_id) {
+    return { error: "This client isn't linked to an Autotask company yet." };
+  }
+
+  try {
+    const rows = await searchTicketsForCompany(
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id,
+      subjectQuery,
+      statusFilter
+    );
+    return { rows };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Ticket search failed." };
   }
 }

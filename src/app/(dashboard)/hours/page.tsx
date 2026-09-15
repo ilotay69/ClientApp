@@ -6,6 +6,7 @@ import { YesterdayTimeEntries } from "@/components/yesterday-time-entries";
 import { HoursLookup } from "@/components/hours-lookup";
 import { ContractBlockHours } from "@/components/contract-block-hours";
 import { AgingOpenTickets } from "@/components/aging-open-tickets";
+import { TicketLookup } from "@/components/ticket-lookup";
 import { OfflineDevicesLookup } from "@/components/offline-devices-lookup";
 import { DiskAlertsLookup } from "@/components/disk-alerts-lookup";
 import { HardwareLifecycleLookup } from "@/components/hardware-lifecycle-lookup";
@@ -32,6 +33,7 @@ import {
   fetchNonBillableHoursByGroupAction,
   fetchContractBlockHoursAction,
   fetchAgingOpenTicketsAction,
+  searchAutotaskTicketsAction,
 } from "./actions";
 import {
   fetchOfflineDevicesAction,
@@ -65,6 +67,14 @@ export default async function HoursPage() {
   if (!(await hasPermission(supabase, "view_lookups"))) {
     redirect("/dashboard");
   }
+
+  // Only clients actually mapped to Autotask can be searched this way —
+  // an unmapped one would just fail with "not linked" on every search.
+  const { data: autotaskClients } = await supabase
+    .from("clients")
+    .select("id, name")
+    .not("autotask_company_id", "is", null)
+    .order("name");
 
   return (
     <div className="space-y-6">
@@ -111,6 +121,12 @@ export default async function HoursPage() {
               {
                 label: "Aging Tickets",
                 content: <AgingOpenTickets action={fetchAgingOpenTicketsAction} />,
+              },
+              {
+                label: "Ticket Lookup",
+                content: (
+                  <TicketLookup clients={autotaskClients ?? []} action={searchAutotaskTicketsAction} />
+                ),
               },
             ],
           },

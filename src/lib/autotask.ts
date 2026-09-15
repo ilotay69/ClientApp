@@ -461,6 +461,78 @@ export async function fetchOpenTicketsForCompany(
   }));
 }
 
+export type AutotaskTicketSearchRow = {
+  id: number;
+  ticket_number: string | null;
+  title: string;
+  status: string | null;
+  priority: string | null;
+  queue_name: string | null;
+  assigned_resource_name: string | null;
+  opened_at: string | null;
+  completed_at: string | null;
+};
+
+/** On-demand ticket search for one client, by subject text and open/
+ * completed status — unlike fetchOpenTicketsForCompany above (which only
+ * ever returns open tickets, for the synced local cache), this is live
+ * and can also find completed tickets, for the Lookups page's Ticket
+ * Lookup tool. Resolves its own picklist labels fresh each call rather
+ * than requiring the caller to have already resolved them, since this
+ * isn't run from a sync loop sharing that lookup across many companies. */
+export async function searchTicketsForCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number,
+  subjectQuery: string,
+  statusFilter: "open" | "completed"
+): Promise<AutotaskTicketSearchRow[]> {
+  const labels = await fetchTicketPicklists(creds, zoneUrl);
+
+  const filter: Record<string, unknown>[] = [{ op: "eq", field: "companyID", value: companyId }];
+  const trimmedQuery = subjectQuery.trim();
+  if (trimmedQuery) {
+    filter.push({ op: "contains", field: "title", value: trimmedQuery });
+  }
+  // "Open" means anything not completed — not one specific status id,
+  // since which numeric status counts as "done" is tenant-configurable.
+  // completedDate is the one unambiguous field for that, same reasoning
+  // fetchOpenTicketsForCompany already uses.
+  if (statusFilter === "open") {
+    filter.push({ op: "notExist", field: "completedDate" });
+  } else {
+    filter.push({ op: "exist", field: "completedDate" });
+  }
+
+  const items = (await autotaskQuery(creds, zoneUrl, "Tickets", {
+    filter,
+    MaxRecords: 200,
+  })) as RawTicket[];
+
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    items.map((t) => t.assignedResourceID).filter((id): id is number => id != null)
+  );
+
+  return items
+    .map((t) => ({
+      id: t.id,
+      ticket_number: t.ticketNumber ?? null,
+      title: t.title,
+      status: t.status != null ? (labels.status.get(t.status) ?? String(t.status)) : null,
+      priority: t.priority != null ? (labels.priority.get(t.priority) ?? String(t.priority)) : null,
+      queue_name: t.queueID != null ? (labels.queue.get(t.queueID) ?? String(t.queueID)) : null,
+      assigned_resource_name:
+        t.assignedResourceID != null
+          ? (resourceNames.get(t.assignedResourceID) ?? `Resource ${t.assignedResourceID}`)
+          : null,
+      opened_at: t.createDate ?? null,
+      completed_at: t.completedDate ?? null,
+    }))
+    .sort((a, b) => (b.opened_at ?? "").localeCompare(a.opened_at ?? ""));
+}
+
 // The SLA name that marks a ticket as project work in this account's
 // Autotask — change here if it's ever renamed there. Matched
 // case-insensitively against the tenant's actual SLA picklist labels.
