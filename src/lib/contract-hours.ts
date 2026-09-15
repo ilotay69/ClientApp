@@ -50,8 +50,11 @@ function pickCurrentBlockPerContract(blocks: AutotaskContractBlock[]): Map<numbe
  * itself — consumption is computed by summing TimeEntries whose
  * contractID matches, restricted to the current block's own date range
  * and to billable time only (isNonBillable time doesn't draw down a
- * prepaid block). Sorted so clients closest to running out surface
- * first. */
+ * prepaid block). Summed using hoursToBill, not hoursWorked — Autotask's
+ * own calculated billable amount, which is what actually draws down the
+ * block and can be well below what a tech logged (write-downs, rounding,
+ * fixed-price adjustments). Sorted so clients closest to running out
+ * surface first. */
 export async function fetchContractBlockHours(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -95,7 +98,7 @@ export async function fetchContractBlockHours(
   for (const e of entries) {
     if (e.contractID == null || e.isNonBillable) continue;
     const list = billableEntriesByContract.get(e.contractID) ?? [];
-    list.push({ day: e.dateWorked.slice(0, 10), hours: e.hoursWorked });
+    list.push({ day: e.dateWorked.slice(0, 10), hours: e.hoursToBill });
     billableEntriesByContract.set(e.contractID, list);
   }
 
@@ -126,7 +129,10 @@ export async function fetchContractBlockHours(
 export type ContractTimeEntryRow = {
   id: number;
   dateWorked: string;
-  hoursWorked: number;
+  /** Autotask's calculated billable hours (hoursToBill) — what actually
+   * drew down the block, not necessarily what the tech logged as
+   * hoursWorked (write-downs/rounding can differ). */
+  hoursToBill: number;
   resourceName: string | null;
   ticketId: number | null;
   taskId: number | null;
@@ -204,7 +210,7 @@ export async function fetchContractUsageForCompany(
       const entriesInRange = (entriesByContract.get(b.contractID) ?? []).filter(
         (e) => e.dateWorked.slice(0, 10) >= b.startDate && e.dateWorked.slice(0, 10) <= b.endDate
       );
-      const used = entriesInRange.filter((e) => !e.isNonBillable).reduce((sum, e) => sum + e.hoursWorked, 0);
+      const used = entriesInRange.filter((e) => !e.isNonBillable).reduce((sum, e) => sum + e.hoursToBill, 0);
       const remaining = b.hours - used;
 
       const row: ContractUsageRow = {
@@ -222,7 +228,7 @@ export async function fetchContractUsageForCompany(
           .map((e) => ({
             id: e.id,
             dateWorked: e.dateWorked,
-            hoursWorked: e.hoursWorked,
+            hoursToBill: e.hoursToBill,
             resourceName: e.resourceID != null ? (resourceNames.get(e.resourceID) ?? null) : null,
             ticketId: e.ticketID,
             taskId: e.taskID,

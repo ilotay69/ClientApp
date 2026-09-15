@@ -140,7 +140,7 @@ export function ContractUsageLookup({
                               <td className="py-1.5 pr-4 text-slate-600">{formatDateTime(e.dateWorked)}</td>
                               <td className="py-1.5 pr-4 text-slate-700">{e.resourceName ?? "—"}</td>
                               <td className="py-1.5 pr-4 text-right text-slate-700">
-                                {hrs(e.hoursWorked)}
+                                {hrs(e.hoursToBill)}
                                 {e.isNonBillable && <span className="ml-1 text-xs text-slate-400">(N/B)</span>}
                               </td>
                               <td className="py-1.5 pr-4 text-slate-600">

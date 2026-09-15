@@ -167,7 +167,10 @@ export async function fetchPortalActiveContractUsage(
     for (const e of entries) {
       if (e.contractID == null || e.isNonBillable) continue;
       const list = billableByContract.get(e.contractID) ?? [];
-      list.push({ day: e.dateWorked.slice(0, 10), hours: e.hoursWorked });
+      // hoursToBill, not hoursWorked — Autotask's own calculated billable
+      // amount, which is what actually draws down the block (can be below
+      // what a tech logged: write-downs, rounding, fixed-price adjustments).
+      list.push({ day: e.dateWorked.slice(0, 10), hours: e.hoursToBill });
       billableByContract.set(e.contractID, list);
     }
 

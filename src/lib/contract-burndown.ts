@@ -97,7 +97,10 @@ export async function fetchContractBurndown(
   return buckets.map((b) => {
     const weekHours = billable
       .filter((e) => e.dateWorked.slice(0, 10) >= b.start && e.dateWorked.slice(0, 10) <= b.end)
-      .reduce((sum, e) => sum + e.hoursWorked, 0);
+      // hoursToBill, not hoursWorked — same reasoning as contract-hours.ts,
+      // and this curve needs to sum to the same total that gives, not a
+      // different (inflated) one.
+      .reduce((sum, e) => sum + e.hoursToBill, 0);
     cumulative += weekHours;
     return { label: b.label, value: cumulative };
   });

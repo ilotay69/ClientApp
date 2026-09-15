@@ -810,6 +810,12 @@ export type AutotaskTimeEntryRange = {
   id: number;
   resourceID: number;
   hoursWorked: number;
+  /** Autotask's own read-only calculated billable amount — can differ
+   * from hoursWorked (write-downs, rounding, fixed-price adjustments), and
+   * is what actually draws down a prepaid contract block. Falls back to
+   * hoursWorked when Autotask hasn't populated it (e.g. a very recent
+   * entry not yet run through billing calculation). */
+  hoursToBill: number;
   dateWorked: string;
   ticketID: number | null;
   taskID: number | null;
@@ -845,6 +851,7 @@ export async function fetchTimeEntriesInRange(
     id: number;
     resourceID: number;
     hoursWorked?: number;
+    hoursToBill?: number;
     dateWorked: string;
     ticketID?: number;
     taskID?: number;
@@ -858,6 +865,7 @@ export async function fetchTimeEntriesInRange(
       id: e.id,
       resourceID: e.resourceID,
       hoursWorked: e.hoursWorked as number,
+      hoursToBill: e.hoursToBill ?? (e.hoursWorked as number),
       dateWorked: e.dateWorked,
       ticketID: e.ticketID ?? null,
       taskID: e.taskID ?? null,
@@ -1048,6 +1056,7 @@ export async function fetchTimeEntriesForContracts(
     id: number;
     resourceID: number;
     hoursWorked?: number;
+    hoursToBill?: number;
     dateWorked: string;
     ticketID?: number;
     taskID?: number;
@@ -1072,6 +1081,7 @@ export async function fetchTimeEntriesForContracts(
         id: e.id,
         resourceID: e.resourceID,
         hoursWorked: e.hoursWorked ?? 0,
+        hoursToBill: e.hoursToBill ?? e.hoursWorked ?? 0,
         dateWorked: e.dateWorked,
         ticketID: e.ticketID ?? null,
         taskID: e.taskID ?? null,
