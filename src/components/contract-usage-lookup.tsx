@@ -17,15 +17,21 @@ function barColor(pct: number): string {
 export function ContractUsageLookup({
   clients,
   action,
+  sendAction,
 }: {
-  clients: { id: string; name: string }[];
+  clients: { id: string; name: string; email?: string | null }[];
   action: (clientId: string) => Promise<{ rows: ContractUsageRow[] } | { error: string }>;
+  sendAction?: (clientId: string, email: string) => Promise<{ error: string | null }>;
 }) {
   const [clientId, setClientId] = useState("");
   const [rows, setRows] = useState<ContractUsageRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [searching, startSearch] = useTransition();
+
+  const [sendEmail, setSendEmail] = useState("");
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [sending, startSend] = useTransition();
 
   const search = () => {
     setError(null);
@@ -38,6 +44,23 @@ export function ContractUsageLookup({
         setRows(result.rows);
         setExpandedId(null);
       }
+    });
+  };
+
+  const selectClient = (id: string) => {
+    setClientId(id);
+    setSendResult(null);
+    setSendEmail(clients.find((c) => c.id === id)?.email ?? "");
+  };
+
+  const send = () => {
+    if (!sendAction) return;
+    setSendResult(null);
+    startSend(async () => {
+      const result = await sendAction(clientId, sendEmail);
+      setSendResult(
+        result.error ? { ok: false, message: result.error } : { ok: true, message: "Sent." }
+      );
     });
   };
 
@@ -56,7 +79,7 @@ export function ContractUsageLookup({
             <label className="block text-xs font-medium text-slate-700">Client</label>
             <select
               value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              onChange={(e) => selectClient(e.target.value)}
               className="mt-1 w-56 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
             >
               <option value="">Choose a client…</option>
@@ -86,6 +109,34 @@ export function ContractUsageLookup({
             </a>
           )}
         </div>
+
+        {sendAction && rows && rows.length > 0 && (
+          <div className="flex flex-wrap items-end gap-3 border-t border-slate-100 pt-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700">Send to client email</label>
+              <input
+                type="email"
+                value={sendEmail}
+                onChange={(e) => setSendEmail(e.target.value)}
+                placeholder="client@example.com"
+                className="mt-1 w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={send}
+              disabled={sending || !sendEmail.trim()}
+              className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            >
+              {sending ? "Sending…" : "Send to Client"}
+            </button>
+            {sendResult && (
+              <p className={`text-sm ${sendResult.ok ? "text-emerald-700" : "text-red-600"}`}>
+                {sendResult.message}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <p className="border-b border-slate-100 bg-red-50 px-5 py-2 text-sm text-red-600">{error}</p>}

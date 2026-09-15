@@ -5,7 +5,7 @@ import { ReportPreviewPanel, type ReportDefinition } from "@/components/report-p
 import { ContractUsageLookup } from "@/components/contract-usage-lookup";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import { getReportPreviewAction } from "./actions";
-import { fetchContractUsageAction } from "../hours/actions";
+import { fetchContractUsageAction, sendContractUsageReportAction } from "../hours/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +70,7 @@ export default async function ReportsPage() {
   // same reasoning as the Lookups page's own client picker.
   const { data: autotaskClients } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, email:primary_contact_email")
     .not("autotask_company_id", "is", null)
     .order("name");
 
@@ -108,7 +108,11 @@ export default async function ReportsPage() {
               {
                 label: "Contract Usage",
                 content: (
-                  <ContractUsageLookup clients={autotaskClients ?? []} action={fetchContractUsageAction} />
+                  <ContractUsageLookup
+                    clients={autotaskClients ?? []}
+                    action={fetchContractUsageAction}
+                    sendAction={sendContractUsageReportAction}
+                  />
                 ),
               },
             ],

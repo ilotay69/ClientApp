@@ -34,6 +34,7 @@ import {
   fetchNonBillableHoursByGroupAction,
   fetchContractBlockHoursAction,
   fetchContractUsageAction,
+  sendContractUsageReportAction,
   fetchAgingOpenTicketsAction,
   searchAutotaskTicketsAction,
 } from "./actions";
@@ -74,7 +75,7 @@ export default async function HoursPage() {
   // an unmapped one would just fail with "not linked" on every search.
   const { data: autotaskClients } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, email:primary_contact_email")
     .not("autotask_company_id", "is", null)
     .order("name");
 
@@ -123,7 +124,11 @@ export default async function HoursPage() {
               {
                 label: "Contract Usage",
                 content: (
-                  <ContractUsageLookup clients={autotaskClients ?? []} action={fetchContractUsageAction} />
+                  <ContractUsageLookup
+                    clients={autotaskClients ?? []}
+                    action={fetchContractUsageAction}
+                    sendAction={sendContractUsageReportAction}
+                  />
                 ),
               },
               {

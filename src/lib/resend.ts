@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import type { ContractUsageRow } from "@/lib/contract-hours";
 
 let client: Resend | null = null;
 
@@ -277,6 +278,51 @@ export function buildQuarterlyReviewClientEmail(
   return { html, text };
 }
 
+
+/** Cover note for the Contract Usage PDF — same "detail lives in the
+ * attachment, this is just the announcement" shape as
+ * buildQuarterlyReviewClientEmail, minus that one's acknowledgment link
+ * (there's no ack workflow for this report). Includes the headline
+ * purchased/used/remaining numbers inline only when there's exactly one
+ * active block (the common case) — with more than one, or none, the body
+ * stays generic and the PDF carries the actual detail. */
+export function buildContractUsageClientEmail(clientName: string, rows: ContractUsageRow[]) {
+  const single = rows.length === 1 ? rows[0] : null;
+  const summaryHtml = single
+    ? `<div style="margin:16px 0;padding:14px 16px;background:#f8fafc;border-radius:8px;">
+        <p style="margin:0;color:#334155;font-size:14px;">
+          <strong>${single.used.toFixed(1)}</strong> of <strong>${single.purchased.toFixed(1)}</strong> prepaid hours used
+          (${single.percentUsed.toFixed(0)}%) — <strong>${single.remaining.toFixed(1)}</strong> hours remaining.
+        </p>
+      </div>`
+    : "";
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;">
+      <h2 style="color:#0f172a;">Contract Usage Report</h2>
+      <p style="color:#64748b;">Prepared for ${escapeHtml(clientName)}</p>
+      <p style="color:#334155;">
+        Please find attached your current prepaid block hours usage report, showing hours purchased,
+        used, and remaining, along with the individual time entries recorded against it.
+      </p>
+      ${summaryHtml}
+      <p style="color:#334155;font-size:14px;">
+        If you have any questions about this report, simply reply to this email and a team member
+        will get back to you shortly.
+      </p>
+      <p style="margin-top:24px;color:#334155;font-size:14px;">
+        Best regards,<br />
+        CG Technologies Team
+      </p>
+    </div>
+  `;
+  const summaryText = single
+    ? `\n${single.used.toFixed(1)} of ${single.purchased.toFixed(1)} prepaid hours used (${single.percentUsed.toFixed(0)}%) — ${single.remaining.toFixed(1)} hours remaining.\n`
+    : "";
+  const text = `Contract Usage Report\nPrepared for ${clientName}\n\nPlease find attached your current prepaid block hours usage report, showing hours purchased, used, and remaining, along with the individual time entries recorded against it.\n${summaryText}\nIf you have any questions about this report, simply reply to this email and a team member will get back to you shortly.\n\nBest regards,\nCG Technologies Team`;
+
+  return { html, text };
+}
 
 function escapeHtml(value: string) {
   return value

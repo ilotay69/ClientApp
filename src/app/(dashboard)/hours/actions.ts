@@ -13,6 +13,10 @@ import {
   type HoursByGroupRow,
 } from "@/lib/resource-hours";
 import { fetchTimeEntriesForAnalysis, type TimeEntryForAnalysis } from "@/lib/time-entry-insights";
+import { buildContractUsagePdf } from "@/lib/contract-usage-pdf";
+import { buildContractUsageClientEmail } from "@/lib/resend";
+import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import {
   fetchContractBlockHours,
   fetchContractUsageForCompany,
@@ -208,6 +212,75 @@ export async function fetchContractUsageAction(
     return { rows };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load contract usage." };
+  }
+}
+
+/** Emails the Contract Usage PDF straight to an address the caller types
+ * in — not necessarily anyone already on file for this client — via the
+ * shared mailbox, same send path as sales-request notifications and the
+ * quarterly review send. Regenerated fresh from Autotask for the send
+ * itself (not whatever the caller's browser last loaded), so what's
+ * attached can't go stale between "Load report" and clicking Send. */
+export async function sendContractUsageReportAction(
+  clientId: string,
+  email: string
+): Promise<{ error: string | null }> {
+  if (!(await requirePermission("view_lookups"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail) return { error: "Enter an email address to send to." };
+  if (!clientId) return { error: "Choose a client first." };
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("name, autotask_company_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client?.autotask_company_id) {
+    return { error: "This client isn't linked to an Autotask company yet." };
+  }
+
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+  if (!mailboxEmail) return { error: "The shared mailbox isn't configured." };
+  const mailboxSettings = await getSharedMailboxSettings(admin);
+  if (!mailboxSettings) return { error: "The shared mailbox integration isn't set up yet." };
+
+  try {
+    const rows = await fetchContractUsageForCompany(
+      admin,
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id
+    );
+    const pdf = buildContractUsagePdf(client.name, rows);
+    const { html, text } = buildContractUsageClientEmail(client.name, rows);
+
+    const accessToken = await getValidSharedMailboxToken(admin, mailboxSettings);
+    const attachments: SharedMailboxAttachment[] = [
+      {
+        filename: `${client.name} Contract Usage Report.pdf`,
+        contentBase64: pdf.toString("base64"),
+        contentType: "application/pdf",
+        isInline: false,
+      },
+    ];
+    await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
+      to: trimmedEmail,
+      subject: `Contract Usage Report — ${client.name}`,
+      html,
+      text,
+      attachments,
+    });
+    return { error: null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to send the report." };
   }
 }
 
