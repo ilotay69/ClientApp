@@ -105,15 +105,22 @@ export async function getDashboardPreference(
   return { enabledWidgets: (data.enabled_widgets ?? []) as DashboardWidgetKey[] };
 }
 
-/** Which widgets to actually render — every eligible widget, narrowed down
- * to the saved preference if one exists. */
+/** Which widgets to actually render, and in what order. With no saved
+ * preference, that's just the catalog's own order. Once someone has saved
+ * one, enabled_widgets IS the order (Settings → Dashboard's reorder
+ * arrows work by resubmitting this same array in the new sequence) — so a
+ * saved preference renders in ITS order, not the catalog's, dropping any
+ * key that's no longer eligible or no longer exists. */
 export function resolveDashboardWidgets(
   eligible: Set<DashboardWidgetKey>,
   preference: DashboardPreference
 ): DashboardWidgetDef[] {
-  return DASHBOARD_WIDGETS.filter((w) => {
-    if (!eligible.has(w.key)) return false;
-    if (preference.enabledWidgets === null) return true;
-    return preference.enabledWidgets.includes(w.key);
-  });
+  if (preference.enabledWidgets === null) {
+    return DASHBOARD_WIDGETS.filter((w) => eligible.has(w.key));
+  }
+  const byKey = new Map(DASHBOARD_WIDGETS.map((w) => [w.key, w]));
+  return preference.enabledWidgets
+    .filter((key) => eligible.has(key))
+    .map((key) => byKey.get(key))
+    .filter((w): w is DashboardWidgetDef => w !== undefined);
 }

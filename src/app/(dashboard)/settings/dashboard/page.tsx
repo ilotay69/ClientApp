@@ -34,8 +34,8 @@ export default async function DashboardSettingsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Choose which sections show on your own Dashboard — everyone on the team can pick a
-          different mix. Only widgets you already have access to are listed here.
+          Choose which sections show on your own Dashboard, and in what order — everyone on the
+          team can pick a different mix. Only widgets you already have access to are listed here.
         </p>
       </div>
 
