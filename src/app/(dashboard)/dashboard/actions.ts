@@ -465,8 +465,11 @@ export type UnassignedLevel1Ticket = {
  * reasoning) — the local autotask_tickets cache used elsewhere in this
  * app is only as fresh as the last account-wide sync (not on a fixed
  * schedule), which isn't good enough for "what's sitting unpicked right
- * now". Matches "Level I Support" (this tenant's actual queue label,
- * roman numeral) and the digit spelling in case it's ever renamed. */
+ * now". Queue/status lists match Autotask's own "Level - 1" home widget
+ * exactly (Queue in [Client Portal, Level I Support, Merged Tickets],
+ * Status in [New, Customer Note Added], Primary Resource is empty) — an
+ * earlier version used "any non-completed status" here, which is broader
+ * than what that widget counts and is why the two didn't match. */
 export async function fetchUnassignedLevel1TicketsAction(): Promise<
   { rows: UnassignedLevel1Ticket[] } | { error: string }
 > {
@@ -481,7 +484,12 @@ export async function fetchUnassignedLevel1TicketsAction(): Promise<
   }
 
   try {
-    const tickets = await fetchUnassignedQueueTickets(settings.credentials, settings.zoneUrl, /level i |level 1/i);
+    const tickets = await fetchUnassignedQueueTickets(
+      settings.credentials,
+      settings.zoneUrl,
+      ["Client Portal", "Level I Support", "Merged Tickets"],
+      ["New", "Customer Note Added"]
+    );
     if (tickets.length === 0) return { rows: [] };
 
     const companyIds = [...new Set(tickets.map((t) => t.company_id))];

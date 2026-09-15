@@ -1167,28 +1167,43 @@ export type AutotaskUnassignedQueueTicketRow = {
   opened_at: string | null;
 };
 
-/** Every currently-open ticket in a queue matching queueNameRegex, with no
- * resource assigned, across every client — live, for a dashboard widget
- * that needs to be accurate right now. autotask_tickets (the local cache
- * fetchOpenTicketsForCompany/the sync populate elsewhere) is only ever as
- * fresh as the last account-wide sync, which isn't on a fixed schedule and
- * can lag by days — not good enough for "what needs picking up right
- * now". Filtered server-side (queueID + assignedResourceID both in the
- * Autotask query itself), not fetched-then-filtered, since an MSP's full
- * open-ticket count can be large. */
+/** Tickets with no resource assigned, in one of queueNames, with a status
+ * in statusNames — live, for a dashboard widget that needs to be accurate
+ * right now. autotask_tickets (the local cache fetchOpenTicketsForCompany/
+ * the sync populate elsewhere) is only ever as fresh as the last account-
+ * wide sync, which isn't on a fixed schedule and can lag by days — not
+ * good enough for "what needs picking up right now". Filtered server-side
+ * (queueID + status + assignedResourceID all in the Autotask query
+ * itself), not fetched-then-filtered, since an MSP's full open-ticket
+ * count can be large.
+ *
+ * queueNames/statusNames are matched case-insensitively against this
+ * tenant's own picklist labels, mirroring the exact filters on Autotask's
+ * own "Level - 1" home widget (Queue in [queueNames], Status in
+ * [statusNames], Primary Resource is empty) — deliberately NOT "every
+ * non-completed status", which is broader than what that widget counts
+ * and was why this app's count didn't match Autotask's own. */
 export async function fetchUnassignedQueueTickets(
   creds: AutotaskCredentials,
   zoneUrl: string,
-  queueNameRegex: RegExp
+  queueNames: string[],
+  statusNames: string[]
 ): Promise<AutotaskUnassignedQueueTicketRow[]> {
   const labels = await fetchTicketPicklists(creds, zoneUrl);
-  const queueIds = [...labels.queue.entries()].filter(([, label]) => queueNameRegex.test(label)).map(([id]) => id);
-  if (queueIds.length === 0) return [];
+  const wantedQueues = new Set(queueNames.map((n) => n.toLowerCase()));
+  const wantedStatuses = new Set(statusNames.map((n) => n.toLowerCase()));
+  const queueIds = [...labels.queue.entries()]
+    .filter(([, label]) => wantedQueues.has(label.toLowerCase()))
+    .map(([id]) => id);
+  const statusIds = [...labels.status.entries()]
+    .filter(([, label]) => wantedStatuses.has(label.toLowerCase()))
+    .map(([id]) => id);
+  if (queueIds.length === 0 || statusIds.length === 0) return [];
 
   const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
     filter: [
-      { op: "notExist", field: "completedDate" },
       { op: "in", field: "queueID", value: queueIds },
+      { op: "in", field: "status", value: statusIds },
       { op: "notExist", field: "assignedResourceID" },
     ],
   })) as {
