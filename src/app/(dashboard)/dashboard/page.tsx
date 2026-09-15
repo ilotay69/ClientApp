@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { getAutotaskSettings } from "@/lib/autotask-settings";
-import { buildAutotaskTicketUrl } from "@/lib/autotask";
+import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AlertRow } from "@/components/alert-row";
 import {
@@ -13,6 +11,7 @@ import {
 } from "@/components/dashboard-widget-card";
 import { DashboardDonut, DashboardGauge } from "@/components/dashboard-charts";
 import { TeamHoursWidget } from "@/components/team-hours-widget";
+import { Level1QueueWidget } from "@/components/level1-queue-widget";
 import {
   IconAlertTriangle,
   IconCheckSquare,
@@ -23,7 +22,7 @@ import {
   IconTag,
   IconFlag,
 } from "@/components/icons";
-import { formatDate, formatDateTime, isOverdue } from "@/lib/format";
+import { formatDate, isOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import {
   getEligibleDashboardWidgetKeys,
@@ -33,7 +32,7 @@ import {
 import { fetchAllReviews, reviewBucket, getQuarterlyReviewApproverEmail } from "@/lib/quarterly-review-data";
 import { fetchMyOpenAutotaskTickets } from "@/lib/my-tickets";
 import { fetchResourceHoursAction } from "../hours/actions";
-import { acknowledgeAlertAction } from "./actions";
+import { acknowledgeAlertAction, fetchUnassignedLevel1TicketsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -99,8 +98,6 @@ export default async function DashboardPage() {
     { data: openSalesRequests },
     { data: recruitmentRows },
     myTickets,
-    { data: unassignedL1Tickets },
-    autotaskSettings,
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -137,28 +134,6 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false }),
     supabase.from("resumes").select("status"),
     enabled.has("my_tickets") ? fetchMyOpenAutotaskTickets(supabase, me?.full_name ?? null) : Promise.resolve([]),
-    // autotask_tickets only ever holds currently-open tickets (its sync
-    // deletes and re-inserts a client's open set each run — see
-    // src/lib/autotask-sync.ts), so "not complete" is already true for
-    // every row here; the status filter below is just a defensive
-    // extra in case that ever changes. queue_name is this Autotask
-    // tenant's own free-text picklist label — confirmed as "Level I
-    // Support" (roman numeral, not the digit "1"). Matches "level i "
-    // with a trailing space (not just "level i") so "Level II Support"
-    // doesn't also match — "level ii" contains "level i" as a substring
-    // but never "level i " followed by another letter.
-    enabled.has("unassigned_l1_tickets")
-      ? supabase
-          .from("autotask_tickets")
-          .select("id, ticket_number, title, status, priority, queue_name, opened_at, client_id, clients(name)")
-          .or("queue_name.ilike.%level i %,queue_name.ilike.%level 1%")
-          .is("assigned_resource_name", null)
-          .not("status", "ilike", "%complete%")
-          // Oldest-created first — the point of this widget is "what's
-          // been sitting unpicked the longest", not what's due soonest.
-          .order("opened_at", { ascending: true, nullsFirst: false })
-      : Promise.resolve({ data: [] }),
-    enabled.has("unassigned_l1_tickets") ? getAutotaskSettings(createAdminClient()) : Promise.resolve(null),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -337,39 +312,7 @@ export default async function DashboardPage() {
         )}
 
         {enabled.has("unassigned_l1_tickets") && (
-          <DashboardWidgetCard
-            title="Level 1 Queue - waiting for tech to pick up"
-            count={(unassignedL1Tickets ?? []).length}
-            countLabel="unassigned"
-            icon={IconAlertTriangle}
-            accent="red"
-            href="/reports"
-            urgent={(unassignedL1Tickets ?? []).length > 0}
-          >
-            {(unassignedL1Tickets ?? []).length === 0 ? (
-              <EmptyRow text="Nothing unassigned in Level 1 right now." />
-            ) : (
-              <>
-                <div className="divide-y divide-slate-100">
-                  {(unassignedL1Tickets ?? []).slice(0, 5).map((t) => (
-                    <UnassignedTicketRow key={t.id} ticket={t} webZoneUrl={autotaskSettings?.webZoneUrl ?? null} />
-                  ))}
-                </div>
-                {(unassignedL1Tickets ?? []).length > 5 && (
-                  <details className="group border-t border-slate-100">
-                    <summary className="cursor-pointer list-none px-4 py-2 text-xs font-medium text-brand hover:underline [&::-webkit-details-marker]:hidden">
-                      Show {(unassignedL1Tickets ?? []).length - 5} more
-                    </summary>
-                    <div className="divide-y divide-slate-100 border-t border-slate-100">
-                      {(unassignedL1Tickets ?? []).slice(5).map((t) => (
-                        <UnassignedTicketRow key={t.id} ticket={t} webZoneUrl={autotaskSettings?.webZoneUrl ?? null} />
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </>
-            )}
-          </DashboardWidgetCard>
+          <Level1QueueWidget action={fetchUnassignedLevel1TicketsAction} />
         )}
 
         {enabled.has("touchpoints_due") && (
@@ -671,52 +614,4 @@ function WidgetRow({
 
 function EmptyRow({ text }: { text: string }) {
   return <p className="px-4 py-2 text-sm text-slate-500">{text}</p>;
-}
-
-type UnassignedTicket = {
-  id: number;
-  ticket_number: string | null;
-  title: string;
-  priority: string | null;
-  opened_at: string | null;
-  clients: { name: string } | { name: string }[] | null;
-};
-
-/** Opens the actual ticket in Autotask (a new tab) when the Autotask
- * connection has been tested at least once (so webZoneUrl is known) —
- * a client's own page doesn't tell you anything about one specific
- * ticket, so that's not a useful fallback destination here. Without a
- * known webZoneUrl the row just isn't a link at all, rather than
- * pointing somewhere unhelpful. */
-function UnassignedTicketRow({ ticket: t, webZoneUrl }: { ticket: UnassignedTicket; webZoneUrl: string | null }) {
-  const clientName = (Array.isArray(t.clients) ? t.clients[0] : t.clients)?.name ?? "Unknown client";
-  const ticketUrl = webZoneUrl ? buildAutotaskTicketUrl(webZoneUrl, t.id) : null;
-
-  const inner = (
-    <>
-      <DashboardDot accent="red" />
-      <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-900">
-            {t.ticket_number ? `#${t.ticket_number} — ` : ""}
-            {t.title}
-          </p>
-          <p className="truncate text-xs text-slate-500">
-            {clientName}
-            {t.opened_at ? ` · created ${formatDateTime(t.opened_at)}` : ""}
-          </p>
-        </div>
-        {t.priority && <Badge value={t.priority} />}
-      </span>
-    </>
-  );
-
-  if (!ticketUrl) {
-    return <div className="flex items-center gap-2.5 px-4 py-1.5">{inner}</div>;
-  }
-  return (
-    <a href={ticketUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 px-4 py-1.5 hover:bg-slate-50">
-      {inner}
-    </a>
-  );
 }

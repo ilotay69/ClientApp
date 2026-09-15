@@ -6,7 +6,9 @@ import { reviewMailbox, MAX_LOOKBACK_DAYS, DEFAULT_LOOKBACK_DAYS, type MailboxRe
 import { purgeSnapshotMessagesFromSenders, syncMailboxSnapshot } from "@/lib/mailbox-snapshot";
 import { getValidAccessToken } from "@/lib/mail-sync";
 import { fetchUpcomingEvents } from "@/lib/microsoft-graph";
-import { requireStaff } from "@/lib/permissions";
+import { requireStaff, requirePermission } from "@/lib/permissions";
+import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { fetchUnassignedQueueTickets, buildAutotaskTicketUrl } from "@/lib/autotask";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
@@ -441,4 +443,74 @@ export async function clearDismissedMailboxThreads(): Promise<{ error?: string }
   revalidatePath("/tasks");
   revalidatePath("/my-todo");
   return {};
+}
+
+export type UnassignedLevel1Ticket = {
+  id: number;
+  ticketNumber: string | null;
+  title: string;
+  priority: string | null;
+  openedAt: string | null;
+  clientId: string | null;
+  clientName: string;
+  /** Deep link to the ticket's own page in Autotask — null only if the
+   * Autotask connection has never had its web zone resolved (i.e. "Test
+   * connection" hasn't been run since that field was added). */
+  ticketUrl: string | null;
+};
+
+/** Live from Autotask, fetched client-side by the Dashboard's Level 1
+ * Queue widget (see team-hours-widget.tsx for the same lazy-fetch
+ * reasoning) — the local autotask_tickets cache used elsewhere in this
+ * app is only as fresh as the last account-wide sync (not on a fixed
+ * schedule), which isn't good enough for "what's sitting unpicked right
+ * now". Matches "Level I Support" (this tenant's actual queue label,
+ * roman numeral) and the digit spelling in case it's ever renamed. */
+export async function fetchUnassignedLevel1TicketsAction(): Promise<
+  { rows: UnassignedLevel1Ticket[] } | { error: string }
+> {
+  if (!(await requirePermission("view_team_wide"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const tickets = await fetchUnassignedQueueTickets(settings.credentials, settings.zoneUrl, /level i |level 1/i);
+    if (tickets.length === 0) return { rows: [] };
+
+    const companyIds = [...new Set(tickets.map((t) => t.company_id))];
+    const { data: clients } = await admin
+      .from("clients")
+      .select("id, name, autotask_company_id")
+      .in("autotask_company_id", companyIds.length > 0 ? companyIds : [-1]);
+    const clientByCompanyId = new Map<number, { id: string; name: string }>(
+      (clients ?? []).map((c: { id: string; name: string; autotask_company_id: number }): [number, { id: string; name: string }] => [
+        c.autotask_company_id,
+        { id: c.id, name: c.name },
+      ])
+    );
+
+    const rows: UnassignedLevel1Ticket[] = tickets.map((t) => {
+      const client = clientByCompanyId.get(t.company_id);
+      return {
+        id: t.id,
+        ticketNumber: t.ticket_number,
+        title: t.title,
+        priority: t.priority,
+        openedAt: t.opened_at,
+        clientId: client?.id ?? null,
+        clientName: client?.name ?? "Unknown client",
+        ticketUrl: settings.webZoneUrl ? buildAutotaskTicketUrl(settings.webZoneUrl, t.id) : null,
+      };
+    });
+
+    return { rows };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load tickets." };
+  }
 }

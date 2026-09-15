@@ -1128,6 +1128,60 @@ export async function fetchAllOpenTickets(
   }));
 }
 
+export type AutotaskUnassignedQueueTicketRow = {
+  id: number;
+  ticket_number: string | null;
+  title: string;
+  priority: string | null;
+  company_id: number;
+  opened_at: string | null;
+};
+
+/** Every currently-open ticket in a queue matching queueNameRegex, with no
+ * resource assigned, across every client — live, for a dashboard widget
+ * that needs to be accurate right now. autotask_tickets (the local cache
+ * fetchOpenTicketsForCompany/the sync populate elsewhere) is only ever as
+ * fresh as the last account-wide sync, which isn't on a fixed schedule and
+ * can lag by days — not good enough for "what needs picking up right
+ * now". Filtered server-side (queueID + assignedResourceID both in the
+ * Autotask query itself), not fetched-then-filtered, since an MSP's full
+ * open-ticket count can be large. */
+export async function fetchUnassignedQueueTickets(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  queueNameRegex: RegExp
+): Promise<AutotaskUnassignedQueueTicketRow[]> {
+  const labels = await fetchTicketPicklists(creds, zoneUrl);
+  const queueIds = [...labels.queue.entries()].filter(([, label]) => queueNameRegex.test(label)).map(([id]) => id);
+  if (queueIds.length === 0) return [];
+
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "notExist", field: "completedDate" },
+      { op: "in", field: "queueID", value: queueIds },
+      { op: "notExist", field: "assignedResourceID" },
+    ],
+  })) as {
+    id: number;
+    ticketNumber?: string;
+    title: string;
+    priority?: number;
+    companyID: number;
+    createDate?: string;
+  }[];
+
+  return items
+    .map((t) => ({
+      id: t.id,
+      ticket_number: t.ticketNumber ?? null,
+      title: t.title,
+      priority: t.priority != null ? (labels.priority.get(t.priority) ?? String(t.priority)) : null,
+      company_id: t.companyID,
+      opened_at: t.createDate ?? null,
+    }))
+    .sort((a, b) => (a.opened_at ?? "").localeCompare(b.opened_at ?? ""));
+}
+
 /** Batched companyID lookup for Tickets referenced by id from time entries
  * — used to attribute a time entry to a client via the ticket's company,
  * since TimeEntries itself carries no client/company reference. Same
