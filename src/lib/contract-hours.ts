@@ -7,12 +7,6 @@ import {
   type AutotaskCredentials,
 } from "@/lib/autotask";
 
-export type ContractBlockSummary = {
-  startDate: string;
-  endDate: string;
-  hours: number;
-};
-
 export type ContractBlockHoursRow = {
   contractId: number;
   contractName: string;
@@ -24,80 +18,56 @@ export type ContractBlockHoursRow = {
   percentUsed: number;
   startDate: string;
   endDate: string;
-  /** The individual currently-active blocks that sum to `purchased` — a
-   * contract usually has just one, but a client whose replenishments were
-   * never given their own narrow date range (each new block just spans
-   * from its purchase date to some far-future/contract-end date, instead
-   * of only its own billing period) can have several genuinely
-   * "currently active" at once. Exposed so the UI can show that this
-   * total is a sum, not one single purchase. */
-  blocks: ContractBlockSummary[];
 };
 
-type ContractBlockGroup = {
-  contractID: number;
-  blocks: AutotaskContractBlock[];
-  purchased: number;
-  /** Earliest start / latest end across every block in the group — the
-   * window billable usage is measured over below. For the normal case of
-   * one active block per contract this is just that block's own range;
-   * grouping only changes anything when more than one block is
-   * simultaneously "active". */
-  startDate: string;
-  endDate: string;
-};
-
-/** Autotask's ContractBlocks carries no "hours used" field of its own, and
- * — critically — offers no reliable way to tell which specific block a
- * given TimeEntry was drawn against when more than one block for the same
- * contract is active at once (this MSP's Autotask data does exactly that:
- * a client can have several "Prepaid Hourly Bundle" blocks whose date
- * ranges all span today, each nominally 100 hours but overlapping by
- * years). Summing each block's billable TimeEntries independently — as an
- * earlier version of this file did — double- and triple-counts the same
- * entries once per overlapping block, wildly inflating "used" per block.
- * The only sound answer Autotask's own data supports is per-CONTRACT: add
- * up every currently-active block's hours as the purchased total, and
- * count each billable TimeEntry within the combined window exactly once. */
-function groupBlocksByContract(blocks: AutotaskContractBlock[]): Map<number, ContractBlockGroup> {
-  const groups = new Map<number, ContractBlockGroup>();
+/** Autotask's TimeEntries carry no field linking an entry to a specific
+ * ContractBlock at all — only to the contract as a whole — so a Block is
+ * the closest thing this data model offers to "which period is this hour
+ * against". Normally exactly one block per contract has today within its
+ * date range. But when replenishments are pre-provisioned ahead of time,
+ * or an old block is never end-dated once superseded, several blocks for
+ * the SAME contract can all satisfy "today falls in range" at once — this
+ * MSP's own Autotask data does exactly that (Atlantic Coated Paper has 7
+ * simultaneously "active" Prepaid Hourly Bundle blocks, one contract).
+ * Autotask itself only shows one row for the contract there, so the right
+ * read is "one active bundle", not seven — picking whichever block
+ * started most recently (and still hasn't ended) is the best available
+ * proxy for "the one actually in effect right now" given Autotask never
+ * tells us which block a given hour was drawn against. */
+function pickCurrentBlockPerContract(blocks: AutotaskContractBlock[]): Map<number, AutotaskContractBlock> {
+  const current = new Map<number, AutotaskContractBlock>();
   for (const b of blocks) {
-    const existing = groups.get(b.contractID);
-    if (!existing) {
-      groups.set(b.contractID, {
-        contractID: b.contractID,
-        blocks: [b],
-        purchased: b.hours,
-        startDate: b.startDate,
-        endDate: b.endDate,
-      });
-    } else {
-      existing.blocks.push(b);
-      existing.purchased += b.hours;
-      if (b.startDate < existing.startDate) existing.startDate = b.startDate;
-      if (b.endDate > existing.endDate) existing.endDate = b.endDate;
+    const existing = current.get(b.contractID);
+    if (!existing || b.startDate > existing.startDate) {
+      current.set(b.contractID, b);
     }
   }
-  return groups;
+  return current;
 }
 
-/** Prepaid/block hours remaining per contract with at least one active
- * block, account-wide — purchased is the sum of every currently-active
- * block's hours, used is every billable TimeEntry in the combined window
- * counted once (see groupBlocksByContract for why not per-block). Sorted
- * so clients closest to running out surface first. */
+/** Prepaid/block hours remaining per contract's single current block,
+ * account-wide. Autotask has no "hours used" field on ContractBlocks
+ * itself — consumption is computed by summing TimeEntries whose
+ * contractID matches, restricted to the current block's own date range
+ * and to billable time only (isNonBillable time doesn't draw down a
+ * prepaid block). Sorted so clients closest to running out surface
+ * first. */
 export async function fetchContractBlockHours(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
   creds: AutotaskCredentials,
   zoneUrl: string
 ): Promise<ContractBlockHoursRow[]> {
-  const blocks = await fetchActiveContractBlocks(creds, zoneUrl);
-  if (blocks.length === 0) return [];
+  const allBlocks = await fetchActiveContractBlocks(creds, zoneUrl);
+  if (allBlocks.length === 0) return [];
 
-  const groups = groupBlocksByContract(blocks);
+  const currentBlocks = [...pickCurrentBlockPerContract(allBlocks).values()];
 
-  const contracts = await fetchContractsByIds(creds, zoneUrl, [...groups.keys()]);
+  const contracts = await fetchContractsByIds(
+    creds,
+    zoneUrl,
+    currentBlocks.map((b) => b.contractID)
+  );
   const contractById = new Map(contracts.map((c) => [c.id, c]));
 
   const companyIds = [...new Set(contracts.map((c) => c.companyID))];
@@ -114,11 +84,10 @@ export async function fetchContractBlockHours(
     )
   );
 
-  // One fetch spanning the earliest group start through today covers every
-  // group's own combined window — each group below filters back down to
-  // its own startDate/endDate when summing.
-  const groupList = [...groups.values()];
-  const earliestStart = groupList.reduce((min, g) => (g.startDate < min ? g.startDate : min), groupList[0].startDate);
+  // One fetch spanning the earliest current block's start through today
+  // covers every one — each block below filters back down to its own
+  // startDate/endDate when summing.
+  const earliestStart = currentBlocks.reduce((min, b) => (b.startDate < min ? b.startDate : min), currentBlocks[0].startDate);
   const todayStr = new Date().toISOString().slice(0, 10);
   const entries = await fetchTimeEntriesInRange(creds, zoneUrl, earliestStart, todayStr);
 
@@ -130,25 +99,24 @@ export async function fetchContractBlockHours(
     billableEntriesByContract.set(e.contractID, list);
   }
 
-  const rows: ContractBlockHoursRow[] = groupList.map((g) => {
-    const contract = contractById.get(g.contractID);
+  const rows: ContractBlockHoursRow[] = currentBlocks.map((b) => {
+    const contract = contractById.get(b.contractID);
     const client = contract ? clientByCompanyId.get(contract.companyID) : undefined;
-    const used = (billableEntriesByContract.get(g.contractID) ?? [])
-      .filter((e) => e.day >= g.startDate && e.day <= g.endDate)
+    const used = (billableEntriesByContract.get(b.contractID) ?? [])
+      .filter((e) => e.day >= b.startDate && e.day <= b.endDate)
       .reduce((sum, e) => sum + e.hours, 0);
-    const remaining = g.purchased - used;
+    const remaining = b.hours - used;
     return {
-      contractId: g.contractID,
-      contractName: contract?.contractName ?? `Contract ${g.contractID}`,
+      contractId: b.contractID,
+      contractName: contract?.contractName ?? `Contract ${b.contractID}`,
       clientId: client?.id ?? null,
       clientName: client?.name ?? "Unknown client",
-      purchased: g.purchased,
+      purchased: b.hours,
       used,
       remaining,
-      percentUsed: g.purchased > 0 ? (used / g.purchased) * 100 : 0,
-      startDate: g.startDate,
-      endDate: g.endDate,
-      blocks: g.blocks.map((b) => ({ startDate: b.startDate, endDate: b.endDate, hours: b.hours })),
+      percentUsed: b.hours > 0 ? (used / b.hours) * 100 : 0,
+      startDate: b.startDate,
+      endDate: b.endDate,
     };
   });
 
@@ -167,22 +135,21 @@ export type ContractTimeEntryRow = {
 };
 
 export type ContractUsageRow = ContractBlockHoursRow & {
-  /** Every TimeEntry recorded in the contract's combined active-block
-   * window, billable and non-billable both (only billable counts toward
-   * `used`, above) — newest first, each entry counted once even when
-   * several overlapping blocks cover it. For a per-client "what actually
-   * happened against this contract" report, not just the summed total
+  /** Every TimeEntry recorded in the current block's own date range,
+   * billable and non-billable both (only billable counts toward `used`,
+   * above) — newest first. For a per-client "what actually happened
+   * against this block" report, not just the summed total
    * fetchContractBlockHours gives. */
   entries: ContractTimeEntryRow[];
 };
 
-/** Same active-contract usage as fetchContractBlockHours, scoped to one
+/** Same current-block usage as fetchContractBlockHours, scoped to one
  * client (by Autotask company id) and carrying every individual TimeEntry
- * in the contract's combined window rather than just the summed total.
- * Kept as a separate function (not a flag on fetchContractBlockHours)
- * since that one is account-wide and resolving every resource name for
- * every entry across every client's contracts would be wasted work the
- * account-wide summary widget never needs. */
+ * in that block's own window rather than just the summed total. Kept as a
+ * separate function (not a flag on fetchContractBlockHours) since that one
+ * is account-wide and resolving every resource name for every entry across
+ * every client's blocks would be wasted work the account-wide summary
+ * widget never needs. */
 export async function fetchContractUsageForCompany(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -190,21 +157,20 @@ export async function fetchContractUsageForCompany(
   zoneUrl: string,
   companyId: number
 ): Promise<ContractUsageRow[]> {
-  const blocks = await fetchActiveContractBlocks(creds, zoneUrl);
-  if (blocks.length === 0) return [];
+  const allBlocks = await fetchActiveContractBlocks(creds, zoneUrl);
+  if (allBlocks.length === 0) return [];
 
   const allContracts = await fetchContractsByIds(
     creds,
     zoneUrl,
-    blocks.map((b) => b.contractID)
+    allBlocks.map((b) => b.contractID)
   );
   const contractById = new Map(allContracts.filter((c) => c.companyID === companyId).map((c) => [c.id, c]));
 
-  const relevantBlocks = blocks.filter((b) => contractById.has(b.contractID));
+  const relevantBlocks = allBlocks.filter((b) => contractById.has(b.contractID));
   if (relevantBlocks.length === 0) return [];
 
-  const groups = groupBlocksByContract(relevantBlocks);
-  const groupList = [...groups.values()];
+  const currentBlocks = [...pickCurrentBlockPerContract(relevantBlocks).values()];
 
   const { data: client } = await admin
     .from("clients")
@@ -212,9 +178,9 @@ export async function fetchContractUsageForCompany(
     .eq("autotask_company_id", companyId)
     .maybeSingle();
 
-  // One fetch spanning the earliest group's start through today — each
-  // group below filters back down to its own combined startDate/endDate.
-  const earliestStart = groupList.reduce((min, g) => (g.startDate < min ? g.startDate : min), groupList[0].startDate);
+  // One fetch spanning the earliest current block's start through today —
+  // each block below filters back down to its own startDate/endDate.
+  const earliestStart = currentBlocks.reduce((min, b) => (b.startDate < min ? b.startDate : min), currentBlocks[0].startDate);
   const todayStr = new Date().toISOString().slice(0, 10);
   const rawEntries = await fetchTimeEntriesInRange(creds, zoneUrl, earliestStart, todayStr);
 
@@ -232,27 +198,26 @@ export async function fetchContractUsageForCompany(
     rawEntries.map((e) => e.resourceID).filter((id): id is number => id != null)
   );
 
-  return groupList
-    .map((g) => {
-      const contract = contractById.get(g.contractID)!;
-      const entriesInRange = (entriesByContract.get(g.contractID) ?? []).filter(
-        (e) => e.dateWorked.slice(0, 10) >= g.startDate && e.dateWorked.slice(0, 10) <= g.endDate
+  return currentBlocks
+    .map((b) => {
+      const contract = contractById.get(b.contractID)!;
+      const entriesInRange = (entriesByContract.get(b.contractID) ?? []).filter(
+        (e) => e.dateWorked.slice(0, 10) >= b.startDate && e.dateWorked.slice(0, 10) <= b.endDate
       );
       const used = entriesInRange.filter((e) => !e.isNonBillable).reduce((sum, e) => sum + e.hoursWorked, 0);
-      const remaining = g.purchased - used;
+      const remaining = b.hours - used;
 
       const row: ContractUsageRow = {
-        contractId: g.contractID,
+        contractId: b.contractID,
         contractName: contract.contractName,
         clientId: client?.id ?? null,
         clientName: client?.name ?? "Unknown client",
-        purchased: g.purchased,
+        purchased: b.hours,
         used,
         remaining,
-        percentUsed: g.purchased > 0 ? (used / g.purchased) * 100 : 0,
-        startDate: g.startDate,
-        endDate: g.endDate,
-        blocks: g.blocks.map((b) => ({ startDate: b.startDate, endDate: b.endDate, hours: b.hours })),
+        percentUsed: b.hours > 0 ? (used / b.hours) * 100 : 0,
+        startDate: b.startDate,
+        endDate: b.endDate,
         entries: entriesInRange
           .map((e) => ({
             id: e.id,

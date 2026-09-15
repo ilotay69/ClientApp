@@ -101,12 +101,6 @@ export function ContractUsageLookup({
                     <p className="text-xs text-slate-500">
                       {r.startDate.slice(0, 10)} – {r.endDate.slice(0, 10)} · {r.entries.length} time{" "}
                       {r.entries.length === 1 ? "entry" : "entries"}
-                      {r.blocks.length > 1 && (
-                        <span title="Purchased is the sum of these currently-active blocks">
-                          {" "}
-                          · {r.blocks.length} blocks summed
-                        </span>
-                      )}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-4">
@@ -127,20 +121,6 @@ export function ContractUsageLookup({
                 </button>
                 {expanded && (
                   <div className="overflow-x-auto bg-slate-50 px-5 py-3">
-                    {r.blocks.length > 1 && (
-                      <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-                        <p className="font-medium text-slate-700">
-                          {hrs(r.purchased)} hrs purchased across {r.blocks.length} currently-active blocks:
-                        </p>
-                        <ul className="mt-1 space-y-0.5">
-                          {r.blocks.map((b, i) => (
-                            <li key={i}>
-                              {hrs(b.hours)} hrs · {b.startDate.slice(0, 10)} – {b.endDate.slice(0, 10)}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                     {r.entries.length === 0 ? (
                       <p className="text-sm text-slate-500">No time entries recorded in this block's date range yet.</p>
                     ) : (

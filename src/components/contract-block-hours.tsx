@@ -74,14 +74,7 @@ export function ContractBlockHours({
                 <tr key={r.contractId}>
                   <td className="px-5 py-2 text-slate-900">{r.clientName}</td>
                   <td className="px-5 py-2 text-slate-700">{r.contractName}</td>
-                  <td className="px-5 py-2 text-right text-slate-700">
-                    {hrs(r.purchased)}
-                    {r.blocks.length > 1 && (
-                      <span className="ml-1 text-xs text-slate-400" title="Sum of multiple currently-active blocks">
-                        ({r.blocks.length} blocks)
-                      </span>
-                    )}
-                  </td>
+                  <td className="px-5 py-2 text-right text-slate-700">{hrs(r.purchased)}</td>
                   <td className="px-5 py-2 text-right text-slate-700">{hrs(r.used)}</td>
                   <td className="px-5 py-2 text-right text-slate-700">{hrs(r.remaining)}</td>
                   <td className="px-5 py-2">
