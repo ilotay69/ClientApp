@@ -32,23 +32,34 @@ export type MyOpenTicketsResult = {
  * cache (which only ever recorded the primary resource, and only as
  * fresh as the last account-wide sync).
  *
- * Matched by name, not id: Autotask resources aren't linked to this app's
- * profiles anywhere (no autotask_resource_id column exists), so this
- * assumes a staff member's Autotask resource name matches their full_name
- * here exactly (case-insensitively) — true in practice since resources are
- * named after the actual technician, but a renamed profile or a resource
- * set up under a different name (e.g. a nickname) won't match. */
+ * Prefers autotaskResourceId (set once by the user themselves, under
+ * Settings → My Profile) when present — exact, and immune to a later
+ * rename on either side. Falls back to matching fullName against active
+ * Autotask resource names (case-insensitively) only when no explicit
+ * mapping has been set yet; that fallback is inherently fragile (a
+ * nickname, a renamed profile, or a resource set up under a different
+ * name won't match) and is the reason the explicit mapping exists. */
 export async function fetchMyOpenAutotaskTickets(
   admin: Admin,
-  fullName: string | null
+  fullName: string | null,
+  autotaskResourceId: number | null
 ): Promise<MyOpenTicketsResult> {
-  if (!fullName) return { tickets: [], matchedResourceName: null };
-
   const settings = await getAutotaskSettings(admin);
   if (!settings?.zoneUrl) return { tickets: [], matchedResourceName: null };
 
-  const resources = await fetchActiveResources(settings.credentials, settings.zoneUrl);
-  const me = resources.find((r) => r.name.toLowerCase() === fullName.toLowerCase());
+  let me: { id: number; name: string } | undefined;
+  if (autotaskResourceId != null) {
+    const resources = await fetchActiveResources(settings.credentials, settings.zoneUrl);
+    me = resources.find((r) => r.id === autotaskResourceId);
+    // Explicitly mapped but the resource wasn't found active (deactivated,
+    // or the id is stale) — fall back to id-only, name unresolved, rather
+    // than silently degrading to the fragile name match this mapping
+    // exists to replace.
+    if (!me) me = { id: autotaskResourceId, name: `Resource ${autotaskResourceId}` };
+  } else if (fullName) {
+    const resources = await fetchActiveResources(settings.credentials, settings.zoneUrl);
+    me = resources.find((r) => r.name.toLowerCase() === fullName.toLowerCase());
+  }
   if (!me) return { tickets: [], matchedResourceName: null };
 
   const tickets = await fetchMyTickets(settings.credentials, settings.zoneUrl, me.id);

@@ -92,7 +92,11 @@ export default async function MyToDoPage({
   } = await supabase.auth.getUser();
 
   const [{ data: profile }, { data: clients }, { data: mailPrefs }, { data: taskClientRows }] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", user?.id ?? "").maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("full_name, autotask_resource_id")
+      .eq("id", user?.id ?? "")
+      .maybeSingle(),
     supabase.from("clients").select("id, name").order("name"),
     supabase
       .from("mail_connections")
@@ -118,7 +122,7 @@ export default async function MyToDoPage({
 
   const [{ data: personalTasks }, myTicketsResult] = await Promise.all([
     personalQuery,
-    fetchMyOpenAutotaskTickets(createAdminClient(), profile?.full_name ?? null),
+    fetchMyOpenAutotaskTickets(createAdminClient(), profile?.full_name ?? null, profile?.autotask_resource_id ?? null),
   ]);
   const myTickets = myTicketsResult.tickets;
 
@@ -235,7 +239,7 @@ export default async function MyToDoPage({
           {myTickets.length === 0 ? (
             <p className="px-5 py-6 text-center text-sm text-slate-500">
               {myTicketsResult.matchedResourceName === null
-                ? `Couldn't match "${profile?.full_name ?? "your name"}" to an active Autotask resource — check that your profile name matches your Autotask resource name exactly.`
+                ? `Couldn't match "${profile?.full_name ?? "your name"}" to an active Autotask resource — set yours explicitly under Settings → My Profile.`
                 : "No open tickets assigned to you right now."}
             </p>
           ) : (

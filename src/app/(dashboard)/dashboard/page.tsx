@@ -65,7 +65,11 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   const [{ data: me }, canViewDashboard] = await Promise.all([
-    supabase.from("profiles").select("role, full_name").eq("id", user?.id ?? "").single(),
+    supabase
+      .from("profiles")
+      .select("role, full_name, autotask_resource_id")
+      .eq("id", user?.id ?? "")
+      .single(),
     hasPermission(supabase, "view_dashboard"),
   ]);
 
@@ -139,7 +143,7 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false }),
     supabase.from("resumes").select("status"),
     enabled.has("my_tickets")
-      ? fetchMyOpenAutotaskTickets(createAdminClient(), me?.full_name ?? null)
+      ? fetchMyOpenAutotaskTickets(createAdminClient(), me?.full_name ?? null, me?.autotask_resource_id ?? null)
       : Promise.resolve({ tickets: [], matchedResourceName: null }),
   ]);
   const myTickets = myTicketsResult.tickets;
@@ -312,7 +316,7 @@ export default async function DashboardPage() {
               <EmptyRow
                 text={
                   myTicketsResult.matchedResourceName === null
-                    ? `Couldn't match "${me?.full_name ?? "your name"}" to an active Autotask resource — check that your profile name matches your Autotask resource name exactly.`
+                    ? `Couldn't match "${me?.full_name ?? "your name"}" to an active Autotask resource — set yours explicitly under Settings → My Profile.`
                     : "No open tickets assigned to you."
                 }
               />

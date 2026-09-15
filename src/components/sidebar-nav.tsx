@@ -10,6 +10,7 @@ import {
   IconFolder,
   IconCalendar,
   IconMail,
+  IconUser,
   IconList,
   IconSparkles,
   IconTag,
@@ -153,6 +154,9 @@ export function SidebarNav({
     // its own link — the mailbox connection is per-user and ungated, unlike
     // the Integrations page, which requires manage_integrations.
     { href: "/settings/mail", label: "Mailbox", icon: IconMail },
+    // Per-user Autotask resource mapping (My Tickets/Team Hours matching)
+    // — same ungated, personal-setting posture as Mailbox above it.
+    { href: "/settings/profile", label: "My Profile", icon: IconUser },
     // Domain Health + CG Watcher, behind one tabbed page — standalone
     // utilities, not tied to a client/project workflow.
     ...(canViewDomainHealth
