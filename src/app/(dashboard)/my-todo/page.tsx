@@ -1,5 +1,4 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { Badge } from "@/components/badge";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
@@ -9,7 +8,7 @@ import { MailboxSnapshotPreview } from "@/components/mailbox-snapshot-preview";
 import { SyncMailboxButton } from "@/components/sync-mailbox-button";
 import { UpcomingAppointments } from "@/components/upcoming-appointments";
 import { Tabs } from "@/components/tabs";
-import { formatDate } from "@/lib/format";
+import { MyTicketsList } from "@/components/my-tickets-list";
 import { fetchMyOpenAutotaskTickets } from "@/lib/my-tickets";
 import {
   createTask,
@@ -19,6 +18,7 @@ import {
   getTaskNotesAction,
   addTaskNote,
 } from "../tasks/actions";
+import { fetchMyTicketDescriptionAction } from "./actions";
 import {
   fetchMyUpcomingAppointments,
   dismissAppointmentType,
@@ -235,35 +235,15 @@ export default async function MyToDoPage({
         </p>
       </div>
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="divide-y divide-slate-100">
-          {myTickets.length === 0 ? (
-            <p className="px-5 py-6 text-center text-sm text-slate-500">
-              {myTicketsResult.matchedResourceName === null
-                ? `Couldn't match "${profile?.full_name ?? "your name"}" to an active Autotask resource — set yours explicitly under Settings → My Profile.`
-                : "No open tickets assigned to you right now."}
-            </p>
-          ) : (
-            myTickets.map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-2.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900">
-                    {t.ticketNumber ? `#${t.ticketNumber} — ` : ""}
-                    {t.title}
-                  </p>
-                  <p className="truncate text-xs text-slate-500">
-                    {t.clientName ?? "Unknown client"}
-                    {t.queueName ? ` · ${t.queueName}` : ""}
-                    {t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ""}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {t.priority && <Badge value={t.priority} />}
-                  {t.status && <Badge value={t.status} />}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {myTickets.length === 0 ? (
+          <p className="px-5 py-6 text-center text-sm text-slate-500">
+            {myTicketsResult.matchedResourceName === null
+              ? `Couldn't match "${profile?.full_name ?? "your name"}" to an active Autotask resource — set yours explicitly under Settings → My Profile.`
+              : "No open tickets assigned to you right now."}
+          </p>
+        ) : (
+          <MyTicketsList tickets={myTickets} descriptionAction={fetchMyTicketDescriptionAction} />
+        )}
       </div>
     </div>
   );

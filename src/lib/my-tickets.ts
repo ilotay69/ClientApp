@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
-import { fetchActiveResources, fetchMyTickets } from "@/lib/autotask";
+import { fetchActiveResources, fetchMyTickets, buildAutotaskTicketUrl } from "@/lib/autotask";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -15,6 +15,10 @@ export type MyOpenTicketRow = {
   openedAt: string | null;
   lastActivityAt: string | null;
   clientName: string | null;
+  /** Deep link to the ticket's own page in Autotask — null only if the
+   * Autotask connection has never had its web zone resolved (i.e. "Test
+   * connection" hasn't been run since that field was added). */
+  ticketUrl: string | null;
 };
 
 export type MyOpenTicketsResult = {
@@ -89,6 +93,7 @@ export async function fetchMyOpenAutotaskTickets(
       openedAt: t.opened_at,
       lastActivityAt: t.last_activity_at,
       clientName: clientNameByCompanyId.get(t.company_id) ?? null,
+      ticketUrl: settings.webZoneUrl ? buildAutotaskTicketUrl(settings.webZoneUrl, t.id) : null,
     })),
     matchedResourceName: me.name,
   };
