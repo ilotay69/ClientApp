@@ -12,6 +12,7 @@ import {
 import { DashboardDonut, DashboardGauge } from "@/components/dashboard-charts";
 import { TeamHoursWidget } from "@/components/team-hours-widget";
 import { Level1QueueWidget } from "@/components/level1-queue-widget";
+import { DashboardRefreshButton } from "@/components/dashboard-refresh-button";
 import {
   IconAlertTriangle,
   IconCheckSquare,
@@ -204,6 +205,13 @@ export default async function DashboardPage() {
     recruitmentStatusCounts.set(r.status, (recruitmentStatusCounts.get(r.status) ?? 0) + 1);
   }
   const newCandidateCount = recruitmentStatusCounts.get("new") ?? 0;
+  // Regenerated fresh every time this Server Component actually re-runs
+  // (a real navigation, or DashboardRefreshButton's router.refresh() —
+  // this page is force-dynamic, so both re-execute this function) — used
+  // only as a React key below, to remount the widgets that fetch their
+  // own data client-side on mount rather than receiving it as props, so
+  // "Refresh" also gets them to fetch again instead of showing stale rows.
+  const refreshToken = Date.now().toString();
 
   return (
     <div className="space-y-4">
@@ -212,6 +220,7 @@ export default async function DashboardPage() {
         subtitle={needsYouTotal === 1 ? "thing needs you right now" : "things need you right now"}
         total={needsYouTotal}
         stats={heroStats}
+        action={<DashboardRefreshButton />}
       />
 
       {(myAlerts ?? []).length > 0 && enabled.has("alerts") && (
@@ -317,6 +326,7 @@ export default async function DashboardPage() {
 
         {enabled.has("unassigned_l1_tickets") && (
           <Level1QueueWidget
+            key={refreshToken}
             action={fetchUnassignedLevel1TicketsAction}
             descriptionAction={fetchLevel1TicketDescriptionAction}
           />
@@ -441,7 +451,7 @@ export default async function DashboardPage() {
           </DashboardWidgetCard>
         )}
 
-        {enabled.has("hours_worked") && <TeamHoursWidget action={fetchResourceHoursAction} />}
+        {enabled.has("hours_worked") && <TeamHoursWidget key={refreshToken} action={fetchResourceHoursAction} />}
 
         {enabled.has("touchpoints_upcoming") && (
           <DashboardWidgetCard

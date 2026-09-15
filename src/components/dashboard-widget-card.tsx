@@ -92,18 +92,23 @@ export function DashboardHeroCard({
   subtitle,
   total,
   stats,
+  action,
 }: {
   greeting: string;
   subtitle: string;
   total: number;
   stats: { label: string; value: number; href: string }[];
+  action?: React.ReactNode;
 }) {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-charcoal p-4 text-white shadow-sm sm:p-5">
       <div className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-brand/25 blur-3xl" />
 
       <div className="relative">
-        <p className="text-sm font-medium text-white/75">{greeting}</p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-white/75">{greeting}</p>
+          {action}
+        </div>
         <div className="mt-1 flex items-end gap-2">
           <span className="text-4xl font-bold leading-none tabular-nums text-brand">{total}</span>
           <span className="pb-0.5 text-sm text-white/75">{subtitle}</span>
