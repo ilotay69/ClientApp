@@ -8,7 +8,7 @@ import { getValidAccessToken } from "@/lib/mail-sync";
 import { fetchUpcomingEvents } from "@/lib/microsoft-graph";
 import { requireStaff, requirePermission } from "@/lib/permissions";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
-import { fetchUnassignedQueueTickets, buildAutotaskTicketUrl } from "@/lib/autotask";
+import { fetchUnassignedQueueTickets, buildAutotaskTicketUrl, fetchTicketById } from "@/lib/autotask";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
@@ -453,6 +453,7 @@ export type UnassignedLevel1Ticket = {
   openedAt: string | null;
   clientId: string | null;
   clientName: string;
+  contactName: string | null;
   /** Deep link to the ticket's own page in Autotask — null only if the
    * Autotask connection has never had its web zone resolved (i.e. "Test
    * connection" hasn't been run since that field was added). */
@@ -505,6 +506,7 @@ export async function fetchUnassignedLevel1TicketsAction(): Promise<
         openedAt: t.opened_at,
         clientId: client?.id ?? null,
         clientName: client?.name ?? "Unknown client",
+        contactName: t.contact_name,
         ticketUrl: settings.webZoneUrl ? buildAutotaskTicketUrl(settings.webZoneUrl, t.id) : null,
       };
     });
@@ -512,5 +514,37 @@ export async function fetchUnassignedLevel1TicketsAction(): Promise<
     return { rows };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load tickets." };
+  }
+}
+
+/** One ticket's description, fetched only when its Level 1 Queue widget
+ * row is expanded — never bulk-fetched with the rest of the list, since
+ * most rows will never be clicked. */
+export async function fetchLevel1TicketDescriptionAction(
+  ticketId: number
+): Promise<{ description: string | null } | { error: string }> {
+  if (!(await requirePermission("view_team_wide"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    // Only the description is used here, so the label maps fetchTicketById
+    // needs for status/priority text can stay empty — cheaper than a real
+    // fetchTicketPicklists() call for a value nobody reads.
+    const ticket = await fetchTicketById(settings.credentials, settings.zoneUrl, ticketId, {
+      status: new Map(),
+      priority: new Map(),
+      queue: new Map(),
+      sla: new Map(),
+    });
+    return { description: ticket?.description ?? null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load ticket description." };
   }
 }

@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, format, isPast, parseISO } from "date-fns";
+import { differenceInCalendarDays, format, formatDistanceToNowStrict, isPast, parseISO } from "date-fns";
 
 export function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -38,6 +38,18 @@ export function isOverdue(dateStr: string | null | undefined) {
 export function daysAgo(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
   return differenceInCalendarDays(new Date(), parseISO(dateStr));
+}
+
+/** "how long has this been sitting" — e.g. "3 hours", "2 days" — for a
+ * queue-age column, where day-level granularity (daysAgo) would show "0"
+ * for anything created today even if it's been sitting for 20 hours. */
+export function formatAge(value: string | null | undefined) {
+  if (!value) return "—";
+  try {
+    return formatDistanceToNowStrict(parseISO(value));
+  } catch {
+    return "—";
+  }
 }
 
 /** Deterministic "what's outstanding" line for a client, used wherever

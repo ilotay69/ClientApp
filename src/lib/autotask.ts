@@ -1128,12 +1128,42 @@ export async function fetchAllOpenTickets(
   }));
 }
 
+/** Batched name lookup for Contacts referenced by id — a ticket's
+ * contactID. Same batched-call and swallow-on-failure posture as
+ * resolveResourceNames (some API Users lack read access to an entity). */
+export async function resolveContactNames(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  contactIds: number[]
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  const uniqueIds = [...new Set(contactIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return map;
+
+  let items: unknown[];
+  try {
+    items = await autotaskQuery(creds, zoneUrl, "Contacts", {
+      filter: [{ op: "in", field: "id", value: uniqueIds }],
+      MaxRecords: uniqueIds.length,
+    });
+  } catch (err) {
+    console.error("Autotask Contacts lookup failed — falling back to raw ids", err);
+    return map;
+  }
+  for (const c of items as { id: number; firstName?: string; lastName?: string }[]) {
+    const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || `Contact ${c.id}`;
+    map.set(c.id, name);
+  }
+  return map;
+}
+
 export type AutotaskUnassignedQueueTicketRow = {
   id: number;
   ticket_number: string | null;
   title: string;
   priority: string | null;
   company_id: number;
+  contact_name: string | null;
   opened_at: string | null;
 };
 
@@ -1167,8 +1197,15 @@ export async function fetchUnassignedQueueTickets(
     title: string;
     priority?: number;
     companyID: number;
+    contactID?: number;
     createDate?: string;
   }[];
+
+  const contactNames = await resolveContactNames(
+    creds,
+    zoneUrl,
+    items.map((t) => t.contactID).filter((id): id is number => id != null)
+  );
 
   return items
     .map((t) => ({
@@ -1177,6 +1214,7 @@ export async function fetchUnassignedQueueTickets(
       title: t.title,
       priority: t.priority != null ? (labels.priority.get(t.priority) ?? String(t.priority)) : null,
       company_id: t.companyID,
+      contact_name: t.contactID != null ? (contactNames.get(t.contactID) ?? null) : null,
       opened_at: t.createDate ?? null,
     }))
     .sort((a, b) => (a.opened_at ?? "").localeCompare(b.opened_at ?? ""));

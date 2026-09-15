@@ -32,7 +32,11 @@ import {
 import { fetchAllReviews, reviewBucket, getQuarterlyReviewApproverEmail } from "@/lib/quarterly-review-data";
 import { fetchMyOpenAutotaskTickets } from "@/lib/my-tickets";
 import { fetchResourceHoursAction } from "../hours/actions";
-import { acknowledgeAlertAction, fetchUnassignedLevel1TicketsAction } from "./actions";
+import {
+  acknowledgeAlertAction,
+  fetchUnassignedLevel1TicketsAction,
+  fetchLevel1TicketDescriptionAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -312,7 +316,10 @@ export default async function DashboardPage() {
         )}
 
         {enabled.has("unassigned_l1_tickets") && (
-          <Level1QueueWidget action={fetchUnassignedLevel1TicketsAction} />
+          <Level1QueueWidget
+            action={fetchUnassignedLevel1TicketsAction}
+            descriptionAction={fetchLevel1TicketDescriptionAction}
+          />
         )}
 
         {enabled.has("touchpoints_due") && (
