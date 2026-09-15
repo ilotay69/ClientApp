@@ -10,7 +10,6 @@ import {
   fetchContractsForCompany,
   fetchContractBlocksForContractsInRange,
   fetchContractStatusLabels,
-  fetchTimeEntriesForContracts,
   fetchTimeEntriesForTickets,
   fetchTicketsCreatedForCompany,
   fetchTicketPicklists,
@@ -146,38 +145,13 @@ export async function fetchPortalActiveContractUsage(
     const currentBlocks = blocks.filter((b) => b.startDate <= today && b.endDate >= today);
     if (currentBlocks.length === 0) return empty(null);
 
-    const earliestStart = currentBlocks.reduce(
-      (min, b) => (b.startDate < min ? b.startDate : min),
-      currentBlocks[0].startDate
-    );
-    const latestEnd = currentBlocks.reduce(
-      (max, b) => (b.endDate > max ? b.endDate : max),
-      currentBlocks[0].endDate
-    );
-
-    const entries = await fetchTimeEntriesForContracts(
-      settings.credentials,
-      settings.zoneUrl,
-      contractIds,
-      earliestStart,
-      latestEnd
-    );
-
-    const billableByContract = new Map<number, { day: string; hours: number }[]>();
-    for (const e of entries) {
-      if (e.contractID == null || e.isNonBillable || !e.isApproved) continue;
-      const list = billableByContract.get(e.contractID) ?? [];
-      // hoursToBill, not hoursWorked — Autotask's own calculated billable
-      // amount, which is what actually draws down the block (can be below
-      // what a tech logged: write-downs, rounding, fixed-price adjustments).
-      list.push({ day: e.dateWorked.slice(0, 10), hours: e.hoursToBill });
-      billableByContract.set(e.contractID, list);
-    }
-
+    // purchased/used read straight from Autotask's own block.hours/
+    // hoursApproved, not recomputed from TimeEntries — hoursApproved IS
+    // Autotask's own running total of approved/billed hours against this
+    // exact block (confirmed against its field reference), the same
+    // figure its own Contract Block view labels "Hours Approved".
     const rows: PortalContractBlock[] = currentBlocks.map((b) => {
-      const used = (billableByContract.get(b.contractID) ?? [])
-        .filter((e) => e.day >= b.startDate && e.day <= b.endDate)
-        .reduce((sum, e) => sum + e.hours, 0);
+      const used = b.hoursApproved;
       return {
         contractId: b.contractID,
         contractName: contractById.get(b.contractID)?.contractName ?? `Contract ${b.contractID}`,

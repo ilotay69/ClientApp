@@ -886,6 +886,13 @@ export type AutotaskContractBlock = {
   id: number;
   contractID: number;
   hours: number;
+  /** Autotask's own running total of approved/billed hours against this
+   * specific block (ContractBlocks.hoursApproved) — a real field on the
+   * entity itself, confirmed against Autotask's own field reference.
+   * This is the authoritative "used" figure (it's literally what
+   * Autotask's own Contract Block view labels "Hours Approved"), not
+   * something this app needs to re-derive from TimeEntries. */
+  hoursApproved: number;
   startDate: string;
   endDate: string;
 };
@@ -893,9 +900,7 @@ export type AutotaskContractBlock = {
 /** Contract Blocks currently in effect (today falls within startDate/
  * endDate) — the prepaid-hours allotment for a Block Hours contract.
  * Account-wide, not scoped to one company: the caller maps contractID ->
- * company via fetchContractsByIds below. There's no "hours used" field on
- * this entity (confirmed against Autotask's own field reference) —
- * consumption has to be computed from TimeEntries.contractID separately. */
+ * company via fetchContractsByIds below. */
 export async function fetchActiveContractBlocks(
   creds: AutotaskCredentials,
   zoneUrl: string
@@ -906,7 +911,14 @@ export async function fetchActiveContractBlocks(
       { op: "lte", field: "startDate", value: todayStr },
       { op: "gte", field: "endDate", value: todayStr },
     ],
-  })) as { id: number; contractID: number; hours?: number; startDate: string; endDate: string }[];
+  })) as {
+    id: number;
+    contractID: number;
+    hours?: number;
+    hoursApproved?: number;
+    startDate: string;
+    endDate: string;
+  }[];
 
   return items
     .filter((b) => b.hours != null)
@@ -914,6 +926,7 @@ export async function fetchActiveContractBlocks(
       id: b.id,
       contractID: b.contractID,
       hours: b.hours as number,
+      hoursApproved: b.hoursApproved ?? 0,
       // Sliced to plain YYYY-MM-DD — Autotask returns these with a full
       // time/timezone suffix (e.g. "2026-06-01T00:00:00.000-04:00"), and
       // every caller compares them against a TimeEntry's dateWorked
@@ -1025,7 +1038,14 @@ export async function fetchContractBlocksForContractsInRange(
         { op: "lte", field: "startDate", value: toISO },
         { op: "gte", field: "endDate", value: fromISO },
       ],
-    })) as { id: number; contractID: number; hours?: number; startDate: string; endDate: string }[];
+    })) as {
+      id: number;
+      contractID: number;
+      hours?: number;
+      hoursApproved?: number;
+      startDate: string;
+      endDate: string;
+    }[];
 
     for (const b of items) {
       if (b.hours == null) continue;
@@ -1033,6 +1053,7 @@ export async function fetchContractBlocksForContractsInRange(
         id: b.id,
         contractID: b.contractID,
         hours: b.hours,
+        hoursApproved: b.hoursApproved ?? 0,
         // Same normalization as fetchActiveContractBlocks — see its
         // comment for why a bare date slice, not the raw timestamp.
         startDate: b.startDate.slice(0, 10),

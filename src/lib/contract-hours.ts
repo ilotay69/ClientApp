@@ -46,19 +46,15 @@ function pickCurrentBlockPerContract(blocks: AutotaskContractBlock[]): Map<numbe
 }
 
 /** Prepaid/block hours remaining per contract's single current block,
- * account-wide. Autotask has no "hours used" field on ContractBlocks
- * itself — consumption is computed by summing TimeEntries whose
- * contractID matches, restricted to the current block's own date range,
- * to billable time only (isNonBillable time doesn't draw down a prepaid
- * block), summed using hoursToBill rather than hoursWorked (Autotask's
- * own calculated billable amount, which can be well below what a tech
- * logged — write-downs, rounding, fixed-price adjustments) — AND to
- * entries that have actually been approved for billing
- * (billingApprovalDateTime set). Autotask's own Contract Block view
- * literally labels this figure "Hours Approved", not "hours logged" —
- * an entry sitting in a tech's queue unapproved hasn't drawn down the
- * block yet, no matter how many hours it lists. Sorted so clients
- * closest to running out surface first. */
+ * account-wide. Pulled straight from Autotask's own numbers, not
+ * recomputed from TimeEntries — ContractBlocks.hoursApproved IS Autotask's
+ * own running total of approved/billed hours against this exact block
+ * (confirmed against its field reference), the same figure its own
+ * Contract Block view labels "Hours Approved". Recomputing this from
+ * TimeEntries independently (an earlier version of this file did) means
+ * re-deriving Autotask's own billing/approval logic and inevitably
+ * drifting from it — this just reads what Autotask already calculated.
+ * Sorted so clients closest to running out surface first. */
 export async function fetchContractBlockHours(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -91,27 +87,10 @@ export async function fetchContractBlockHours(
     )
   );
 
-  // One fetch spanning the earliest current block's start through today
-  // covers every one — each block below filters back down to its own
-  // startDate/endDate when summing.
-  const earliestStart = currentBlocks.reduce((min, b) => (b.startDate < min ? b.startDate : min), currentBlocks[0].startDate);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const entries = await fetchTimeEntriesInRange(creds, zoneUrl, earliestStart, todayStr);
-
-  const billableEntriesByContract = new Map<number, { day: string; hours: number }[]>();
-  for (const e of entries) {
-    if (e.contractID == null || e.isNonBillable || !e.isApproved) continue;
-    const list = billableEntriesByContract.get(e.contractID) ?? [];
-    list.push({ day: e.dateWorked.slice(0, 10), hours: e.hoursToBill });
-    billableEntriesByContract.set(e.contractID, list);
-  }
-
   const rows: ContractBlockHoursRow[] = currentBlocks.map((b) => {
     const contract = contractById.get(b.contractID);
     const client = contract ? clientByCompanyId.get(contract.companyID) : undefined;
-    const used = (billableEntriesByContract.get(b.contractID) ?? [])
-      .filter((e) => e.day >= b.startDate && e.day <= b.endDate)
-      .reduce((sum, e) => sum + e.hours, 0);
+    const used = b.hoursApproved;
     const remaining = b.hours - used;
     return {
       contractId: b.contractID,
@@ -157,13 +136,15 @@ export type ContractUsageRow = ContractBlockHoursRow & {
   entries: ContractTimeEntryRow[];
 };
 
-/** Same current-block usage as fetchContractBlockHours, scoped to one
- * client (by Autotask company id) and carrying every individual TimeEntry
- * in that block's own window rather than just the summed total. Kept as a
- * separate function (not a flag on fetchContractBlockHours) since that one
- * is account-wide and resolving every resource name for every entry across
- * every client's blocks would be wasted work the account-wide summary
- * widget never needs. */
+/** Same current-block usage as fetchContractBlockHours (purchased/used/
+ * remaining read straight from Autotask's own block.hours/hoursApproved,
+ * not recomputed), scoped to one client and additionally carrying every
+ * individual TimeEntry in that block's own window — for reference/audit
+ * ("what actually happened"), not as the source of the used/remaining
+ * numbers above them. Kept as a separate function (not a flag on
+ * fetchContractBlockHours) since that one is account-wide and resolving
+ * every resource name for every entry across every client's blocks would
+ * be wasted work the account-wide summary widget never needs. */
 export async function fetchContractUsageForCompany(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -193,7 +174,9 @@ export async function fetchContractUsageForCompany(
     .maybeSingle();
 
   // One fetch spanning the earliest current block's start through today —
-  // each block below filters back down to its own startDate/endDate.
+  // each block below filters back down to its own startDate/endDate. Only
+  // feeds the entries list (reference/audit) — not the used/remaining
+  // numbers, which come straight from each block's own hoursApproved.
   const earliestStart = currentBlocks.reduce((min, b) => (b.startDate < min ? b.startDate : min), currentBlocks[0].startDate);
   const todayStr = new Date().toISOString().slice(0, 10);
   const rawEntries = await fetchTimeEntriesInRange(creds, zoneUrl, earliestStart, todayStr);
@@ -218,9 +201,7 @@ export async function fetchContractUsageForCompany(
       const entriesInRange = (entriesByContract.get(b.contractID) ?? []).filter(
         (e) => e.dateWorked.slice(0, 10) >= b.startDate && e.dateWorked.slice(0, 10) <= b.endDate
       );
-      const used = entriesInRange
-        .filter((e) => !e.isNonBillable && e.isApproved)
-        .reduce((sum, e) => sum + e.hoursToBill, 0);
+      const used = b.hoursApproved;
       const remaining = b.hours - used;
 
       const row: ContractUsageRow = {
