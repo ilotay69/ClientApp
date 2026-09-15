@@ -72,6 +72,41 @@ function emptyToNull(value: FormDataEntryValue | null) {
   return str.length > 0 ? str : null;
 }
 
+export type ClientDetailsFormState = { error: string | null; success: string | null };
+
+/** Primary contact fields, notes, and account owner all already existed on
+ * the clients table with no way to edit any of them anywhere in the app —
+ * primary contact name/email showed read-only on the Contacts tab, phone
+ * wasn't shown at all, and notes/owner_id had no UI at all. One form for
+ * all five, since they're edited together rarely, not per-field. */
+export async function updateClientDetailsAction(
+  clientId: string,
+  _prevState: ClientDetailsFormState,
+  formData: FormData
+): Promise<ClientDetailsFormState> {
+  if (!(await requirePermission("manage_clients"))) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("clients")
+    .update({
+      primary_contact_name: emptyToNull(formData.get("primary_contact_name")),
+      primary_contact_email: emptyToNull(formData.get("primary_contact_email")),
+      primary_contact_phone: emptyToNull(formData.get("primary_contact_phone")),
+      notes: emptyToNull(formData.get("notes")),
+      owner_id: emptyToNull(formData.get("owner_id")),
+    })
+    .eq("id", clientId);
+
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients");
+  return { error: null, success: "Saved." };
+}
+
 export async function removeClientContact(clientId: string, contactId: string) {
   if (!(await requirePermission("manage_clients"))) return;
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
+import { ClientDetailsForm } from "@/components/client-details-form";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
 import { ClientAutotaskTickets } from "@/components/client-autotask-tickets";
 import { ClientAutotaskContractServices } from "@/components/client-autotask-contract-services";
@@ -27,6 +28,7 @@ import { hasPermission } from "@/lib/permissions";
 import { fetchReviewsForClient } from "@/lib/quarterly-review-data";
 import {
   deleteClientRecord,
+  updateClientDetailsAction,
   removeClientContact,
   fetchAutotaskContactsForClient,
   addClientContactsFromAutotask,
@@ -101,6 +103,7 @@ export default async function ClientDetailPage({
     { data: m365Licenses },
     { data: m365SecureScore },
     { data: m365SecureScoreGaps },
+    { data: members },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -185,6 +188,9 @@ export default async function ClientDetailPage({
       .select("id, control_name, title, category, current_score, max_score, remediation, action_url, implementation_cost")
       .eq("client_id", id)
       .order("current_score", { ascending: true }),
+    // neq("role", "client"): client-portal logins aren't staff and must
+    // never appear as an assignable account owner here.
+    supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
   ]);
 
   if (!client) notFound();
@@ -199,6 +205,9 @@ export default async function ClientDetailPage({
     .eq("client_id", id)
     .maybeSingle();
 
+  const ownerName = client.owner_id
+    ? ((members ?? []).find((m) => m.id === client.owner_id)?.full_name ?? null)
+    : null;
   const removeContactAction = removeClientContact.bind(null, id);
   const searchAutotaskContactsAction = fetchAutotaskContactsForClient.bind(null, id);
   const addContactsFromAutotaskAction = addClientContactsFromAutotask.bind(null, id);
@@ -344,11 +353,25 @@ export default async function ClientDetailPage({
       </div>
 
       <Tabs
+        orientation="vertical"
         tabs={[
               {
                 label: "Overview",
                 content: (
                   <>
+                    <ClientDetailsForm
+                      clientId={id}
+                      primaryContactName={client.primary_contact_name}
+                      primaryContactEmail={client.primary_contact_email}
+                      primaryContactPhone={client.primary_contact_phone}
+                      notes={client.notes}
+                      ownerId={client.owner_id}
+                      ownerName={ownerName}
+                      members={members ?? []}
+                      canEdit={canManageClients}
+                      saveAction={updateClientDetailsAction}
+                    />
+
                     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
                       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-2">
                         <h2 className="text-sm font-semibold text-slate-900">Insights</h2>
