@@ -116,10 +116,11 @@ export default async function MyToDoPage({
   if (filterClient) personalQuery = personalQuery.eq("client_id", filterClient);
   if (filterPriorities.length > 0) personalQuery = personalQuery.in("priority", filterPriorities);
 
-  const [{ data: personalTasks }, myTickets] = await Promise.all([
+  const [{ data: personalTasks }, myTicketsResult] = await Promise.all([
     personalQuery,
     fetchMyOpenAutotaskTickets(createAdminClient(), profile?.full_name ?? null),
   ]);
+  const myTickets = myTicketsResult.tickets;
 
   const sortHrefFor = (field: string, dir: SortDir) =>
     filterHref("/my-todo", { tab: "tasks", client: filterClient, priority: filterPriorities, status: filterStatuses, sort: field, dir });
@@ -233,7 +234,9 @@ export default async function MyToDoPage({
         <div className="divide-y divide-slate-100">
           {myTickets.length === 0 ? (
             <p className="px-5 py-6 text-center text-sm text-slate-500">
-              No open tickets assigned to you right now.
+              {myTicketsResult.matchedResourceName === null
+                ? `Couldn't match "${profile?.full_name ?? "your name"}" to an active Autotask resource — check that your profile name matches your Autotask resource name exactly.`
+                : "No open tickets assigned to you right now."}
             </p>
           ) : (
             myTickets.map((t) => (

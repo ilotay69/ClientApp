@@ -17,6 +17,16 @@ export type MyOpenTicketRow = {
   clientName: string | null;
 };
 
+export type MyOpenTicketsResult = {
+  tickets: MyOpenTicketRow[];
+  /** The Autotask resource name matched against fullName, or null when
+   * nothing matched — surfaced so the UI can tell "matched, but genuinely
+   * has zero open tickets right now" apart from "your profile name didn't
+   * match any active Autotask resource at all", which otherwise look
+   * identical (an empty list) and are very different problems to fix. */
+  matchedResourceName: string | null;
+};
+
 /** Every open ticket where this person is either the Primary or a
  * Secondary Resource — live from Autotask, not the local autotask_tickets
  * cache (which only ever recorded the primary resource, and only as
@@ -31,18 +41,18 @@ export type MyOpenTicketRow = {
 export async function fetchMyOpenAutotaskTickets(
   admin: Admin,
   fullName: string | null
-): Promise<MyOpenTicketRow[]> {
-  if (!fullName) return [];
+): Promise<MyOpenTicketsResult> {
+  if (!fullName) return { tickets: [], matchedResourceName: null };
 
   const settings = await getAutotaskSettings(admin);
-  if (!settings?.zoneUrl) return [];
+  if (!settings?.zoneUrl) return { tickets: [], matchedResourceName: null };
 
   const resources = await fetchActiveResources(settings.credentials, settings.zoneUrl);
   const me = resources.find((r) => r.name.toLowerCase() === fullName.toLowerCase());
-  if (!me) return [];
+  if (!me) return { tickets: [], matchedResourceName: null };
 
   const tickets = await fetchMyTickets(settings.credentials, settings.zoneUrl, me.id);
-  if (tickets.length === 0) return [];
+  if (tickets.length === 0) return { tickets: [], matchedResourceName: me.name };
 
   const companyIds = [...new Set(tickets.map((t) => t.company_id))];
   const { data: clients } = await admin
@@ -56,16 +66,19 @@ export async function fetchMyOpenAutotaskTickets(
     ])
   );
 
-  return tickets.map((t) => ({
-    id: t.id,
-    ticketNumber: t.ticket_number,
-    title: t.title,
-    status: t.status,
-    priority: t.priority,
-    queueName: t.queue_name,
-    dueDate: t.due_date,
-    openedAt: t.opened_at,
-    lastActivityAt: t.last_activity_at,
-    clientName: clientNameByCompanyId.get(t.company_id) ?? null,
-  }));
+  return {
+    tickets: tickets.map((t) => ({
+      id: t.id,
+      ticketNumber: t.ticket_number,
+      title: t.title,
+      status: t.status,
+      priority: t.priority,
+      queueName: t.queue_name,
+      dueDate: t.due_date,
+      openedAt: t.opened_at,
+      lastActivityAt: t.last_activity_at,
+      clientName: clientNameByCompanyId.get(t.company_id) ?? null,
+    })),
+    matchedResourceName: me.name,
+  };
 }

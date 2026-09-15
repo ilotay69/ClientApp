@@ -102,7 +102,7 @@ export default async function DashboardPage() {
     allReviews,
     { data: openSalesRequests },
     { data: recruitmentRows },
-    myTickets,
+    myTicketsResult,
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -140,8 +140,9 @@ export default async function DashboardPage() {
     supabase.from("resumes").select("status"),
     enabled.has("my_tickets")
       ? fetchMyOpenAutotaskTickets(createAdminClient(), me?.full_name ?? null)
-      : Promise.resolve([]),
+      : Promise.resolve({ tickets: [], matchedResourceName: null }),
   ]);
+  const myTickets = myTicketsResult.tickets;
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
   const overdueTouchpoints = (dueTouchpoints ?? []).filter((t) => isOverdue(t.due_date));
@@ -308,7 +309,13 @@ export default async function DashboardPage() {
             href="/my-todo?tab=tickets"
           >
             {myTickets.length === 0 ? (
-              <EmptyRow text="No open tickets assigned to you." />
+              <EmptyRow
+                text={
+                  myTicketsResult.matchedResourceName === null
+                    ? `Couldn't match "${me?.full_name ?? "your name"}" to an active Autotask resource — check that your profile name matches your Autotask resource name exactly.`
+                    : "No open tickets assigned to you."
+                }
+              />
             ) : (
               myTickets.slice(0, 5).map((t) => (
                 <WidgetRow accent="pink" key={t.id} href="/my-todo?tab=tickets">
