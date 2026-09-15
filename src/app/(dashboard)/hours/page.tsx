@@ -5,6 +5,7 @@ import { ResourceHoursReport } from "@/components/resource-hours-report";
 import { YesterdayTimeEntries } from "@/components/yesterday-time-entries";
 import { HoursLookup } from "@/components/hours-lookup";
 import { ContractBlockHours } from "@/components/contract-block-hours";
+import { ContractUsageLookup } from "@/components/contract-usage-lookup";
 import { AgingOpenTickets } from "@/components/aging-open-tickets";
 import { TicketLookup } from "@/components/ticket-lookup";
 import { OfflineDevicesLookup } from "@/components/offline-devices-lookup";
@@ -32,6 +33,7 @@ import {
   fetchHoursByGroupAction,
   fetchNonBillableHoursByGroupAction,
   fetchContractBlockHoursAction,
+  fetchContractUsageAction,
   fetchAgingOpenTicketsAction,
   searchAutotaskTicketsAction,
 } from "./actions";
@@ -117,6 +119,12 @@ export default async function HoursPage() {
               {
                 label: "Block Hours",
                 content: <ContractBlockHours action={fetchContractBlockHoursAction} />,
+              },
+              {
+                label: "Contract Usage",
+                content: (
+                  <ContractUsageLookup clients={autotaskClients ?? []} action={fetchContractUsageAction} />
+                ),
               },
               {
                 label: "Aging Tickets",

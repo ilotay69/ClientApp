@@ -13,7 +13,12 @@ import {
   type HoursByGroupRow,
 } from "@/lib/resource-hours";
 import { fetchTimeEntriesForAnalysis, type TimeEntryForAnalysis } from "@/lib/time-entry-insights";
-import { fetchContractBlockHours, type ContractBlockHoursRow } from "@/lib/contract-hours";
+import {
+  fetchContractBlockHours,
+  fetchContractUsageForCompany,
+  type ContractBlockHoursRow,
+  type ContractUsageRow,
+} from "@/lib/contract-hours";
 import { fetchAgingOpenTickets, type AgingTicketRow } from "@/lib/ticket-aging";
 import { searchTicketsForCompany, type AutotaskTicketSearchRow } from "@/lib/autotask";
 
@@ -163,6 +168,46 @@ export async function fetchContractBlockHoursAction(): Promise<
     return { rows };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load contract block hours." };
+  }
+}
+
+/** Same active-contract-block usage as fetchContractBlockHoursAction above,
+ * scoped to one client and carrying every individual time entry under each
+ * block — for a "how is this client's block actually being used" report,
+ * not just the account-wide summary. */
+export async function fetchContractUsageAction(
+  clientId: string
+): Promise<{ rows: ContractUsageRow[] } | { error: string }> {
+  if (!(await requirePermission("view_lookups"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!clientId) return { error: "Choose a client first." };
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  const { data: client } = await admin
+    .from("clients")
+    .select("autotask_company_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client?.autotask_company_id) {
+    return { error: "This client isn't linked to an Autotask company yet." };
+  }
+
+  try {
+    const rows = await fetchContractUsageForCompany(
+      admin,
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id
+    );
+    return { rows };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load contract usage." };
   }
 }
 
