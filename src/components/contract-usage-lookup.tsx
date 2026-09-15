@@ -75,6 +75,16 @@ export function ContractUsageLookup({
           >
             {searching ? "Loading…" : "Load report"}
           </button>
+          {rows && rows.length > 0 && (
+            <a
+              href={`/api/contract-usage-pdf/${clientId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Download PDF
+            </a>
+          )}
         </div>
       </div>
 

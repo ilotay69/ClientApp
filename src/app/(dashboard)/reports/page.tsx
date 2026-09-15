@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { ReportPreviewPanel, type ReportDefinition } from "@/components/report-preview-panel";
+import { ContractUsageLookup } from "@/components/contract-usage-lookup";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import { getReportPreviewAction } from "./actions";
+import { fetchContractUsageAction } from "../hours/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +66,14 @@ export default async function ReportsPage() {
     redirect("/dashboard");
   }
 
+  // Only clients actually mapped to Autotask can be looked up this way —
+  // same reasoning as the Lookups page's own client picker.
+  const { data: autotaskClients } = await supabase
+    .from("clients")
+    .select("id, name")
+    .not("autotask_company_id", "is", null)
+    .order("name");
+
   return (
     <div className="space-y-6">
       <div>
@@ -94,6 +104,12 @@ export default async function ReportsPage() {
               {
                 label: HOURS_SUMMARY.title,
                 content: <ReportPreviewPanel report={HOURS_SUMMARY} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: "Contract Usage",
+                content: (
+                  <ContractUsageLookup clients={autotaskClients ?? []} action={fetchContractUsageAction} />
+                ),
               },
             ],
           },
