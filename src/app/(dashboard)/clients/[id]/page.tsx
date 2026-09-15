@@ -19,7 +19,7 @@ import { SyncM365Button } from "@/components/sync-m365-button";
 import { M365ClientCredentialsButton } from "@/components/m365-client-credentials-button";
 import { ClientInsightParagraph } from "@/components/client-insight-paragraph";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
-import { Tabs } from "@/components/tabs";
+import { GroupedTabs } from "@/components/grouped-tabs";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { DomainHealthPanel } from "@/components/domain-health-panel";
 import { formatDate, isOverdue, daysAgo, buildFollowupSummary } from "@/lib/format";
@@ -352,9 +352,11 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      <Tabs
-        orientation="vertical"
-        tabs={[
+      <GroupedTabs
+        groups={[
+          {
+            group: "Client",
+            tabs: [
               {
                 label: "Overview",
                 content: (
@@ -514,6 +516,11 @@ export default async function ClientDetailPage({
                   </div>
                 ),
               },
+            ],
+          },
+          {
+            group: "Infrastructure",
+            tabs: [
               {
                 label: "Contract Services",
                 content: (
@@ -532,6 +539,11 @@ export default async function ClientDetailPage({
                   />
                 ),
               },
+            ],
+          },
+          {
+            group: "Security Tools",
+            tabs: [
               {
                 label: "Huntress",
                 content: (
@@ -541,6 +553,11 @@ export default async function ClientDetailPage({
                   />
                 ),
               },
+            ],
+          },
+          {
+            group: "M365",
+            tabs: [
               {
                 label: "M365 Licenses",
                 content: (
@@ -560,6 +577,11 @@ export default async function ClientDetailPage({
                   />
                 ),
               },
+            ],
+          },
+          {
+            group: "Network",
+            tabs: [
               {
                 label: "Domain Health",
                 content: (
@@ -570,6 +592,11 @@ export default async function ClientDetailPage({
                   />
                 ),
               },
+            ],
+          },
+          {
+            group: "Records",
+            tabs: [
               {
                 label: "Timeline",
                 content: (
@@ -629,8 +656,10 @@ export default async function ClientDetailPage({
                   </div>
                 ),
               },
-            ]}
-          />
+            ],
+          },
+        ]}
+      />
     </div>
   );
 }
