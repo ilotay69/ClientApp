@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatDateTime } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import type { ContractUsageRow } from "@/lib/contract-hours";
 
 function hrs(n: number): string {
@@ -136,12 +136,15 @@ export function ContractUsageLookup({
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {r.entries.map((e) => (
-                            <tr key={e.id} className={e.isNonBillable ? "opacity-60" : undefined}>
-                              <td className="py-1.5 pr-4 text-slate-600">{formatDateTime(e.dateWorked)}</td>
+                            <tr key={e.id} className={e.isNonBillable || !e.isApproved ? "opacity-60" : undefined}>
+                              <td className="py-1.5 pr-4 text-slate-600">{formatDate(e.dateWorked)}</td>
                               <td className="py-1.5 pr-4 text-slate-700">{e.resourceName ?? "—"}</td>
                               <td className="py-1.5 pr-4 text-right text-slate-700">
                                 {hrs(e.hoursToBill)}
                                 {e.isNonBillable && <span className="ml-1 text-xs text-slate-400">(N/B)</span>}
+                                {!e.isNonBillable && !e.isApproved && (
+                                  <span className="ml-1 text-xs text-slate-400">(pending)</span>
+                                )}
                               </td>
                               <td className="py-1.5 pr-4 text-slate-600">
                                 {e.ticketId ? `Ticket #${e.ticketId}` : e.taskId ? `Task #${e.taskId}` : "—"}

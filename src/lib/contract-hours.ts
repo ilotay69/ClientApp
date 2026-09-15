@@ -48,13 +48,17 @@ function pickCurrentBlockPerContract(blocks: AutotaskContractBlock[]): Map<numbe
 /** Prepaid/block hours remaining per contract's single current block,
  * account-wide. Autotask has no "hours used" field on ContractBlocks
  * itself — consumption is computed by summing TimeEntries whose
- * contractID matches, restricted to the current block's own date range
- * and to billable time only (isNonBillable time doesn't draw down a
- * prepaid block). Summed using hoursToBill, not hoursWorked — Autotask's
- * own calculated billable amount, which is what actually draws down the
- * block and can be well below what a tech logged (write-downs, rounding,
- * fixed-price adjustments). Sorted so clients closest to running out
- * surface first. */
+ * contractID matches, restricted to the current block's own date range,
+ * to billable time only (isNonBillable time doesn't draw down a prepaid
+ * block), summed using hoursToBill rather than hoursWorked (Autotask's
+ * own calculated billable amount, which can be well below what a tech
+ * logged — write-downs, rounding, fixed-price adjustments) — AND to
+ * entries that have actually been approved for billing
+ * (billingApprovalDateTime set). Autotask's own Contract Block view
+ * literally labels this figure "Hours Approved", not "hours logged" —
+ * an entry sitting in a tech's queue unapproved hasn't drawn down the
+ * block yet, no matter how many hours it lists. Sorted so clients
+ * closest to running out surface first. */
 export async function fetchContractBlockHours(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -96,7 +100,7 @@ export async function fetchContractBlockHours(
 
   const billableEntriesByContract = new Map<number, { day: string; hours: number }[]>();
   for (const e of entries) {
-    if (e.contractID == null || e.isNonBillable) continue;
+    if (e.contractID == null || e.isNonBillable || !e.isApproved) continue;
     const list = billableEntriesByContract.get(e.contractID) ?? [];
     list.push({ day: e.dateWorked.slice(0, 10), hours: e.hoursToBill });
     billableEntriesByContract.set(e.contractID, list);
@@ -138,14 +142,18 @@ export type ContractTimeEntryRow = {
   taskId: number | null;
   summaryNotes: string | null;
   isNonBillable: boolean;
+  /** Whether this entry has cleared billing approval — see the note on
+   * fetchContractBlockHours above for why unapproved entries don't count
+   * toward `used` even though they're shown here. */
+  isApproved: boolean;
 };
 
 export type ContractUsageRow = ContractBlockHoursRow & {
   /** Every TimeEntry recorded in the current block's own date range,
-   * billable and non-billable both (only billable counts toward `used`,
-   * above) — newest first. For a per-client "what actually happened
-   * against this block" report, not just the summed total
-   * fetchContractBlockHours gives. */
+   * billable and non-billable both, approved and not — only billable AND
+   * approved counts toward `used`, above. Newest first. For a per-client
+   * "what actually happened against this block" report, not just the
+   * summed total fetchContractBlockHours gives. */
   entries: ContractTimeEntryRow[];
 };
 
@@ -210,7 +218,9 @@ export async function fetchContractUsageForCompany(
       const entriesInRange = (entriesByContract.get(b.contractID) ?? []).filter(
         (e) => e.dateWorked.slice(0, 10) >= b.startDate && e.dateWorked.slice(0, 10) <= b.endDate
       );
-      const used = entriesInRange.filter((e) => !e.isNonBillable).reduce((sum, e) => sum + e.hoursToBill, 0);
+      const used = entriesInRange
+        .filter((e) => !e.isNonBillable && e.isApproved)
+        .reduce((sum, e) => sum + e.hoursToBill, 0);
       const remaining = b.hours - used;
 
       const row: ContractUsageRow = {
@@ -234,6 +244,7 @@ export async function fetchContractUsageForCompany(
             taskId: e.taskID,
             summaryNotes: e.summaryNotes,
             isNonBillable: e.isNonBillable,
+            isApproved: e.isApproved,
           }))
           .sort((a, b) => (a.dateWorked < b.dateWorked ? 1 : -1)),
       };

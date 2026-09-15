@@ -165,7 +165,7 @@ export async function fetchPortalActiveContractUsage(
 
     const billableByContract = new Map<number, { day: string; hours: number }[]>();
     for (const e of entries) {
-      if (e.contractID == null || e.isNonBillable) continue;
+      if (e.contractID == null || e.isNonBillable || !e.isApproved) continue;
       const list = billableByContract.get(e.contractID) ?? [];
       // hoursToBill, not hoursWorked — Autotask's own calculated billable
       // amount, which is what actually draws down the block (can be below

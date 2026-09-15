@@ -822,6 +822,11 @@ export type AutotaskTimeEntryRange = {
   summaryNotes: string | null;
   contractID: number | null;
   isNonBillable: boolean;
+  /** Set only once a resource has approved this entry for billing
+   * (TimeEntries.billingApprovalDateTime) — Autotask's own "Hours
+   * Approved" figure on a Contract Block only counts entries that have
+   * cleared this, not everything logged in the block's date range. */
+  isApproved: boolean;
 };
 
 /** Account-wide time entries in a date range, across every resource and
@@ -858,6 +863,7 @@ export async function fetchTimeEntriesInRange(
     summaryNotes?: string;
     contractID?: number;
     isNonBillable?: boolean;
+    billingApprovalDateTime?: string | null;
   };
   return (items as RawTimeEntry[])
     .filter((e) => e.hoursWorked != null)
@@ -872,6 +878,7 @@ export async function fetchTimeEntriesInRange(
       summaryNotes: e.summaryNotes ?? null,
       contractID: e.contractID ?? null,
       isNonBillable: e.isNonBillable ?? false,
+      isApproved: e.billingApprovalDateTime != null,
     }));
 }
 
@@ -1063,6 +1070,7 @@ export async function fetchTimeEntriesForContracts(
     summaryNotes?: string;
     contractID?: number;
     isNonBillable?: boolean;
+    billingApprovalDateTime?: string | null;
   };
 
   const entries: AutotaskTimeEntryRange[] = [];
@@ -1088,6 +1096,7 @@ export async function fetchTimeEntriesForContracts(
         summaryNotes: e.summaryNotes ?? null,
         contractID: e.contractID ?? null,
         isNonBillable: e.isNonBillable ?? false,
+        isApproved: e.billingApprovalDateTime != null,
       });
     }
   }

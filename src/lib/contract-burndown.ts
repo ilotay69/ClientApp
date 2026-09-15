@@ -87,6 +87,7 @@ export async function fetchContractBurndown(
     (e) =>
       e.contractID === block.contractId &&
       !e.isNonBillable &&
+      e.isApproved &&
       e.dateWorked.slice(0, 10) >= block.startDate &&
       e.dateWorked.slice(0, 10) <= rangeEnd
   );
