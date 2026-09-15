@@ -1400,3 +1400,13 @@ export async function fetchActiveResources(
     return [];
   }
 }
+
+/** Deep link to a ticket's own detail page in Autotask's classic web UI,
+ * via the documented ExecuteCommand API (OpenTicketDetail) — the only
+ * officially supported way to link straight to a ticket from outside
+ * Autotask. Opens the Autotask login page first if the visitor isn't
+ * already signed in there; the ticket's internal id (not its
+ * ticket-number label) is what this command needs. */
+export function buildAutotaskTicketUrl(webZoneUrl: string, ticketId: number): string {
+  return `${webZoneUrl.replace(/\/$/, "")}/Autotask/AutotaskExtend/ExecuteCommand.aspx?Code=OpenTicketDetail&TicketID=${ticketId}`;
+}

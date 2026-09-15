@@ -9,6 +9,18 @@ export function formatDate(value: string | null | undefined) {
   }
 }
 
+/** Same as formatDate, plus the time — for a "when was this actually
+ * created" moment (e.g. a ticket's createDate) where the date alone loses
+ * how many hours it's actually been sitting there. */
+export function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  try {
+    return format(parseISO(value), "MMM d, yyyy h:mm a");
+  } catch {
+    return value;
+  }
+}
+
 export function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined) return "—";
   return new Intl.NumberFormat("en-CA", {

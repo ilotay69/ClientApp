@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { buildAutotaskTicketUrl } from "@/lib/autotask";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AlertRow } from "@/components/alert-row";
 import {
@@ -21,7 +23,7 @@ import {
   IconTag,
   IconFlag,
 } from "@/components/icons";
-import { formatDate, isOverdue } from "@/lib/format";
+import { formatDate, formatDateTime, isOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import {
   getEligibleDashboardWidgetKeys,
@@ -98,6 +100,7 @@ export default async function DashboardPage() {
     { data: recruitmentRows },
     myTickets,
     { data: unassignedL1Tickets },
+    autotaskSettings,
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -147,12 +150,15 @@ export default async function DashboardPage() {
     enabled.has("unassigned_l1_tickets")
       ? supabase
           .from("autotask_tickets")
-          .select("id, ticket_number, title, status, priority, queue_name, due_date, client_id, clients(name)")
+          .select("id, ticket_number, title, status, priority, queue_name, opened_at, client_id, clients(name)")
           .or("queue_name.ilike.%level i %,queue_name.ilike.%level 1%")
           .is("assigned_resource_name", null)
           .not("status", "ilike", "%complete%")
-          .order("due_date", { ascending: true, nullsFirst: false })
+          // Oldest-created first — the point of this widget is "what's
+          // been sitting unpicked the longest", not what's due soonest.
+          .order("opened_at", { ascending: true, nullsFirst: false })
       : Promise.resolve({ data: [] }),
+    enabled.has("unassigned_l1_tickets") ? getAutotaskSettings(createAdminClient()) : Promise.resolve(null),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -332,9 +338,9 @@ export default async function DashboardPage() {
 
         {enabled.has("unassigned_l1_tickets") && (
           <DashboardWidgetCard
-            title="Unassigned Level 1 Tickets"
+            title="Level 1 Queue - waiting for tech to pick up"
             count={(unassignedL1Tickets ?? []).length}
-            countLabel="waiting for a tech"
+            countLabel="unassigned"
             icon={IconAlertTriangle}
             accent="red"
             href="/reports"
@@ -343,25 +349,25 @@ export default async function DashboardPage() {
             {(unassignedL1Tickets ?? []).length === 0 ? (
               <EmptyRow text="Nothing unassigned in Level 1 right now." />
             ) : (
-              (unassignedL1Tickets ?? []).slice(0, 5).map((t) => (
-                <WidgetRow
-                  accent="red"
-                  key={t.id}
-                  href={t.client_id ? `/clients/${t.client_id}` : "/reports"}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-900">
-                      {t.ticket_number ? `#${t.ticket_number} — ` : ""}
-                      {t.title}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">
-                      {(t.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
-                      {t.due_date ? ` · due ${formatDate(t.due_date)}` : ""}
-                    </p>
-                  </div>
-                  {t.priority && <Badge value={t.priority} />}
-                </WidgetRow>
-              ))
+              <>
+                <div className="divide-y divide-slate-100">
+                  {(unassignedL1Tickets ?? []).slice(0, 5).map((t) => (
+                    <UnassignedTicketRow key={t.id} ticket={t} webZoneUrl={autotaskSettings?.webZoneUrl ?? null} />
+                  ))}
+                </div>
+                {(unassignedL1Tickets ?? []).length > 5 && (
+                  <details className="group border-t border-slate-100">
+                    <summary className="cursor-pointer list-none px-4 py-2 text-xs font-medium text-brand hover:underline [&::-webkit-details-marker]:hidden">
+                      Show {(unassignedL1Tickets ?? []).length - 5} more
+                    </summary>
+                    <div className="divide-y divide-slate-100 border-t border-slate-100">
+                      {(unassignedL1Tickets ?? []).slice(5).map((t) => (
+                        <UnassignedTicketRow key={t.id} ticket={t} webZoneUrl={autotaskSettings?.webZoneUrl ?? null} />
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </>
             )}
           </DashboardWidgetCard>
         )}
@@ -665,4 +671,52 @@ function WidgetRow({
 
 function EmptyRow({ text }: { text: string }) {
   return <p className="px-4 py-2 text-sm text-slate-500">{text}</p>;
+}
+
+type UnassignedTicket = {
+  id: number;
+  ticket_number: string | null;
+  title: string;
+  priority: string | null;
+  opened_at: string | null;
+  clients: { name: string } | { name: string }[] | null;
+};
+
+/** Opens the actual ticket in Autotask (a new tab) when the Autotask
+ * connection has been tested at least once (so webZoneUrl is known) —
+ * a client's own page doesn't tell you anything about one specific
+ * ticket, so that's not a useful fallback destination here. Without a
+ * known webZoneUrl the row just isn't a link at all, rather than
+ * pointing somewhere unhelpful. */
+function UnassignedTicketRow({ ticket: t, webZoneUrl }: { ticket: UnassignedTicket; webZoneUrl: string | null }) {
+  const clientName = (Array.isArray(t.clients) ? t.clients[0] : t.clients)?.name ?? "Unknown client";
+  const ticketUrl = webZoneUrl ? buildAutotaskTicketUrl(webZoneUrl, t.id) : null;
+
+  const inner = (
+    <>
+      <DashboardDot accent="red" />
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-slate-900">
+            {t.ticket_number ? `#${t.ticket_number} — ` : ""}
+            {t.title}
+          </p>
+          <p className="truncate text-xs text-slate-500">
+            {clientName}
+            {t.opened_at ? ` · created ${formatDateTime(t.opened_at)}` : ""}
+          </p>
+        </div>
+        {t.priority && <Badge value={t.priority} />}
+      </span>
+    </>
+  );
+
+  if (!ticketUrl) {
+    return <div className="flex items-center gap-2.5 px-4 py-1.5">{inner}</div>;
+  }
+  return (
+    <a href={ticketUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 px-4 py-1.5 hover:bg-slate-50">
+      {inner}
+    </a>
+  );
 }
