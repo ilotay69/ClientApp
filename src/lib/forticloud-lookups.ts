@@ -29,7 +29,10 @@ function summarizeSupport(product: ForticloudProduct): { endDate: string | null;
   return { endDate: soonest, status };
 }
 
-const STATUS_RANK: Record<ForticloudSupportStatus, number> = {
+/** Worst-first ordering — exported so the Lookups table can sort its
+ * "Support status" column the same way this file's own default order
+ * already does, instead of a second, possibly-diverging copy. */
+export const STATUS_RANK: Record<ForticloudSupportStatus, number> = {
   expired: 0,
   expiring_soon: 1,
   unknown: 2,
