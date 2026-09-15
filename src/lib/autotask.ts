@@ -899,8 +899,15 @@ export async function fetchActiveContractBlocks(
       id: b.id,
       contractID: b.contractID,
       hours: b.hours as number,
-      startDate: b.startDate,
-      endDate: b.endDate,
+      // Sliced to plain YYYY-MM-DD — Autotask returns these with a full
+      // time/timezone suffix (e.g. "2026-06-01T00:00:00.000-04:00"), and
+      // every caller compares them against a TimeEntry's dateWorked
+      // sliced the same way; comparing a bare date string against one
+      // with a time suffix breaks (a same-day boundary can lose the
+      // string comparison it should win), so this is normalized once
+      // here rather than trusted to every call site downstream.
+      startDate: b.startDate.slice(0, 10),
+      endDate: b.endDate.slice(0, 10),
     }));
 }
 
@@ -1011,8 +1018,10 @@ export async function fetchContractBlocksForContractsInRange(
         id: b.id,
         contractID: b.contractID,
         hours: b.hours,
-        startDate: b.startDate,
-        endDate: b.endDate,
+        // Same normalization as fetchActiveContractBlocks — see its
+        // comment for why a bare date slice, not the raw timestamp.
+        startDate: b.startDate.slice(0, 10),
+        endDate: b.endDate.slice(0, 10),
       });
     }
   }
