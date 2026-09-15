@@ -1,0 +1,6 @@
+# Persists Next.js's own build cache between Railway deploys — a
+# fresh Railway build container otherwise starts .next/cache empty every
+# single time, so `next build` recompiles the whole app from scratch on
+# every deploy instead of just what actually changed since the last one.
+[phases.build]
+cacheDirectories = [".next/cache"]
