@@ -1,14 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar, NO_PROJECT_FILTER_VALUE } from "@/components/task-filter-bar";
 import { SortableColumnHeader } from "@/components/sortable-column-header";
-import { MailboxReviewPanel } from "@/components/mailbox-review-panel";
-import { MailboxSnapshotPreview } from "@/components/mailbox-snapshot-preview";
-import { SyncMailboxButton } from "@/components/sync-mailbox-button";
-import { UpcomingAppointments } from "@/components/upcoming-appointments";
-import { Tabs } from "@/components/tabs";
 import { hasPermission } from "@/lib/permissions";
 import {
   createTask,
@@ -18,16 +14,6 @@ import {
   getTaskNotesAction,
   addTaskNote,
 } from "./actions";
-import {
-  fetchMyUpcomingAppointments,
-  dismissAppointmentType,
-  clearDismissedAppointmentTypes,
-  fetchMySnapshotSenders,
-  fetchMySnapshotPreview,
-  syncMyMailboxNow,
-  dismissMailboxThread,
-  clearDismissedMailboxThreads,
-} from "../dashboard/actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +70,6 @@ export default async function TasksPage({
   searchParams: Promise<{
     mine?: string;
     view?: string;
-    tab?: string;
     project_id?: string;
     client_id?: string;
     client?: string;
@@ -94,17 +79,11 @@ export default async function TasksPage({
     status?: string | string[];
     sort?: string;
     dir?: string;
-    todoClient?: string;
-    todoPriority?: string | string[];
-    todoStatus?: string | string[];
-    todoSort?: string;
-    todoDir?: string;
   }>;
 }) {
   const {
     mine,
     view,
-    tab,
     project_id: defaultProjectId,
     client_id: defaultClientId,
     client: filterClient,
@@ -114,16 +93,9 @@ export default async function TasksPage({
     status: filterStatusRaw,
     sort: rawSort,
     dir: rawDir,
-    todoClient: filterTodoClient,
-    todoPriority: filterTodoPriorityRaw,
-    todoStatus: filterTodoStatusRaw,
-    todoSort: rawTodoSort,
-    todoDir: rawTodoDir,
   } = await searchParams;
   const teamSortField = rawSort || "due_date";
   const teamSortDir: SortDir = rawDir === "desc" ? "desc" : "asc";
-  const todoSortField = rawTodoSort || "due_date";
-  const todoSortDir: SortDir = rawTodoDir === "desc" ? "desc" : "asc";
   const filterStatuses = Array.isArray(filterStatusRaw)
     ? filterStatusRaw
     : filterStatusRaw
@@ -134,17 +106,15 @@ export default async function TasksPage({
     : filterPriorityRaw
       ? [filterPriorityRaw]
       : [];
-  const filterTodoStatuses = Array.isArray(filterTodoStatusRaw)
-    ? filterTodoStatusRaw
-    : filterTodoStatusRaw
-      ? [filterTodoStatusRaw]
-      : [];
-  const filterTodoPriorities = Array.isArray(filterTodoPriorityRaw)
-    ? filterTodoPriorityRaw
-    : filterTodoPriorityRaw
-      ? [filterTodoPriorityRaw]
-      : [];
   const supabase = await createClient();
+
+  // Team Tasks (the full team-wide list) only shows for roles granted
+  // view_team_tasks — everyone's own personal list lives at /my-todo
+  // instead, which has no such gate.
+  if (!(await hasPermission(supabase, "view_team_tasks"))) {
+    redirect("/my-todo");
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -153,35 +123,22 @@ export default async function TasksPage({
     { data: clients },
     { data: members },
     canDeleteTasks,
-    canViewTeamTasks,
     { data: projects },
     { data: taskClientRows },
-    { data: todoTaskClientRows },
-    { data: mailPrefs },
   ] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
     // neq("role", "client"): client-portal logins aren't staff and must
     // never appear as an assignable person here.
     supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
     hasPermission(supabase, "delete_tasks"),
-    hasPermission(supabase, "view_team_tasks"),
     supabase.from("projects").select("id, name, client_id, clients(name)").order("name"),
     // Unfiltered, so the client filter's own options don't shrink as other
     // filters (priority, assignee, status, mine/view) are applied.
     supabase.from("tasks").select("client_id").eq("is_personal", false).not("client_id", "is", null),
-    // RLS already scopes this to the current user's own personal tasks.
-    supabase.from("tasks").select("client_id").eq("is_personal", true).not("client_id", "is", null),
-    supabase
-      .from("mail_connections")
-      .select("review_excludes, review_lookback_days, sync_excluded_senders")
-      .eq("user_id", user?.id ?? "")
-      .maybeSingle(),
   ]);
   const clientById = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const taskClientIds = new Set((taskClientRows ?? []).map((r) => r.client_id));
   const filterClients = (clients ?? []).filter((c) => taskClientIds.has(c.id));
-  const todoTaskClientIds = new Set((todoTaskClientRows ?? []).map((r) => r.client_id));
-  const todoFilterClients = (clients ?? []).filter((c) => todoTaskClientIds.has(c.id));
   const projectSummaries = (projects ?? []).map((p) => ({
     id: p.id,
     name: p.name,
@@ -234,31 +191,55 @@ export default async function TasksPage({
     teamQuery = teamQuery.in("priority", filterPriorities);
   }
 
-  // RLS already restricts personal rows to their creator — this filter
-  // just keeps the query's intent explicit.
-  let personalQuery = supabase
-    .from("tasks")
-    .select(
-      "id, kind, title, detail, notes, status, priority, start_date, due_date, client_id, is_personal"
-    )
-    .eq("is_personal", true)
-    .order("due_date", { ascending: true, nullsFirst: false });
-
-  if (filterTodoStatuses.length > 0) {
-    personalQuery = personalQuery.in("status", filterTodoStatuses);
-  }
-  if (filterTodoClient) {
-    personalQuery = personalQuery.eq("client_id", filterTodoClient);
-  }
-  if (filterTodoPriorities.length > 0) {
-    personalQuery = personalQuery.in("priority", filterTodoPriorities);
-  }
-
-  const [{ data: teamTasks }, { data: personalTasks }] = await Promise.all([teamQuery, personalQuery]);
+  const { data: teamTasks } = await teamQuery;
 
   const updateFieldAction = updateTaskField;
 
-  const teamTasksList = (
+  const teamSortHrefFor = (field: string, dir: SortDir) =>
+    filterHref("/tasks", {
+      mine,
+      view,
+      client: filterClient,
+      project: filterProject,
+      priority: filterPriorities,
+      assignee: filterAssignee,
+      status: filterStatuses,
+      sort: field,
+      dir,
+    });
+
+  const teamRows = (teamTasks ?? []).map((t) => {
+    const assigneeIds = ((t.task_assignees as unknown as { profile_id: string }[] | null) ?? []).map(
+      (a) => a.profile_id
+    );
+    const assigneeNames = assigneeIds
+      .map((id) => memberById.get(id))
+      .filter((n): n is string => Boolean(n))
+      .join(", ");
+    const clientName = t.client_id ? (clientById.get(t.client_id) ?? null) : null;
+    const projectLabel = t.project_id ? (projectNameById.get(t.project_id) ?? "Project") : "No Project";
+    return { task: t, assigneeIds, assigneeNames, clientName, projectLabel };
+  });
+
+  const sortedTeamRows = sortRows(teamRows, teamSortField, teamSortDir, (row, field) => {
+    switch (field) {
+      case "title":
+        return row.task.title;
+      case "status":
+        return row.task.status;
+      case "client":
+        return row.clientName;
+      case "project":
+        return row.projectLabel;
+      case "assignee":
+        return row.assigneeNames || null;
+      case "due_date":
+      default:
+        return row.task.due_date;
+    }
+  });
+
+  return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -292,30 +273,8 @@ export default async function TasksPage({
           assignee: filterAssignee ?? "",
           statuses: filterStatuses,
         }}
-        preserve={{
-          mine,
-          view,
-          tab: "team",
-          sort: rawSort,
-          dir: rawDir,
-          todoClient: filterTodoClient,
-          todoPriority: filterTodoPriorities,
-          todoStatus: filterTodoStatuses,
-          todoSort: rawTodoSort,
-          todoDir: rawTodoDir,
-        }}
-        clearHref={filterHref("/tasks", {
-          mine,
-          view,
-          tab: "team",
-          sort: rawSort,
-          dir: rawDir,
-          todoClient: filterTodoClient,
-          todoPriority: filterTodoPriorities,
-          todoStatus: filterTodoStatuses,
-          todoSort: rawTodoSort,
-          todoDir: rawTodoDir,
-        })}
+        preserve={{ mine, view, sort: rawSort, dir: rawDir }}
+        clearHref={filterHref("/tasks", { mine, view, sort: rawSort, dir: rawDir })}
       />
 
       <TaskQuickAdd
@@ -328,130 +287,74 @@ export default async function TasksPage({
       />
 
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        {(() => {
-          const teamSortHrefFor = (field: string, dir: SortDir) =>
-            filterHref("/tasks", {
-              mine,
-              view,
-              tab: "team",
-              client: filterClient,
-              project: filterProject,
-              priority: filterPriorities,
-              assignee: filterAssignee,
-              status: filterStatuses,
-              sort: field,
-              dir,
-              todoClient: filterTodoClient,
-              todoPriority: filterTodoPriorities,
-              todoStatus: filterTodoStatuses,
-              todoSort: rawTodoSort,
-              todoDir: rawTodoDir,
-            });
-
-          const teamRows = (teamTasks ?? []).map((t) => {
-            const assigneeIds = (
-              (t.task_assignees as unknown as { profile_id: string }[] | null) ?? []
-            ).map((a) => a.profile_id);
-            const assigneeNames = assigneeIds
-              .map((id) => memberById.get(id))
-              .filter((n): n is string => Boolean(n))
-              .join(", ");
-            const clientName = t.client_id ? (clientById.get(t.client_id) ?? null) : null;
-            const projectLabel = t.project_id ? (projectNameById.get(t.project_id) ?? "Project") : "No Project";
-            return { task: t, assigneeIds, assigneeNames, clientName, projectLabel };
-          });
-
-          const sortedTeamRows = sortRows(teamRows, teamSortField, teamSortDir, (row, field) => {
-            switch (field) {
-              case "title":
-                return row.task.title;
-              case "status":
-                return row.task.status;
-              case "client":
-                return row.clientName;
-              case "project":
-                return row.projectLabel;
-              case "assignee":
-                return row.assigneeNames || null;
-              case "due_date":
-              default:
-                return row.task.due_date;
-            }
-          });
-
-          return (
-            <>
-              <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
-                <SortableColumnHeader
-                  label="Due"
-                  field="due_date"
-                  activeField={teamSortField}
-                  activeDir={teamSortDir}
-                  hrefFor={teamSortHrefFor}
-                  className="w-24"
-                />
-                <SortableColumnHeader
-                  label="Client"
-                  field="client"
-                  activeField={teamSortField}
-                  activeDir={teamSortDir}
-                  hrefFor={teamSortHrefFor}
-                  className="w-32"
-                />
-                <SortableColumnHeader
-                  label="Project"
-                  field="project"
-                  activeField={teamSortField}
-                  activeDir={teamSortDir}
-                  hrefFor={teamSortHrefFor}
-                  className="w-44"
-                />
-                <SortableColumnHeader
-                  label="Assigned"
-                  field="assignee"
-                  activeField={teamSortField}
-                  activeDir={teamSortDir}
-                  hrefFor={teamSortHrefFor}
-                  className="w-32"
-                />
-                <SortableColumnHeader
-                  label="Title"
-                  field="title"
-                  activeField={teamSortField}
-                  activeDir={teamSortDir}
-                  hrefFor={teamSortHrefFor}
-                  className="min-w-0 flex-1"
-                />
-                <SortableColumnHeader
-                  label="Status"
-                  field="status"
-                  activeField={teamSortField}
-                  activeDir={teamSortDir}
-                  hrefFor={teamSortHrefFor}
-                />
-                <span className="w-4 shrink-0" aria-hidden="true" />
-              </div>
-              {sortedTeamRows.map(({ task: t, assigneeIds, assigneeNames, clientName, projectLabel }) => (
-                <TaskRow
-                  key={t.id}
-                  task={t as TaskRowData}
-                  clientName={clientName}
-                  projectLabel={projectLabel}
-                  assigneeNames={assigneeNames}
-                  assigneeIds={assigneeIds}
-                  members={members ?? []}
-                  canDelete={canDeleteTasks}
-                  statusOptions={statusOptionsFor(t.status)}
-                  updateFieldAction={updateFieldAction}
-                  updateAssigneesAction={setTaskAssignees}
-                  deleteAction={deleteTask.bind(null, t.id)}
-                  fetchNotesAction={getTaskNotesAction}
-                  addNoteAction={addTaskNote.bind(null, t.id)}
-                />
-              ))}
-            </>
-          );
-        })()}
+        <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
+          <SortableColumnHeader
+            label="Due"
+            field="due_date"
+            activeField={teamSortField}
+            activeDir={teamSortDir}
+            hrefFor={teamSortHrefFor}
+            className="w-24"
+          />
+          <SortableColumnHeader
+            label="Client"
+            field="client"
+            activeField={teamSortField}
+            activeDir={teamSortDir}
+            hrefFor={teamSortHrefFor}
+            className="w-32"
+          />
+          <SortableColumnHeader
+            label="Project"
+            field="project"
+            activeField={teamSortField}
+            activeDir={teamSortDir}
+            hrefFor={teamSortHrefFor}
+            className="w-44"
+          />
+          <SortableColumnHeader
+            label="Assigned"
+            field="assignee"
+            activeField={teamSortField}
+            activeDir={teamSortDir}
+            hrefFor={teamSortHrefFor}
+            className="w-32"
+          />
+          <SortableColumnHeader
+            label="Title"
+            field="title"
+            activeField={teamSortField}
+            activeDir={teamSortDir}
+            hrefFor={teamSortHrefFor}
+            className="min-w-0 flex-1"
+          />
+          <SortableColumnHeader
+            label="Status"
+            field="status"
+            activeField={teamSortField}
+            activeDir={teamSortDir}
+            hrefFor={teamSortHrefFor}
+          />
+          <span className="w-4 shrink-0" aria-hidden="true" />
+        </div>
+        {sortedTeamRows.map(({ task: t, assigneeIds, assigneeNames, clientName, projectLabel }) => (
+          <TaskRow
+            key={t.id}
+            task={t as TaskRowData}
+            clientName={clientName}
+            projectLabel={projectLabel}
+            assigneeNames={assigneeNames}
+            assigneeIds={assigneeIds}
+            members={members ?? []}
+            canDelete={canDeleteTasks}
+            statusOptions={statusOptionsFor(t.status)}
+            updateFieldAction={updateFieldAction}
+            updateAssigneesAction={setTaskAssignees}
+            deleteAction={deleteTask.bind(null, t.id)}
+            fetchNotesAction={getTaskNotesAction}
+            addNoteAction={addTaskNote.bind(null, t.id)}
+          />
+        ))}
         {(teamTasks ?? []).length === 0 && (
           <p className="px-5 py-6 text-center text-sm text-slate-500">
             Nothing here. Add a task above, or promote an insight from the{" "}
@@ -463,213 +366,5 @@ export default async function TasksPage({
         )}
       </div>
     </div>
-  );
-
-  const myToDoList = (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">My To-Do</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Your own list — only you can see or edit these, whether or not
-          they&apos;re tied to work in this app.
-        </p>
-      </div>
-
-      <SyncMailboxButton action={syncMyMailboxNow} />
-
-      <MailboxReviewPanel
-        initialDays={mailPrefs?.review_lookback_days ?? 30}
-        initialExcludes={mailPrefs?.review_excludes ?? ""}
-        initialNeverStore={mailPrefs?.sync_excluded_senders ?? ""}
-        fetchSendersAction={fetchMySnapshotSenders}
-        dismissThreadAction={dismissMailboxThread}
-        clearDismissedThreadsAction={clearDismissedMailboxThreads}
-      />
-
-      <MailboxSnapshotPreview action={fetchMySnapshotPreview} />
-
-      <UpcomingAppointments
-        action={fetchMyUpcomingAppointments}
-        dismissAction={dismissAppointmentType}
-        clearDismissedAction={clearDismissedAppointmentTypes}
-      />
-
-      <TaskFilterBar
-        clients={todoFilterClients}
-        members={[]}
-        priorityOptions={PRIORITY_OPTIONS}
-        statusOptions={STATUS_OPTIONS}
-        values={{
-          client: filterTodoClient ?? "",
-          priorities: filterTodoPriorities,
-          assignee: "",
-          statuses: filterTodoStatuses,
-        }}
-        fieldNames={{
-          client: "todoClient",
-          priority: "todoPriority",
-          status: "todoStatus",
-          assignee: "assignee",
-        }}
-        showAssignee={false}
-        preserve={{
-          mine,
-          view,
-          tab: "todo",
-          client: filterClient,
-          project: filterProject,
-          priority: filterPriorities,
-          assignee: filterAssignee,
-          status: filterStatuses,
-          sort: rawSort,
-          dir: rawDir,
-          todoSort: rawTodoSort,
-          todoDir: rawTodoDir,
-        }}
-        clearHref={filterHref("/tasks", {
-          mine,
-          view,
-          tab: "todo",
-          client: filterClient,
-          project: filterProject,
-          priority: filterPriorities,
-          assignee: filterAssignee,
-          status: filterStatuses,
-          sort: rawSort,
-          dir: rawDir,
-          todoSort: rawTodoSort,
-          todoDir: rawTodoDir,
-        })}
-      />
-
-      <TaskQuickAdd
-        clients={clients ?? []}
-        projects={projectSummaries}
-        members={members ?? []}
-        action={createTask}
-        personal
-      />
-
-      <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        {(() => {
-          const todoSortHrefFor = (field: string, dir: SortDir) =>
-            filterHref("/tasks", {
-              mine,
-              view,
-              tab: "todo",
-              client: filterClient,
-              project: filterProject,
-              priority: filterPriorities,
-              assignee: filterAssignee,
-              status: filterStatuses,
-              sort: rawSort,
-              dir: rawDir,
-              todoClient: filterTodoClient,
-              todoPriority: filterTodoPriorities,
-              todoStatus: filterTodoStatuses,
-              todoSort: field,
-              todoDir: dir,
-            });
-
-          const todoRows = (personalTasks ?? []).map((t) => ({
-            task: t,
-            clientName: t.client_id ? (clientById.get(t.client_id) ?? null) : null,
-          }));
-
-          const sortedTodoRows = sortRows(todoRows, todoSortField, todoSortDir, (row, field) => {
-            switch (field) {
-              case "title":
-                return row.task.title;
-              case "status":
-                return row.task.status;
-              case "client":
-                return row.clientName;
-              case "due_date":
-              default:
-                return row.task.due_date;
-            }
-          });
-
-          return (
-            <>
-              <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
-                <SortableColumnHeader
-                  label="Due"
-                  field="due_date"
-                  activeField={todoSortField}
-                  activeDir={todoSortDir}
-                  hrefFor={todoSortHrefFor}
-                  className="w-24"
-                />
-                <SortableColumnHeader
-                  label="Client"
-                  field="client"
-                  activeField={todoSortField}
-                  activeDir={todoSortDir}
-                  hrefFor={todoSortHrefFor}
-                  className="w-32"
-                />
-                <SortableColumnHeader
-                  label="Title"
-                  field="title"
-                  activeField={todoSortField}
-                  activeDir={todoSortDir}
-                  hrefFor={todoSortHrefFor}
-                  className="min-w-0 flex-1"
-                />
-                <SortableColumnHeader
-                  label="Status"
-                  field="status"
-                  activeField={todoSortField}
-                  activeDir={todoSortDir}
-                  hrefFor={todoSortHrefFor}
-                />
-                <span className="w-4 shrink-0" aria-hidden="true" />
-              </div>
-              {sortedTodoRows.map(({ task: t, clientName }) => (
-                <TaskRow
-                  key={t.id}
-                  task={{ ...t, project_id: null } as TaskRowData}
-                  clientName={clientName}
-                  assigneeNames=""
-                  assigneeIds={[]}
-                  members={[]}
-                  canDelete
-                  statusOptions={statusOptionsFor(t.status)}
-                  updateFieldAction={updateFieldAction}
-                  updateAssigneesAction={setTaskAssignees}
-                  deleteAction={deleteTask.bind(null, t.id)}
-                  fetchNotesAction={getTaskNotesAction}
-                  addNoteAction={addTaskNote.bind(null, t.id)}
-                />
-              ))}
-            </>
-          );
-        })()}
-        {(personalTasks ?? []).length === 0 && (
-          <p className="px-5 py-6 text-center text-sm text-slate-500">
-            Nothing on your list yet. Add one above.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-
-  // My To-Do is always visible — it's the signed-in user's own list. Team
-  // Tasks (the full team-wide list) only shows for roles granted
-  // view_team_tasks; without it, My To-Do is the only tab, so it's shown
-  // directly rather than as a single-tab Tabs component.
-  if (!canViewTeamTasks) {
-    return myToDoList;
-  }
-
-  return (
-    <Tabs
-      tabs={[
-        { label: "Team Tasks", content: teamTasksList },
-        { label: "My To-Do", content: myToDoList },
-      ]}
-      defaultActive={tab === "todo" ? 1 : 0}
-    />
   );
 }

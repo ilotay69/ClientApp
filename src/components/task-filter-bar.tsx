@@ -81,6 +81,7 @@ export function TaskFilterBar({
   fieldNames = DEFAULT_FIELD_NAMES,
   showAssignee = true,
   showProject = false,
+  action = "/tasks",
 }: {
   clients: { id: string; name: string }[];
   members: { id: string; full_name: string }[];
@@ -98,6 +99,11 @@ export function TaskFilterBar({
   showAssignee?: boolean;
   /** Team Tasks only — My To-Do tasks have no project concept. */
   showProject?: boolean;
+  /** Where this form actually submits to — defaults to /tasks (Team
+   * Tasks), since that's this component's original and still most common
+   * caller; /my-todo passes its own path so its filter form doesn't
+   * silently redirect to the team list. */
+  action?: string;
 }) {
   const hasFilters =
     values.client ||
@@ -107,7 +113,7 @@ export function TaskFilterBar({
     values.statuses.length > 0;
 
   return (
-    <form action="/tasks" className="space-y-2">
+    <form action={action} className="space-y-2">
       <PreserveParams params={preserve} />
 
       <div className="flex flex-wrap items-center gap-2 text-sm">

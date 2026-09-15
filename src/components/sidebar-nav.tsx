@@ -52,6 +52,7 @@ export function SidebarNav({
   canViewDashboard,
   canViewClients,
   canViewProjects,
+  canViewTeamTasks,
   canViewSalesRequests,
   canManageRecruitment,
   canManageReconciliation,
@@ -78,6 +79,7 @@ export function SidebarNav({
   canViewDashboard: boolean;
   canViewClients: boolean;
   canViewProjects: boolean;
+  canViewTeamTasks: boolean;
   canViewSalesRequests: boolean;
   canManageRecruitment: boolean;
   canManageReconciliation: boolean;
@@ -98,15 +100,16 @@ export function SidebarNav({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Every link here is gated by its own view_* (or manage_*) permission —
-  // Tasks is the one exception, always shown, since "My To-Do" (a
-  // signed-in user's own list) is always visible even without
-  // view_team_tasks; only the "Team Tasks" tab inside that page is gated.
+  // My To-Do is the one link always shown regardless of permission — it's
+  // a signed-in user's own list (tasks, mailbox analysis, tickets), never
+  // gated. Tasks (the team-wide list) requires view_team_tasks like every
+  // other link here.
   const MAIN_LINKS: NavItem[] = [
     ...(canViewDashboard ? [{ href: "/dashboard", label: "Dashboard", icon: IconGrid }] : []),
     ...(canViewClients ? [{ href: "/clients", label: "Clients", icon: IconBriefcase }] : []),
     ...(canViewProjects ? [{ href: "/projects", label: "Projects", icon: IconFolder }] : []),
-    { href: "/tasks", label: "Tasks", icon: IconCheckSquare },
+    { href: "/my-todo", label: "My To-Do", icon: IconCheckSquare },
+    ...(canViewTeamTasks ? [{ href: "/tasks", label: "Tasks", icon: IconList }] : []),
     ...(canManageTouchpoints
       ? [
           {

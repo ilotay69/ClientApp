@@ -44,7 +44,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   view_dashboard: "View the Dashboard",
   view_clients: "View the client list & client detail pages",
   view_projects: "View the project list & project detail pages",
-  view_team_tasks: "View the team-wide Tasks list (My To-Do is always visible)",
+  view_team_tasks: "View the team-wide Tasks list (My To-Do is its own always-visible page)",
   view_sales_requests: "View the Internal Sales / Sales Requests pipeline",
   manage_client_access: "Create & revoke client portal logins",
   manage_recruitment: "Screen resumes & manage job postings (candidate PII)",

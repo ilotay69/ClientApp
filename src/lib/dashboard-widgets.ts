@@ -7,10 +7,12 @@ type AnyClient = any;
 export type DashboardWidgetKey =
   | "alerts"
   | "my_tasks"
+  | "my_tickets"
   | "touchpoints_due"
   | "touchpoints_upcoming"
   | "active_projects"
   | "team_workload"
+  | "hours_worked"
   | "quarterly_reviews"
   | "sales_requests"
   | "recruitment";
@@ -29,16 +31,18 @@ export type DashboardWidgetDef = {
 export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   { key: "alerts", label: "Alerts", description: "Notifications addressed to you that you haven't acknowledged yet." },
   { key: "my_tasks", label: "My Open Tasks", description: "Tasks assigned to you that aren't done yet." },
+  { key: "my_tickets", label: "My Tickets", description: "Open Autotask tickets assigned to you." },
   { key: "touchpoints_due", label: "Touchpoints Past Due", description: "Client touchpoints that are overdue." },
   { key: "touchpoints_upcoming", label: "Touchpoints Coming Up", description: "Client touchpoints scheduled soon." },
   { key: "active_projects", label: "Active Projects", description: "Projects currently planning, active, or on hold." },
   { key: "team_workload", label: "Team Workload", description: "Open task counts across the whole team." },
+  { key: "hours_worked", label: "Team Hours", description: "Hours logged yesterday and this month, per technician (Autotask)." },
   { key: "quarterly_reviews", label: "Quarterly Reviews", description: "Reviews awaiting your approval, or your own drafts." },
   { key: "sales_requests", label: "Internal Sales", description: "Sales requests still open." },
   { key: "recruitment", label: "Recruitment", description: "New candidates waiting to be screened." },
 ];
 
-const DEFAULT_ELIGIBLE_KEYS: DashboardWidgetKey[] = ["alerts", "my_tasks", "active_projects"];
+const DEFAULT_ELIGIBLE_KEYS: DashboardWidgetKey[] = ["alerts", "my_tasks", "my_tickets", "active_projects"];
 
 /** Which widgets this user could possibly see at all, independent of their
  * own on/off preference — a widget behind a permission they don't hold
@@ -55,6 +59,7 @@ export async function getEligibleDashboardWidgetKeys(supabase: AnyClient): Promi
     eligible.add("touchpoints_upcoming");
   }
   if (me.permissions.has("view_team_wide")) eligible.add("team_workload");
+  if (me.permissions.has("view_lookups")) eligible.add("hours_worked");
   if (me.permissions.has("manage_quarterly_reviews")) eligible.add("quarterly_reviews");
   if (me.permissions.has("view_sales_requests")) eligible.add("sales_requests");
   if (me.permissions.has("manage_recruitment")) eligible.add("recruitment");

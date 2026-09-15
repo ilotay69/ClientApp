@@ -6,6 +6,7 @@ type AdminClient = any;
  * there) rather than adding a migration to allow another kind. */
 export type AlertKind =
   | "task_assigned"
+  | "task_unassigned"
   | "quarterly_review_submitted"
   | "quarterly_review_approved"
   | "quarterly_review_adjustment_requested"

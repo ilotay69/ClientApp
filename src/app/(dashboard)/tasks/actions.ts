@@ -72,6 +72,47 @@ async function notifyNewAssignees(taskId: string, newAssigneeIds: string[]) {
   );
 }
 
+/** Same shape as notifyNewAssignees, for the opposite event — someone
+ * taken off a task they were previously on. Worth flagging on its own:
+ * without this, a task quietly disappearing from someone's list (because
+ * they were unassigned, not because it was done) is invisible to them. */
+async function notifyRemovedAssignees(taskId: string, removedAssigneeIds: string[]) {
+  if (removedAssigneeIds.length === 0) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: task }, { data: remover }, { data: recipients }] = await Promise.all([
+    supabase.from("tasks").select("title, clients(name)").eq("id", taskId).single(),
+    user
+      ? supabase.from("profiles").select("full_name").eq("id", user.id).single()
+      : Promise.resolve({ data: null }),
+    supabase.from("profiles").select("id, full_name, email").in("id", removedAssigneeIds),
+  ]);
+
+  if (!task || !recipients?.length) return;
+
+  const admin = createAdminClient();
+  const clientName = (task.clients as unknown as { name: string } | null)?.name ?? null;
+
+  sendPushToUsers(
+    admin,
+    recipients.map((r) => r.id),
+    { title: "Task unassigned", body: task.title, url: "/tasks" }
+  ).catch((err) => console.error("notifyRemovedAssignees: push failed", err));
+
+  await createAlert(
+    admin,
+    recipients.map((r) => r.id),
+    "task_unassigned",
+    `Unassigned: ${task.title}`,
+    `This task has been unassigned for you${clientName ? ` · ${clientName}` : ""}, by ${remover?.full_name ?? "someone"}.`,
+    "/tasks"
+  );
+}
+
 export async function createTask(
   _prevState: FormState,
   formData: FormData
@@ -129,6 +170,7 @@ export async function createTask(
   }
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   revalidatePath("/dashboard");
   return { error: null };
 }
@@ -145,7 +187,9 @@ export async function setTaskAssignees(taskId: string, assigneeIds: string[]) {
     .eq("task_id", taskId);
 
   const currentIds = new Set((current ?? []).map((r) => r.profile_id));
+  const nextIds = new Set(assigneeIds);
   const newIds = assigneeIds.filter((id) => !currentIds.has(id));
+  const removedIds = [...currentIds].filter((id) => !nextIds.has(id));
 
   await supabase.from("task_assignees").delete().eq("task_id", taskId);
   if (assigneeIds.length > 0) {
@@ -159,8 +203,10 @@ export async function setTaskAssignees(taskId: string, assigneeIds: string[]) {
     .eq("id", taskId);
 
   await notifyNewAssignees(taskId, newIds);
+  await notifyRemovedAssignees(taskId, removedIds);
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   revalidatePath("/dashboard");
 }
 
@@ -204,6 +250,7 @@ export async function updateTaskField(taskId: string, field: string, value: stri
     .eq("id", taskId);
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   revalidatePath("/dashboard");
 }
 
@@ -262,6 +309,7 @@ export async function addTaskNote(
   if (error) return { error: error.message };
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   return { error: null };
 }
 
@@ -287,5 +335,6 @@ export async function deleteTask(taskId: string) {
 
   await supabase.from("tasks").delete().eq("id", taskId);
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   revalidatePath("/dashboard");
 }

@@ -238,6 +238,7 @@ export async function dismissAppointmentType(subject: string): Promise<{ error?:
   }
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   return {};
 }
 
@@ -259,6 +260,7 @@ export async function clearDismissedAppointmentTypes(): Promise<{ error?: string
   }
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   return {};
 }
 
@@ -418,6 +420,7 @@ export async function dismissMailboxThread(
   }
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   return {};
 }
 
@@ -436,5 +439,6 @@ export async function clearDismissedMailboxThreads(): Promise<{ error?: string }
   }
 
   revalidatePath("/tasks");
+  revalidatePath("/my-todo");
   return {};
 }

@@ -10,6 +10,7 @@ import {
   type DashboardAccent,
 } from "@/components/dashboard-widget-card";
 import { DashboardDonut, DashboardGauge } from "@/components/dashboard-charts";
+import { TeamHoursWidget } from "@/components/team-hours-widget";
 import {
   IconAlertTriangle,
   IconCheckSquare,
@@ -18,6 +19,7 @@ import {
   IconUsers,
   IconClipboardCheck,
   IconTag,
+  IconFlag,
 } from "@/components/icons";
 import { formatDate, isOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
@@ -27,6 +29,8 @@ import {
   resolveDashboardWidgets,
 } from "@/lib/dashboard-widgets";
 import { fetchAllReviews, reviewBucket, getQuarterlyReviewApproverEmail } from "@/lib/quarterly-review-data";
+import { fetchMyOpenAutotaskTickets } from "@/lib/my-tickets";
+import { fetchResourceHoursAction } from "../hours/actions";
 import { acknowledgeAlertAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +96,7 @@ export default async function DashboardPage() {
     allReviews,
     { data: openSalesRequests },
     { data: recruitmentRows },
+    myTickets,
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -127,6 +132,7 @@ export default async function DashboardPage() {
       .not("stage", "in", "(delivered,cancelled)")
       .order("created_at", { ascending: false }),
     supabase.from("resumes").select("status"),
+    enabled.has("my_tickets") ? fetchMyOpenAutotaskTickets(supabase, me?.full_name ?? null) : Promise.resolve([]),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -276,6 +282,34 @@ export default async function DashboardPage() {
           </DashboardWidgetCard>
         )}
 
+        {enabled.has("my_tickets") && (
+          <DashboardWidgetCard
+            title="My Tickets"
+            count={myTickets.length}
+            countLabel="open Autotask tickets"
+            icon={IconFlag}
+            accent="pink"
+            href="/my-todo?tab=tickets"
+          >
+            {myTickets.length === 0 ? (
+              <EmptyRow text="No open tickets assigned to you." />
+            ) : (
+              myTickets.slice(0, 5).map((t) => (
+                <WidgetRow accent="pink" key={t.id} href="/my-todo?tab=tickets">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {t.ticketNumber ? `#${t.ticketNumber} — ` : ""}
+                      {t.title}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">{t.clientName ?? "Unknown client"}</p>
+                  </div>
+                  {t.priority && <Badge value={t.priority} />}
+                </WidgetRow>
+              ))
+            )}
+          </DashboardWidgetCard>
+        )}
+
         {enabled.has("touchpoints_due") && (
           <DashboardWidgetCard
             title="Touchpoints Past Due"
@@ -394,6 +428,8 @@ export default async function DashboardPage() {
             )}
           </DashboardWidgetCard>
         )}
+
+        {enabled.has("hours_worked") && <TeamHoursWidget action={fetchResourceHoursAction} />}
 
         {enabled.has("touchpoints_upcoming") && (
           <DashboardWidgetCard

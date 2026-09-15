@@ -43,6 +43,7 @@ export default async function DashboardLayout({
   const canViewDashboard = me?.permissions.has("view_dashboard") ?? false;
   const canViewClients = me?.permissions.has("view_clients") ?? false;
   const canViewProjects = me?.permissions.has("view_projects") ?? false;
+  const canViewTeamTasks = me?.permissions.has("view_team_tasks") ?? false;
   const canViewSalesRequests = me?.permissions.has("view_sales_requests") ?? false;
   const canManageRecruitment = me?.permissions.has("manage_recruitment") ?? false;
   const canManageReconciliation = me?.permissions.has("manage_reconciliation") ?? false;
@@ -83,6 +84,7 @@ export default async function DashboardLayout({
         canViewDashboard={canViewDashboard}
         canViewClients={canViewClients}
         canViewProjects={canViewProjects}
+        canViewTeamTasks={canViewTeamTasks}
         canViewSalesRequests={canViewSalesRequests}
         canManageRecruitment={canManageRecruitment}
         canManageReconciliation={canManageReconciliation}
