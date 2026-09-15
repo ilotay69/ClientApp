@@ -515,41 +515,59 @@ export default async function ClientDetailPage({
                 ),
               },
               {
-                label: "Services & Devices",
+                label: "Contract Services",
                 content: (
-                  <>
-                    <ClientAutotaskContractServices
-                      companyId={client.autotask_company_id}
-                      services={autotaskContractServices ?? []}
-                    />
-
-                    <ClientNinjaOneDevices
-                      organizationId={client.ninjaone_organization_id}
-                      devices={ninjaOneDevices ?? []}
-                    />
-
-                    <ClientHuntressAgents
-                      organizationId={client.huntress_organization_id}
-                      action={fetchHuntressAgentsAction}
-                    />
-
-                    <ClientM365Licenses
-                      tenantId={client.m365_tenant_id}
-                      licenses={m365Licenses ?? []}
-                    />
-
-                    <ClientM365SecureScore
-                      tenantId={client.m365_tenant_id}
-                      summary={m365SecureScore ?? null}
-                      gaps={m365SecureScoreGaps ?? []}
-                    />
-
-                    <DomainHealthPanel
-                      action={checkDomainHealthAction}
-                      initialDomain={clientDomain}
-                      title="Domain health"
-                    />
-                  </>
+                  <ClientAutotaskContractServices
+                    companyId={client.autotask_company_id}
+                    services={autotaskContractServices ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Devices",
+                content: (
+                  <ClientNinjaOneDevices
+                    organizationId={client.ninjaone_organization_id}
+                    devices={ninjaOneDevices ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Huntress",
+                content: (
+                  <ClientHuntressAgents
+                    organizationId={client.huntress_organization_id}
+                    action={fetchHuntressAgentsAction}
+                  />
+                ),
+              },
+              {
+                label: "M365 Licenses",
+                content: (
+                  <ClientM365Licenses
+                    tenantId={client.m365_tenant_id}
+                    licenses={m365Licenses ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Secure Score",
+                content: (
+                  <ClientM365SecureScore
+                    tenantId={client.m365_tenant_id}
+                    summary={m365SecureScore ?? null}
+                    gaps={m365SecureScoreGaps ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Domain Health",
+                content: (
+                  <DomainHealthPanel
+                    action={checkDomainHealthAction}
+                    initialDomain={clientDomain}
+                    title="Domain health"
+                  />
                 ),
               },
               {
