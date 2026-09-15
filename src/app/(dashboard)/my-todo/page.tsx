@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
@@ -118,7 +118,7 @@ export default async function MyToDoPage({
 
   const [{ data: personalTasks }, myTickets] = await Promise.all([
     personalQuery,
-    fetchMyOpenAutotaskTickets(supabase, profile?.full_name ?? null),
+    fetchMyOpenAutotaskTickets(createAdminClient(), profile?.full_name ?? null),
   ]);
 
   const sortHrefFor = (field: string, dir: SortDir) =>

@@ -1580,6 +1580,89 @@ export async function fetchActiveResources(
   }
 }
 
+export type AutotaskMyTicketRow = {
+  id: number;
+  ticket_number: string | null;
+  title: string;
+  status: string | null;
+  priority: string | null;
+  queue_name: string | null;
+  due_date: string | null;
+  opened_at: string | null;
+  last_activity_at: string | null;
+  company_id: number;
+};
+
+/** Every open ticket (completedDate notExist) where resourceId is either
+ * the ticket's Primary Resource (assignedResourceID) or one of its
+ * Secondary Resources — live, not the local autotask_tickets cache, which
+ * only ever records the primary resource's name (never secondary) and can
+ * lag the last account-wide sync by days. Secondary assignment lives on
+ * its own child entity (TicketSecondaryResources), not a field on Tickets
+ * itself, so this is two ticket queries (one by id list) merged and
+ * deduped rather than one. */
+export async function fetchMyTickets(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  resourceId: number
+): Promise<AutotaskMyTicketRow[]> {
+  const labels = await fetchTicketPicklists(creds, zoneUrl);
+
+  type RawMyTicket = {
+    id: number;
+    ticketNumber?: string;
+    title: string;
+    status?: number;
+    priority?: number;
+    queueID?: number;
+    dueDateTime?: string;
+    createDate?: string;
+    lastActivityDate?: string;
+    companyID: number;
+  };
+
+  const primary = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "eq", field: "assignedResourceID", value: resourceId },
+      { op: "notExist", field: "completedDate" },
+    ],
+  })) as RawMyTicket[];
+
+  const secondaryLinks = (await autotaskQuery(creds, zoneUrl, "TicketSecondaryResources", {
+    filter: [{ op: "eq", field: "resourceID", value: resourceId }],
+  })) as { ticketID: number }[];
+
+  const primaryIds = new Set(primary.map((t) => t.id));
+  const secondaryTicketIds = [...new Set(secondaryLinks.map((l) => l.ticketID))].filter(
+    (id) => !primaryIds.has(id)
+  );
+
+  const secondary =
+    secondaryTicketIds.length === 0
+      ? []
+      : ((await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+          filter: [
+            { op: "in", field: "id", value: secondaryTicketIds },
+            { op: "notExist", field: "completedDate" },
+          ],
+        })) as RawMyTicket[]);
+
+  return [...primary, ...secondary]
+    .map((t) => ({
+      id: t.id,
+      ticket_number: t.ticketNumber ?? null,
+      title: t.title,
+      status: t.status != null ? (labels.status.get(t.status) ?? String(t.status)) : null,
+      priority: t.priority != null ? (labels.priority.get(t.priority) ?? String(t.priority)) : null,
+      queue_name: t.queueID != null ? (labels.queue.get(t.queueID) ?? null) : null,
+      due_date: t.dueDateTime ?? null,
+      opened_at: t.createDate ?? null,
+      last_activity_at: t.lastActivityDate ?? null,
+      company_id: t.companyID,
+    }))
+    .sort((a, b) => (a.due_date ?? "9999-99-99").localeCompare(b.due_date ?? "9999-99-99"));
+}
+
 /** Deep link to a ticket's own detail page in Autotask's classic web UI,
  * via the documented ExecuteCommand API (OpenTicketDetail) — the only
  * officially supported way to link straight to a ticket from outside

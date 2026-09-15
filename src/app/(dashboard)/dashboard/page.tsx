@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AlertRow } from "@/components/alert-row";
 import {
@@ -138,7 +138,9 @@ export default async function DashboardPage() {
       .not("stage", "in", "(delivered,cancelled)")
       .order("created_at", { ascending: false }),
     supabase.from("resumes").select("status"),
-    enabled.has("my_tickets") ? fetchMyOpenAutotaskTickets(supabase, me?.full_name ?? null) : Promise.resolve([]),
+    enabled.has("my_tickets")
+      ? fetchMyOpenAutotaskTickets(createAdminClient(), me?.full_name ?? null)
+      : Promise.resolve([]),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
