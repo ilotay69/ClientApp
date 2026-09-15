@@ -97,6 +97,7 @@ export default async function DashboardPage() {
     { data: openSalesRequests },
     { data: recruitmentRows },
     myTickets,
+    { data: unassignedL1Tickets },
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -133,6 +134,23 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false }),
     supabase.from("resumes").select("status"),
     enabled.has("my_tickets") ? fetchMyOpenAutotaskTickets(supabase, me?.full_name ?? null) : Promise.resolve([]),
+    // autotask_tickets only ever holds currently-open tickets (its sync
+    // deletes and re-inserts a client's open set each run — see
+    // src/lib/autotask-sync.ts), so "not complete" is already true for
+    // every row here; the status filter below is just a defensive
+    // extra in case that ever changes. queue_name is matched loosely
+    // (ilike, not exact) since it's a free-text label from this Autotask
+    // tenant's own Queue picklist — adjust the match below if this
+    // tenant's actual Level 1 queue is named differently.
+    enabled.has("unassigned_l1_tickets")
+      ? supabase
+          .from("autotask_tickets")
+          .select("id, ticket_number, title, status, priority, queue_name, due_date, client_id, clients(name)")
+          .ilike("queue_name", "%level 1%")
+          .is("assigned_resource_name", null)
+          .not("status", "ilike", "%complete%")
+          .order("due_date", { ascending: true, nullsFirst: false })
+      : Promise.resolve({ data: [] }),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -302,6 +320,42 @@ export default async function DashboardPage() {
                       {t.title}
                     </p>
                     <p className="truncate text-xs text-slate-500">{t.clientName ?? "Unknown client"}</p>
+                  </div>
+                  {t.priority && <Badge value={t.priority} />}
+                </WidgetRow>
+              ))
+            )}
+          </DashboardWidgetCard>
+        )}
+
+        {enabled.has("unassigned_l1_tickets") && (
+          <DashboardWidgetCard
+            title="Unassigned Level 1 Tickets"
+            count={(unassignedL1Tickets ?? []).length}
+            countLabel="waiting for a tech"
+            icon={IconAlertTriangle}
+            accent="red"
+            href="/reports"
+            urgent={(unassignedL1Tickets ?? []).length > 0}
+          >
+            {(unassignedL1Tickets ?? []).length === 0 ? (
+              <EmptyRow text="Nothing unassigned in Level 1 right now." />
+            ) : (
+              (unassignedL1Tickets ?? []).slice(0, 5).map((t) => (
+                <WidgetRow
+                  accent="red"
+                  key={t.id}
+                  href={t.client_id ? `/clients/${t.client_id}` : "/reports"}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {t.ticket_number ? `#${t.ticket_number} — ` : ""}
+                      {t.title}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {(t.clients as unknown as { name: string } | null)?.name ?? "Unknown client"}
+                      {t.due_date ? ` · due ${formatDate(t.due_date)}` : ""}
+                    </p>
                   </div>
                   {t.priority && <Badge value={t.priority} />}
                 </WidgetRow>

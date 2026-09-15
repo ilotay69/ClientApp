@@ -6,6 +6,15 @@ import Link from "next/link";
  * reads as "the blue one" / "the purple one" from across the room — a pale
  * icon on a plain white card didn't do that. */
 const ACCENTS = {
+  red: {
+    body: "bg-gradient-to-br from-red-50 via-white to-white",
+    border: "border-red-100",
+    tile: "bg-red-500",
+    number: "text-red-600",
+    label: "text-red-700/70",
+    bar: "bg-red-500",
+    dot: "bg-red-400",
+  },
   blue: {
     body: "bg-gradient-to-br from-blue-50 via-white to-white",
     border: "border-blue-100",
