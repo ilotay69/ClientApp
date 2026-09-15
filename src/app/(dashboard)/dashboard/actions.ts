@@ -9,6 +9,8 @@ import { fetchUpcomingEvents } from "@/lib/microsoft-graph";
 import { requireStaff, requirePermission } from "@/lib/permissions";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchUnassignedQueueTickets, buildAutotaskTicketUrl, fetchTicketById } from "@/lib/autotask";
+import { fetchForticloudDeviceInventory, type ForticloudDeviceRow } from "@/lib/forticloud-lookups";
+import type { ForticloudCredentials } from "@/lib/forticloud";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
@@ -554,5 +556,35 @@ export async function fetchLevel1TicketDescriptionAction(
     return { description: ticket?.description ?? null };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load ticket description." };
+  }
+}
+
+/** FortiCloud devices whose support has already expired, or expires
+ * within 30 days (fetchForticloudDeviceInventory's own "expiring_soon"
+ * bucket) — live from FortiCloud, across every account on file, for a
+ * dashboard widget flagging what needs a renewal conversation soon. */
+export async function fetchForticloudExpiringDevicesAction(): Promise<
+  { rows: ForticloudDeviceRow[] } | { error: string }
+> {
+  if (!(await requirePermission("view_lookups"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const { data } = await admin.from("forticloud_accounts").select("label, api_user, api_password");
+  if (!data || data.length === 0) {
+    return { error: "No FortiCloud accounts configured yet — add one under Settings → Integrations." };
+  }
+
+  const accounts = data.map((r) => ({
+    label: r.label,
+    creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
+  }));
+
+  try {
+    const rows = await fetchForticloudDeviceInventory(accounts);
+    return { rows: rows.filter((r) => r.supportStatus === "expired" || r.supportStatus === "expiring_soon") };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load FortiCloud devices." };
   }
 }

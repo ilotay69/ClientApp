@@ -12,6 +12,7 @@ import {
 import { DashboardDonut, DashboardGauge } from "@/components/dashboard-charts";
 import { TeamHoursWidget } from "@/components/team-hours-widget";
 import { Level1QueueWidget } from "@/components/level1-queue-widget";
+import { ForticloudExpiringWidget } from "@/components/forticloud-expiring-widget";
 import { DashboardRefreshButton } from "@/components/dashboard-refresh-button";
 import {
   IconAlertTriangle,
@@ -37,6 +38,7 @@ import {
   acknowledgeAlertAction,
   fetchUnassignedLevel1TicketsAction,
   fetchLevel1TicketDescriptionAction,
+  fetchForticloudExpiringDevicesAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -343,6 +345,10 @@ export default async function DashboardPage() {
             action={fetchUnassignedLevel1TicketsAction}
             descriptionAction={fetchLevel1TicketDescriptionAction}
           />
+        )}
+
+        {enabled.has("forticloud_expiring") && (
+          <ForticloudExpiringWidget key={refreshToken} action={fetchForticloudExpiringDevicesAction} />
         )}
 
         {enabled.has("touchpoints_due") && (

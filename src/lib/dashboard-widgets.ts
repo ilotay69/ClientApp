@@ -14,6 +14,7 @@ export type DashboardWidgetKey =
   | "team_workload"
   | "hours_worked"
   | "unassigned_l1_tickets"
+  | "forticloud_expiring"
   | "quarterly_reviews"
   | "sales_requests"
   | "recruitment";
@@ -43,6 +44,11 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     label: "Unassigned Level 1 Tickets",
     description: "Open tickets in the Level 1 queue with no resource assigned yet, across every client.",
   },
+  {
+    key: "forticloud_expiring",
+    label: "FortiCloud Devices Expiring",
+    description: "FortiCloud devices whose support has expired or expires within 30 days.",
+  },
   { key: "quarterly_reviews", label: "Quarterly Reviews", description: "Reviews awaiting your approval, or your own drafts." },
   { key: "sales_requests", label: "Internal Sales", description: "Sales requests still open." },
   { key: "recruitment", label: "Recruitment", description: "New candidates waiting to be screened." },
@@ -68,7 +74,10 @@ export async function getEligibleDashboardWidgetKeys(supabase: AnyClient): Promi
     eligible.add("team_workload");
     eligible.add("unassigned_l1_tickets");
   }
-  if (me.permissions.has("view_lookups")) eligible.add("hours_worked");
+  if (me.permissions.has("view_lookups")) {
+    eligible.add("hours_worked");
+    eligible.add("forticloud_expiring");
+  }
   if (me.permissions.has("manage_quarterly_reviews")) eligible.add("quarterly_reviews");
   if (me.permissions.has("view_sales_requests")) eligible.add("sales_requests");
   if (me.permissions.has("manage_recruitment")) eligible.add("recruitment");
