@@ -90,11 +90,16 @@ const TOOL_SCHEMA = {
             description:
               "true if the candidate is located in the Greater Toronto Area (Toronto, Mississauga, Brampton, Markham, Vaughan, Richmond Hill, Oakville, Scarborough, Etobicoke, North York, and similar GTA municipalities), false if a city is stated and it's clearly outside the GTA. If the candidate's own address isn't given, judge by their most recent job's location instead. Null only if no city is mentioned anywhere at all — don't guess.",
           },
+          job_stability_reasoning: {
+            type: ["string", "null"],
+            description:
+              "REQUIRED working step before job_stability below — list the 2-3 MOST RECENTLY HELD roles, most recent first, each as \"Employer: N months\" (or years), with the duration actually calculated from each role's own stated start/end dates. E.g. \"HCLTech: 3 months; Toronto Parking Authority: 4 months; Elections Ontario: 4 months.\" Do the arithmetic explicitly rather than eyeballing it — this is what job_stability below must be based on. Null only if there's no dated work history at all to compute from.",
+          },
           job_stability: {
             type: ["string", "null"],
             enum: ["stable", "frequent_changes", null],
             description:
-              "Review EVERY employer/position listed in the work history, not just the most recent one, together with each one's dates — weigh RECENT roles more heavily than older ones; a stable job from years ago does NOT offset a recent pattern of short stints. \"frequent_changes\" if the two or three MOST RECENTLY COMPLETED roles were each under about 2 years, OR there's a broader pattern of 3+ short stints (each under about 1-2 years) anywhere in the history. Their current, still-ongoing role doesn't count against this on its own (it hasn't ended yet), but a string of short roles immediately before it still does. \"stable\" only when the recent job history doesn't show that pattern, or there's too little work history to judge from at all. Null only if no dates/work history are given to judge from.",
+              "Based on the durations just listed in job_stability_reasoning above (review EVERY employer/position, not just the most recent one, weighing RECENT roles more heavily than older ones — a stable job from years ago does NOT offset a recent pattern of short stints): \"frequent_changes\" if the two or three MOST RECENTLY COMPLETED roles were each under about 2 years, OR there's a broader pattern of 3+ short stints (each under about 1-2 years) anywhere in the history. Their current, still-ongoing role doesn't count against this on its own (it hasn't ended yet), but a string of short roles immediately before it still does. \"stable\" only when the durations above don't show that pattern, or there's too little work history to judge from at all. Null only if no dates/work history are given to judge from.",
           },
           last_job_in_canada: {
             type: ["boolean", "null"],
@@ -119,6 +124,7 @@ const TOOL_SCHEMA = {
           "months_since_worked",
           "in_gta",
           "m365_technologies",
+          "job_stability_reasoning",
           "job_stability",
           "last_job_in_canada",
         ],
@@ -293,15 +299,18 @@ that job ended), in_gta (is the candidate located in the Greater Toronto Area �
 judge by their own stated address, or failing that, their most recent job's location),
 m365_technologies (a short keyword list — not sentences — of specific Microsoft
 cloud technologies with HANDS-ON ADMIN/CONFIGURATION evidence, e.g. "Intune, Azure AD,
-Exchange Admin"; not just end-user app use), job_stability — review EVERY employer
-listed, not just the most recent one, with each one's dates, weighing RECENT roles more
-heavily than older ones (a stable job from years ago does not offset a recent pattern of
-short stints): "frequent_changes" if the two or three MOST RECENTLY COMPLETED roles were
-each under about 2 years, or there's a broader pattern of 3+ short stints (each under about
-1-2 years) anywhere in the history (their current, still-ongoing role doesn't count against
-this on its own, but a string of short roles immediately before it still does); "stable" only
-when the recent job history doesn't show that pattern, or there's too little work history to
-judge from — and last_job_in_canada (is their MOST RECENT job's stated
+Exchange Admin"; not just end-user app use). Before judging job_stability, fill in
+job_stability_reasoning first: list the 2-3 most recently held roles, most recent first,
+each as "Employer: N months" (or years) with the duration actually calculated from that
+role's own stated dates — do the arithmetic, don't eyeball it. Then set job_stability from
+those durations: review EVERY employer listed, not just the most recent one, weighing
+RECENT roles more heavily than older ones (a stable job from years ago does not offset a
+recent pattern of short stints): "frequent_changes" if the two or three MOST RECENTLY
+COMPLETED roles were each under about 2 years, or there's a broader pattern of 3+ short
+stints (each under about 1-2 years) anywhere in the history (their current, still-ongoing
+role doesn't count against this on its own, but a string of short roles immediately before
+it still does); "stable" only when the durations above don't show that pattern, or there's
+too little work history to judge from — and last_job_in_canada (is their MOST RECENT job's stated
 location in Canada, judged by that job's own location, not their personal address or any
 earlier job) — leave any of these null if it genuinely can't be told from what's provided, don't
 guess. Note explicitly in technical_ability or customer_relationships
@@ -519,6 +528,7 @@ export async function screenPendingResumes(
         months_since_worked?: number | null;
         in_gta?: boolean | null;
         m365_technologies?: string | null;
+        job_stability_reasoning?: string | null;
         job_stability?: "stable" | "frequent_changes" | null;
         last_job_in_canada?: boolean | null;
       };
@@ -553,6 +563,7 @@ export async function screenPendingResumes(
           result.customer_relationships
             ? `Building customer relationships: ${result.customer_relationships}`
             : null,
+          result.job_stability_reasoning ? `Job stability: ${result.job_stability_reasoning}` : null,
         ]
           .filter(Boolean)
           .join("\n\n");
