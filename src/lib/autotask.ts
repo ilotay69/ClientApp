@@ -874,6 +874,69 @@ export async function fetchOpenQuarterlyReviewTickets(
     .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
 }
 
+// The SLA name flagging a ticket as this MSP's recurring quarterly review
+// work — same convention as PROJECT_SLA_LABEL, matched case-insensitively
+// against the tenant's actual SLA picklist labels.
+export const QUARTERLY_REVIEW_SLA_LABEL = "Quarterly Reviews SLA";
+
+export type AutotaskQuarterlyReviewSlaTicket = {
+  id: number;
+  companyId: number;
+  ticketNumber: string | null;
+  title: string;
+  createdAt: string | null;
+  hoursLogged: number;
+};
+
+/** Every open ticket, across ALL companies, tagged with the "Quarterly
+ * Reviews SLA" service level agreement — shown on the main Quarterly
+ * Reviews page so a tech can start a review straight from the ticket that
+ * triggered it, without hand-picking a client first (see
+ * fetchOpenQuarterlyReviewTickets above for the older per-client Source
+ * + Issue Type based lookup this doesn't replace). Returns an empty list,
+ * not an error, if this tenant's SLA picklist has no label matching
+ * QUARTERLY_REVIEW_SLA_LABEL — a normal state, not a failure. */
+export async function fetchOpenQuarterlyReviewSlaTickets(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<AutotaskQuarterlyReviewSlaTicket[]> {
+  const fields = await fetchEntityFields(creds, zoneUrl, "Tickets");
+  const slaMap = picklistMap(fields, "serviceLevelAgreementID");
+  const entry = [...slaMap.entries()].find(
+    ([, label]) => label.trim().toLowerCase() === QUARTERLY_REVIEW_SLA_LABEL.toLowerCase()
+  );
+  if (!entry) return [];
+  const slaId = entry[0];
+
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "eq", field: "serviceLevelAgreementID", value: slaId },
+      { op: "notExist", field: "completedDate" },
+    ],
+  })) as { id: number; companyID: number; ticketNumber?: string; title: string; createDate?: string }[];
+  if (items.length === 0) return [];
+
+  const entries = (await autotaskQueryAllPages(creds, zoneUrl, "TimeEntries", {
+    filter: [{ op: "in", field: "ticketID", value: items.map((t) => t.id) }],
+  })) as { ticketID?: number; hoursWorked?: number }[];
+  const hoursByTicket = new Map<number, number>();
+  for (const e of entries) {
+    if (e.ticketID == null) continue;
+    hoursByTicket.set(e.ticketID, (hoursByTicket.get(e.ticketID) ?? 0) + (e.hoursWorked ?? 0));
+  }
+
+  return items
+    .map((t) => ({
+      id: t.id,
+      companyId: t.companyID,
+      ticketNumber: t.ticketNumber ?? null,
+      title: t.title,
+      createdAt: t.createDate ?? null,
+      hoursLogged: hoursByTicket.get(t.id) ?? 0,
+    }))
+    .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+}
+
 export type AutotaskTimeEntryRange = {
   id: number;
   resourceID: number;

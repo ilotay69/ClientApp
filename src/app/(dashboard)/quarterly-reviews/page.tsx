@@ -8,6 +8,7 @@ import {
   fetchAllClientsForPicker,
   fetchReviewsForClient,
   fetchAllReviews,
+  fetchOpenQuarterlyReviewSlaTicketsForDisplay,
   reviewBucket,
   reviewActorLabel,
   REVIEW_TABS,
@@ -54,10 +55,11 @@ export default async function QuarterlyReviewsPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const [clients, allReviews, approverEmail] = await Promise.all([
+  const [clients, allReviews, approverEmail, slaTickets] = await Promise.all([
     fetchAllClientsForPicker(),
     fetchAllReviews(),
     getQuarterlyReviewApproverEmail(),
+    fetchOpenQuarterlyReviewSlaTicketsForDisplay(),
   ]);
   const isApprover = (user?.email ?? "").toLowerCase() === approverEmail.toLowerCase();
   const selectedClient = clientId ? (clients.find((c) => c.id === clientId) ?? null) : null;
@@ -104,12 +106,13 @@ export default async function QuarterlyReviewsPage({
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <NewReviewPanel
           clients={clients}
           defaultClientId={selectedClient?.id ?? null}
           action={createQuarterlyReviewAction}
           fetchOpenTicketsAction={fetchOpenQuarterlyReviewTicketsAction}
+          slaTickets={slaTickets}
         />
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">Client</label>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { SearchableClientSelect } from "@/components/searchable-client-select";
 import type { AutotaskQuarterlyReviewTicket } from "@/lib/autotask";
 
@@ -31,6 +31,7 @@ export function NewQuarterlyReviewForm({
   defaultClientId,
   action,
   fetchOpenTicketsAction,
+  initialTicket,
 }: {
   clients: { id: string; name: string }[];
   defaultClientId: string | null;
@@ -44,6 +45,13 @@ export function NewQuarterlyReviewForm({
   fetchOpenTicketsAction: (
     clientId: string
   ) => Promise<{ rows: AutotaskQuarterlyReviewTicket[] } | { error: string }>;
+  /** Pre-picked from the "open Quarterly Reviews SLA tickets" list on the
+   * main page — when set, the per-client Autotask lookup below is skipped
+   * on mount (this ticket is trusted instead) so the tech isn't asked to
+   * identify the ticket a second time. Changing the client afterward still
+   * falls back to the normal per-client search, same as a manually opened
+   * blank form. */
+  initialTicket?: AutotaskQuarterlyReviewTicket | null;
 }) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -57,13 +65,26 @@ export function NewQuarterlyReviewForm({
 
   // The client's open "quarterly review" recurring tickets — re-fetched
   // every time the selected client changes, so switching clients never
-  // shows a stale list from whoever was selected before.
-  const [tickets, setTickets] = useState<AutotaskQuarterlyReviewTicket[] | null>(null);
+  // shows a stale list from whoever was selected before. Pre-seeded from
+  // initialTicket (the SLA-tickets list on the main page) when given, so
+  // the very first render already has its answer instead of showing a
+  // "checking Autotask..." flash for a ticket the tech already picked.
+  const [tickets, setTickets] = useState<AutotaskQuarterlyReviewTicket[] | null>(
+    initialTicket ? [initialTicket] : null
+  );
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [loadingTickets, startLoadingTickets] = useTransition();
-  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(initialTicket?.id ?? null);
+  // Skips the very first effect run when we already trust initialTicket —
+  // every later clientId change (the tech picking a different client by
+  // hand) still runs the normal per-client Autotask search.
+  const skipNextFetch = useRef(!!initialTicket);
 
   useEffect(() => {
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false;
+      return;
+    }
     setTickets(null);
     setTicketsError(null);
     setSelectedTicketId(null);

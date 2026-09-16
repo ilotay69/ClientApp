@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { QUARTERLY_REVIEW_SECTIONS, type QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
 import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
+import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { fetchOpenQuarterlyReviewSlaTickets } from "@/lib/autotask";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
@@ -375,6 +377,68 @@ export async function fetchAllClientsForPicker(
     name: c.name,
     primaryContactEmail: c.primary_contact_email,
   }));
+}
+
+export type QuarterlyReviewSlaTicketRow = {
+  ticketId: number;
+  ticketNumber: string | null;
+  title: string;
+  hoursLogged: number;
+  clientId: string;
+  clientName: string;
+};
+
+/** Every open Autotask ticket tagged with the "Quarterly Reviews SLA"
+ * service level agreement, joined against our own clients table so each
+ * one carries the clientId a new review actually needs — shown on the
+ * main Quarterly Reviews page so a tech can jump straight from the
+ * ticket that triggered a review to starting one, without hand-picking a
+ * client or being asked to identify the ticket again (see
+ * fetchOpenQuarterlyReviewSlaTickets for how these are found in Autotask).
+ * A ticket whose company isn't linked to any client here is silently
+ * dropped — there'd be nothing to attach the review to. Returns an empty
+ * list (not an error) whenever Autotask isn't connected or has no ticket
+ * matching that SLA — both normal, not failures. */
+export async function fetchOpenQuarterlyReviewSlaTicketsForDisplay(
+  admin: AdminClient = createAdminClient()
+): Promise<QuarterlyReviewSlaTicketRow[]> {
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) return [];
+
+  let tickets;
+  try {
+    tickets = await fetchOpenQuarterlyReviewSlaTickets(settings.credentials, settings.zoneUrl);
+  } catch (err) {
+    console.error("fetchOpenQuarterlyReviewSlaTicketsForDisplay: Autotask lookup failed", err);
+    return [];
+  }
+  if (tickets.length === 0) return [];
+
+  const companyIds = [...new Set(tickets.map((t) => t.companyId))];
+  const { data: clients } = await admin
+    .from("clients")
+    .select("id, name, autotask_company_id")
+    .in("autotask_company_id", companyIds);
+  const clientByCompanyId = new Map<number, { id: string; name: string }>();
+  for (const c of (clients ?? []) as { id: string; name: string; autotask_company_id: number | null }[]) {
+    if (c.autotask_company_id != null) clientByCompanyId.set(c.autotask_company_id, { id: c.id, name: c.name });
+  }
+
+  return tickets
+    .map((t) => {
+      const client = clientByCompanyId.get(t.companyId);
+      if (!client) return null;
+      return {
+        ticketId: t.id,
+        ticketNumber: t.ticketNumber,
+        title: t.title,
+        hoursLogged: t.hoursLogged,
+        clientId: client.id,
+        clientName: client.name,
+      };
+    })
+    .filter((r): r is QuarterlyReviewSlaTicketRow => r !== null)
+    .sort((a, b) => a.clientName.localeCompare(b.clientName));
 }
 
 export const QUARTERLY_REVIEW_ATTACHMENTS_BUCKET = "quarterly-review-attachments";
