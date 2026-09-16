@@ -492,7 +492,8 @@ export class PdfContentBuilder {
         cursorY -= block.amount;
       } else if (block.type === "pagebreak") {
         newPage();
-      } else if (block.type === "icon" && block.variant === "monitor") {
+      } else if (block.type === "icon") {
+        if (block.variant === "monitor") {
         // A small vector "monitor with a checkmark" — plain filled
         // rectangles plus one stroked path, all drawn directly as PDF
         // content-stream operators (re/f for rects, m/l/S for the check).
@@ -536,7 +537,7 @@ export class PdfContentBuilder {
         // normal default.
         content += "0 0 0 rg\n0 0 0 RG\n";
         cursorY = baseY - 10;
-      } else if (block.type === "icon" && block.variant === "devices") {
+      } else if (block.variant === "devices") {
         // Three stacked device outlines (fanned back-to-front) — matches
         // "Device Health" better than reusing the single-monitor icon
         // above, which is meant for the main review's general "systems
@@ -562,7 +563,7 @@ export class PdfContentBuilder {
         content += "0.086 0.639 0.290 rg\n" + filledCirclePathOps(dotCx, dotCy, 7);
         content += "0 0 0 rg\n0 0 0 RG\n";
         cursorY = top - boxH - 24 - 10;
-      } else if (block.type === "icon" && block.variant === "cloud") {
+      } else if (block.variant === "cloud") {
         // A cloud blob (three overlapping filled circles over a rounded
         // base) in Microsoft-365 blue — matches the "365 Licenses" section
         // PDF better than the generic monitor/devices icons above.
@@ -581,6 +582,7 @@ export class PdfContentBuilder {
         content += filledCirclePathOps(centerXpt + 34, puffY, 22);
         content += "0 0 0 rg\n0 0 0 RG\n";
         cursorY = bodyY - 10;
+        }
       } else {
         const decoded = decodeImage(block.buffer);
         if (!decoded) {
