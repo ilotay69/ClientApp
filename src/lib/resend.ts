@@ -260,10 +260,7 @@ export function buildQuarterlyReviewClientEmail(
       ${summaryHtml}
       <p style="color:#334155;">${escapeHtml(intro)}</p>
       <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
-        <p style="color:#334155;font-size:14px;margin:0 0 12px;">
-          ${escapeHtml(note)} Otherwise, please <strong>Acknowledge</strong> below to confirm you've received it
-          and accept the risk of any outstanding items not being addressed.
-        </p>
+        <p style="color:#334155;font-size:14px;margin:0 0 12px;">${escapeHtml(note)}</p>
         <a href="${ackUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;">Acknowledge</a>
       </div>
       <p style="margin-top:24px;color:#334155;font-size:14px;">
@@ -274,7 +271,7 @@ export function buildQuarterlyReviewClientEmail(
   `;
   const summaryText = summary ? `\n${summary}\n` : "";
   const reminderText = reminderLabel ? `${reminderLabel} — this review is still waiting on your acknowledgment.\n\n` : "";
-  const text = `${reminderText}Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\n${intro}\n\n${note}\n\nOtherwise, please acknowledge here (accept the risk of any outstanding items): ${ackUrl}\n\nBest regards,\nCG Technologies Team`;
+  const text = `${reminderText}Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\n${intro}\n\n${note}\n\nAcknowledge here: ${ackUrl}\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }

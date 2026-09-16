@@ -34,8 +34,7 @@ export const EMAIL_TEMPLATES: EmailTemplateDef[] = [
     defaultSubject: "Quarterly Systems Review — {review_period} — {client_name}",
     defaultIntro: "The full review is attached as a PDF.",
     noteLabel: "Note next to Acknowledge",
-    noteDescription:
-      "Shown just above the Acknowledge button — how a client should reach out if they have questions, before continuing to \"Otherwise, please Acknowledge below\" (that part is fixed, since it refers to the actual button).",
+    noteDescription: "Shown just above the Acknowledge button — the only text there, so write it as a complete sentence.",
     defaultNote: "If you need any clarification, create a helpdesk ticket and a tech will get back to you.",
   },
   {
