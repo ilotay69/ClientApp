@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { createClient, createAdminClient, getCurrentUser } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientDetailsForm } from "@/components/client-details-form";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
@@ -10,13 +10,11 @@ import { SyncAutotaskButton } from "@/components/sync-autotask-button";
 import { AutotaskMappingButton } from "@/components/autotask-mapping-button";
 import { ClientNinjaOneDevices } from "@/components/client-ninjaone-devices";
 import { SyncNinjaOneButton } from "@/components/sync-ninjaone-button";
-import { NinjaOneMappingButton } from "@/components/ninjaone-mapping-button";
 import { HuntressMappingButton } from "@/components/huntress-mapping-button";
 import { ClientHuntressAgents } from "@/components/client-huntress-agents";
 import { ClientM365Licenses } from "@/components/client-m365-licenses";
 import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
 import { SyncM365Button } from "@/components/sync-m365-button";
-import { M365ClientCredentialsButton } from "@/components/m365-client-credentials-button";
 import { ClientInsightParagraph } from "@/components/client-insight-paragraph";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
 import { GroupedTabs } from "@/components/grouped-tabs";
@@ -42,17 +40,11 @@ import {
   getAutotaskTicketDetailAction,
   analyzeTicketsAction,
   refreshClientInsightsAction,
-  searchNinjaOneOrganizationsAction,
-  linkClientNinjaOneOrganization,
-  unlinkClientNinjaOneOrganization,
   syncClientNinjaOneDevices,
   searchHuntressOrganizationsAction,
   linkClientHuntressOrganization,
   unlinkClientHuntressOrganization,
   fetchClientHuntressAgentsAction,
-  saveM365ClientCredentialsAction,
-  testM365ClientConnectionAction,
-  unlinkClientM365Tenant,
   syncClientM365Data,
   autoSyncClientNinjaOneIfStale,
   autoSyncClientM365IfStale,
@@ -103,7 +95,6 @@ export default async function ClientDetailPage({
     { data: m365SecureScoreGaps },
     { data: members },
     allReviews,
-    { data: m365Credentials },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -197,13 +188,6 @@ export default async function ClientDetailPage({
     // the notFound() guard below, which just means they occasionally do a
     // little wasted work for a client id that doesn't exist.
     fetchReviewsForClient(id),
-    // m365_client_credentials has no RLS policy for authenticated — service-
-    // role only, since it holds a secret — so this needs the admin client.
-    createAdminClient()
-      .from("m365_client_credentials")
-      .select("app_client_id, app_client_secret")
-      .eq("client_id", id)
-      .maybeSingle(),
   ]);
 
   if (!client) notFound();
@@ -228,15 +212,10 @@ export default async function ClientDetailPage({
   const syncAutotaskAction = syncClientAutotaskData.bind(null, id);
   const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
   const analyzeTicketsForClientAction = analyzeTicketsAction.bind(null, id);
-  const linkNinjaOneAction = linkClientNinjaOneOrganization.bind(null, id);
-  const unlinkNinjaOneAction = unlinkClientNinjaOneOrganization.bind(null, id);
   const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
   const linkHuntressAction = linkClientHuntressOrganization.bind(null, id);
   const unlinkHuntressAction = unlinkClientHuntressOrganization.bind(null, id);
   const fetchHuntressAgentsAction = fetchClientHuntressAgentsAction.bind(null, id);
-  const saveM365Action = saveM365ClientCredentialsAction.bind(null, id);
-  const testM365Action = testM365ClientConnectionAction.bind(null, id);
-  const unlinkM365Action = unlinkClientM365Tenant.bind(null, id);
   const syncM365Action = syncClientM365Data.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
 
@@ -328,26 +307,18 @@ export default async function ClientDetailPage({
             />
           )}
           {client.autotask_company_id && <SyncAutotaskButton action={syncAutotaskAction} />}
-          <NinjaOneMappingButton
-            organizationId={client.ninjaone_organization_id}
-            searchAction={searchNinjaOneOrganizationsAction}
-            linkAction={linkNinjaOneAction}
-            unlinkAction={unlinkNinjaOneAction}
-          />
+          {/* NinjaOne and M365 are linked from Settings → Integrations →
+              Client Mapping, where every client's mappings sit in one list —
+              doing it one client page at a time made it near-impossible to
+              see which clients were still unmapped. The sync buttons stay
+              here, since syncing is a per-client action you'd want while
+              looking at that client's own record. */}
           {client.ninjaone_organization_id && <SyncNinjaOneButton action={syncNinjaOneAction} />}
           <HuntressMappingButton
             organizationId={client.huntress_organization_id}
             searchAction={searchHuntressOrganizationsAction}
             linkAction={linkHuntressAction}
             unlinkAction={unlinkHuntressAction}
-          />
-          <M365ClientCredentialsButton
-            tenantId={client.m365_tenant_id}
-            hasCredentials={Boolean(m365Credentials?.app_client_id && m365Credentials?.app_client_secret)}
-            currentAppClientId={m365Credentials?.app_client_id ?? null}
-            saveAction={saveM365Action}
-            testAction={testM365Action}
-            unlinkAction={unlinkM365Action}
           />
           {client.m365_tenant_id && <SyncM365Button action={syncM365Action} />}
           <DeleteButton
