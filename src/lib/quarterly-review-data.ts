@@ -548,7 +548,7 @@ export async function generateQuarterlyReviewSectionPdf(
     const { data: deviceRows } = await admin
       .from("ninjaone_devices")
       .select(
-        "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, disk_total_bytes, disk_free_bytes"
+        "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, disk_total_bytes, disk_free_bytes, manufacturer, model, cpu_model, ram_bytes"
       )
       .eq("client_id", review.client_id)
       .order("system_name");

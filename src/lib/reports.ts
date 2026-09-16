@@ -51,7 +51,7 @@ export async function buildDeviceInventoryReport(supabase: Supabase): Promise<Re
   const { data: devices } = await supabase
     .from("ninjaone_devices")
     .select(
-      "system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, os_version, manufacturer, model, clients(name)"
+      "system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, os_version, manufacturer, model, cpu_model, ram_bytes, disk_total_bytes, disk_free_bytes, clients(name)"
     )
     .order("system_name");
 
@@ -66,7 +66,20 @@ export async function buildDeviceInventoryReport(supabase: Supabase): Promise<Re
     os_version: string | null;
     manufacturer: string | null;
     model: string | null;
+    cpu_model: string | null;
+    ram_bytes: number | null;
+    disk_total_bytes: number | null;
+    disk_free_bytes: number | null;
     clients: { name: string } | null;
+  };
+
+  // Same GB rounding as the Devices tab/portal — a raw byte count means
+  // nothing to whoever opens this CSV.
+  const gb = (bytes: number | null): string | null => (bytes && bytes > 0 ? `${Math.round(bytes / 1024 ** 3)} GB` : null);
+  const diskUsed = (total: number | null, free: number | null): string | null => {
+    if (!total || total <= 0) return null;
+    const usedPct = Math.round(((total - (free ?? 0)) / total) * 100);
+    return `${usedPct}% of ${gb(total)}`;
   };
 
   return {
@@ -79,6 +92,9 @@ export async function buildDeviceInventoryReport(supabase: Supabase): Promise<Re
       "OS version",
       "Manufacturer",
       "Model",
+      "CPU",
+      "RAM",
+      "Disk used",
       "Manufactured / shipped",
       "First registered",
       "Last contact",
@@ -92,6 +108,9 @@ export async function buildDeviceInventoryReport(supabase: Supabase): Promise<Re
       d.os_version,
       d.manufacturer,
       d.model,
+      d.cpu_model,
+      gb(d.ram_bytes),
+      diskUsed(d.disk_total_bytes, d.disk_free_bytes),
       d.manufacturer_fulfillment_date ? formatDate(d.manufacturer_fulfillment_date) : null,
       d.device_created_at ? formatDate(d.device_created_at) : null,
       d.last_contact ? formatDate(d.last_contact) : null,

@@ -34,6 +34,11 @@ function diskLabel(free: number | null, total: number | null): string {
   return `${usedPct}% of ${gb(total)} GB`;
 }
 
+function ramLabel(bytes: number | null): string | null {
+  if (!bytes || bytes <= 0) return null;
+  return `${Math.round(bytes / 1024 ** 3)} GB RAM`;
+}
+
 export default async function PortalDevicesPage({
   searchParams,
 }: {
@@ -107,6 +112,7 @@ export default async function PortalDevicesPage({
                           Operating system
                         </th>
                         <th className="px-5 py-2 text-left font-medium text-slate-500">Model</th>
+                        <th className="px-5 py-2 text-left font-medium text-slate-500">Specs</th>
                         <th className="px-5 py-2 text-left font-medium text-slate-500">Disk used</th>
                         <th className="px-5 py-2 text-left font-medium text-slate-500">
                           Last seen
@@ -123,6 +129,9 @@ export default async function PortalDevicesPage({
                           <td className="px-5 py-2 text-slate-600">{d.osName ?? "—"}</td>
                           <td className="px-5 py-2 text-slate-600">
                             {[d.manufacturer, d.model].filter(Boolean).join(" ") || "—"}
+                          </td>
+                          <td className="px-5 py-2 text-slate-600">
+                            {[d.cpuModel, ramLabel(d.ramBytes)].filter(Boolean).join(" · ") || "—"}
                           </td>
                           <td className="px-5 py-2 text-slate-600">
                             {diskLabel(d.diskFreeBytes, d.diskTotalBytes)}

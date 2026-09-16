@@ -184,6 +184,8 @@ export type PortalDevice = {
   osName: string | null;
   manufacturer: string | null;
   model: string | null;
+  cpuModel: string | null;
+  ramBytes: number | null;
   deviceCreatedAt: string | null;
   diskTotalBytes: number | null;
   diskFreeBytes: number | null;
@@ -204,7 +206,7 @@ export async function fetchPortalDevices(session: PortalSession): Promise<Portal
   const { data, error } = await admin
     .from("ninjaone_devices")
     .select(
-      "id, system_name, node_class, is_offline, last_contact, os_name, manufacturer, model, device_created_at, disk_total_bytes, disk_free_bytes, last_synced_at"
+      "id, system_name, node_class, is_offline, last_contact, os_name, manufacturer, model, cpu_model, ram_bytes, device_created_at, disk_total_bytes, disk_free_bytes, last_synced_at"
     )
     .eq("client_id", session.client.clientId)
     .order("system_name");
@@ -227,6 +229,8 @@ export async function fetchPortalDevices(session: PortalSession): Promise<Portal
     os_name: string | null;
     manufacturer: string | null;
     model: string | null;
+    cpu_model: string | null;
+    ram_bytes: number | null;
     device_created_at: string | null;
     disk_total_bytes: number | null;
     disk_free_bytes: number | null;
@@ -249,6 +253,8 @@ export async function fetchPortalDevices(session: PortalSession): Promise<Portal
       osName: r.os_name,
       manufacturer: r.manufacturer,
       model: r.model,
+      cpuModel: r.cpu_model,
+      ramBytes: r.ram_bytes,
       deviceCreatedAt: r.device_created_at,
       diskTotalBytes: r.disk_total_bytes,
       diskFreeBytes: r.disk_free_bytes,

@@ -154,25 +154,48 @@ export function ClientNinjaOneDevices({
         </div>
       )}
       {ageBreakdown.length > 0 && (
-        <div className="space-y-2 border-b border-slate-100 px-5 py-2">
+        <div className="border-b border-slate-100 px-5 py-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Device age
           </p>
-          {ageBreakdown.map((entry) => (
-            <div key={entry.label} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="w-24 shrink-0 text-xs font-medium text-slate-700">
-                {entry.label}
-              </span>
-              {entry.buckets.map((b) => (
-                <span key={b.label} className="text-xs text-slate-600">
-                  {b.label}: <span className="font-medium text-slate-900">{b.count}</span>
-                </span>
-              ))}
-              {entry.unknownCount > 0 && (
-                <span className="text-xs text-slate-400">Unknown: {entry.unknownCount}</span>
-              )}
-            </div>
-          ))}
+          <div className="mt-1.5 overflow-x-auto">
+            <table className="text-xs">
+              <thead>
+                <tr className="text-slate-500">
+                  <th className="py-0.5 pr-4 text-left font-medium">Category</th>
+                  {ageBreakdown[0].buckets.map((b) => (
+                    <th key={b.label} className="px-2 py-0.5 text-right font-medium">
+                      {b.label}
+                    </th>
+                  ))}
+                  {ageBreakdown.some((e) => e.unknownCount > 0) && (
+                    <th className="px-2 py-0.5 text-right font-medium">Unknown</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {ageBreakdown.map((entry) => (
+                  <tr key={entry.label}>
+                    <td className="py-0.5 pr-4 font-medium text-slate-700">{entry.label}</td>
+                    {entry.buckets.map((b) => (
+                      <td key={b.label} className="px-2 py-0.5 text-right text-slate-900">
+                        {b.count > 0 ? b.count : <span className="text-slate-300">–</span>}
+                      </td>
+                    ))}
+                    {ageBreakdown.some((e) => e.unknownCount > 0) && (
+                      <td className="px-2 py-0.5 text-right text-slate-400">
+                        {entry.unknownCount > 0 ? entry.unknownCount : <span className="text-slate-300">–</span>}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1.5 text-[11px] text-slate-400">
+            Age is based on the manufacturer&apos;s warranty ship date when NinjaOne has it for a
+            device; otherwise it falls back to when the device was first enrolled in NinjaOne.
+          </p>
         </div>
       )}
       {showFilters && (

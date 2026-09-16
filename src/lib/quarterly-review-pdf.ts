@@ -11,9 +11,17 @@ import { buildDeviceInsights, buildDeviceAgeBreakdown, deviceAgeDays, type Devic
 
 export type QuarterlyReviewPdfItem = { itemKey: string; status: QuarterlyReviewItemStatus; comments: string | null };
 export type QuarterlyReviewPdfImage = { id: string; buffer: Buffer; label: string | null; fileName: string };
-/** Same shape client-ninjaone-devices.tsx queries — just the fields
- * buildDeviceInsights/buildDeviceAgeBreakdown need plus an id to key rows. */
-export type QuarterlyReviewPdfDevice = DeviceInsightInput & { id: number };
+/** Same shape client-ninjaone-devices.tsx queries — the fields
+ * buildDeviceInsights/buildDeviceAgeBreakdown need (DeviceInsightInput),
+ * plus an id to key rows, plus manufacturer/model/cpu/ram purely for the
+ * printed Device Inventory line below (not used in any insight scoring). */
+export type QuarterlyReviewPdfDevice = DeviceInsightInput & {
+  id: number;
+  manufacturer: string | null;
+  model: string | null;
+  cpu_model: string | null;
+  ram_bytes: number | null;
+};
 export type QuarterlyReviewPdfLicense = { skuPartNumber: string; consumedUnits: number; enabledUnits: number };
 
 // Matches the color coding used elsewhere in the app for these same
@@ -86,6 +94,24 @@ function deviceAgeLabel(d: Pick<DeviceInsightInput, "manufacturer_fulfillment_da
   return days !== null ? `${(days / 365).toFixed(1)}y old` : null;
 }
 
+/** Same rounding/units as the Devices tab's own formatBytes, so a figure
+ * printed here always matches what's shown on the client's own record. */
+function formatBytes(bytes: number | null): string | null {
+  if (bytes === null || bytes <= 0) return null;
+  const gb = bytes / 1024 ** 3;
+  return gb >= 1000 ? `${(gb / 1024).toFixed(1)} TB` : `${gb.toFixed(0)} GB`;
+}
+
+function diskUsageLabel(d: Pick<QuarterlyReviewPdfDevice, "disk_total_bytes" | "disk_free_bytes">): string | null {
+  if (!d.disk_total_bytes) return null;
+  const total = formatBytes(d.disk_total_bytes);
+  if (!total) return null;
+  if (d.disk_free_bytes === null) return total;
+  const usedBytes = d.disk_total_bytes - d.disk_free_bytes;
+  const usedPercent = Math.round((usedBytes / d.disk_total_bytes) * 100);
+  return `${formatBytes(usedBytes)} used of ${total} (${usedPercent}%)`;
+}
+
 /** Shared by buildDeviceHealthPdf below — a standalone PDF, generated the
  * moment a tech checks "Device Health" under a review's "Also include in
  * PDF" list (see quarterly-review-data.ts's generateQuarterlyReviewSectionPdf),
@@ -127,7 +153,11 @@ function appendDeviceHealthSection(doc: PdfContentBuilder, devices: QuarterlyRev
 
   doc.heading("Device Inventory", 2, { size: 13 });
   for (const d of [...devices].sort((a, b) => a.system_name.localeCompare(b.system_name))) {
-    const detail = [d.os_name, deviceAgeLabel(d)].filter(Boolean).join(" - ") || null;
+    const modelLabel = [d.manufacturer, d.model].filter(Boolean).join(" ") || null;
+    const detail =
+      [d.os_name, deviceAgeLabel(d), modelLabel, d.cpu_model, formatBytes(d.ram_bytes) && `${formatBytes(d.ram_bytes)} RAM`, diskUsageLabel(d)]
+        .filter(Boolean)
+        .join(" · ") || null;
     doc.item(
       d.system_name,
       d.is_offline ? "Offline" : "Online",
