@@ -260,9 +260,9 @@ export function buildQuarterlyReviewClientEmail(
       <p style="color:#334155;">${escapeHtml(intro)}</p>
       <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
         <p style="color:#334155;font-size:14px;margin:0 0 12px;">
-          If you'd like to discuss anything in this review, simply reply to this email and a team member
-          will get back to you shortly. Otherwise, please <strong>Acknowledge</strong> below to confirm
-          you've received it and accept the risk of any outstanding items not being addressed.
+          If you need any clarification, create a helpdesk ticket and a tech will get back to
+          you. Otherwise, please <strong>Acknowledge</strong> below to confirm you've received it
+          and accept the risk of any outstanding items not being addressed.
         </p>
         <a href="${ackUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;padding:10px 18px;border-radius:6px;">Acknowledge</a>
       </div>
@@ -274,7 +274,7 @@ export function buildQuarterlyReviewClientEmail(
   `;
   const summaryText = summary ? `\n${summary}\n` : "";
   const reminderText = reminderLabel ? `${reminderLabel} — this review is still waiting on your acknowledgment.\n\n` : "";
-  const text = `${reminderText}Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\n${intro}\n\nIf you'd like to discuss anything in this review, simply reply to this email and a team member will get back to you shortly.\n\nOtherwise, please acknowledge here (accept the risk of any outstanding items): ${ackUrl}\n\nBest regards,\nCG Technologies Team`;
+  const text = `${reminderText}Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\n${intro}\n\nIf you need any clarification, create a helpdesk ticket and a tech will get back to you.\n\nOtherwise, please acknowledge here (accept the risk of any outstanding items): ${ackUrl}\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }
