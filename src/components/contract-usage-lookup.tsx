@@ -33,9 +33,15 @@ export function ContractUsageLookup({
   const [sendEmail, setSendEmail] = useState("");
   const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [sending, startSend] = useTransition();
+  // A one-off banner shown after Download PDF / a successful Send, once
+  // the rest of the view has already been reset back to empty — kept
+  // separate from `rows`/`clientId` so it survives that reset instead of
+  // disappearing the instant the view clears.
+  const [justFinished, setJustFinished] = useState<string | null>(null);
 
   const search = () => {
     setError(null);
+    setJustFinished(null);
     startSearch(async () => {
       const result = await action(clientId);
       if ("error" in result) {
@@ -51,7 +57,22 @@ export function ContractUsageLookup({
   const selectClient = (id: string) => {
     setClientId(id);
     setSendResult(null);
+    setJustFinished(null);
     setSendEmail(clients.find((c) => c.id === id)?.email ?? "");
+  };
+
+  // Clears the loaded report back to a blank picker — after a PDF
+  // download or a successful send, there's nothing left to do with this
+  // client's report on screen, so leaving it up just invites resending it
+  // to the wrong recipient by mistake.
+  const resetView = (message: string) => {
+    setClientId("");
+    setRows(null);
+    setError(null);
+    setExpandedId(null);
+    setSendEmail("");
+    setSendResult(null);
+    setJustFinished(message);
   };
 
   const send = () => {
@@ -59,9 +80,11 @@ export function ContractUsageLookup({
     setSendResult(null);
     startSend(async () => {
       const result = await sendAction(clientId, sendEmail);
-      setSendResult(
-        result.error ? { ok: false, message: result.error } : { ok: true, message: "Sent." }
-      );
+      if (result.error) {
+        setSendResult({ ok: false, message: result.error });
+      } else {
+        resetView("Report sent.");
+      }
     });
   };
 
@@ -98,6 +121,7 @@ export function ContractUsageLookup({
               href={`/api/contract-usage-pdf/${clientId}`}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => resetView("Downloaded.")}
               className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
               Download PDF
@@ -134,6 +158,11 @@ export function ContractUsageLookup({
         )}
       </div>
 
+      {justFinished && !rows && (
+        <p className="border-b border-slate-100 bg-emerald-50 px-5 py-2 text-sm text-emerald-700">
+          {justFinished}
+        </p>
+      )}
       {error && <p className="border-b border-slate-100 bg-red-50 px-5 py-2 text-sm text-red-600">{error}</p>}
 
       {rows && (
