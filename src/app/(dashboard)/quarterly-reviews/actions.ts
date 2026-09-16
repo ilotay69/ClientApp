@@ -19,6 +19,7 @@ import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis"
 import { computeActionItemsText, computeChangesSinceLastReviewText } from "@/lib/quarterly-review-pdf";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import { buildQuarterlyReviewClientEmail } from "@/lib/resend";
+import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import type { SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
@@ -573,10 +574,18 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       }
     }
 
-    const { html, text } = buildQuarterlyReviewClientEmail(review.clientName, review.reviewPeriod, review.summary, ackUrl);
+    const template = await getEmailTemplate(admin, "quarterly_review");
+    const templateVars = { client_name: review.clientName, review_period: review.reviewPeriod };
+    const { html, text } = buildQuarterlyReviewClientEmail(
+      review.clientName,
+      review.reviewPeriod,
+      review.summary,
+      ackUrl,
+      applyTemplateVars(template.intro, templateVars)
+    );
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,
-      subject: `Quarterly Systems Review — ${review.reviewPeriod} — ${review.clientName}`,
+      subject: applyTemplateVars(template.subject, templateVars),
       html,
       text,
       attachments: graphAttachments,

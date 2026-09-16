@@ -239,6 +239,7 @@ export function buildQuarterlyReviewClientEmail(
   reviewPeriod: string,
   summary: string | null,
   ackUrl: string,
+  intro: string,
   reminderLabel?: string | null
 ) {
   const summaryHtml = summary
@@ -256,7 +257,7 @@ export function buildQuarterlyReviewClientEmail(
       <h2 style="color:#0f172a;">Quarterly Systems Review — ${escapeHtml(reviewPeriod)}</h2>
       <p style="color:#64748b;">Prepared for ${escapeHtml(clientName)}</p>
       ${summaryHtml}
-      <p style="color:#334155;">The full review is attached as a PDF.</p>
+      <p style="color:#334155;">${escapeHtml(intro)}</p>
       <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
         <p style="color:#334155;font-size:14px;margin:0 0 12px;">
           If you'd like to discuss anything in this review, simply reply to this email and a team member
@@ -273,7 +274,7 @@ export function buildQuarterlyReviewClientEmail(
   `;
   const summaryText = summary ? `\n${summary}\n` : "";
   const reminderText = reminderLabel ? `${reminderLabel} — this review is still waiting on your acknowledgment.\n\n` : "";
-  const text = `${reminderText}Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\nThe full review is attached as a PDF.\n\nIf you'd like to discuss anything in this review, simply reply to this email and a team member will get back to you shortly.\n\nOtherwise, please acknowledge here (accept the risk of any outstanding items): ${ackUrl}\n\nBest regards,\nCG Technologies Team`;
+  const text = `${reminderText}Quarterly Systems Review — ${reviewPeriod}\nPrepared for ${clientName}\n${summaryText}\n${intro}\n\nIf you'd like to discuss anything in this review, simply reply to this email and a team member will get back to you shortly.\n\nOtherwise, please acknowledge here (accept the risk of any outstanding items): ${ackUrl}\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }
@@ -286,7 +287,7 @@ export function buildQuarterlyReviewClientEmail(
  * purchased/used/remaining numbers inline only when there's exactly one
  * active block (the common case) — with more than one, or none, the body
  * stays generic and the PDF carries the actual detail. */
-export function buildContractUsageClientEmail(clientName: string, rows: ContractUsageRow[]) {
+export function buildContractUsageClientEmail(clientName: string, rows: ContractUsageRow[], intro: string) {
   const single = rows.length === 1 ? rows[0] : null;
   const summaryHtml = single
     ? `<div style="margin:16px 0;padding:14px 16px;background:#f8fafc;border-radius:8px;">
@@ -299,12 +300,9 @@ export function buildContractUsageClientEmail(clientName: string, rows: Contract
 
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;">
-      <h2 style="color:#0f172a;">Contract Usage Report</h2>
+      <h2 style="color:#0f172a;">Block of Hours Usage Report</h2>
       <p style="color:#64748b;">Prepared for ${escapeHtml(clientName)}</p>
-      <p style="color:#334155;">
-        Please find attached your current prepaid block hours usage report, showing hours purchased,
-        used, and remaining, along with the individual time entries recorded against it.
-      </p>
+      <p style="color:#334155;">${escapeHtml(intro)}</p>
       ${summaryHtml}
       <p style="color:#334155;font-size:14px;">
         If you have any questions about this report, please contact your account manager.
@@ -318,7 +316,7 @@ export function buildContractUsageClientEmail(clientName: string, rows: Contract
   const summaryText = single
     ? `\n${single.used.toFixed(1)} of ${single.purchased.toFixed(1)} prepaid hours used (${single.percentUsed.toFixed(0)}%) — ${single.remaining.toFixed(1)} hours remaining.\n`
     : "";
-  const text = `Contract Usage Report\nPrepared for ${clientName}\n\nPlease find attached your current prepaid block hours usage report, showing hours purchased, used, and remaining, along with the individual time entries recorded against it.\n${summaryText}\nIf you have any questions about this report, please contact your account manager.\n\nBest regards,\nCG Technologies Team`;
+  const text = `Block of Hours Usage Report\nPrepared for ${clientName}\n\n${intro}\n${summaryText}\nIf you have any questions about this report, please contact your account manager.\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }

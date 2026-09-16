@@ -15,6 +15,7 @@ import {
 import { fetchTimeEntriesForAnalysis, type TimeEntryForAnalysis } from "@/lib/time-entry-insights";
 import { buildContractUsagePdf } from "@/lib/contract-usage-pdf";
 import { buildContractUsageClientEmail } from "@/lib/resend";
+import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import {
@@ -260,12 +261,18 @@ export async function sendContractUsageReportAction(
       client.autotask_company_id
     );
     const pdf = buildContractUsagePdf(client.name, rows);
-    const { html, text } = buildContractUsageClientEmail(client.name, rows);
+    const template = await getEmailTemplate(admin, "contract_usage_report");
+    const templateVars = { client_name: client.name };
+    const { html, text } = buildContractUsageClientEmail(
+      client.name,
+      rows,
+      applyTemplateVars(template.intro, templateVars)
+    );
 
     const accessToken = await getValidSharedMailboxToken(admin, mailboxSettings);
     const attachments: SharedMailboxAttachment[] = [
       {
-        filename: `${client.name} Contract Usage Report.pdf`,
+        filename: `${client.name} Block of Hours Usage Report.pdf`,
         contentBase64: pdf.toString("base64"),
         contentType: "application/pdf",
         isInline: false,
@@ -273,7 +280,7 @@ export async function sendContractUsageReportAction(
     ];
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,
-      subject: `Contract Usage Report — ${client.name}`,
+      subject: applyTemplateVars(template.subject, templateVars),
       html,
       text,
       attachments,

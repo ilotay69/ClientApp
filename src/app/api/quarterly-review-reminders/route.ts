@@ -7,6 +7,7 @@ import {
 import { buildQuarterlyReviewClientEmail } from "@/lib/resend";
 import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest) {
   }
   const accessToken = await getValidSharedMailboxToken(admin, sharedMailboxSettings);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const template = await getEmailTemplate(admin, "quarterly_review");
 
   const results: { reviewId: string; ok: boolean; reminder?: number; error?: string }[] = [];
 
@@ -105,16 +107,18 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const templateVars = { client_name: clientName, review_period: review.review_period };
       const { html, text } = buildQuarterlyReviewClientEmail(
         clientName,
         review.review_period,
         review.summary,
         ackUrl,
+        applyTemplateVars(template.intro, templateVars),
         ordinalReminderLabel(reminderNumber)
       );
       await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
         to: review.sent_to_email!,
-        subject: `${ordinalReminderLabel(reminderNumber)}: Quarterly Systems Review — ${review.review_period} — ${clientName}`,
+        subject: `${ordinalReminderLabel(reminderNumber)}: ${applyTemplateVars(template.subject, templateVars)}`,
         html,
         text,
         attachments,

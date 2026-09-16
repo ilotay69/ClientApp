@@ -15,7 +15,9 @@ import { ForticloudAccountsPanel } from "@/components/forticloud-accounts-panel"
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
 import { SharedMailboxSettingsForm } from "@/components/shared-mailbox-settings-form";
 import { QuarterlyReviewReminderSettingsForm } from "@/components/quarterly-review-reminder-settings-form";
+import { EmailTemplateForm } from "@/components/email-template-form";
 import { GroupedTabs } from "@/components/grouped-tabs";
+import { EMAIL_TEMPLATES, getEmailTemplate } from "@/lib/email-templates";
 import {
   saveAiProviderSettings,
   setActiveAiProvider,
@@ -38,6 +40,7 @@ import {
   testSharedMailboxConnectionAction,
   syncSharedMailboxNowAction,
   saveQuarterlyReviewReminderSettings,
+  saveEmailTemplateAction,
 } from "./actions";
 import {
   listForticloudAccountsAction,
@@ -78,6 +81,8 @@ export default async function IntegrationsSettingsPage({
     { data: salesNotifyRow },
     { data: sharedMailboxRow },
     { data: reviewReminderRow },
+    quarterlyReviewEmailTemplate,
+    contractUsageEmailTemplate,
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
@@ -107,6 +112,8 @@ export default async function IntegrationsSettingsPage({
       .select("approver_email, reminder_interval_days")
       .eq("id", true)
       .maybeSingle(),
+    getEmailTemplate(admin, "quarterly_review"),
+    getEmailTemplate(admin, "contract_usage_report"),
   ]);
 
   type ProviderRow = {
@@ -306,6 +313,39 @@ export default async function IntegrationsSettingsPage({
                     currentApproverEmail={reviewReminderRow?.approver_email ?? "ilotay@cgtechnologies.com"}
                     currentIntervalDays={reviewReminderRow?.reminder_interval_days ?? 7}
                     saveAction={saveQuarterlyReviewReminderSettings}
+                  />
+                ),
+              },
+            ],
+          },
+          {
+            group: "Email Templates",
+            tabs: [
+              {
+                label: EMAIL_TEMPLATES[0].label,
+                content: (
+                  <EmailTemplateForm
+                    templateKey={EMAIL_TEMPLATES[0].key}
+                    label={EMAIL_TEMPLATES[0].label}
+                    description={EMAIL_TEMPLATES[0].description}
+                    placeholders={EMAIL_TEMPLATES[0].placeholders}
+                    currentSubject={quarterlyReviewEmailTemplate.subject}
+                    currentIntro={quarterlyReviewEmailTemplate.intro}
+                    saveAction={saveEmailTemplateAction}
+                  />
+                ),
+              },
+              {
+                label: EMAIL_TEMPLATES[1].label,
+                content: (
+                  <EmailTemplateForm
+                    templateKey={EMAIL_TEMPLATES[1].key}
+                    label={EMAIL_TEMPLATES[1].label}
+                    description={EMAIL_TEMPLATES[1].description}
+                    placeholders={EMAIL_TEMPLATES[1].placeholders}
+                    currentSubject={contractUsageEmailTemplate.subject}
+                    currentIntro={contractUsageEmailTemplate.intro}
+                    saveAction={saveEmailTemplateAction}
                   />
                 ),
               },

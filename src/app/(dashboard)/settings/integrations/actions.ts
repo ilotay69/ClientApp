@@ -675,3 +675,30 @@ export async function saveQuarterlyReviewReminderSettings(
   revalidatePath("/settings/integrations");
   return { error: null, success: "Saved." };
 }
+
+/** One row per template key — upserted, so the first save for a given
+ * template creates its override row and every save after that just
+ * updates it. getEmailTemplate falls back to the hardcoded default for
+ * any key with no row here yet. */
+export async function saveEmailTemplateAction(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) return { error: "You don't have permission to do that.", success: null };
+
+  const key = String(formData.get("key") ?? "").trim();
+  const subject = String(formData.get("subject") ?? "").trim();
+  const intro = String(formData.get("intro") ?? "").trim();
+  if (!key) return { error: "Missing template key.", success: null };
+  if (!subject || !intro) return { error: "Subject and cover note are both required.", success: null };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("email_templates")
+    .upsert({ key, subject, intro, updated_by: user.id }, { onConflict: "key" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}
