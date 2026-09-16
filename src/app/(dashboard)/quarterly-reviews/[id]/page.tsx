@@ -30,6 +30,7 @@ import {
 import {
   QUARTERLY_STATUS_LABELS,
   QUARTERLY_REVIEW_TEMPLATE_LABELS,
+  QUARTERLY_REVIEW_EXTRA_SECTIONS,
   getQuarterlyReviewSections,
 } from "@/lib/quarterly-review-sections";
 import {
@@ -38,6 +39,7 @@ import {
   fetchReviewAttachments,
   fetchPreviousReviewSnapshot,
   getQuarterlyReviewApproverEmail,
+  fetchQuarterlyReviewSectionPdfs,
 } from "@/lib/quarterly-review-data";
 import {
   saveQuarterlyReviewItemAction,
@@ -125,12 +127,14 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   // send it back to draft first just to touch the wording.
   const summaryLocked = itemsLocked && !(isApprover && review.status === "submitted");
 
-  const [clients, attachments, previousReview] = await Promise.all([
+  const [clients, attachments, previousReview, sectionPdfs] = await Promise.all([
     fetchAllClientsForPicker(),
     fetchReviewAttachments(review.id),
     fetchPreviousReviewSnapshot(review.clientId, review.id),
+    fetchQuarterlyReviewSectionPdfs(review.id),
   ]);
   const client = clients.find((c) => c.id === review.clientId);
+  const sectionPdfByKey = new Map(sectionPdfs.map((s) => [s.sectionKey, s]));
 
   const itemStatusByKey = new Map(review.items.map((i) => [i.itemKey, i]));
   const sections = getQuarterlyReviewSections(review.template);
@@ -257,6 +261,42 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
             )}
           </div>
         </div>
+
+      {review.pdfExtraSections.length > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Extra section PDFs</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Generated as soon as each is checked above — reviewed here, then attached alongside the
+            main review PDF when this review is sent to the client.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {review.pdfExtraSections.map((key) => {
+              const def = QUARTERLY_REVIEW_EXTRA_SECTIONS.find((s) => s.key === key);
+              const generated = sectionPdfByKey.get(key);
+              return (
+                <span
+                  key={key}
+                  className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs"
+                >
+                  <span className="font-medium text-slate-700">{def?.label ?? key}</span>
+                  {generated ? (
+                    <a
+                      href={`/api/quarterly-review-section-pdf/${review.id}/${key}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-brand underline"
+                    >
+                      Preview PDF
+                    </a>
+                  ) : (
+                    <span className="text-slate-400">No data synced yet — nothing to attach.</span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {review.adjustmentNotes && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">

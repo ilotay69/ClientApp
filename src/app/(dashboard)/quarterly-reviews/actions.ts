@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requirePermission, getMyPermissions, hasPermission } from "@/lib/permissions";
-import type { QuarterlyReviewItemStatus, QuarterlyReviewTemplateKey } from "@/lib/quarterly-review-sections";
+import {
+  QUARTERLY_REVIEW_EXTRA_SECTIONS,
+  type QuarterlyReviewItemStatus,
+  type QuarterlyReviewTemplateKey,
+} from "@/lib/quarterly-review-sections";
 import {
   createQuarterlyReview,
   getQuarterlyReview,
@@ -12,6 +16,9 @@ import {
   fetchPreviousReviewSnapshot,
   assembleQuarterlyReviewPdf,
   getQuarterlyReviewApproverEmail,
+  fetchQuarterlyReviewSectionPdfs,
+  generateQuarterlyReviewSectionPdf,
+  deleteQuarterlyReviewSectionPdf,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
   QUARTERLY_REVIEW_PDF_BUCKET,
 } from "@/lib/quarterly-review-data";
@@ -217,7 +224,26 @@ export async function saveQuarterlyReviewExtraSectionsAction(reviewId: string, s
   if (!(await requirePermission("manage_quarterly_reviews"))) return;
 
   const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("quarterly_reviews")
+    .select("pdf_extra_sections")
+    .eq("id", reviewId)
+    .maybeSingle();
+  const before: string[] = existing?.pdf_extra_sections ?? [];
+
   await admin.from("quarterly_reviews").update({ pdf_extra_sections: sections }).eq("id", reviewId);
+
+  // Newly checked — build and store its standalone PDF right away, so it's
+  // ready to preview the moment the page re-renders below. Newly
+  // unchecked — remove its stored PDF so a later send can't pick up a
+  // stale one for a section that's no longer selected.
+  const added = sections.filter((k) => !before.includes(k));
+  const removed = before.filter((k) => !sections.includes(k));
+  await Promise.all([
+    ...added.map((key) => generateQuarterlyReviewSectionPdf(reviewId, key, admin)),
+    ...removed.map((key) => deleteQuarterlyReviewSectionPdf(reviewId, key, admin)),
+  ]);
+
   revalidatePath(`/quarterly-reviews/${reviewId}`);
 }
 
@@ -630,6 +656,27 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
         isInline: false,
       },
     ];
+    // Whichever extra sections (Device Health, 365 Licenses, ...) were
+    // checked and actually generated a PDF (see the "Also include in PDF"
+    // checklist) go out as their own separate attachments, not merged into
+    // the main review PDF above.
+    const sectionPdfs = await fetchQuarterlyReviewSectionPdfs(reviewId, admin);
+    for (const section of sectionPdfs) {
+      try {
+        const { data: blob, error } = await admin.storage.from(QUARTERLY_REVIEW_PDF_BUCKET).download(section.storagePath);
+        if (error || !blob) continue;
+        const sectionLabel = QUARTERLY_REVIEW_EXTRA_SECTIONS.find((s) => s.key === section.sectionKey)?.label ?? section.sectionKey;
+        graphAttachments.push({
+          filename: `${review.clientName} - ${sectionLabel}.pdf`,
+          contentBase64: Buffer.from(await blob.arrayBuffer()).toString("base64"),
+          contentType: "application/pdf",
+          isInline: false,
+        });
+      } catch (err) {
+        console.error("sendQuarterlyReviewToClientAction: section PDF fetch failed", section.sectionKey, err);
+      }
+    }
+
     for (const image of images) {
       if (!embeddedImageIds.has(image.id)) {
         graphAttachments.push({

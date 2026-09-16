@@ -4,7 +4,7 @@ import {
   type QuarterlyReviewItemStatus,
   type QuarterlyReviewTemplateKey,
 } from "@/lib/quarterly-review-sections";
-import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
+import { buildQuarterlyReviewPdf, buildDeviceHealthPdf, buildM365LicensesPdf } from "@/lib/quarterly-review-pdf";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchOpenQuarterlyReviewSlaTickets, fetchActiveResources } from "@/lib/autotask";
 
@@ -497,6 +497,112 @@ export const QUARTERLY_REVIEW_ATTACHMENTS_BUCKET = "quarterly-review-attachments
  * from the client's own portal login. */
 export const QUARTERLY_REVIEW_PDF_BUCKET = "quarterly-review-pdfs";
 
+export type QuarterlyReviewSectionPdfRow = {
+  sectionKey: string;
+  storagePath: string;
+  generatedAt: string;
+};
+
+/** Every standalone extra-section PDF generated so far for a review (see
+ * generateQuarterlyReviewSectionPdf below) — one row per section key, at
+ * most. Used to list what's ready to preview/attach on the review page. */
+export async function fetchQuarterlyReviewSectionPdfs(
+  reviewId: string,
+  admin: AdminClient = createAdminClient()
+): Promise<QuarterlyReviewSectionPdfRow[]> {
+  const { data } = await admin
+    .from("quarterly_review_section_pdfs")
+    .select("section_key, storage_path, generated_at")
+    .eq("review_id", reviewId);
+  return ((data ?? []) as { section_key: string; storage_path: string; generated_at: string }[]).map((r) => ({
+    sectionKey: r.section_key,
+    storagePath: r.storage_path,
+    generatedAt: r.generated_at,
+  }));
+}
+
+/** Builds and stores one optional section's standalone PDF (Device Health,
+ * 365 Licenses, ...) — called the moment a tech checks it under a review's
+ * "Also include in PDF" list (saveQuarterlyReviewExtraSectionsAction), so
+ * it's ready to preview right away and gets attached alongside the main
+ * review PDF when the review is sent (sendQuarterlyReviewToClientAction).
+ * Silently does nothing for an unrecognized key or one with no synced data
+ * yet — there's nothing sensible to build in either case, and a tech can
+ * always uncheck/recheck later once data exists. */
+export async function generateQuarterlyReviewSectionPdf(
+  reviewId: string,
+  sectionKey: string,
+  admin: AdminClient = createAdminClient()
+): Promise<void> {
+  const { data: review } = await admin
+    .from("quarterly_reviews")
+    .select("client_id, clients(name)")
+    .eq("id", reviewId)
+    .maybeSingle();
+  if (!review) return;
+  const client = Array.isArray(review.clients) ? review.clients[0] : review.clients;
+  const clientName = client?.name ?? "Unknown client";
+
+  let pdf: Buffer;
+  if (sectionKey === "device_health") {
+    const { data: deviceRows } = await admin
+      .from("ninjaone_devices")
+      .select(
+        "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, disk_total_bytes, disk_free_bytes"
+      )
+      .eq("client_id", review.client_id)
+      .order("system_name");
+    if (!deviceRows || deviceRows.length === 0) return;
+    pdf = buildDeviceHealthPdf(clientName, deviceRows);
+  } else if (sectionKey === "m365_licenses") {
+    const { data: licenseRows } = await admin
+      .from("m365_license_summary")
+      .select("sku_part_number, consumed_units, enabled_units")
+      .eq("client_id", review.client_id)
+      .order("sku_part_number");
+    if (!licenseRows || licenseRows.length === 0) return;
+    pdf = buildM365LicensesPdf(
+      clientName,
+      (licenseRows as { sku_part_number: string; consumed_units: number; enabled_units: number }[]).map((l) => ({
+        skuPartNumber: l.sku_part_number,
+        consumedUnits: l.consumed_units,
+        enabledUnits: l.enabled_units,
+      }))
+    );
+  } else {
+    return;
+  }
+
+  const storagePath = `${reviewId}/sections/${sectionKey}.pdf`;
+  const { error: uploadError } = await admin.storage
+    .from(QUARTERLY_REVIEW_PDF_BUCKET)
+    .upload(storagePath, pdf, { contentType: "application/pdf", upsert: true });
+  if (uploadError) {
+    console.error("generateQuarterlyReviewSectionPdf: upload failed", sectionKey, uploadError);
+    return;
+  }
+
+  await admin
+    .from("quarterly_review_section_pdfs")
+    .upsert(
+      { review_id: reviewId, section_key: sectionKey, storage_path: storagePath, generated_at: new Date().toISOString() },
+      { onConflict: "review_id,section_key" }
+    );
+}
+
+/** Removes a previously generated section PDF (storage object + row) —
+ * called when a tech unchecks that section, so a stale one can't linger
+ * and get attached to a later send by mistake. */
+export async function deleteQuarterlyReviewSectionPdf(
+  reviewId: string,
+  sectionKey: string,
+  admin: AdminClient = createAdminClient()
+): Promise<void> {
+  const storagePath = `${reviewId}/sections/${sectionKey}.pdf`;
+  await admin.storage.from(QUARTERLY_REVIEW_PDF_BUCKET).remove([storagePath]);
+  await admin.from("quarterly_review_section_pdfs").delete().eq("review_id", reviewId).eq("section_key", sectionKey);
+}
+
 export type QuarterlyReviewAttachment = {
   id: string;
   storagePath: string;
@@ -582,36 +688,6 @@ export async function assembleQuarterlyReviewPdf(
     ? new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]))
     : null;
 
-  // Only fetched when the review actually asked for that section (see
-  // QUARTERLY_REVIEW_EXTRA_SECTIONS) — same columns client-ninjaone-devices.tsx
-  // queries for the Clients page's own Devices tab, whatever's already
-  // synced there, no live NinjaOne API call needed here.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let deviceRows: any[] = [];
-  if (review.pdfExtraSections.includes("device_health")) {
-    const { data } = await admin
-      .from("ninjaone_devices")
-      .select(
-        "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, disk_total_bytes, disk_free_bytes"
-      )
-      .eq("client_id", review.clientId)
-      .order("system_name");
-    deviceRows = data ?? [];
-  }
-
-  // Same idea — whatever's already synced into m365_license_summary (see
-  // client-m365-licenses.tsx for the same table/columns on the Clients
-  // page), not a live Graph call.
-  let licenseRows: { sku_part_number: string; consumed_units: number; enabled_units: number }[] = [];
-  if (review.pdfExtraSections.includes("m365_licenses")) {
-    const { data } = await admin
-      .from("m365_license_summary")
-      .select("sku_part_number, consumed_units, enabled_units")
-      .eq("client_id", review.clientId)
-      .order("sku_part_number");
-    licenseRows = data ?? [];
-  }
-
   const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
     clientName: review.clientName,
     reviewPeriod: review.reviewPeriod,
@@ -622,12 +698,6 @@ export async function assembleQuarterlyReviewPdf(
     previousItems,
     actionItemsText: review.actionItemsNotes,
     changesSinceLastReviewText: review.changesSinceLastReviewNotes,
-    devices: deviceRows,
-    licenses: licenseRows.map((l) => ({
-      skuPartNumber: l.sku_part_number,
-      consumedUnits: l.consumed_units,
-      enabledUnits: l.enabled_units,
-    })),
   });
 
   return {

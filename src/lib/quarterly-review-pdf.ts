@@ -86,6 +86,94 @@ function deviceAgeLabel(d: Pick<DeviceInsightInput, "manufacturer_fulfillment_da
   return days !== null ? `${(days / 365).toFixed(1)}y old` : null;
 }
 
+/** Shared by buildDeviceHealthPdf below — a standalone PDF, generated the
+ * moment a tech checks "Device Health" under a review's "Also include in
+ * PDF" list (see quarterly-review-data.ts's generateQuarterlyReviewSectionPdf),
+ * rather than merged into the main review PDF, so it can be reviewed and
+ * attached to the client email on its own. */
+function appendDeviceHealthSection(doc: PdfContentBuilder, devices: QuarterlyReviewPdfDevice[]) {
+  const onlineCount = devices.filter((d) => d.is_offline === false).length;
+  const offlineCount = devices.filter((d) => d.is_offline === true).length;
+  doc.paragraph(
+    `${devices.length} device${devices.length === 1 ? "" : "s"} — ${onlineCount} online, ${offlineCount} offline.`
+  );
+  doc.spacer(8);
+
+  const insights = buildDeviceInsights(devices);
+  if (insights.length > 0) {
+    doc.heading("Needs Attention", 2, { size: 13 });
+    for (const insight of insights) {
+      doc.item(
+        insight.title,
+        insight.severity === "high" ? "High" : "Medium",
+        insight.detail,
+        insight.severity === "high" ? STATUS_COLORS.urgent : STATUS_COLORS.attention
+      );
+    }
+    doc.spacer(10);
+  }
+
+  const ageBreakdown = buildDeviceAgeBreakdown(devices);
+  if (ageBreakdown.length > 0) {
+    doc.heading("Device Age", 2, { size: 13 });
+    for (const entry of ageBreakdown) {
+      const bucketText = entry.buckets.map((b) => `${b.label}: ${b.count}`).join(", ");
+      const unknownText = entry.unknownCount > 0 ? `, Unknown: ${entry.unknownCount}` : "";
+      doc.paragraph(`${entry.label} — ${bucketText}${unknownText}`);
+    }
+    doc.spacer(10);
+  }
+
+  doc.heading("Device Inventory", 2, { size: 13 });
+  for (const d of [...devices].sort((a, b) => a.system_name.localeCompare(b.system_name))) {
+    const detail = [d.os_name, deviceAgeLabel(d)].filter(Boolean).join(" - ") || null;
+    doc.item(
+      d.system_name,
+      d.is_offline ? "Offline" : "Online",
+      detail,
+      d.is_offline ? STATUS_COLORS.urgent : STATUS_COLORS.healthy
+    );
+  }
+}
+
+/** Shared by buildM365LicensesPdf below — same standalone-PDF-per-section
+ * posture as Device Health above. */
+function appendM365LicensesSection(doc: PdfContentBuilder, licenses: QuarterlyReviewPdfLicense[]) {
+  for (const l of [...licenses].sort((a, b) => a.skuPartNumber.localeCompare(b.skuPartNumber))) {
+    const fullyUsed = l.consumedUnits >= l.enabledUnits;
+    doc.item(
+      l.skuPartNumber,
+      `${l.consumedUnits}/${l.enabledUnits} used`,
+      null,
+      fullyUsed ? STATUS_COLORS.attention : STATUS_COLORS.healthy
+    );
+  }
+}
+
+/** One small standalone PDF per optional section (see
+ * QUARTERLY_REVIEW_EXTRA_SECTIONS) — generated right when a tech checks it
+ * on the review page, previewable there, and attached alongside (not
+ * merged into) the main review PDF when the review is sent. */
+export function buildDeviceHealthPdf(clientName: string, devices: QuarterlyReviewPdfDevice[]): Buffer {
+  const doc = new PdfContentBuilder();
+  doc.spacer(40);
+  doc.heading(clientName, 1, { center: true, color: NAVY, size: 22 });
+  doc.paragraph("Device Health", { center: true, color: STATUS_COLORS.recommended, size: 13 });
+  doc.spacer(20);
+  appendDeviceHealthSection(doc, devices);
+  return doc.build().pdf;
+}
+
+export function buildM365LicensesPdf(clientName: string, licenses: QuarterlyReviewPdfLicense[]): Buffer {
+  const doc = new PdfContentBuilder();
+  doc.spacer(40);
+  doc.heading(clientName, 1, { center: true, color: NAVY, size: 22 });
+  doc.paragraph("365 Licenses", { center: true, color: STATUS_COLORS.recommended, size: 13 });
+  doc.spacer(20);
+  appendM365LicensesSection(doc, licenses);
+  return doc.build().pdf;
+}
+
 /** Builds the full review as a standalone PDF — client-facing detail moves
  * here instead of living in the email body. Screenshots that can't be
  * decoded (only PNG/JPEG are supported — GIF/WEBP are rare in practice
@@ -113,17 +201,6 @@ export function buildQuarterlyReviewPdf(params: {
    * sticks. Falls back to computing from items/previousItems otherwise. */
   actionItemsText?: string | null;
   changesSinceLastReviewText?: string | null;
-  /** NinjaOne devices synced for this client — omitted (or empty) entirely
-   * skips the Device Health section, for a client with no NinjaOne mapping
-   * or nothing synced yet. Not editable like the fields above: this is
-   * computed fresh from current device data every time, same as the
-   * checklist's own item statuses aren't hand-typed prose. */
-  devices?: QuarterlyReviewPdfDevice[];
-  /** Microsoft 365 license usage synced for this client (m365_license_summary)
-   * — same "omitted or empty skips the section entirely" convention as
-   * devices above. Caller (assembleQuarterlyReviewPdf) only fetches this at
-   * all when "m365_licenses" is one of the review's pdf_extra_sections. */
-  licenses?: QuarterlyReviewPdfLicense[];
 }): { pdf: Buffer; embeddedImageIds: Set<string> } {
   const {
     clientName,
@@ -135,8 +212,6 @@ export function buildQuarterlyReviewPdf(params: {
     previousItems,
     actionItemsText,
     changesSinceLastReviewText,
-    devices = [],
-    licenses = [],
   } = params;
   const sections: QuarterlyReviewSection[] = getQuarterlyReviewSections(template);
   const itemByKey = new Map(items.map((i) => [i.itemKey, i]));
@@ -186,75 +261,6 @@ export function buildQuarterlyReviewPdf(params: {
       const row = itemByKey.get(item.key);
       const status = row?.status ?? "na";
       doc.item(item.label, QUARTERLY_STATUS_LABELS[status], row?.comments ?? null, STATUS_COLORS[status]);
-    }
-    doc.spacer(14);
-  }
-
-  if (devices.length > 0) {
-    // Its own page, same reasoning as Screenshots below — supplementary
-    // automated data, kept visually distinct from the staff-assessed
-    // checklist above rather than just continuing on from it.
-    doc.pagebreak();
-    doc.heading("Device Health", 2);
-
-    const onlineCount = devices.filter((d) => d.is_offline === false).length;
-    const offlineCount = devices.filter((d) => d.is_offline === true).length;
-    doc.paragraph(
-      `${devices.length} device${devices.length === 1 ? "" : "s"} — ${onlineCount} online, ${offlineCount} offline.`
-    );
-    doc.spacer(8);
-
-    const insights = buildDeviceInsights(devices);
-    if (insights.length > 0) {
-      doc.heading("Needs Attention", 2, { size: 13 });
-      for (const insight of insights) {
-        doc.item(
-          insight.title,
-          insight.severity === "high" ? "High" : "Medium",
-          insight.detail,
-          insight.severity === "high" ? STATUS_COLORS.urgent : STATUS_COLORS.attention
-        );
-      }
-      doc.spacer(10);
-    }
-
-    const ageBreakdown = buildDeviceAgeBreakdown(devices);
-    if (ageBreakdown.length > 0) {
-      doc.heading("Device Age", 2, { size: 13 });
-      for (const entry of ageBreakdown) {
-        const bucketText = entry.buckets.map((b) => `${b.label}: ${b.count}`).join(", ");
-        const unknownText = entry.unknownCount > 0 ? `, Unknown: ${entry.unknownCount}` : "";
-        doc.paragraph(`${entry.label} — ${bucketText}${unknownText}`);
-      }
-      doc.spacer(10);
-    }
-
-    doc.heading("Device Inventory", 2, { size: 13 });
-    for (const d of [...devices].sort((a, b) => a.system_name.localeCompare(b.system_name))) {
-      const detail = [d.os_name, deviceAgeLabel(d)].filter(Boolean).join(" - ") || null;
-      doc.item(
-        d.system_name,
-        d.is_offline ? "Offline" : "Online",
-        detail,
-        d.is_offline ? STATUS_COLORS.urgent : STATUS_COLORS.healthy
-      );
-    }
-    doc.spacer(14);
-  }
-
-  if (licenses.length > 0) {
-    // Its own page, same reasoning as Device Health above — supplementary
-    // synced data, kept visually distinct from the staff-assessed checklist.
-    doc.pagebreak();
-    doc.heading("365 Licenses", 2);
-    for (const l of [...licenses].sort((a, b) => a.skuPartNumber.localeCompare(b.skuPartNumber))) {
-      const fullyUsed = l.consumedUnits >= l.enabledUnits;
-      doc.item(
-        l.skuPartNumber,
-        `${l.consumedUnits}/${l.enabledUnits} used`,
-        null,
-        fullyUsed ? STATUS_COLORS.attention : STATUS_COLORS.healthy
-      );
     }
     doc.spacer(14);
   }
