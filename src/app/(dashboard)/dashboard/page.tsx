@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AlertRow } from "@/components/alert-row";
 import {
@@ -13,6 +13,7 @@ import { DashboardDonut, DashboardGauge } from "@/components/dashboard-charts";
 import { TeamHoursWidget } from "@/components/team-hours-widget";
 import { Level1QueueWidget } from "@/components/level1-queue-widget";
 import { ForticloudExpiringWidget } from "@/components/forticloud-expiring-widget";
+import { MyTicketsWidget } from "@/components/my-tickets-widget";
 import { DashboardRefreshButton } from "@/components/dashboard-refresh-button";
 import {
   IconAlertTriangle,
@@ -22,7 +23,6 @@ import {
   IconUsers,
   IconClipboardCheck,
   IconTag,
-  IconFlag,
 } from "@/components/icons";
 import { formatDate, isOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
@@ -32,12 +32,12 @@ import {
   resolveDashboardWidgets,
 } from "@/lib/dashboard-widgets";
 import { fetchAllReviews, reviewBucket, getQuarterlyReviewApproverEmail } from "@/lib/quarterly-review-data";
-import { fetchMyOpenAutotaskTickets } from "@/lib/my-tickets";
 import { fetchResourceHoursAction } from "../hours/actions";
 import {
   acknowledgeAlertAction,
   fetchUnassignedLevel1TicketsAction,
   fetchLevel1TicketDescriptionAction,
+  fetchMyOpenTicketsAction,
   fetchForticloudExpiringDevicesAction,
 } from "./actions";
 
@@ -108,7 +108,6 @@ export default async function DashboardPage() {
     allReviews,
     { data: openSalesRequests },
     { data: recruitmentRows },
-    myTicketsResult,
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -144,11 +143,7 @@ export default async function DashboardPage() {
       .not("stage", "in", "(delivered,cancelled)")
       .order("created_at", { ascending: false }),
     supabase.from("resumes").select("status"),
-    enabled.has("my_tickets")
-      ? fetchMyOpenAutotaskTickets(createAdminClient(), me?.full_name ?? null, me?.autotask_resource_id ?? null)
-      : Promise.resolve({ tickets: [], matchedResourceName: null }),
   ]);
-  const myTickets = myTicketsResult.tickets;
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
   const overdueTouchpoints = (dueTouchpoints ?? []).filter((t) => isOverdue(t.due_date));
@@ -306,37 +301,7 @@ export default async function DashboardPage() {
         )}
 
         {enabled.has("my_tickets") && (
-          <DashboardWidgetCard
-            title="My Tickets"
-            count={myTickets.length}
-            countLabel="open Autotask tickets"
-            icon={IconFlag}
-            accent="pink"
-            href="/my-todo?tab=tickets"
-          >
-            {myTickets.length === 0 ? (
-              <EmptyRow
-                text={
-                  myTicketsResult.matchedResourceName === null
-                    ? `Couldn't match "${me?.full_name ?? "your name"}" to an active Autotask resource — set yours explicitly under Settings → My Profile.`
-                    : "No open tickets assigned to you."
-                }
-              />
-            ) : (
-              myTickets.slice(0, 5).map((t) => (
-                <WidgetRow accent="pink" key={t.id} href="/my-todo?tab=tickets">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-900">
-                      {t.ticketNumber ? `#${t.ticketNumber} — ` : ""}
-                      {t.title}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">{t.clientName ?? "Unknown client"}</p>
-                  </div>
-                  {t.priority && <Badge value={t.priority} />}
-                </WidgetRow>
-              ))
-            )}
-          </DashboardWidgetCard>
+          <MyTicketsWidget key={refreshToken} action={fetchMyOpenTicketsAction} fullName={me?.full_name ?? null} />
         )}
 
         {enabled.has("unassigned_l1_tickets") && (

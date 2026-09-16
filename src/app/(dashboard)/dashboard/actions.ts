@@ -10,6 +10,7 @@ import { requireStaff, requirePermission } from "@/lib/permissions";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchUnassignedQueueTickets, buildAutotaskTicketUrl, fetchTicketById } from "@/lib/autotask";
 import { fetchForticloudDeviceInventory, type ForticloudDeviceRow } from "@/lib/forticloud-lookups";
+import { fetchMyOpenAutotaskTickets, type MyOpenTicketsResult } from "@/lib/my-tickets";
 import type { ForticloudCredentials } from "@/lib/forticloud";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
 
@@ -587,4 +588,26 @@ export async function fetchForticloudExpiringDevicesAction(): Promise<
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load FortiCloud devices." };
   }
+}
+
+/** The signed-in tech's own open Autotask tickets — a live Autotask call
+ * (Resources lookup + ticket query), same one my-todo's own "Tickets" tab
+ * uses. Deliberately NOT part of the dashboard page's main data
+ * Promise.all: that live call is the slowest thing on the page by far, so
+ * bundling it in there means the whole dashboard waits on Autotask before
+ * it can render anything. Fetched instead from the client, after mount
+ * (see MyTicketsWidget), same lazy-load pattern already used for the
+ * Level 1 Queue / Team Hours / FortiCloud widgets above. */
+export async function fetchMyOpenTicketsAction(): Promise<MyOpenTicketsResult | { error: string }> {
+  const user = await requireStaff();
+  if (!user) return { error: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  const { data: me } = await admin
+    .from("profiles")
+    .select("full_name, autotask_resource_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return fetchMyOpenAutotaskTickets(admin, me?.full_name ?? null, me?.autotask_resource_id ?? null);
 }

@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
@@ -8,8 +8,7 @@ import { MailboxSnapshotPreview } from "@/components/mailbox-snapshot-preview";
 import { SyncMailboxButton } from "@/components/sync-mailbox-button";
 import { UpcomingAppointments } from "@/components/upcoming-appointments";
 import { Tabs } from "@/components/tabs";
-import { MyTicketsList } from "@/components/my-tickets-list";
-import { fetchMyOpenAutotaskTickets } from "@/lib/my-tickets";
+import { MyTicketsTab } from "@/components/my-tickets-tab";
 import {
   createTask,
   deleteTask,
@@ -28,6 +27,7 @@ import {
   syncMyMailboxNow,
   dismissMailboxThread,
   clearDismissedMailboxThreads,
+  fetchMyOpenTicketsAction,
 } from "../dashboard/actions";
 import { filterHref } from "@/components/filter-link";
 
@@ -120,11 +120,7 @@ export default async function MyToDoPage({
   if (filterClient) personalQuery = personalQuery.eq("client_id", filterClient);
   if (filterPriorities.length > 0) personalQuery = personalQuery.in("priority", filterPriorities);
 
-  const [{ data: personalTasks }, myTicketsResult] = await Promise.all([
-    personalQuery,
-    fetchMyOpenAutotaskTickets(createAdminClient(), profile?.full_name ?? null, profile?.autotask_resource_id ?? null),
-  ]);
-  const myTickets = myTicketsResult.tickets;
+  const { data: personalTasks } = await personalQuery;
 
   const sortHrefFor = (field: string, dir: SortDir) =>
     filterHref("/my-todo", { tab: "tasks", client: filterClient, priority: filterPriorities, status: filterStatuses, sort: field, dir });
@@ -227,25 +223,11 @@ export default async function MyToDoPage({
   );
 
   const myTicketsTab = (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">My Tickets</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Open Autotask tickets assigned to {profile?.full_name ?? "you"}.
-        </p>
-      </div>
-      <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        {myTickets.length === 0 ? (
-          <p className="px-5 py-6 text-center text-sm text-slate-500">
-            {myTicketsResult.matchedResourceName === null
-              ? `Couldn't match "${profile?.full_name ?? "your name"}" to an active Autotask resource — set yours explicitly under Settings → My Profile.`
-              : "No open tickets assigned to you right now."}
-          </p>
-        ) : (
-          <MyTicketsList tickets={myTickets} descriptionAction={fetchMyTicketDescriptionAction} />
-        )}
-      </div>
-    </div>
+    <MyTicketsTab
+      action={fetchMyOpenTicketsAction}
+      descriptionAction={fetchMyTicketDescriptionAction}
+      fullName={profile?.full_name ?? null}
+    />
   );
 
   return (
