@@ -134,8 +134,14 @@ export function BlockHoursReportSubscriptionsPanel({
         {ccState.success && <p className="w-full text-sm text-emerald-700">{ccState.success}</p>}
       </form>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        {/* Only the table scrolls horizontally on a narrow screen — the
+            add-form below is a sibling, not nested in here, so its
+            ClientCombobox dropdown isn't clipped by this div's own
+            overflow (an ancestor with overflow-x set also computes
+            overflow-y as clipping, not just visible-and-ignored). */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-4 py-2 text-left font-medium text-slate-500">Client</th>
@@ -169,6 +175,7 @@ export function BlockHoursReportSubscriptionsPanel({
             )}
           </tbody>
         </table>
+        </div>
 
         <form
           ref={addFormRef}
