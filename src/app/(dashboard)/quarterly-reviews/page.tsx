@@ -7,8 +7,7 @@ import { Badge } from "@/components/badge";
 import {
   fetchAllClientsForPicker,
   fetchReviewsForClient,
-  fetchAllReviews,
-  fetchOpenQuarterlyReviewSlaTicketsForDisplay,
+  fetchMyCrossClientReviews,
   reviewBucket,
   reviewActorLabel,
   REVIEW_TABS,
@@ -17,7 +16,11 @@ import {
   type QuarterlyReview,
   type ReviewTab,
 } from "@/lib/quarterly-review-data";
-import { createQuarterlyReviewAction, fetchOpenQuarterlyReviewTicketsAction } from "./actions";
+import {
+  createQuarterlyReviewAction,
+  fetchOpenQuarterlyReviewTicketsAction,
+  fetchOpenQuarterlyReviewSlaTicketsAction,
+} from "./actions";
 import { QuarterlyReviewClientPicker } from "@/components/quarterly-review-client-picker";
 import { NewReviewPanel } from "@/components/new-review-panel";
 
@@ -55,21 +58,19 @@ export default async function QuarterlyReviewsPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("full_name, autotask_resource_id")
-    .eq("id", user?.id ?? "")
-    .maybeSingle();
-  const [clients, allReviews, approverEmail, slaTickets] = await Promise.all([
-    fetchAllClientsForPicker(),
-    fetchAllReviews(),
-    getQuarterlyReviewApproverEmail(),
-    fetchOpenQuarterlyReviewSlaTicketsForDisplay({
-      fullName: me?.full_name ?? null,
-      autotaskResourceId: me?.autotask_resource_id ?? null,
-    }),
-  ]);
+  const approverEmail = await getQuarterlyReviewApproverEmail();
   const isApprover = (user?.email ?? "").toLowerCase() === approverEmail.toLowerCase();
+
+  const [clients, myReviews] = await Promise.all([
+    fetchAllClientsForPicker(),
+    // Cross-client — "what am I actually on the hook for right now": every
+    // draft/submitted/approved review I created (always), anything
+    // sitting in my approval queue, and my last 10 sent reviews (so a
+    // sent one is never just invisible) — pushed down into three bounded
+    // queries (fetchMyCrossClientReviews) instead of pulling every review
+    // ever created across every client and filtering here.
+    user?.id ? fetchMyCrossClientReviews(user.id, isApprover) : Promise.resolve([]),
+  ]);
   const selectedClient = clientId ? (clients.find((c) => c.id === clientId) ?? null) : null;
   const reviews = selectedClient ? await fetchReviewsForClient(selectedClient.id) : [];
 
@@ -77,24 +78,6 @@ export default async function QuarterlyReviewsPage({
   for (const r of reviews) counts[reviewBucket(r.status)]++;
   const visibleReviews = reviews.filter((r) => reviewBucket(r.status) === activeTab);
 
-  // Cross-client — "what am I actually on the hook for right now": every
-  // draft/submitted/approved review I created (always), anything sitting
-  // in my approval queue, and — so a sent review is never just invisible —
-  // my last 10 sent reviews regardless of whether the client's responded.
-  let myReviews: QuarterlyReview[] = [];
-  if (user?.id) {
-    const mine = allReviews.filter((r) => r.createdById === user.id);
-    const myActive = mine.filter((r) => reviewBucket(r.status) !== "sent");
-    const myPendingApproval = isApprover ? allReviews.filter((r) => r.status === "submitted") : [];
-    const mySent = mine
-      .filter((r) => r.status === "sent")
-      .sort((a, b) => new Date(b.sentAt ?? b.createdAt).getTime() - new Date(a.sentAt ?? a.createdAt).getTime())
-      .slice(0, 10);
-
-    const byId = new Map<string, QuarterlyReview>();
-    for (const r of [...myActive, ...myPendingApproval, ...mySent]) byId.set(r.id, r);
-    myReviews = [...byId.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
   const myCounts: Record<ReviewTab, number> = { incomplete: 0, approved: 0, sent: 0 };
   for (const r of myReviews) myCounts[reviewBucket(r.status)]++;
   const visibleMyReviews = myReviews.filter((r) => reviewBucket(r.status) === activeMyTab);
@@ -119,7 +102,7 @@ export default async function QuarterlyReviewsPage({
         defaultClientId={selectedClient?.id ?? null}
         action={createQuarterlyReviewAction}
         fetchOpenTicketsAction={fetchOpenQuarterlyReviewTicketsAction}
-        slaTickets={slaTickets}
+        fetchSlaTicketsAction={fetchOpenQuarterlyReviewSlaTicketsAction}
       />
 
       {myReviews.length > 0 && (

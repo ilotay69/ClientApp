@@ -31,7 +31,7 @@ import {
   getDashboardPreference,
   resolveDashboardWidgets,
 } from "@/lib/dashboard-widgets";
-import { fetchAllReviews, reviewBucket, getQuarterlyReviewApproverEmail } from "@/lib/quarterly-review-data";
+import { fetchMyCrossClientReviews, reviewBucket, getQuarterlyReviewApproverEmail } from "@/lib/quarterly-review-data";
 import { fetchResourceHoursAction } from "../hours/actions";
 import {
   acknowledgeAlertAction,
@@ -105,7 +105,7 @@ export default async function DashboardPage() {
     { data: dueTouchpoints },
     { data: activeProjects },
     { data: myAlerts },
-    allReviews,
+    myReviewsCrossClient,
     { data: openSalesRequests },
     { data: recruitmentRows },
   ] = await Promise.all([
@@ -136,7 +136,9 @@ export default async function DashboardPage() {
       .eq("recipient_id", user?.id ?? "")
       .is("acknowledged_at", null)
       .order("created_at", { ascending: false }),
-    enabled.has("quarterly_reviews") ? fetchAllReviews() : Promise.resolve([]),
+    enabled.has("quarterly_reviews") && user?.id
+      ? fetchMyCrossClientReviews(user.id, isApprover)
+      : Promise.resolve([]),
     supabase
       .from("sales_requests")
       .select("id, title, stage, clients(name)")
@@ -157,11 +159,11 @@ export default async function DashboardPage() {
     workloadByPerson.set(name, (workloadByPerson.get(name) ?? 0) + 1);
   }
 
-  const myReviews = (allReviews ?? []).filter(
-    (r) =>
-      (r.createdById === user?.id && reviewBucket(r.status) !== "sent") ||
-      (isApprover && r.status === "submitted")
-  );
+  // fetchMyCrossClientReviews already scopes to mine-active + pending-my-
+  // approval + my-last-10-sent — the dashboard widget just never shows the
+  // sent ones (Quarterly Reviews' own "My Reviews" section is where those
+  // show up), so drop that slice back out here.
+  const myReviews = myReviewsCrossClient.filter((r) => reviewBucket(r.status) !== "sent");
 
   const overdueMyTasks = (myTasks ?? []).filter((t) => isOverdue(t.due_date));
   const dueTodayMyTasks = (myTasks ?? []).filter((t) => t.due_date === today);

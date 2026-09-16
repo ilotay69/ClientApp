@@ -352,6 +352,53 @@ export async function fetchAllReviews(admin: AdminClient = createAdminClient()):
   return ((data ?? []) as unknown[]).map(mapReview);
 }
 
+/** Cross-client "what's actually on my plate right now" — every review I
+ * created that isn't sent yet, every review currently awaiting my approval
+ * (only relevant when I'm the approver), and my last 10 sent reviews (so a
+ * sent one is never just invisible). Three narrow, bounded queries instead
+ * of fetchAllReviews' "pull every review ever created, across every
+ * client, then filter in JS" — that used to run on every Dashboard and
+ * Quarterly Reviews page load and only gets slower as review history
+ * grows, when in practice a tech only ever cares about a handful of these
+ * at a time. Used by both pages; the Dashboard's own narrower "My Reviews"
+ * widget (no sent ones) just filters the small sent slice back out. */
+export async function fetchMyCrossClientReviews(
+  userId: string,
+  isApprover: boolean,
+  admin: AdminClient = createAdminClient()
+): Promise<QuarterlyReview[]> {
+  const [{ data: mineActive }, { data: pendingApproval }, { data: mineSent }] = await Promise.all([
+    admin
+      .from("quarterly_reviews")
+      .select(`client_id, ${SELECT}`)
+      .eq("created_by", userId)
+      .neq("status", "sent")
+      .order("created_at", { ascending: false }),
+    isApprover
+      ? admin
+          .from("quarterly_reviews")
+          .select(`client_id, ${SELECT}`)
+          .eq("status", "submitted")
+          .order("created_at", { ascending: false })
+          .limit(100)
+      : Promise.resolve({ data: [] }),
+    admin
+      .from("quarterly_reviews")
+      .select(`client_id, ${SELECT}`)
+      .eq("created_by", userId)
+      .eq("status", "sent")
+      .order("sent_at", { ascending: false })
+      .limit(10),
+  ]);
+
+  const byId = new Map<string, QuarterlyReview>();
+  for (const row of [...(mineActive ?? []), ...(pendingApproval ?? []), ...(mineSent ?? [])] as unknown[]) {
+    const review = mapReview(row);
+    byId.set(review.id, review);
+  }
+  return [...byId.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
 export type ReviewTab = "incomplete" | "approved" | "sent";
 export const REVIEW_TABS: ReviewTab[] = ["incomplete", "approved", "sent"];
 export const REVIEW_TAB_LABELS: Record<ReviewTab, string> = {

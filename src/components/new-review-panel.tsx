@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NewQuarterlyReviewForm } from "@/components/new-quarterly-review-form";
 import type { AutotaskQuarterlyReviewTicket } from "@/lib/autotask";
 import type { QuarterlyReviewSlaTicketRow } from "@/lib/quarterly-review-data";
@@ -13,13 +13,19 @@ import type { QuarterlyReviewTemplateKey } from "@/lib/quarterly-review-sections
  * fetchOpenQuarterlyReviewSlaTicketsForDisplay) — pick one with its radio
  * button and click "Start with Autotask ticket" to open the form already
  * pre-filled with that ticket's client/number/hours, no need to pick a
- * client or identify the ticket a second time. */
+ * client or identify the ticket a second time.
+ *
+ * The SLA ticket list is fetched here, client-side after mount, rather
+ * than passed in as a prop from the server-rendered page — that used to
+ * mean the whole Quarterly Reviews page waited on a live Autotask call
+ * before it could render anything at all. Same lazy-load pattern as
+ * MyTicketsWidget on the Dashboard. */
 export function NewReviewPanel({
   clients,
   defaultClientId,
   action,
   fetchOpenTicketsAction,
-  slaTickets,
+  fetchSlaTicketsAction,
 }: {
   clients: { id: string; name: string }[];
   defaultClientId: string | null;
@@ -34,7 +40,7 @@ export function NewReviewPanel({
   fetchOpenTicketsAction: (
     clientId: string
   ) => Promise<{ rows: AutotaskQuarterlyReviewTicket[] } | { error: string }>;
-  slaTickets: QuarterlyReviewSlaTicketRow[];
+  fetchSlaTicketsAction: () => Promise<QuarterlyReviewSlaTicketRow[]>;
 }) {
   const [open, setOpen] = useState(false);
   // Which SLA ticket (if any) seeded the currently-open form — included in
@@ -43,6 +49,18 @@ export function NewReviewPanel({
   // internal state from whichever ticket was selected before.
   const [prefill, setPrefill] = useState<QuarterlyReviewSlaTicketRow | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [slaTickets, setSlaTickets] = useState<QuarterlyReviewSlaTicketRow[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSlaTicketsAction().then((rows) => {
+      if (!cancelled) setSlaTickets(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function openBlank() {
     // Already showing a blank form — this click means "Cancel", close it.
@@ -57,7 +75,7 @@ export function NewReviewPanel({
   }
 
   function startWithSelectedTicket() {
-    const row = slaTickets.find((t) => t.ticketId === selectedTicketId);
+    const row = slaTickets?.find((t) => t.ticketId === selectedTicketId);
     if (!row) return;
     setPrefill(row);
     setOpen(true);
@@ -81,7 +99,9 @@ export function NewReviewPanel({
             its review, no need to identify the client or ticket again.
           </p>
         </div>
-        {slaTickets.length === 0 ? (
+        {slaTickets === null ? (
+          <p className="px-4 py-4 text-center text-xs text-slate-500">Checking Autotask…</p>
+        ) : slaTickets.length === 0 ? (
           <p className="px-4 py-4 text-center text-xs text-slate-500">
             No open Quarterly SLA tickets assigned to you right now.
           </p>

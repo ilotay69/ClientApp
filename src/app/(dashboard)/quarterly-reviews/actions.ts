@@ -19,6 +19,8 @@ import {
   fetchQuarterlyReviewSectionPdfs,
   generateQuarterlyReviewSectionPdf,
   deleteQuarterlyReviewSectionPdf,
+  fetchOpenQuarterlyReviewSlaTicketsForDisplay,
+  type QuarterlyReviewSlaTicketRow,
   QUARTERLY_REVIEW_ATTACHMENTS_BUCKET,
   QUARTERLY_REVIEW_PDF_BUCKET,
 } from "@/lib/quarterly-review-data";
@@ -154,6 +156,29 @@ export async function fetchOpenQuarterlyReviewTicketsAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load tickets." };
   }
+}
+
+/** Every open "Quarterly SLA" Autotask ticket assigned to the current
+ * tech, for the main page's "Open Quarterly Review Tickets" list — a live
+ * Autotask call, same reasoning as fetchMyOpenTicketsAction on the
+ * Dashboard: this used to be fetched inside the page's own server render
+ * (blocking the whole page on Autotask's response time), and is now
+ * fetched from the client after mount instead (see NewReviewPanel). */
+export async function fetchOpenQuarterlyReviewSlaTicketsAction(): Promise<QuarterlyReviewSlaTicketRow[]> {
+  const user = await requirePermission("manage_quarterly_reviews");
+  if (!user) return [];
+
+  const admin = createAdminClient();
+  const { data: me } = await admin
+    .from("profiles")
+    .select("full_name, autotask_resource_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return fetchOpenQuarterlyReviewSlaTicketsForDisplay(
+    { fullName: me?.full_name ?? null, autotaskResourceId: me?.autotask_resource_id ?? null },
+    admin
+  );
 }
 
 export async function saveQuarterlyReviewItemAction(
