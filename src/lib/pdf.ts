@@ -514,6 +514,10 @@ export class PdfContentBuilder {
 
         ensureSpace(headerHeight + rowHeight);
         content += `0.94 0.95 0.97 rg\n${MARGIN.toFixed(2)} ${(cursorY - headerHeight).toFixed(2)} ${USABLE_WIDTH.toFixed(2)} ${headerHeight.toFixed(2)} re f\n`;
+        // Reset fill color back to black — otherwise every header/row
+        // label below (drawn with no explicit color) inherits the light
+        // gray band fill instead of the normal black text color.
+        content += "0 0 0 rg\n";
         let colX = MARGIN;
         const headerBaselineY = cursorY - headerHeight + 6;
         headers.forEach((h, i) => {
