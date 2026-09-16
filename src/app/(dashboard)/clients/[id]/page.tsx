@@ -102,6 +102,8 @@ export default async function ClientDetailPage({
     { data: m365SecureScore },
     { data: m365SecureScoreGaps },
     { data: members },
+    allReviews,
+    { data: m365Credentials },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).single(),
     supabase
@@ -189,19 +191,24 @@ export default async function ClientDetailPage({
     // neq("role", "client"): client-portal logins aren't staff and must
     // never appear as an assignable account owner here.
     supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
+    // Both of these only need `id`, so they belong in the batch rather than
+    // running serially after it — they used to cost two extra round trips
+    // on what's already the heaviest page in the app. They now run before
+    // the notFound() guard below, which just means they occasionally do a
+    // little wasted work for a client id that doesn't exist.
+    fetchReviewsForClient(id),
+    // m365_client_credentials has no RLS policy for authenticated — service-
+    // role only, since it holds a secret — so this needs the admin client.
+    createAdminClient()
+      .from("m365_client_credentials")
+      .select("app_client_id, app_client_secret")
+      .eq("client_id", id)
+      .maybeSingle(),
   ]);
 
   if (!client) notFound();
 
-  const sentReviews = (await fetchReviewsForClient(id)).filter((r) => r.status === "sent");
-
-  // m365_client_credentials has no RLS policy for authenticated — service-
-  // role only, since it holds a secret — so this needs the admin client.
-  const { data: m365Credentials } = await createAdminClient()
-    .from("m365_client_credentials")
-    .select("app_client_id, app_client_secret")
-    .eq("client_id", id)
-    .maybeSingle();
+  const sentReviews = allReviews.filter((r) => r.status === "sent");
 
   const ownerName = client.owner_id
     ? ((members ?? []).find((m) => m.id === client.owner_id)?.full_name ?? null)

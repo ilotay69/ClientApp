@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getCurrentUser } from "@/lib/supabase/server";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchActiveResources } from "@/lib/autotask";
 import { MyAutotaskResourceForm } from "@/components/my-autotask-resource-form";
@@ -12,9 +12,7 @@ export const dynamic = "force-dynamic";
 // mapping, not a shared setting anyone needs manage_integrations to touch.
 export default async function MyProfileSettingsPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase

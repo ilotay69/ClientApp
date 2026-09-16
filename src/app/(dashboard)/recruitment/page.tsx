@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { AsyncActionButton } from "@/components/sync-resumes-button";
@@ -96,16 +96,63 @@ export default async function RecruitmentPage({
   const canada = canadaParam === "yes" || canadaParam === "no" ? canadaParam : null;
   const noResumeYet = noResumeParam === "yes";
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
+
+  // Built here rather than after the batch below so it can go in the
+  // same wave: the message/notes queries underneath need the resume ids
+  // this returns, and running it separately would have cost an extra
+  // serial round trip.
+  let resumeQuery = supabase
+    .from("resumes")
+    .select(
+      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, human_verdict, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, last_job_in_canada, screened_at, screening_error, status, ai_interview_analysis, ai_interview_analysis_at, final_decision",
+      { count: "exact" }
+    )
+    .order("received_at", { ascending: false })
+    .limit(200);
+  if (nameQuery) {
+    // PostgREST's `.or()` string treats commas/parens as syntax, so the
+    // value is double-quote-wrapped (its own PostgREST escape hatch) rather
+    // than sanitized/stripped — lets a name search safely contain those
+    // characters instead of silently mangling them.
+    const escaped = `"%${nameQuery.replace(/"/g, '\\"')}%"`;
+    resumeQuery = resumeQuery.or(`candidate_name.ilike.${escaped},sender_name.ilike.${escaped}`);
+  }
+  if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
+  if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
+  if (ourVerdicts.length > 0) resumeQuery = resumeQuery.in("human_verdict", ourVerdicts);
+  if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
+  if (minYears.length > 0) {
+    // Each bucket is its own OR'd clause — the two middle buckets need an
+    // AND of two conditions (gte + lte), so those are wrapped in PostgREST's
+    // and(...) group rather than expressed as flat comma-separated terms
+    // (which .or() would otherwise read as one big OR across all four).
+    const YEARS_CLAUSES: Record<string, string> = {
+      under3: "years_experience.lt.3",
+      "3to5": "and(years_experience.gte.3,years_experience.lte.5)",
+      "6to10": "and(years_experience.gte.6,years_experience.lte.10)",
+      "11plus": "years_experience.gte.11",
+    };
+    resumeQuery = resumeQuery.or(minYears.map((v) => YEARS_CLAUSES[v]).join(","));
+  }
+  if (currentlyWorking) resumeQuery = resumeQuery.eq("currently_working", currentlyWorking === "yes");
+  // m365_technologies is a keyword list, not a boolean — "yes" filters to
+  // non-null (some technology evidenced), "no" filters to null (none found).
+  if (m365Management === "yes") resumeQuery = resumeQuery.not("m365_technologies", "is", null);
+  else if (m365Management === "no") resumeQuery = resumeQuery.is("m365_technologies", null);
+  if (gta) resumeQuery = resumeQuery.eq("in_gta", gta === "yes");
+  if (stability) resumeQuery = resumeQuery.eq("job_stability", stability);
+  if (canada) resumeQuery = resumeQuery.eq("last_job_in_canada", canada === "yes");
+  // Matches recruitment-table.tsx's own hasResumeContent check (file_name ||
+  // pasted_resume_text) rather than storage_path, which isn't selected here.
+  if (noResumeYet) resumeQuery = resumeQuery.is("file_name", null).is("pasted_resume_text", null);
 
   const [
     { data: connection },
     { data: postings },
     { data: allInterviews },
-    { data: allMessages },
-    { data: allInterviewNotes },
+    { data: recentMessageRows },
+    { data: resumes, count: totalCount },
   ] = await Promise.all([
       supabase
         .from("mail_connections")
@@ -128,24 +175,44 @@ export default async function RecruitmentPage({
           "id, resume_id, scheduled_at, duration_minutes, location, rsvp_status, rsvp_at, teams_join_url, resumes(candidate_name, sender_name, candidate_email, sender_email)"
         )
         .order("scheduled_at", { ascending: true }),
-      // Full two-way thread (both directions), newest first — grouped by
-      // resume_id below into each candidate's own Messages section, and
-      // also flattened (with candidate name) into the "Candidate messages"
-      // rollup above the filter bar. resumes(...) is a nested embed via
-      // resume_id's FK, not a separate round-trip.
+      // Just the "Candidate messages" rollup above the filter bar: inbound
+      // and not yet dismissed, i.e. replies nobody's dealt with. Stays
+      // deliberately unscoped to the visible table — a reply from someone
+      // filtered out of the current view is exactly the thing this is
+      // meant to surface — but the two filters keep it small on their own,
+      // unlike the fetch-every-message-ever it replaced. Each candidate's
+      // own thread is fetched separately below, scoped to the rows on
+      // screen. resumes(...) is a nested embed via resume_id's FK, not a
+      // separate round-trip.
       supabase
         .from("resume_messages")
-        .select("id, resume_id, direction, body_text, sent_at, dismissed_at, resumes(candidate_name, sender_name)")
+        .select("id, resume_id, body_text, sent_at, resumes(candidate_name, sender_name)")
+        .eq("direction", "inbound")
+        .is("dismissed_at", null)
         .order("sent_at", { ascending: false }),
-      // Every interview note ever added, oldest first — grouped by
-      // resume_id below into each candidate's own Interview Notes section.
-      // profiles(...) is a nested embed via created_by's FK, not a separate
-      // round-trip.
-      supabase
-        .from("resume_interview_notes")
-        .select("id, resume_id, note_text, created_at, profiles(full_name)")
-        .order("created_at", { ascending: true }),
+      resumeQuery,
     ]);
+
+  const rows = (resumes ?? []) as RecruitmentTableRow[];
+  const visibleResumeIds = rows.map((r) => r.id);
+
+  // Scoped to the (at most 200) candidates actually rendered, rather than
+  // every message and note ever recorded — both feed per-candidate
+  // sections in the table below and nothing else, so anything outside that
+  // set was being fetched, parsed and streamed for nobody. Both tables
+  // have an index on resume_id, so these are bounded lookups.
+  const [{ data: allMessages }, { data: allInterviewNotes }] = await Promise.all([
+    supabase
+      .from("resume_messages")
+      .select("id, resume_id, direction, body_text, sent_at, dismissed_at, resumes(candidate_name, sender_name)")
+      .in("resume_id", visibleResumeIds)
+      .order("sent_at", { ascending: false }),
+    supabase
+      .from("resume_interview_notes")
+      .select("id, resume_id, note_text, created_at, profiles(full_name)")
+      .in("resume_id", visibleResumeIds)
+      .order("created_at", { ascending: true }),
+  ]);
 
   const currentPosting = postings?.[0] ?? null;
   const pastPostings = postings?.slice(1) ?? [];
@@ -200,26 +267,31 @@ export default async function RecruitmentPage({
     list.push(m);
     messagesByResumeId.set(m.resume_id, list);
   }
-  // Already newest-first (the query itself is ordered that way) — every
-  // candidate's own thread and this flattened cross-candidate view share
-  // that same order, just grouped differently. Inbound only — this rollup
-  // is meant to surface candidate replies staff might not have seen yet,
-  // not a log of what staff themselves already sent. dismissed_at is only
-  // ever checked here — messagesByResumeId (each candidate's own thread)
-  // uses the same underlying rows with no such filter, so dismissing a
-  // message from this rollup can never hide it from the candidate's thread.
-  const recentMessages = messages
-    .filter((m) => m.direction === "inbound" && !m.dismissed_at)
-    .map((m) => {
-      const resumeInfo = Array.isArray(m.resumes) ? m.resumes[0] : m.resumes;
-      return {
-        id: m.id,
-        resumeId: m.resume_id,
-        candidateName: resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate",
-        bodyText: m.body_text,
-        sentAt: m.sent_at,
-      };
-    });
+  // Already newest-first (its own query is ordered that way), and already
+  // narrowed to inbound-and-undismissed in SQL rather than filtered here —
+  // this rollup is meant to surface candidate replies staff might not have
+  // seen yet, not a log of what staff themselves already sent. It stays
+  // deliberately independent of the visible table, so a reply from a
+  // candidate filtered out of the current view still shows up. Dismissing
+  // one here can't hide it from that candidate's own thread, which comes
+  // from the separate (unfiltered-by-dismissal) query above.
+  type RecentMessageRow = {
+    id: string;
+    resume_id: string;
+    body_text: string | null;
+    sent_at: string;
+    resumes: { candidate_name: string | null; sender_name: string | null } | { candidate_name: string | null; sender_name: string | null }[] | null;
+  };
+  const recentMessages = ((recentMessageRows ?? []) as RecentMessageRow[]).map((m) => {
+    const resumeInfo = Array.isArray(m.resumes) ? m.resumes[0] : m.resumes;
+    return {
+      id: m.id,
+      resumeId: m.resume_id,
+      candidateName: resumeInfo?.candidate_name ?? resumeInfo?.sender_name ?? "Unnamed candidate",
+      bodyText: m.body_text,
+      sentAt: m.sent_at,
+    };
+  });
 
   type InterviewNoteRow = {
     id: string;
@@ -234,54 +306,6 @@ export default async function RecruitmentPage({
     list.push(n);
     notesByResumeId.set(n.resume_id, list);
   }
-
-  let resumeQuery = supabase
-    .from("resumes")
-    .select(
-      "id, received_at, sender_name, sender_email, subject, file_name, email_body_text, pasted_resume_text, candidate_name, candidate_email, candidate_phone, ai_verdict, ai_comment, human_verdict, big_firm_experience, years_experience, currently_working, months_since_worked, in_gta, m365_technologies, job_stability, last_job_in_canada, screened_at, screening_error, status, ai_interview_analysis, ai_interview_analysis_at, final_decision",
-      { count: "exact" }
-    )
-    .order("received_at", { ascending: false })
-    .limit(200);
-  if (nameQuery) {
-    // PostgREST's `.or()` string treats commas/parens as syntax, so the
-    // value is double-quote-wrapped (its own PostgREST escape hatch) rather
-    // than sanitized/stripped — lets a name search safely contain those
-    // characters instead of silently mangling them.
-    const escaped = `"%${nameQuery.replace(/"/g, '\\"')}%"`;
-    resumeQuery = resumeQuery.or(`candidate_name.ilike.${escaped},sender_name.ilike.${escaped}`);
-  }
-  if (statuses.length > 0) resumeQuery = resumeQuery.in("status", statuses);
-  if (verdicts.length > 0) resumeQuery = resumeQuery.in("ai_verdict", verdicts);
-  if (ourVerdicts.length > 0) resumeQuery = resumeQuery.in("human_verdict", ourVerdicts);
-  if (bigFirm) resumeQuery = resumeQuery.eq("big_firm_experience", bigFirm === "yes");
-  if (minYears.length > 0) {
-    // Each bucket is its own OR'd clause — the two middle buckets need an
-    // AND of two conditions (gte + lte), so those are wrapped in PostgREST's
-    // and(...) group rather than expressed as flat comma-separated terms
-    // (which .or() would otherwise read as one big OR across all four).
-    const YEARS_CLAUSES: Record<string, string> = {
-      under3: "years_experience.lt.3",
-      "3to5": "and(years_experience.gte.3,years_experience.lte.5)",
-      "6to10": "and(years_experience.gte.6,years_experience.lte.10)",
-      "11plus": "years_experience.gte.11",
-    };
-    resumeQuery = resumeQuery.or(minYears.map((v) => YEARS_CLAUSES[v]).join(","));
-  }
-  if (currentlyWorking) resumeQuery = resumeQuery.eq("currently_working", currentlyWorking === "yes");
-  // m365_technologies is a keyword list, not a boolean — "yes" filters to
-  // non-null (some technology evidenced), "no" filters to null (none found).
-  if (m365Management === "yes") resumeQuery = resumeQuery.not("m365_technologies", "is", null);
-  else if (m365Management === "no") resumeQuery = resumeQuery.is("m365_technologies", null);
-  if (gta) resumeQuery = resumeQuery.eq("in_gta", gta === "yes");
-  if (stability) resumeQuery = resumeQuery.eq("job_stability", stability);
-  if (canada) resumeQuery = resumeQuery.eq("last_job_in_canada", canada === "yes");
-  // Matches recruitment-table.tsx's own hasResumeContent check (file_name ||
-  // pasted_resume_text) rather than storage_path, which isn't selected here.
-  if (noResumeYet) resumeQuery = resumeQuery.is("file_name", null).is("pasted_resume_text", null);
-  const { data: resumes, count: totalCount } = await resumeQuery;
-
-  const rows = (resumes ?? []) as RecruitmentTableRow[];
 
   // Flags candidates whose pasted resume text exactly matches another row in
   // the current (filtered, up-to-200) list — not a DB constraint, just a

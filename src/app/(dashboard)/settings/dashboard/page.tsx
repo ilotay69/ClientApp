@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import {
   DASHBOARD_WIDGETS,
   getEligibleDashboardWidgetKeys,
@@ -16,9 +16,7 @@ export const dynamic = "force-dynamic";
 // similar) to touch.
 export default async function DashboardSettingsPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const [eligibleKeys, preference] = await Promise.all([

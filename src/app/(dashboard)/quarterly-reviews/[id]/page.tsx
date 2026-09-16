@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { hasPermission, getMyPermissions } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/badge";
@@ -105,9 +105,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   if (!(await hasPermission(supabase, "manage_quarterly_reviews"))) {
     redirect("/dashboard");
   }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   const [me, canDelete, approverEmail] = await Promise.all([
     getMyPermissions(supabase),
     hasPermission(supabase, "delete_quarterly_reviews"),

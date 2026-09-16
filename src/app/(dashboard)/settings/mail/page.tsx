@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/format";
 import { SyncMailButton } from "@/components/sync-mail-button";
 import { DeleteButton } from "@/components/delete-button";
@@ -13,9 +13,7 @@ export default async function MailSettingsPage({
 }) {
   const { connected, error } = await searchParams;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const { data: connection } = await supabase
     .from("mail_connections")

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getCurrentUser } from "@/lib/supabase/server";
 import { isStaffRole } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
 // Re-exported so existing server-side callers can keep importing these
@@ -148,9 +148,7 @@ async function loadPortalClient(clientId: string): Promise<PortalClient | null> 
  */
 export async function getPortalContext(previewClientId?: string): Promise<PortalContext> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { state: "unauthenticated" };
 
   const { data: profile } = await supabase
@@ -257,9 +255,7 @@ export async function getPortalIdentity(): Promise<{
   clientId: string;
 } | null> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const { data: profile } = await supabase

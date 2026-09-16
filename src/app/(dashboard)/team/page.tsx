@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { Badge } from "@/components/badge";
 import { RoleSelect } from "@/components/role-select";
 import { AddTeamMemberForm } from "@/components/add-team-member-form";
@@ -12,9 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TeamPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!(await hasPermission(supabase, "manage_team"))) {
     redirect("/dashboard");

@@ -26,6 +26,23 @@ const PUBLIC_ASSET_PATHS = ["/manifest.webmanifest", "/icon", "/icon-192", "/app
  * `middleware.ts`.
  */
 export async function updateSession(request: NextRequest) {
+  const isPublicPath = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+  const isPublicAsset = PUBLIC_ASSET_PATHS.some((path) => request.nextUrl.pathname === path);
+  const isPublicPrefixPath = PUBLIC_PREFIX_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+
+  // Neither redirect below can fire for these, whatever the session says:
+  // the "send them to /login" rule excludes them explicitly, and the
+  // "bounce them off /login" rule only applies to PUBLIC_PATHS. So the auth
+  // call can't change the outcome — and it's a network round trip to
+  // Supabase Auth on every request that reaches it. That mattered most for
+  // the PWA assets: a browser's installability check fetches the manifest,
+  // the icons and the service worker independently of any page load, so
+  // opening the app used to pay several wasted round trips before anything
+  // rendered.
+  if (isPublicAsset || isPublicPrefixPath) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -53,12 +70,9 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublicPath = PUBLIC_PATHS.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
-  const isPublicAsset = PUBLIC_ASSET_PATHS.some((path) => request.nextUrl.pathname === path);
-  const isPublicPrefixPath = PUBLIC_PREFIX_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
-
+  // isPublicAsset/isPublicPrefixPath returned early above, so they're
+  // necessarily false here — kept in the condition anyway so this stays
+  // correct on its own terms rather than depending on that early return.
   if (
     !user &&
     !isPublicPath &&
