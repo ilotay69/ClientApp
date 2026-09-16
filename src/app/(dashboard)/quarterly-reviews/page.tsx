@@ -55,11 +55,19 @@ export default async function QuarterlyReviewsPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("full_name, autotask_resource_id")
+    .eq("id", user?.id ?? "")
+    .maybeSingle();
   const [clients, allReviews, approverEmail, slaTickets] = await Promise.all([
     fetchAllClientsForPicker(),
     fetchAllReviews(),
     getQuarterlyReviewApproverEmail(),
-    fetchOpenQuarterlyReviewSlaTicketsForDisplay(),
+    fetchOpenQuarterlyReviewSlaTicketsForDisplay({
+      fullName: me?.full_name ?? null,
+      autotaskResourceId: me?.autotask_resource_id ?? null,
+    }),
   ]);
   const isApprover = (user?.email ?? "").toLowerCase() === approverEmail.toLowerCase();
   const selectedClient = clientId ? (clients.find((c) => c.id === clientId) ?? null) : null;

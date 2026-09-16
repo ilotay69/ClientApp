@@ -26,7 +26,11 @@ import {
   IconSliders,
   IconClipboardCheck,
 } from "@/components/icons";
-import { QUARTERLY_REVIEW_SECTIONS, QUARTERLY_STATUS_LABELS } from "@/lib/quarterly-review-sections";
+import {
+  QUARTERLY_STATUS_LABELS,
+  QUARTERLY_REVIEW_TEMPLATE_LABELS,
+  getQuarterlyReviewSections,
+} from "@/lib/quarterly-review-sections";
 import {
   getQuarterlyReview,
   fetchAllClientsForPicker,
@@ -73,6 +77,13 @@ const SECTION_ICONS: Record<string, (props: { className?: string }) => React.Rea
   backups_other: IconRefresh,
   active_directory: IconUsers,
   miscellaneous: IconSliders,
+  avd_virtual_servers_hosts: IconDatabase,
+  avd_internet_domains: IconGlobe,
+  avd_backups_servers: IconDatabase,
+  avd_backups_other: IconRefresh,
+  avd_active_directory: IconUsers,
+  avd_other_security: IconUsers,
+  avd_miscellaneous: IconSliders,
 };
 
 /** An item counts as "reviewed" once it's been touched at all — moved off
@@ -120,14 +131,15 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
   const client = clients.find((c) => c.id === review.clientId);
 
   const itemStatusByKey = new Map(review.items.map((i) => [i.itemKey, i]));
+  const sections = getQuarterlyReviewSections(review.template);
 
-  const totalItems = QUARTERLY_REVIEW_SECTIONS.reduce((sum, s) => sum + s.items.length, 0);
-  const reviewedItems = QUARTERLY_REVIEW_SECTIONS.reduce(
+  const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0);
+  const reviewedItems = sections.reduce(
     (sum, s) => sum + s.items.filter((item) => isItemReviewed(itemStatusByKey.get(item.key))).length,
     0
   );
   const progressPct = totalItems > 0 ? Math.round((reviewedItems / totalItems) * 100) : 0;
-  const sectionCounts = QUARTERLY_REVIEW_SECTIONS.map((s) => ({
+  const sectionCounts = sections.map((s) => ({
     key: s.key,
     reviewed: s.items.filter((item) => isItemReviewed(itemStatusByKey.get(item.key))).length,
     total: s.items.length,
@@ -152,7 +164,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
         <nav className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
           <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Review sections</p>
           <ul className="space-y-0.5">
-            {QUARTERLY_REVIEW_SECTIONS.map((section) => {
+            {sections.map((section) => {
               const Icon = SECTION_ICONS[section.key] ?? IconSliders;
               const count = sectionCounts.find((c) => c.key === section.key);
               return (
@@ -199,6 +211,9 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
                 {review.clientName} — {review.reviewPeriod}
               </h1>
               <Badge value={review.status} />
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                {QUARTERLY_REVIEW_TEMPLATE_LABELS[review.template]} template
+              </span>
             </div>
             <p className="mt-1 text-xs text-slate-500">
               Created {formatDate(review.createdAt)}
@@ -360,7 +375,7 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
       )}
 
       <div className="space-y-4">
-        {QUARTERLY_REVIEW_SECTIONS.map((section) => {
+        {sections.map((section) => {
           const previousRows = previousReview
             ? section.items
                 .map((item) => ({ item, prev: previousReview.itemsByKey.get(item.key) }))

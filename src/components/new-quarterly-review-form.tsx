@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { SearchableClientSelect } from "@/components/searchable-client-select";
 import type { AutotaskQuarterlyReviewTicket } from "@/lib/autotask";
+import { QUARTERLY_REVIEW_TEMPLATE_LABELS, type QuarterlyReviewTemplateKey } from "@/lib/quarterly-review-sections";
+
+const TEMPLATE_KEYS = Object.keys(QUARTERLY_REVIEW_TEMPLATE_LABELS) as QuarterlyReviewTemplateKey[];
 
 const MONTHS = [
   "January",
@@ -40,7 +43,8 @@ export function NewQuarterlyReviewForm({
     reviewPeriod: string,
     confirmDuplicate: boolean,
     ticketNumber: string | null,
-    hoursSpent: number | null
+    hoursSpent: number | null,
+    template: QuarterlyReviewTemplateKey
   ) => Promise<{ error: string } | undefined>;
   fetchOpenTicketsAction: (
     clientId: string
@@ -60,6 +64,7 @@ export function NewQuarterlyReviewForm({
   const [clientId, setClientId] = useState(defaultClientId ?? "");
   const [month, setMonth] = useState(MONTHS[now.getMonth()]);
   const [year, setYear] = useState(String(currentYear));
+  const [template, setTemplate] = useState<QuarterlyReviewTemplateKey>("standard");
   const [pending, startTransition] = useTransition();
   const [warning, setWarning] = useState<string | null>(null);
 
@@ -115,7 +120,8 @@ export function NewQuarterlyReviewForm({
         period,
         confirmDuplicate,
         selectedTicket?.ticketNumber ?? null,
-        selectedTicket ? selectedTicket.hoursLogged : null
+        selectedTicket ? selectedTicket.hoursLogged : null,
+        template
       );
       // No result at all means createQuarterlyReviewAction hit its own
       // redirect() — there's nothing left to show here either way.
@@ -181,6 +187,23 @@ export function NewQuarterlyReviewForm({
         >
           {pending ? "Starting…" : "Start review"}
         </button>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-slate-700">Template</p>
+        <div className="mt-1 flex gap-3">
+          {TEMPLATE_KEYS.map((key) => (
+            <label key={key} className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-700">
+              <input
+                type="radio"
+                name="quarterly_review_template"
+                checked={template === key}
+                onChange={() => setTemplate(key)}
+              />
+              {QUARTERLY_REVIEW_TEMPLATE_LABELS[key]}
+            </label>
+          ))}
+        </div>
       </div>
 
       {clientId && (

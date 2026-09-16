@@ -1,5 +1,12 @@
 import { PdfContentBuilder } from "@/lib/pdf";
-import { QUARTERLY_REVIEW_SECTIONS, QUARTERLY_STATUS_LABELS, type QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
+import {
+  ALL_TEMPLATE_SECTIONS,
+  QUARTERLY_STATUS_LABELS,
+  getQuarterlyReviewSections,
+  type QuarterlyReviewItemStatus,
+  type QuarterlyReviewTemplateKey,
+  type QuarterlyReviewSection,
+} from "@/lib/quarterly-review-sections";
 import { buildDeviceInsights, buildDeviceAgeBreakdown, deviceAgeDays, type DeviceInsightInput } from "@/lib/device-insights";
 
 export type QuarterlyReviewPdfItem = { itemKey: string; status: QuarterlyReviewItemStatus; comments: string | null };
@@ -23,7 +30,7 @@ const STATUS_COLORS: Record<QuarterlyReviewItemStatus, [number, number, number]>
 
 const NAVY: [number, number, number] = [0.059, 0.09, 0.165];
 
-const LABEL_BY_KEY = new Map(QUARTERLY_REVIEW_SECTIONS.flatMap((s) => s.items).map((i) => [i.key, i.label]));
+const LABEL_BY_KEY = new Map(ALL_TEMPLATE_SECTIONS.flatMap((s) => s.items).map((i) => [i.key, i.label]));
 
 /** Worst-first — the review's overall rating is just whichever of these is
  * present anywhere in the checklist, no separate field for staff to set. */
@@ -87,6 +94,11 @@ function deviceAgeLabel(d: Pick<DeviceInsightInput, "manufacturer_fulfillment_da
 export function buildQuarterlyReviewPdf(params: {
   clientName: string;
   reviewPeriod: string;
+  /** Which checklist this review was built from — picks the right section
+   * list/order for the printed checklist below (see
+   * getQuarterlyReviewSections). Defaults to Standard for an old review
+   * predating the template column. */
+  template?: QuarterlyReviewTemplateKey | string | null;
   summary: string | null;
   items: QuarterlyReviewPdfItem[];
   images: QuarterlyReviewPdfImage[];
@@ -110,6 +122,7 @@ export function buildQuarterlyReviewPdf(params: {
   const {
     clientName,
     reviewPeriod,
+    template,
     summary,
     items,
     images,
@@ -118,6 +131,7 @@ export function buildQuarterlyReviewPdf(params: {
     changesSinceLastReviewText,
     devices = [],
   } = params;
+  const sections: QuarterlyReviewSection[] = getQuarterlyReviewSections(template);
   const itemByKey = new Map(items.map((i) => [i.itemKey, i]));
 
   const doc = new PdfContentBuilder();
@@ -159,7 +173,7 @@ export function buildQuarterlyReviewPdf(params: {
     doc.spacer(10);
   }
 
-  for (const section of QUARTERLY_REVIEW_SECTIONS) {
+  for (const section of sections) {
     doc.heading(section.label, 2);
     for (const item of section.items) {
       const row = itemByKey.get(item.key);

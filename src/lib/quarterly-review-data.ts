@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/server";
-import { QUARTERLY_REVIEW_SECTIONS, type QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
+import {
+  getQuarterlyReviewSections,
+  type QuarterlyReviewItemStatus,
+  type QuarterlyReviewTemplateKey,
+} from "@/lib/quarterly-review-sections";
 import { buildQuarterlyReviewPdf } from "@/lib/quarterly-review-pdf";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
-import { fetchOpenQuarterlyReviewSlaTickets } from "@/lib/autotask";
+import { fetchOpenQuarterlyReviewSlaTickets, fetchActiveResources } from "@/lib/autotask";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
@@ -121,13 +125,17 @@ export type QuarterlyReview = {
    * computes this section automatically from the checklist instead. */
   actionItemsNotes: string | null;
   changesSinceLastReviewNotes: string | null;
+  /** Which checklist this review was built from (see
+   * getQuarterlyReviewSections) — picked once when the review is started
+   * and fixed for its whole life, same as ticketNumber/hoursSpent. */
+  template: QuarterlyReviewTemplateKey;
   items: QuarterlyReviewItemRow[];
 };
 
 const SELECT = `
   id, review_period, status, created_by, submitted_at, approved_at, sent_at, sent_to_email, created_at,
   summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
-  client_acknowledged_at, client_ack_remarks, ticket_number,
+  client_acknowledged_at, client_ack_remarks, ticket_number, template,
   action_items_notes, changes_since_last_review_notes,
   reminder_count, last_reminder_at,
   clients(name),
@@ -157,9 +165,11 @@ function mapReview(row: any): QuarterlyReview {
       ]
     )
   );
-  // Always the current section/item order — a newly added item just shows
-  // as a fresh "na" row (id "") until it's actually saved.
-  const items: QuarterlyReviewItemRow[] = QUARTERLY_REVIEW_SECTIONS.flatMap((s) => s.items).map((i) => {
+  const template: QuarterlyReviewTemplateKey = row.template === "avd" ? "avd" : "standard";
+  // Always the current section/item order for this review's own template —
+  // a newly added item just shows as a fresh "na" row (id "") until it's
+  // actually saved.
+  const items: QuarterlyReviewItemRow[] = getQuarterlyReviewSections(template).flatMap((s) => s.items).map((i) => {
     const existing = itemByKey.get(i.key);
     return existing ?? { id: "", itemKey: i.key, status: "na", comments: null };
   });
@@ -195,6 +205,7 @@ function mapReview(row: any): QuarterlyReview {
     ticketNumber: row.ticket_number ?? null,
     actionItemsNotes: row.action_items_notes ?? null,
     changesSinceLastReviewNotes: row.changes_since_last_review_notes ?? null,
+    template,
     items,
   };
 }
@@ -207,7 +218,8 @@ export async function createQuarterlyReview(
   /** Pre-filled from a tech's pick among that client's open "quarterly
    * review" recurring tickets (see fetchOpenQuarterlyReviewTickets) —
    * optional since a client might not have one open yet. */
-  extra?: { ticketNumber?: string | null; hoursSpent?: number | null }
+  extra?: { ticketNumber?: string | null; hoursSpent?: number | null },
+  template: QuarterlyReviewTemplateKey = "standard"
 ): Promise<string> {
   const { data, error } = await admin
     .from("quarterly_reviews")
@@ -217,13 +229,14 @@ export async function createQuarterlyReview(
       created_by: createdBy,
       ticket_number: extra?.ticketNumber ?? null,
       hours_spent: extra?.hoursSpent ?? null,
+      template,
     })
     .select("id")
     .single();
   if (error) throw new Error(`Couldn't create quarterly review: ${error.message}`);
 
   await admin.from("quarterly_review_items").insert(
-    QUARTERLY_REVIEW_SECTIONS.flatMap((s) => s.items).map((i) => ({ review_id: data.id, item_key: i.key }))
+    getQuarterlyReviewSections(template).flatMap((s) => s.items).map((i) => ({ review_id: data.id, item_key: i.key }))
   );
 
   return data.id;
@@ -395,11 +408,23 @@ export type QuarterlyReviewSlaTicketRow = {
  * ticket that triggered a review to starting one, without hand-picking a
  * client or being asked to identify the ticket again (see
  * fetchOpenQuarterlyReviewSlaTickets for how these are found in Autotask).
+ * Filtered down to two things:
+ *  - Only tickets assigned to the current tech, when we can resolve who
+ *    that is in Autotask terms — same resolution order as
+ *    fetchMyOpenAutotaskTickets (explicit profiles.autotask_resource_id
+ *    first, full_name match as a fallback). Left unfiltered (every tech's
+ *    tickets) when neither resolves, rather than silently showing nothing
+ *    to someone who hasn't linked an Autotask Resource yet.
+ *  - Never a ticket that's already been used to start some review (any
+ *    status) — createQuarterlyReview stamps quarterly_reviews.ticket_number
+ *    from whichever ticket was picked, so once used it shouldn't be
+ *    offered again.
  * A ticket whose company isn't linked to any client here is silently
  * dropped — there'd be nothing to attach the review to. Returns an empty
  * list (not an error) whenever Autotask isn't connected or has no ticket
  * matching that SLA — both normal, not failures. */
 export async function fetchOpenQuarterlyReviewSlaTicketsForDisplay(
+  currentUser: { fullName: string | null; autotaskResourceId: number | null },
   admin: AdminClient = createAdminClient()
 ): Promise<QuarterlyReviewSlaTicketRow[]> {
   const settings = await getAutotaskSettings(admin);
@@ -412,6 +437,24 @@ export async function fetchOpenQuarterlyReviewSlaTicketsForDisplay(
     console.error("fetchOpenQuarterlyReviewSlaTicketsForDisplay: Autotask lookup failed", err);
     return [];
   }
+  if (tickets.length === 0) return [];
+
+  let myResourceId: number | null = currentUser.autotaskResourceId;
+  if (myResourceId == null && currentUser.fullName) {
+    const resources = await fetchActiveResources(settings.credentials, settings.zoneUrl);
+    const match = resources.find((r) => r.name.toLowerCase() === currentUser.fullName!.toLowerCase());
+    myResourceId = match?.id ?? null;
+  }
+  if (myResourceId != null) {
+    tickets = tickets.filter((t) => t.assignedResourceId === myResourceId);
+  }
+  if (tickets.length === 0) return [];
+
+  const { data: usedRows } = await admin.from("quarterly_reviews").select("ticket_number").not("ticket_number", "is", null);
+  const usedTicketNumbers = new Set(
+    ((usedRows ?? []) as { ticket_number: string | null }[]).map((r) => r.ticket_number).filter(Boolean)
+  );
+  tickets = tickets.filter((t) => !t.ticketNumber || !usedTicketNumbers.has(t.ticketNumber));
   if (tickets.length === 0) return [];
 
   const companyIds = [...new Set(tickets.map((t) => t.companyId))];
@@ -548,6 +591,7 @@ export async function assembleQuarterlyReviewPdf(
   const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
     clientName: review.clientName,
     reviewPeriod: review.reviewPeriod,
+    template: review.template,
     summary: review.summary,
     items: review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
     images: images.map((i) => ({ id: i.id, buffer: i.buffer, label: i.label, fileName: i.fileName })),

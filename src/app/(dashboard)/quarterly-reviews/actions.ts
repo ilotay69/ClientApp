@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { requirePermission, getMyPermissions, hasPermission } from "@/lib/permissions";
-import type { QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
+import type { QuarterlyReviewItemStatus, QuarterlyReviewTemplateKey } from "@/lib/quarterly-review-sections";
 import {
   createQuarterlyReview,
   getQuarterlyReview,
@@ -79,7 +79,8 @@ export async function createQuarterlyReviewAction(
    * the client had no open quarterly-review ticket, or the tech skipped
    * picking one. */
   ticketNumber: string | null,
-  hoursSpent: number | null
+  hoursSpent: number | null,
+  template: QuarterlyReviewTemplateKey = "standard"
 ): Promise<CreateReviewState> {
   const user = await requirePermission("manage_quarterly_reviews");
   if (!user) return { error: "You don't have permission to do that." };
@@ -101,10 +102,14 @@ export async function createQuarterlyReviewAction(
     }
   }
 
-  const reviewId = await createQuarterlyReview(clientId, trimmedPeriod, user.id, admin, {
-    ticketNumber,
-    hoursSpent,
-  });
+  const reviewId = await createQuarterlyReview(
+    clientId,
+    trimmedPeriod,
+    user.id,
+    admin,
+    { ticketNumber, hoursSpent },
+    template
+  );
   redirect(`/quarterly-reviews/${reviewId}`);
 }
 
@@ -224,7 +229,8 @@ export async function generateQuarterlyReviewSummaryAction(reviewId: string): Pr
       review.clientName,
       review.reviewPeriod,
       review.items.map((i) => ({ itemKey: i.itemKey, status: i.status, comments: i.comments })),
-      settings
+      settings,
+      review.template
     );
     if (!summary) return { ok: false, message: "Couldn't generate a summary — try again." };
 

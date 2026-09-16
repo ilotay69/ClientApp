@@ -886,6 +886,7 @@ export type AutotaskQuarterlyReviewSlaTicket = {
   title: string;
   createdAt: string | null;
   hoursLogged: number;
+  assignedResourceId: number | null;
 };
 
 /** Every open ticket, across ALL companies, tagged with the "Quarterly
@@ -913,7 +914,14 @@ export async function fetchOpenQuarterlyReviewSlaTickets(
       { op: "eq", field: "serviceLevelAgreementID", value: slaId },
       { op: "notExist", field: "completedDate" },
     ],
-  })) as { id: number; companyID: number; ticketNumber?: string; title: string; createDate?: string }[];
+  })) as {
+    id: number;
+    companyID: number;
+    ticketNumber?: string;
+    title: string;
+    createDate?: string;
+    assignedResourceID?: number;
+  }[];
   if (items.length === 0) return [];
 
   const entries = (await autotaskQueryAllPages(creds, zoneUrl, "TimeEntries", {
@@ -933,6 +941,7 @@ export async function fetchOpenQuarterlyReviewSlaTickets(
       title: t.title,
       createdAt: t.createDate ?? null,
       hoursLogged: hoursByTicket.get(t.id) ?? 0,
+      assignedResourceId: t.assignedResourceID ?? null,
     }))
     .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
 }

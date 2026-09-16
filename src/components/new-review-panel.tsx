@@ -4,6 +4,7 @@ import { useState } from "react";
 import { NewQuarterlyReviewForm } from "@/components/new-quarterly-review-form";
 import type { AutotaskQuarterlyReviewTicket } from "@/lib/autotask";
 import type { QuarterlyReviewSlaTicketRow } from "@/lib/quarterly-review-data";
+import type { QuarterlyReviewTemplateKey } from "@/lib/quarterly-review-sections";
 
 /** Collapsed by default — decluttering the main page down to just the
  * client picker and existing-reviews list until staff actually want to
@@ -25,7 +26,8 @@ export function NewReviewPanel({
     reviewPeriod: string,
     confirmDuplicate: boolean,
     ticketNumber: string | null,
-    hoursSpent: number | null
+    hoursSpent: number | null,
+    template: QuarterlyReviewTemplateKey
   ) => Promise<{ error: string } | undefined>;
   fetchOpenTicketsAction: (
     clientId: string

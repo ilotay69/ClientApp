@@ -6,7 +6,12 @@
 // about what needs attention.
 import type { ActiveAiSettings } from "@/lib/ai";
 import { assertAsciiHeaderValue } from "@/lib/ascii-check";
-import { QUARTERLY_REVIEW_SECTIONS, QUARTERLY_STATUS_LABELS, type QuarterlyReviewItemStatus } from "@/lib/quarterly-review-sections";
+import {
+  QUARTERLY_STATUS_LABELS,
+  getQuarterlyReviewSections,
+  type QuarterlyReviewItemStatus,
+  type QuarterlyReviewTemplateKey,
+} from "@/lib/quarterly-review-sections";
 
 export type QuarterlyReviewItemForSummary = {
   itemKey: string;
@@ -14,9 +19,9 @@ export type QuarterlyReviewItemForSummary = {
   comments: string | null;
 };
 
-function buildItemsBlock(items: QuarterlyReviewItemForSummary[]): string {
+function buildItemsBlock(items: QuarterlyReviewItemForSummary[], template: QuarterlyReviewTemplateKey | string | null): string {
   const byKey = new Map(items.map((i) => [i.itemKey, i]));
-  return QUARTERLY_REVIEW_SECTIONS.map((section) => {
+  return getQuarterlyReviewSections(template).map((section) => {
     const lines = section.items
       .map((item) => {
         const row = byKey.get(item.key);
@@ -63,9 +68,10 @@ export async function generateQuarterlyReviewSummary(
   clientName: string,
   reviewPeriod: string,
   items: QuarterlyReviewItemForSummary[],
-  settings: ActiveAiSettings
+  settings: ActiveAiSettings,
+  template: QuarterlyReviewTemplateKey | string | null
 ): Promise<string | null> {
-  const prompt = buildPrompt(clientName, reviewPeriod, buildItemsBlock(items));
+  const prompt = buildPrompt(clientName, reviewPeriod, buildItemsBlock(items, template));
 
   const parsed =
     settings.provider === "openai"
