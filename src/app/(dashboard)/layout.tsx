@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/login/actions";
-import { getMyPermissions, isPermissionOwnerOnly } from "@/lib/permissions";
+import { getMyPermissions, fetchOwnerOnlyPermissions, type PermissionKey } from "@/lib/permissions";
 import { SidebarNav } from "@/components/sidebar-nav";
 import type { Profile } from "@/lib/types";
 
@@ -50,25 +50,25 @@ export default async function DashboardLayout({
   const canManageBackups = me?.permissions.has("manage_backups") ?? false;
   const canManageQuarterlyReviews = me?.permissions.has("manage_quarterly_reviews") ?? false;
 
-  const [
-    teamOwnerOnly,
-    integrationsOwnerOnly,
-    touchpointsOwnerOnly,
-    domainHealthOwnerOnly,
-    recruitmentOwnerOnly,
-    reconciliationOwnerOnly,
-    backupsOwnerOnly,
-    quarterlyReviewsOwnerOnly,
-  ] = await Promise.all([
-    isPermissionOwnerOnly(supabase, "manage_team"),
-    isPermissionOwnerOnly(supabase, "manage_integrations"),
-    isPermissionOwnerOnly(supabase, "manage_touchpoints"),
-    isPermissionOwnerOnly(supabase, "view_domain_health"),
-    isPermissionOwnerOnly(supabase, "manage_recruitment"),
-    isPermissionOwnerOnly(supabase, "manage_reconciliation"),
-    isPermissionOwnerOnly(supabase, "manage_backups"),
-    isPermissionOwnerOnly(supabase, "manage_quarterly_reviews"),
-  ]);
+  const OWNER_ONLY_KEYS: PermissionKey[] = [
+    "manage_team",
+    "manage_integrations",
+    "manage_touchpoints",
+    "view_domain_health",
+    "manage_recruitment",
+    "manage_reconciliation",
+    "manage_backups",
+    "manage_quarterly_reviews",
+  ];
+  const ownerOnly = await fetchOwnerOnlyPermissions(supabase, OWNER_ONLY_KEYS);
+  const teamOwnerOnly = ownerOnly.manage_team;
+  const integrationsOwnerOnly = ownerOnly.manage_integrations;
+  const touchpointsOwnerOnly = ownerOnly.manage_touchpoints;
+  const domainHealthOwnerOnly = ownerOnly.view_domain_health;
+  const recruitmentOwnerOnly = ownerOnly.manage_recruitment;
+  const reconciliationOwnerOnly = ownerOnly.manage_reconciliation;
+  const backupsOwnerOnly = ownerOnly.manage_backups;
+  const quarterlyReviewsOwnerOnly = ownerOnly.manage_quarterly_reviews;
 
   return (
     <div className="min-h-screen bg-slate-50">

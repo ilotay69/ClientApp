@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/types";
 
@@ -72,8 +73,17 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /** Computes the signed-in user's role and granted permission set. 'owner'
  * short-circuits to every key, hardcoded — never reads role_permissions for
- * that role, so an Owner can never revoke their own access. */
-export async function getMyPermissions(
+ * that role, so an Owner can never revoke their own access.
+ *
+ * Wrapped in React's cache() — a single page render can easily call this
+ * (directly, or via hasPermission/requirePermission) a dozen times across
+ * the layout and the page underneath it, each of which used to re-run the
+ * same 2-3 database round trips from scratch. cache() memoizes per
+ * request, keyed on the `supabase` argument's identity, which only stays
+ * stable across call sites because createClient() (supabase/server.ts) is
+ * itself cache()-wrapped now — without that, every caller would pass a
+ * different client instance and this would never hit. */
+export const getMyPermissions = cache(async function getMyPermissions(
   supabase: SupabaseClient
 ): Promise<{ userId: string; role: UserRole; permissions: Set<PermissionKey> } | null> {
   const {
@@ -113,7 +123,7 @@ export async function getMyPermissions(
       .map((r: { permission: string; enabled: boolean }) => r.permission as PermissionKey)
   );
   return { userId: user.id, role: me.role as UserRole, permissions };
-}
+});
 
 /** Boolean check for pages/Server Components that already hold a `supabase`
  * client, e.g. `if (!(await hasPermission(supabase, "view_team_wide")))`. */
@@ -177,4 +187,18 @@ export async function isPermissionOwnerOnly(
     .eq("permission", permission)
     .eq("enabled", true);
   return (rows ?? []).length === 0;
+}
+
+/** Same question as isPermissionOwnerOnly, for several permission keys at
+ * once — one role_permissions query instead of one per key. The dashboard
+ * layout needs this for 8 different sidebar lock icons on every single
+ * page load; asking one at a time (even in parallel) was 8 round trips
+ * where one suffices. */
+export async function fetchOwnerOnlyPermissions(
+  supabase: SupabaseClient,
+  permissions: PermissionKey[]
+): Promise<Record<PermissionKey, boolean>> {
+  const { data: rows } = await supabase.from("role_permissions").select("permission").eq("enabled", true);
+  const enabledSet = new Set((rows ?? []).map((r: { permission: string }) => r.permission));
+  return Object.fromEntries(permissions.map((p) => [p, !enabledSet.has(p)])) as Record<PermissionKey, boolean>;
 }

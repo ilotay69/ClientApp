@@ -1,10 +1,20 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/types";
 
-/** Supabase client for use in Server Components, Server Actions, and Route Handlers. */
-export async function createClient() {
+/** Supabase client for use in Server Components, Server Actions, and Route
+ * Handlers. Wrapped in React's cache() so every call within the same
+ * request/render pass (the dashboard layout, the page under it, any
+ * getMyPermissions/hasPermission call either of them makes) gets back the
+ * exact same client instance instead of building a fresh one each time —
+ * on its own this doesn't save a query, but it's what lets
+ * getMyPermissions below actually memoize (its own cache() key is this
+ * client's identity, which only stays stable if this does). Cache scope
+ * is per-request; a new request (including each Server Action call) gets
+ * a fresh one. */
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -29,7 +39,7 @@ export async function createClient() {
       },
     }
   );
-}
+});
 
 /**
  * Admin client using the service role key. Bypasses Row Level Security.
