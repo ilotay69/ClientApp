@@ -129,13 +129,18 @@ export type QuarterlyReview = {
    * getQuarterlyReviewSections) — picked once when the review is started
    * and fixed for its whole life, same as ticketNumber/hoursSpent. */
   template: QuarterlyReviewTemplateKey;
+  /** Optional data sections (see QUARTERLY_REVIEW_EXTRA_SECTIONS) to insert
+   * into this review's PDF beyond the fixed checklist — e.g. "device_health",
+   * "m365_licenses". Empty means just the checklist, same as every review
+   * before this column existed. */
+  pdfExtraSections: string[];
   items: QuarterlyReviewItemRow[];
 };
 
 const SELECT = `
   id, review_period, status, created_by, submitted_at, approved_at, sent_at, sent_to_email, created_at,
   summary, hours_spent, adjustment_notes, adjustment_requested_at, pdf_storage_path,
-  client_acknowledged_at, client_ack_remarks, ticket_number, template,
+  client_acknowledged_at, client_ack_remarks, ticket_number, template, pdf_extra_sections,
   action_items_notes, changes_since_last_review_notes,
   reminder_count, last_reminder_at,
   clients(name),
@@ -206,6 +211,7 @@ function mapReview(row: any): QuarterlyReview {
     actionItemsNotes: row.action_items_notes ?? null,
     changesSinceLastReviewNotes: row.changes_since_last_review_notes ?? null,
     template,
+    pdfExtraSections: Array.isArray(row.pdf_extra_sections) ? row.pdf_extra_sections : [],
     items,
   };
 }
@@ -576,17 +582,35 @@ export async function assembleQuarterlyReviewPdf(
     ? new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]))
     : null;
 
-  // Same columns client-ninjaone-devices.tsx queries for the Clients page's
-  // own Devices tab — whatever's already synced there, no live NinjaOne API
-  // call needed here. Empty for a client with no NinjaOne mapping (or
-  // nothing synced yet), which just omits the PDF's Device Health section.
-  const { data: deviceRows } = await admin
-    .from("ninjaone_devices")
-    .select(
-      "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, disk_total_bytes, disk_free_bytes"
-    )
-    .eq("client_id", review.clientId)
-    .order("system_name");
+  // Only fetched when the review actually asked for that section (see
+  // QUARTERLY_REVIEW_EXTRA_SECTIONS) — same columns client-ninjaone-devices.tsx
+  // queries for the Clients page's own Devices tab, whatever's already
+  // synced there, no live NinjaOne API call needed here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let deviceRows: any[] = [];
+  if (review.pdfExtraSections.includes("device_health")) {
+    const { data } = await admin
+      .from("ninjaone_devices")
+      .select(
+        "id, system_name, node_class, is_offline, last_contact, device_created_at, manufacturer_fulfillment_date, os_name, disk_total_bytes, disk_free_bytes"
+      )
+      .eq("client_id", review.clientId)
+      .order("system_name");
+    deviceRows = data ?? [];
+  }
+
+  // Same idea — whatever's already synced into m365_license_summary (see
+  // client-m365-licenses.tsx for the same table/columns on the Clients
+  // page), not a live Graph call.
+  let licenseRows: { sku_part_number: string; consumed_units: number; enabled_units: number }[] = [];
+  if (review.pdfExtraSections.includes("m365_licenses")) {
+    const { data } = await admin
+      .from("m365_license_summary")
+      .select("sku_part_number, consumed_units, enabled_units")
+      .eq("client_id", review.clientId)
+      .order("sku_part_number");
+    licenseRows = data ?? [];
+  }
 
   const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
     clientName: review.clientName,
@@ -598,7 +622,12 @@ export async function assembleQuarterlyReviewPdf(
     previousItems,
     actionItemsText: review.actionItemsNotes,
     changesSinceLastReviewText: review.changesSinceLastReviewNotes,
-    devices: deviceRows ?? [],
+    devices: deviceRows,
+    licenses: licenseRows.map((l) => ({
+      skuPartNumber: l.sku_part_number,
+      consumedUnits: l.consumed_units,
+      enabledUnits: l.enabled_units,
+    })),
   });
 
   return {

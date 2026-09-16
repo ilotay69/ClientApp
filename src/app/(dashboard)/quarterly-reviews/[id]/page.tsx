@@ -13,6 +13,7 @@ import { QuarterlyReviewSummary } from "@/components/quarterly-review-summary";
 import { QuarterlyReviewEditableNotes } from "@/components/quarterly-review-editable-notes";
 import { QuarterlyReviewHoursField } from "@/components/quarterly-review-hours-field";
 import { QuarterlyReviewTicketNumberField } from "@/components/quarterly-review-ticket-number-field";
+import { QuarterlyReviewExtraSectionsField } from "@/components/quarterly-review-extra-sections-field";
 import { SendReviewToClientForm } from "@/components/send-review-to-client-form";
 import { MarkClientAcknowledgedForm } from "@/components/mark-client-acknowledged-form";
 import { QuarterlyReviewScreenshots } from "@/components/quarterly-review-screenshots";
@@ -43,6 +44,7 @@ import {
   saveQuarterlyReviewSummaryAction,
   saveQuarterlyReviewHoursAction,
   saveQuarterlyReviewTicketNumberAction,
+  saveQuarterlyReviewExtraSectionsAction,
   generateQuarterlyReviewSummaryAction,
   saveQuarterlyReviewActionItemsAction,
   generateQuarterlyReviewActionItemsAction,
@@ -233,6 +235,11 @@ export default async function QuarterlyReviewDetailPage({ params }: { params: Pr
               reviewId={review.id}
               value={review.ticketNumber}
               action={saveQuarterlyReviewTicketNumberAction}
+            />
+            <QuarterlyReviewExtraSectionsField
+              reviewId={review.id}
+              value={review.pdfExtraSections}
+              action={saveQuarterlyReviewExtraSectionsAction}
             />
             <a
               href={`/api/quarterly-review-pdf-preview/${review.id}`}

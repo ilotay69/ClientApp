@@ -206,6 +206,21 @@ export async function saveQuarterlyReviewTicketNumberAction(reviewId: string, ti
   revalidatePath(`/quarterly-reviews/${reviewId}`);
 }
 
+/** Which optional data sections (QUARTERLY_REVIEW_EXTRA_SECTIONS) get
+ * inserted into this review's PDF beyond the fixed checklist — same
+ * always-editable, internal-only posture as hours/ticket number above, so
+ * it can still be adjusted right up until the PDF is actually generated
+ * for sending. Not validated against the catalog here: an unrecognized
+ * key just renders nothing extra in the PDF, so there's no user-facing
+ * failure mode worth guarding against. */
+export async function saveQuarterlyReviewExtraSectionsAction(reviewId: string, sections: string[]): Promise<void> {
+  if (!(await requirePermission("manage_quarterly_reviews"))) return;
+
+  const admin = createAdminClient();
+  await admin.from("quarterly_reviews").update({ pdf_extra_sections: sections }).eq("id", reviewId);
+  revalidatePath(`/quarterly-reviews/${reviewId}`);
+}
+
 /** Best-effort AI draft of the client-facing summary — analyzes the
  * current checklist results and overwrites the summary field. Staff can
  * edit the result afterward same as if they'd typed it themselves. */

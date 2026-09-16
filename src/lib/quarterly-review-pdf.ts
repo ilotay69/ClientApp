@@ -14,6 +14,7 @@ export type QuarterlyReviewPdfImage = { id: string; buffer: Buffer; label: strin
 /** Same shape client-ninjaone-devices.tsx queries — just the fields
  * buildDeviceInsights/buildDeviceAgeBreakdown need plus an id to key rows. */
 export type QuarterlyReviewPdfDevice = DeviceInsightInput & { id: number };
+export type QuarterlyReviewPdfLicense = { skuPartNumber: string; consumedUnits: number; enabledUnits: number };
 
 // Matches the color coding used elsewhere in the app for these same
 // statuses (badges, the checklist's own status tag) — RGB 0-1, for pdf.ts.
@@ -118,6 +119,11 @@ export function buildQuarterlyReviewPdf(params: {
    * computed fresh from current device data every time, same as the
    * checklist's own item statuses aren't hand-typed prose. */
   devices?: QuarterlyReviewPdfDevice[];
+  /** Microsoft 365 license usage synced for this client (m365_license_summary)
+   * — same "omitted or empty skips the section entirely" convention as
+   * devices above. Caller (assembleQuarterlyReviewPdf) only fetches this at
+   * all when "m365_licenses" is one of the review's pdf_extra_sections. */
+  licenses?: QuarterlyReviewPdfLicense[];
 }): { pdf: Buffer; embeddedImageIds: Set<string> } {
   const {
     clientName,
@@ -130,6 +136,7 @@ export function buildQuarterlyReviewPdf(params: {
     actionItemsText,
     changesSinceLastReviewText,
     devices = [],
+    licenses = [],
   } = params;
   const sections: QuarterlyReviewSection[] = getQuarterlyReviewSections(template);
   const itemByKey = new Map(items.map((i) => [i.itemKey, i]));
@@ -230,6 +237,23 @@ export function buildQuarterlyReviewPdf(params: {
         d.is_offline ? "Offline" : "Online",
         detail,
         d.is_offline ? STATUS_COLORS.urgent : STATUS_COLORS.healthy
+      );
+    }
+    doc.spacer(14);
+  }
+
+  if (licenses.length > 0) {
+    // Its own page, same reasoning as Device Health above — supplementary
+    // synced data, kept visually distinct from the staff-assessed checklist.
+    doc.pagebreak();
+    doc.heading("365 Licenses", 2);
+    for (const l of [...licenses].sort((a, b) => a.skuPartNumber.localeCompare(b.skuPartNumber))) {
+      const fullyUsed = l.consumedUnits >= l.enabledUnits;
+      doc.item(
+        l.skuPartNumber,
+        `${l.consumedUnits}/${l.enabledUnits} used`,
+        null,
+        fullyUsed ? STATUS_COLORS.attention : STATUS_COLORS.healthy
       );
     }
     doc.spacer(14);

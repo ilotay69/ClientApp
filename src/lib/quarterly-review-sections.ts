@@ -28,6 +28,29 @@ export const QUARTERLY_STATUS_ORDER: QuarterlyReviewItemStatus[] = [
 export type QuarterlyReviewItem = { key: string; label: string };
 export type QuarterlyReviewSection = { key: string; label: string; description: string; items: QuarterlyReviewItem[] };
 
+// Optional, per-review data sections that can be inserted into the PDF
+// beyond the fixed checklist above — picked per review (quarterly_reviews
+// .pdf_extra_sections) rather than always included, since not every review
+// needs them and not every client has the underlying data synced anyway.
+// Starts with these two; more get added here as a fuller checklist is
+// worked out — nowhere else needs to change to add one, since both the
+// picker UI and buildQuarterlyReviewPdf's data-fetch key off this list.
+export type QuarterlyReviewExtraSectionKey = "device_health" | "m365_licenses";
+export type QuarterlyReviewExtraSectionDef = { key: QuarterlyReviewExtraSectionKey; label: string; description: string };
+
+export const QUARTERLY_REVIEW_EXTRA_SECTIONS: QuarterlyReviewExtraSectionDef[] = [
+  {
+    key: "device_health",
+    label: "Device Health",
+    description: "NinjaOne device inventory, age breakdown, and online/offline status.",
+  },
+  {
+    key: "m365_licenses",
+    label: "365 Licenses",
+    description: "Microsoft 365 license usage, synced from the M365 partner integration.",
+  },
+];
+
 // Which checklist a review is built from, picked once when the review is
 // started (NewQuarterlyReviewForm) and stored on quarterly_reviews.template
 // — every later read (the checklist page, the PDF, the AI analysis) looks
