@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { NinjaOneMappingButton } from "@/components/ninjaone-mapping-button";
 import { M365ClientCredentialsButton } from "@/components/m365-client-credentials-button";
+import { HuntressMappingButton } from "@/components/huntress-mapping-button";
 
 export type ClientMappingRow = {
   id: string;
@@ -11,15 +12,17 @@ export type ClientMappingRow = {
   m365TenantId: string | null;
   hasM365Credentials: boolean;
   m365AppClientId: string | null;
+  huntressOrganizationId: number | null;
 };
 
-type Filter = "all" | "unmapped" | "no_ninjaone" | "no_m365";
+type Filter = "all" | "unmapped" | "no_ninjaone" | "no_m365" | "no_huntress";
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "unmapped", label: "Missing either" },
+  { value: "unmapped", label: "Missing any" },
   { value: "no_ninjaone", label: "No NinjaOne" },
   { value: "no_m365", label: "No 365" },
+  { value: "no_huntress", label: "No Huntress" },
 ];
 
 function Pill({ mapped, children }: { mapped: boolean; children: React.ReactNode }) {
@@ -56,6 +59,9 @@ export function ClientMappingTable({
   saveM365Action,
   testM365Action,
   unlinkM365Action,
+  searchHuntressAction,
+  linkHuntressAction,
+  unlinkHuntressAction,
 }: {
   rows: ClientMappingRow[];
   searchNinjaOneAction: React.ComponentProps<typeof NinjaOneMappingButton>["searchAction"];
@@ -69,6 +75,9 @@ export function ClientMappingTable({
   saveM365Action: (clientId: string, prevState: M365FormState, formData: FormData) => Promise<M365FormState>;
   testM365Action: (clientId: string) => Promise<{ ok: boolean; message: string }>;
   unlinkM365Action: (clientId: string) => Promise<void>;
+  searchHuntressAction: React.ComponentProps<typeof HuntressMappingButton>["searchAction"];
+  linkHuntressAction: (clientId: string, organizationId: number) => Promise<void>;
+  unlinkHuntressAction: (clientId: string) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -79,15 +88,18 @@ export function ClientMappingTable({
       if (q && !r.name.toLowerCase().includes(q)) return false;
       const hasNinja = r.ninjaoneOrganizationId !== null;
       const hasM365 = Boolean(r.m365TenantId);
-      if (filter === "unmapped") return !hasNinja || !hasM365;
+      const hasHuntress = r.huntressOrganizationId !== null;
+      if (filter === "unmapped") return !hasNinja || !hasM365 || !hasHuntress;
       if (filter === "no_ninjaone") return !hasNinja;
       if (filter === "no_m365") return !hasM365;
+      if (filter === "no_huntress") return !hasHuntress;
       return true;
     });
   }, [rows, query, filter]);
 
   const missingNinja = rows.filter((r) => r.ninjaoneOrganizationId === null).length;
   const missingM365 = rows.filter((r) => !r.m365TenantId).length;
+  const missingHuntress = rows.filter((r) => r.huntressOrganizationId === null).length;
 
   return (
     <div className="max-w-4xl space-y-4">
@@ -100,7 +112,7 @@ export function ClientMappingTable({
         </p>
         <p className="mt-1 text-xs text-slate-500">
           {rows.length} client{rows.length === 1 ? "" : "s"} · {missingNinja} without NinjaOne ·{" "}
-          {missingM365} without 365
+          {missingM365} without 365 · {missingHuntress} without Huntress
         </p>
       </div>
 
@@ -136,6 +148,7 @@ export function ClientMappingTable({
                 <th className="px-4 py-2 text-left font-medium text-slate-500">Client</th>
                 <th className="px-4 py-2 text-left font-medium text-slate-500">NinjaOne</th>
                 <th className="px-4 py-2 text-left font-medium text-slate-500">Microsoft 365</th>
+                <th className="px-4 py-2 text-left font-medium text-slate-500">Huntress</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -170,11 +183,24 @@ export function ClientMappingTable({
                       />
                     </div>
                   </td>
+                  <td className="px-4 py-2 align-middle">
+                    <div className="flex items-center gap-2">
+                      <Pill mapped={r.huntressOrganizationId !== null}>
+                        {r.huntressOrganizationId !== null ? `Org ${r.huntressOrganizationId}` : "Not linked"}
+                      </Pill>
+                      <HuntressMappingButton
+                        organizationId={r.huntressOrganizationId}
+                        searchAction={searchHuntressAction}
+                        linkAction={(organizationId) => linkHuntressAction(r.id, organizationId)}
+                        unlinkAction={() => unlinkHuntressAction(r.id)}
+                      />
+                    </div>
+                  </td>
                 </tr>
               ))}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
                     {rows.length === 0 ? "No clients yet." : "No clients match that filter."}
                   </td>
                 </tr>

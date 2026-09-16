@@ -10,7 +10,6 @@ import { SyncAutotaskButton } from "@/components/sync-autotask-button";
 import { AutotaskMappingButton } from "@/components/autotask-mapping-button";
 import { ClientNinjaOneDevices } from "@/components/client-ninjaone-devices";
 import { SyncNinjaOneButton } from "@/components/sync-ninjaone-button";
-import { HuntressMappingButton } from "@/components/huntress-mapping-button";
 import { ClientHuntressAgents } from "@/components/client-huntress-agents";
 import { ClientM365Licenses } from "@/components/client-m365-licenses";
 import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
@@ -41,9 +40,6 @@ import {
   analyzeTicketsAction,
   refreshClientInsightsAction,
   syncClientNinjaOneDevices,
-  searchHuntressOrganizationsAction,
-  linkClientHuntressOrganization,
-  unlinkClientHuntressOrganization,
   fetchClientHuntressAgentsAction,
   syncClientM365Data,
   autoSyncClientNinjaOneIfStale,
@@ -213,8 +209,6 @@ export default async function ClientDetailPage({
   const ticketDetailAction = getAutotaskTicketDetailAction.bind(null, id);
   const analyzeTicketsForClientAction = analyzeTicketsAction.bind(null, id);
   const syncNinjaOneAction = syncClientNinjaOneDevices.bind(null, id);
-  const linkHuntressAction = linkClientHuntressOrganization.bind(null, id);
-  const unlinkHuntressAction = unlinkClientHuntressOrganization.bind(null, id);
   const fetchHuntressAgentsAction = fetchClientHuntressAgentsAction.bind(null, id);
   const syncM365Action = syncClientM365Data.bind(null, id);
   const refreshInsightsAction = refreshClientInsightsAction.bind(null, id);
@@ -307,19 +301,13 @@ export default async function ClientDetailPage({
             />
           )}
           {client.autotask_company_id && <SyncAutotaskButton action={syncAutotaskAction} />}
-          {/* NinjaOne and M365 are linked from Settings → Integrations →
-              Client Mapping, where every client's mappings sit in one list —
-              doing it one client page at a time made it near-impossible to
-              see which clients were still unmapped. The sync buttons stay
-              here, since syncing is a per-client action you'd want while
-              looking at that client's own record. */}
+          {/* NinjaOne, M365 and Huntress are linked from Settings →
+              Integrations → Client Mapping, where every client's mappings
+              sit in one list — doing it one client page at a time made it
+              near-impossible to see which clients were still unmapped. The
+              sync buttons stay here, since syncing is a per-client action
+              you'd want while looking at that client's own record. */}
           {client.ninjaone_organization_id && <SyncNinjaOneButton action={syncNinjaOneAction} />}
-          <HuntressMappingButton
-            organizationId={client.huntress_organization_id}
-            searchAction={searchHuntressOrganizationsAction}
-            linkAction={linkHuntressAction}
-            unlinkAction={unlinkHuntressAction}
-          />
           {client.m365_tenant_id && <SyncM365Button action={syncM365Action} />}
           <DeleteButton
             action={deleteClientRecord.bind(null, id)}

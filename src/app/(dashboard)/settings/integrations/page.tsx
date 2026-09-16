@@ -26,6 +26,9 @@ import {
   saveM365ClientCredentialsAction,
   testM365ClientConnectionAction,
   unlinkClientM365Tenant,
+  searchHuntressOrganizationsAction,
+  linkClientHuntressOrganization,
+  unlinkClientHuntressOrganization,
 } from "@/app/(dashboard)/clients/actions";
 import { EMAIL_TEMPLATES, getEmailTemplate } from "@/lib/email-templates";
 import {
@@ -149,7 +152,7 @@ export default async function IntegrationsSettingsPage({
     // exists to surface, so filtering any of them out would hide the work.
     admin
       .from("clients")
-      .select("id, name, ninjaone_organization_id, m365_tenant_id")
+      .select("id, name, ninjaone_organization_id, m365_tenant_id, huntress_organization_id")
       .order("name"),
     // m365_client_credentials is service-role only and keyed by client_id,
     // so credential presence can't come from the clients select above.
@@ -188,6 +191,7 @@ export default async function IntegrationsSettingsPage({
     name: string;
     ninjaone_organization_id: number | null;
     m365_tenant_id: string | null;
+    huntress_organization_id: number | null;
   };
   const m365AppClientIdByClientId = new Map<string, string | null>(
     ((m365CredentialRows ?? []) as { client_id: string; app_client_id: string | null }[]).map((r) => [
@@ -202,6 +206,7 @@ export default async function IntegrationsSettingsPage({
     m365TenantId: c.m365_tenant_id,
     hasM365Credentials: Boolean(m365AppClientIdByClientId.get(c.id)),
     m365AppClientId: m365AppClientIdByClientId.get(c.id) ?? null,
+    huntressOrganizationId: c.huntress_organization_id,
   }));
   return (
     <div className="space-y-6">
@@ -309,7 +314,7 @@ export default async function IntegrationsSettingsPage({
             group: "Client Mapping",
             tabs: [
               {
-                label: "NinjaOne & 365",
+                label: "NinjaOne, 365 & Huntress",
                 content: (
                   <ClientMappingTable
                     rows={clientMappingRows}
@@ -319,6 +324,9 @@ export default async function IntegrationsSettingsPage({
                     saveM365Action={saveM365ClientCredentialsAction}
                     testM365Action={testM365ClientConnectionAction}
                     unlinkM365Action={unlinkClientM365Tenant}
+                    searchHuntressAction={searchHuntressOrganizationsAction}
+                    linkHuntressAction={linkClientHuntressOrganization}
+                    unlinkHuntressAction={unlinkClientHuntressOrganization}
                   />
                 ),
               },
