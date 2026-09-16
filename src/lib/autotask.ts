@@ -877,7 +877,7 @@ export async function fetchOpenQuarterlyReviewTickets(
 // The SLA name flagging a ticket as this MSP's recurring quarterly review
 // work — same convention as PROJECT_SLA_LABEL, matched case-insensitively
 // against the tenant's actual SLA picklist labels.
-export const QUARTERLY_REVIEW_SLA_LABEL = "Quarterly Reviews SLA";
+export const QUARTERLY_REVIEW_SLA_LABEL = "Quarterly SLA";
 
 export type AutotaskQuarterlyReviewSlaTicket = {
   id: number;

@@ -401,7 +401,7 @@ export type QuarterlyReviewSlaTicketRow = {
   clientName: string;
 };
 
-/** Every open Autotask ticket tagged with the "Quarterly Reviews SLA"
+/** Every open Autotask ticket tagged with the "Quarterly SLA"
  * service level agreement, joined against our own clients table so each
  * one carries the clientId a new review actually needs — shown on the
  * main Quarterly Reviews page so a tech can jump straight from the

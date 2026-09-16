@@ -49,7 +49,7 @@ export function NewQuarterlyReviewForm({
   fetchOpenTicketsAction: (
     clientId: string
   ) => Promise<{ rows: AutotaskQuarterlyReviewTicket[] } | { error: string }>;
-  /** Pre-picked from the "open Quarterly Reviews SLA tickets" list on the
+  /** Pre-picked from the "open Quarterly SLA tickets" list on the
    * main page — when set, the per-client Autotask lookup below is skipped
    * on mount (this ticket is trusted instead) so the tech isn't asked to
    * identify the ticket a second time. Changing the client afterward still

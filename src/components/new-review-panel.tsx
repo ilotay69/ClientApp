@@ -77,13 +77,13 @@ export function NewReviewPanel({
         <div className="border-b border-slate-200 px-4 py-2">
           <h2 className="text-sm font-semibold text-slate-900">Open Quarterly Review Tickets</h2>
           <p className="text-xs text-slate-500">
-            Open Autotask tickets on the Quarterly Reviews SLA assigned to you — pick one and start
+            Open Autotask tickets on the Quarterly SLA assigned to you — pick one and start
             its review, no need to identify the client or ticket again.
           </p>
         </div>
         {slaTickets.length === 0 ? (
           <p className="px-4 py-4 text-center text-xs text-slate-500">
-            No open Quarterly Reviews SLA tickets assigned to you right now.
+            No open Quarterly SLA tickets assigned to you right now.
           </p>
         ) : (
           <>
