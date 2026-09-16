@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { ClientCombobox } from "@/components/client-combobox";
+import type { BlockHoursCandidate } from "@/app/(dashboard)/settings/integrations/actions";
 
 type FormState = { error: string | null; success: string | null };
 const initialFormState: FormState = { error: null, success: null };
@@ -23,6 +24,8 @@ export function BlockHoursReportSubscriptionsPanel({
   saveCcAction,
   sendNowAction,
   sendToSelectedAction,
+  fetchCandidatesAction,
+  addManyAction,
 }: {
   subscriptions: BlockHoursReportSubscription[];
   clients: { id: string; name: string; email?: string | null }[];
@@ -39,6 +42,11 @@ export function BlockHoursReportSubscriptionsPanel({
     error: string | null;
     sent: number;
     errors: { clientName: string; message: string }[];
+  }>;
+  fetchCandidatesAction: () => Promise<{ rows: BlockHoursCandidate[] } | { error: string }>;
+  addManyAction: (entries: { clientId: string; toEmail: string }[]) => Promise<{
+    error: string | null;
+    added: number;
   }>;
 }) {
   const [ccState, ccFormAction, savingCc] = useActionState(saveCcAction, initialFormState);
@@ -58,6 +66,62 @@ export function BlockHoursReportSubscriptionsPanel({
   } | null>(null);
   const [sending, startSend] = useTransition();
   const [sendingSelected, startSendSelected] = useTransition();
+
+  // The "Get from Autotask" picker: null until it's been fetched at least
+  // once, so the panel below can tell "not opened yet" from "opened and
+  // there's genuinely nothing to add".
+  const [candidates, setCandidates] = useState<BlockHoursCandidate[] | null>(null);
+  const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [pickedClientIds, setPickedClientIds] = useState<Set<string>>(new Set());
+  const [addedMessage, setAddedMessage] = useState<string | null>(null);
+  const [loadingCandidates, startLoadCandidates] = useTransition();
+  const [addingMany, startAddMany] = useTransition();
+
+  const addableCandidates = (candidates ?? []).filter((c) => c.toEmail);
+
+  const loadCandidates = () => {
+    setCandidateError(null);
+    setAddedMessage(null);
+    startLoadCandidates(async () => {
+      const result = await fetchCandidatesAction();
+      if ("error" in result) {
+        setCandidateError(result.error);
+        setCandidates([]);
+      } else {
+        setCandidates(result.rows);
+        // Pre-tick everything that can actually be added — the common case
+        // is "add them all", and un-ticking a couple is less work than
+        // ticking twenty.
+        setPickedClientIds(new Set(result.rows.filter((r) => r.toEmail).map((r) => r.clientId)));
+      }
+    });
+  };
+
+  const togglePicked = (clientId: string) => {
+    setPickedClientIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
+  };
+
+  const addPicked = () => {
+    const entries = (candidates ?? [])
+      .filter((c) => c.toEmail && pickedClientIds.has(c.clientId))
+      .map((c) => ({ clientId: c.clientId, toEmail: c.toEmail as string }));
+    setAddedMessage(null);
+    startAddMany(async () => {
+      const result = await addManyAction(entries);
+      if (result.error) {
+        setCandidateError(result.error);
+      } else {
+        setAddedMessage(`Added ${result.added} client${result.added === 1 ? "" : "s"}.`);
+        setCandidates(null);
+        setPickedClientIds(new Set());
+      }
+    });
+  };
 
   const selectClient = (id: string) => {
     setClientId(id);
@@ -258,8 +322,83 @@ export function BlockHoursReportSubscriptionsPanel({
           >
             {adding ? "Adding…" : "Add"}
           </button>
+          {/* type="button" — inside the add form, but it opens the bulk
+              picker rather than submitting a single client. */}
+          <button
+            type="button"
+            onClick={loadCandidates}
+            disabled={loadingCandidates}
+            className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+          >
+            {loadingCandidates ? "Checking Autotask…" : "Get from Autotask"}
+          </button>
           {addState.error && <p className="w-full text-sm text-red-600">{addState.error}</p>}
+          {addedMessage && <p className="w-full text-sm text-emerald-700">{addedMessage}</p>}
+          {candidateError && <p className="w-full text-sm text-red-600">{candidateError}</p>}
         </form>
+
+        {candidates !== null && candidates.length > 0 && (
+          <div className="border-t border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-2">
+              <p className="text-xs text-slate-600">
+                {candidates.length} client{candidates.length === 1 ? "" : "s"} with an active block of
+                hours in Autotask, not already on this list.
+              </p>
+              <button
+                type="button"
+                onClick={addPicked}
+                disabled={addingMany || pickedClientIds.size === 0}
+                className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+              >
+                {addingMany ? "Adding…" : `Add selected (${pickedClientIds.size})`}
+              </button>
+            </div>
+            <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+              {candidates.map((c) => (
+                <label
+                  key={c.clientId}
+                  className={`flex items-start justify-between gap-3 px-4 py-2 text-sm ${
+                    c.toEmail ? "cursor-pointer hover:bg-slate-50" : "opacity-60"
+                  }`}
+                >
+                  <span className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      disabled={!c.toEmail}
+                      checked={pickedClientIds.has(c.clientId)}
+                      onChange={() => togglePicked(c.clientId)}
+                    />
+                    <span>
+                      <span className="font-medium text-slate-900">{c.clientName}</span>
+                      <span className="mx-2 text-slate-300">·</span>
+                      <span className="text-slate-600">{c.contractName}</span>
+                      <span className="block text-xs text-slate-500">
+                        {c.toEmail ?? "No primary contact email on file — add this one by hand."}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap text-xs text-slate-400">
+                    {c.remaining.toFixed(1)} of {c.purchased.toFixed(1)} hrs left
+                  </span>
+                </label>
+              ))}
+            </div>
+            {addableCandidates.length < candidates.length && (
+              <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500">
+                {candidates.length - addableCandidates.length} can&apos;t be added here — no primary
+                contact email on file. Set one on the client, or add them above with an address typed
+                in.
+              </p>
+            )}
+          </div>
+        )}
+
+        {candidates !== null && candidates.length === 0 && !candidateError && (
+          <p className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+            Every client with an active block of hours in Autotask is already on this list.
+          </p>
+        )}
       </div>
 
       <div className="flex items-start gap-3">

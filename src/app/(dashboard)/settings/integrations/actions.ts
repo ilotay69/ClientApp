@@ -22,6 +22,7 @@ import { getNordPassSettings } from "@/lib/nordpass-settings";
 import { fetchAppOnlyGraphToken } from "@/lib/microsoft-graph";
 import { syncSharedMailboxMessages } from "@/lib/shared-mailbox-sync";
 import { sendBlockHoursUsageReports } from "@/lib/block-hours-report-send";
+import { fetchContractBlockHours } from "@/lib/contract-hours";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -729,6 +730,110 @@ export async function addBlockHoursReportSubscriptionAction(
 
   revalidatePath("/settings/integrations");
   return { error: null, success: "Added." };
+}
+
+export type BlockHoursCandidate = {
+  clientId: string;
+  clientName: string;
+  contractName: string;
+  purchased: number;
+  remaining: number;
+  /** The client's primary contact, pre-filled as the address to send to.
+   * Null when they have none on file — those can't be added from here,
+   * since the subscription needs somewhere to send. */
+  toEmail: string | null;
+};
+
+/** Every client with a currently-active prepaid block, straight from
+ * Autotask — the candidate list for the "Get from Autotask" button, so a
+ * whole set of clients can be ticked on at once instead of typed in one
+ * at a time. Clients already on the list are filtered out (there'd be
+ * nothing to do with them), as are contract blocks that aren't mapped to
+ * a client in this app. */
+export async function fetchBlockHoursCandidatesAction(): Promise<
+  { rows: BlockHoursCandidate[] } | { error: string }
+> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Core Tools → Autotask." };
+  }
+
+  let blocks;
+  try {
+    blocks = await fetchContractBlockHours(admin, settings.credentials, settings.zoneUrl);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't load block hours from Autotask." };
+  }
+
+  const [{ data: existingRows }, { data: clientRows }] = await Promise.all([
+    admin.from("block_hours_report_subscriptions").select("client_id"),
+    admin.from("clients").select("id, primary_contact_email"),
+  ]);
+  const alreadyListed = new Set(
+    ((existingRows ?? []) as { client_id: string }[]).map((r) => r.client_id)
+  );
+  const emailByClientId = new Map(
+    ((clientRows ?? []) as { id: string; primary_contact_email: string | null }[]).map((c) => [
+      c.id,
+      c.primary_contact_email,
+    ])
+  );
+
+  // One row per client, not per contract: a client with two active blocks
+  // still only wants one subscription, and the report itself covers every
+  // block they have. Keeps whichever block has the least remaining, since
+  // that's the one prompting the conversation.
+  const byClient = new Map<string, BlockHoursCandidate>();
+  for (const b of blocks) {
+    if (!b.clientId || alreadyListed.has(b.clientId)) continue;
+    const existing = byClient.get(b.clientId);
+    if (existing && existing.remaining <= b.remaining) continue;
+    byClient.set(b.clientId, {
+      clientId: b.clientId,
+      clientName: b.clientName,
+      contractName: b.contractName,
+      purchased: b.purchased,
+      remaining: b.remaining,
+      toEmail: emailByClientId.get(b.clientId) ?? null,
+    });
+  }
+
+  return {
+    rows: [...byClient.values()].sort((a, b) => a.clientName.localeCompare(b.clientName)),
+  };
+}
+
+/** Adds several clients to the list in one go — the other half of "Get
+ * from Autotask". Skips anything already on the list rather than failing
+ * the whole batch, since the candidate list is a moment out of date as
+ * soon as it's fetched. */
+export async function addBlockHoursReportSubscriptionsAction(
+  entries: { clientId: string; toEmail: string }[]
+): Promise<{ error: string | null; added: number }> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) return { error: "You don't have permission to do that.", added: 0 };
+
+  const valid = entries.filter((e) => e.clientId && e.toEmail.trim());
+  if (valid.length === 0) return { error: "Select at least one client first.", added: 0 };
+
+  const admin = createAdminClient();
+  const { data: existingRows } = await admin.from("block_hours_report_subscriptions").select("client_id");
+  const alreadyListed = new Set(((existingRows ?? []) as { client_id: string }[]).map((r) => r.client_id));
+  const toInsert = valid
+    .filter((e) => !alreadyListed.has(e.clientId))
+    .map((e) => ({ client_id: e.clientId, to_email: e.toEmail.trim(), created_by: user.id }));
+  if (toInsert.length === 0) return { error: null, added: 0 };
+
+  const { error } = await admin.from("block_hours_report_subscriptions").insert(toInsert);
+  if (error) return { error: error.message, added: 0 };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, added: toInsert.length };
 }
 
 /** The one CC address applied to every Block of Hours Usage Report send —
