@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, getCurrentUser } from "@/lib/supabase/server";
 import { ClientContactsPanel } from "@/components/client-contacts-panel";
 import { ClientDetailsForm } from "@/components/client-details-form";
 import { ClientTimeline, type TimelineEntry } from "@/components/client-timeline";
@@ -80,9 +80,7 @@ export default async function ClientDetailPage({
     redirect("/dashboard");
   }
 
-  const {
-    data: { user: currentUser },
-  } = await supabase.auth.getUser();
+  const currentUser = await getCurrentUser();
 
   const [
     { data: client },

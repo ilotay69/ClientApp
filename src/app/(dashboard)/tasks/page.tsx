@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar, NO_PROJECT_FILTER_VALUE } from "@/components/task-filter-bar";
@@ -115,9 +115,7 @@ export default async function TasksPage({
     redirect("/my-todo");
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const [
     { data: clients },

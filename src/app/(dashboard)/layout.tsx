@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { signOut } from "@/app/login/actions";
 import { getMyPermissions, fetchOwnerOnlyPermissions, type PermissionKey } from "@/lib/permissions";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -11,9 +11,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   let profile: Profile | null = null;
   if (user) {

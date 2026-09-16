@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
@@ -87,9 +87,7 @@ export default async function MyToDoPage({
   const sortDir: SortDir = rawDir === "desc" ? "desc" : "asc";
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const [{ data: profile }, { data: clients }, { data: mailPrefs }, { data: taskClientRows }] = await Promise.all([
     supabase

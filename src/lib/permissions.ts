@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/types";
 
 export type PermissionKey =
@@ -86,9 +86,7 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 export const getMyPermissions = cache(async function getMyPermissions(
   supabase: SupabaseClient
 ): Promise<{ userId: string; role: UserRole; permissions: Set<PermissionKey> } | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
@@ -144,10 +142,10 @@ export async function requirePermission(permission: PermissionKey) {
   const me = await getMyPermissions(supabase);
   if (!me || !me.permissions.has(permission)) return null;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  // getCurrentUser() is the same memoized call getMyPermissions just made,
+  // so this returns from cache rather than hitting Supabase Auth a second
+  // time — which is what it used to do, on every single server action.
+  return getCurrentUser();
 }
 
 /** Server-action guard for "any CG staff member, regardless of permission".
@@ -166,10 +164,8 @@ export async function requireStaff() {
   const me = await getMyPermissions(supabase);
   if (!me || !isStaffRole(me.role)) return null;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  // Cached — see requirePermission above.
+  return getCurrentUser();
 }
 
 /** True if no non-Owner role currently has this permission granted — i.e.

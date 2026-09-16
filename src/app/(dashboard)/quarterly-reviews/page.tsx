@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/badge";
@@ -55,9 +55,7 @@ export default async function QuarterlyReviewsPage({
     return `/quarterly-reviews?${params.toString()}`;
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   const approverEmail = await getQuarterlyReviewApproverEmail();
   const isApprover = (user?.email ?? "").toLowerCase() === approverEmail.toLowerCase();
 

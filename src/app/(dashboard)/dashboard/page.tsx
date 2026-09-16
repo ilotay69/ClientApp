@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import { Badge, OverdueBadge } from "@/components/badge";
 import { AlertRow } from "@/components/alert-row";
 import {
@@ -62,9 +62,7 @@ const RECRUITMENT_STATUS_ORDER: { value: string; label: string }[] = [
 export default async function DashboardPage() {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const [{ data: me }, canViewDashboard] = await Promise.all([
     supabase

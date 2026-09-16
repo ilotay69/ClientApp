@@ -41,6 +41,26 @@ export const createClient = cache(async () => {
   );
 });
 
+/** The signed-in auth user, memoized per request.
+ *
+ * supabase.auth.getUser() is a network round trip to Supabase Auth every
+ * time it's called — it validates the JWT server-side rather than just
+ * decoding the cookie (which is exactly why it's the one to use, and why
+ * calling it repeatedly is expensive). A single page render reaches for
+ * the current user from the layout, from the page itself, and from every
+ * permission check underneath both; this collapses all of those into one
+ * call. Cache scope is per request, same as createClient() above.
+ *
+ * Note this can't help middleware, which runs outside the React render
+ * pass entirely and so gets its own cache scope. */
+export const getCurrentUser = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+});
+
 /**
  * Admin client using the service role key. Bypasses Row Level Security.
  * Server-only — never import this from a Client Component. Used by the
