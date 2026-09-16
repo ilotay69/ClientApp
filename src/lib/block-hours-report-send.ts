@@ -112,7 +112,8 @@ export async function sendBlockHoursUsageReports(
       const { html, text } = buildContractUsageClientEmail(
         clientName,
         rows,
-        applyTemplateVars(template.intro, templateVars)
+        applyTemplateVars(template.intro, templateVars),
+        applyTemplateVars(template.note, templateVars)
       );
 
       const attachments: SharedMailboxAttachment[] = [

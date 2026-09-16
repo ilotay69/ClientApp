@@ -267,7 +267,8 @@ export async function sendContractUsageReportAction(
     const { html, text } = buildContractUsageClientEmail(
       client.name,
       rows,
-      applyTemplateVars(template.intro, templateVars)
+      applyTemplateVars(template.intro, templateVars),
+      applyTemplateVars(template.note, templateVars)
     );
 
     const ccEmail = await getBlockHoursReportCc(admin);

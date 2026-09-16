@@ -47,6 +47,9 @@ export const EMAIL_TEMPLATES: EmailTemplateDef[] = [
     defaultSubject: "Block of Hours Usage Report — {client_name}",
     defaultIntro:
       "Please find attached your current prepaid block hours usage report, showing hours purchased, used, and remaining, along with the individual time entries recorded against it.",
+    noteLabel: "Note after usage summary",
+    noteDescription: "Shown just below the hours-used summary, before the sign-off.",
+    defaultNote: "If you have any questions about this report, please contact your account manager.",
   },
 ];
 

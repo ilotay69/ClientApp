@@ -287,7 +287,7 @@ export function buildQuarterlyReviewClientEmail(
  * purchased/used/remaining numbers inline only when there's exactly one
  * active block (the common case) — with more than one, or none, the body
  * stays generic and the PDF carries the actual detail. */
-export function buildContractUsageClientEmail(clientName: string, rows: ContractUsageRow[], intro: string) {
+export function buildContractUsageClientEmail(clientName: string, rows: ContractUsageRow[], intro: string, note: string) {
   const single = rows.length === 1 ? rows[0] : null;
   const summaryHtml = single
     ? `<div style="margin:16px 0;padding:14px 16px;background:#f8fafc;border-radius:8px;">
@@ -305,7 +305,7 @@ export function buildContractUsageClientEmail(clientName: string, rows: Contract
       <p style="color:#334155;">${escapeHtml(intro)}</p>
       ${summaryHtml}
       <p style="color:#334155;font-size:14px;">
-        If you have any questions about this report, please contact your account manager.
+        ${escapeHtml(note)}
       </p>
       <p style="margin-top:24px;color:#334155;font-size:14px;">
         Best regards,<br />
@@ -316,7 +316,7 @@ export function buildContractUsageClientEmail(clientName: string, rows: Contract
   const summaryText = single
     ? `\n${single.used.toFixed(1)} of ${single.purchased.toFixed(1)} prepaid hours used (${single.percentUsed.toFixed(0)}%) — ${single.remaining.toFixed(1)} hours remaining.\n`
     : "";
-  const text = `Block of Hours Usage Report\nPrepared for ${clientName}\n\n${intro}\n${summaryText}\nIf you have any questions about this report, please contact your account manager.\n\nBest regards,\nCG Technologies Team`;
+  const text = `Block of Hours Usage Report\nPrepared for ${clientName}\n\n${intro}\n${summaryText}\n${note}\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }
