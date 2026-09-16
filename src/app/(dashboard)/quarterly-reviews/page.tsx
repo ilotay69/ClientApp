@@ -114,21 +114,13 @@ export default async function QuarterlyReviewsPage({
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-start gap-4">
-        <NewReviewPanel
-          clients={clients}
-          defaultClientId={selectedClient?.id ?? null}
-          action={createQuarterlyReviewAction}
-          fetchOpenTicketsAction={fetchOpenQuarterlyReviewTicketsAction}
-          slaTickets={slaTickets}
-        />
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">Client</label>
-          <div className="w-56">
-            <QuarterlyReviewClientPicker clients={clients} selectedId={selectedClient?.id ?? null} tab={activeTab} />
-          </div>
-        </div>
-      </div>
+      <NewReviewPanel
+        clients={clients}
+        defaultClientId={selectedClient?.id ?? null}
+        action={createQuarterlyReviewAction}
+        fetchOpenTicketsAction={fetchOpenQuarterlyReviewTicketsAction}
+        slaTickets={slaTickets}
+      />
 
       {myReviews.length > 0 && (
         <div>
@@ -182,7 +174,13 @@ export default async function QuarterlyReviewsPage({
         <h2 className="text-lg font-semibold text-slate-900">
           Existing Reviews{selectedClient ? ` — ${selectedClient.name}` : ""}
         </h2>
-        {!selectedClient && <p className="mt-1 text-sm text-slate-500">Choose a client above to see their reviews.</p>}
+        <div className="mt-2 flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-700">Client</label>
+          <div className="w-56">
+            <QuarterlyReviewClientPicker clients={clients} selectedId={selectedClient?.id ?? null} tab={activeTab} />
+          </div>
+        </div>
+        {!selectedClient && <p className="mt-2 text-sm text-slate-500">Choose a client above to see their reviews.</p>}
       </div>
 
       {selectedClient && (
