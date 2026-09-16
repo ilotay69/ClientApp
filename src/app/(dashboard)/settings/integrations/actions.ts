@@ -691,13 +691,14 @@ export async function saveEmailTemplateAction(
   const key = String(formData.get("key") ?? "").trim();
   const subject = String(formData.get("subject") ?? "").trim();
   const intro = String(formData.get("intro") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
   if (!key) return { error: "Missing template key.", success: null };
   if (!subject || !intro) return { error: "Subject and cover note are both required.", success: null };
 
   const admin = createAdminClient();
   const { error } = await admin
     .from("email_templates")
-    .upsert({ key, subject, intro, updated_by: user.id }, { onConflict: "key" });
+    .upsert({ key, subject, intro, note: note || null, updated_by: user.id }, { onConflict: "key" });
   if (error) return { error: error.message, success: null };
 
   revalidatePath("/settings/integrations");

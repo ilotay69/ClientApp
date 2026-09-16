@@ -627,7 +627,8 @@ export async function sendQuarterlyReviewToClientAction(reviewId: string, testEm
       review.reviewPeriod,
       review.summary,
       ackUrl,
-      applyTemplateVars(template.intro, templateVars)
+      applyTemplateVars(template.intro, templateVars),
+      applyTemplateVars(template.note, templateVars)
     );
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,

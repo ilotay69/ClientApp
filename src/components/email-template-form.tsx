@@ -12,6 +12,9 @@ export function EmailTemplateForm({
   placeholders,
   currentSubject,
   currentIntro,
+  noteLabel,
+  noteDescription,
+  currentNote,
   saveAction,
 }: {
   templateKey: string;
@@ -20,6 +23,9 @@ export function EmailTemplateForm({
   placeholders: string[];
   currentSubject: string;
   currentIntro: string;
+  noteLabel?: string;
+  noteDescription?: string;
+  currentNote?: string;
   saveAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
 }) {
   const [state, formAction, pending] = useActionState(saveAction, initialState);
@@ -60,6 +66,20 @@ export function EmailTemplateForm({
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         />
       </div>
+
+      {noteLabel && (
+        <div>
+          <label className="block text-sm font-medium text-slate-700">{noteLabel}</label>
+          {noteDescription && <p className="mt-0.5 text-xs text-slate-500">{noteDescription}</p>}
+          <textarea
+            name="note"
+            rows={2}
+            defaultValue={currentNote}
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          />
+        </div>
+      )}
 
       {placeholders.length > 0 && (
         <p className="text-xs text-slate-500">

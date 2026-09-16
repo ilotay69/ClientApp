@@ -402,6 +402,9 @@ export default async function IntegrationsSettingsPage({
                     placeholders={EMAIL_TEMPLATES[0].placeholders}
                     currentSubject={quarterlyReviewEmailTemplate.subject}
                     currentIntro={quarterlyReviewEmailTemplate.intro}
+                    noteLabel={EMAIL_TEMPLATES[0].noteLabel}
+                    noteDescription={EMAIL_TEMPLATES[0].noteDescription}
+                    currentNote={quarterlyReviewEmailTemplate.note}
                     saveAction={saveEmailTemplateAction}
                   />
                 ),

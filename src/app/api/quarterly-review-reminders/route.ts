@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
         review.summary,
         ackUrl,
         applyTemplateVars(template.intro, templateVars),
+        applyTemplateVars(template.note, templateVars),
         ordinalReminderLabel(reminderNumber)
       );
       await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
