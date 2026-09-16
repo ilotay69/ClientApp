@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
+import { ClientCombobox } from "@/components/client-combobox";
 import type { FormState } from "@/app/(dashboard)/sales-requests/actions";
 
 const initialState: FormState = { error: null };
@@ -16,6 +17,7 @@ export function SalesRequestQuickAdd({
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  const [clientId, setClientId] = useState(defaultClientId);
 
   return (
     <form
@@ -23,6 +25,7 @@ export function SalesRequestQuickAdd({
       action={async (formData: FormData) => {
         await formAction(formData);
         formRef.current?.reset();
+        setClientId(defaultClientId);
       }}
       className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
@@ -33,18 +36,14 @@ export function SalesRequestQuickAdd({
           required
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:flex-1"
         />
-        <select
-          name="client_id"
-          defaultValue={defaultClientId}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-56"
-        >
-          <option value="">No client (internal)</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <input type="hidden" name="client_id" value={clientId} />
+        <ClientCombobox
+          clients={clients}
+          value={clientId}
+          onChange={setClientId}
+          emptyLabel="No client (internal)"
+          className="sm:w-56"
+        />
       </div>
 
       <textarea

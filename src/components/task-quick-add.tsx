@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import { ClientCombobox } from "@/components/client-combobox";
 import type { FormState } from "@/app/(dashboard)/tasks/actions";
 
 const initialState: FormState = { error: null };
@@ -70,25 +71,18 @@ export function TaskQuickAdd({
         required
         className="rounded-md border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
       />
-      <select
-        name="client_id"
+      <input type="hidden" name="client_id" value={selectedClientId} />
+      <ClientCombobox
+        clients={visibleClients}
         value={selectedClientId}
-        onChange={(e) => {
-          const clientId = e.target.value;
+        onChange={(clientId) => {
           setSelectedClientId(clientId);
           if (selectedProject && selectedProject.clientId !== clientId) {
             setSelectedProjectId("");
           }
         }}
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-      >
-        <option value="">No client (internal)</option>
-        {visibleClients.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+        emptyLabel="No client (internal)"
+      />
       {!personal && (
         <select
           name="project_id"

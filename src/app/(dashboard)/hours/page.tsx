@@ -122,7 +122,7 @@ export default async function HoursPage() {
                 content: <ContractBlockHours action={fetchContractBlockHoursAction} />,
               },
               {
-                label: "Contract Usage",
+                label: "Block of hrs usage",
                 content: (
                   <ContractUsageLookup
                     clients={autotaskClients ?? []}

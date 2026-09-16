@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { ClientCombobox } from "@/components/client-combobox";
 import type { AutotaskTicketSearchRow } from "@/lib/autotask";
 
 export function TicketLookup({
@@ -47,18 +48,7 @@ export function TicketLookup({
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-700">Client</label>
-            <select
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="mt-1 w-56 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
-            >
-              <option value="">Choose a client…</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <ClientCombobox clients={clients} value={clientId} onChange={setClientId} className="mt-1 w-56" />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700">Subject contains</label>

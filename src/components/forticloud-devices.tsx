@@ -19,7 +19,7 @@ const STATUS_CLASS: Record<ForticloudSupportStatus, string> = {
 
 const ALL_STATUSES = Object.keys(STATUS_LABEL) as ForticloudSupportStatus[];
 
-type SortField = "account" | "model" | "serial" | "status" | "supportEnd" | "eos";
+type SortField = "account" | "model" | "serial" | "description" | "status" | "supportEnd" | "eos";
 type SortDir = "asc" | "desc";
 
 // Nulls sort last regardless of direction — an unknown/never-set date
@@ -109,6 +109,8 @@ export function ForticloudDevices({
           return dirMul * a.productModel.localeCompare(b.productModel);
         case "serial":
           return dirMul * a.serialNumber.localeCompare(b.serialNumber);
+        case "description":
+          return dirMul * compareNullableStrings(a.description, b.description);
         case "status":
           return dirMul * (STATUS_RANK[a.supportStatus] - STATUS_RANK[b.supportStatus]);
         case "supportEnd":
@@ -196,7 +198,7 @@ export function ForticloudDevices({
                 <SortHeader field="account" label="Account" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader field="model" label="Model" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader field="serial" label="Serial" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                <th className="px-5 py-2 text-left font-medium text-slate-500">Description</th>
+                <SortHeader field="description" label="Description" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader field="status" label="Support status" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader field="supportEnd" label="Support ends" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <SortHeader field="eos" label="Hardware EoS" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />

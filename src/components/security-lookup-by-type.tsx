@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { ClientLookupErrors } from "@/components/client-lookup-errors";
+import { ClientCombobox } from "@/components/client-combobox";
 import type { SecurityType, SecurityLookupResult } from "@/app/(dashboard)/settings/catalog/security-lookup-actions";
 
 const TYPES: { value: SecurityType; label: string }[] = [
@@ -177,22 +178,16 @@ export function SecurityLookupByType({
 
         {clientsError && <p className="text-sm text-red-600">{clientsError}</p>}
         {!clientsError && (
-          <select
+          <ClientCombobox
+            clients={clients}
             value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
+            onChange={(id) => {
+              setClientId(id);
               setResult(null);
             }}
-            disabled={!clients}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-60"
-          >
-            <option value="">{clients ? "All clients" : "Loading clients…"}</option>
-            {clients?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            emptyLabel="All clients"
+            className="w-56"
+          />
         )}
 
         <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ClientCombobox } from "@/components/client-combobox";
 
 /** Plain navigation on change, same "select and reload" pattern as other
  * server-rendered filter pickers in this app — no client-side data fetching
@@ -14,19 +15,17 @@ export function ClientPicker({
 }) {
   const router = useRouter();
   return (
-    <select
-      defaultValue={selectedId ?? ""}
-      onChange={(e) => router.push(`/reconciliation/licenses?client_id=${e.target.value}`)}
-      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-    >
-      <option value="" disabled>
-        Choose a client…
-      </option>
-      {clients.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.name}
-        </option>
-      ))}
-    </select>
+    <ClientCombobox
+      clients={clients}
+      value={selectedId ?? ""}
+      // Only navigates on an actual pick (a truthy id) — the combobox also
+      // fires onChange("") the moment typed text stops matching the
+      // current selection, which would otherwise re-navigate to "no
+      // client" on every keystroke of a fresh search.
+      onChange={(id) => {
+        if (id) router.push(`/reconciliation/licenses?client_id=${id}`);
+      }}
+      className="w-full"
+    />
   );
 }

@@ -8,6 +8,7 @@ import type {
 import { CLIENT_PORTAL_ROLE_LABELS, type ClientPortalRole } from "@/lib/portal-roles";
 import { formatDate } from "@/lib/format";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
+import { ClientCombobox } from "@/components/client-combobox";
 
 const initialState: CreatePortalUserState = {
   error: null,
@@ -38,6 +39,7 @@ export function ClientAccessPanel({
   updateRoleAction: (userId: string, role: ClientPortalRole) => Promise<{ error?: string }>;
 }) {
   const [state, formAction, pending] = useActionState(createAction, initialState);
+  const [clientId, setClientId] = useState("");
 
   return (
     <div className="space-y-6">
@@ -71,21 +73,8 @@ export function ClientAccessPanel({
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">Client</label>
-            <select
-              name="client_id"
-              required
-              defaultValue=""
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-            >
-              <option value="" disabled>
-                Choose a client…
-              </option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <input type="hidden" name="client_id" value={clientId} />
+            <ClientCombobox clients={clients} value={clientId} onChange={setClientId} className="mt-1" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">Portal role</label>
@@ -111,7 +100,7 @@ export function ClientAccessPanel({
               {state.error && <p className="mb-2 text-sm text-red-600">{state.error}</p>}
               <button
                 type="submit"
-                disabled={pending}
+                disabled={pending || !clientId}
                 className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
               >
                 {pending ? "Creating…" : "Create portal login"}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { ClientCombobox } from "@/components/client-combobox";
 import type { Touchpoint } from "@/lib/types";
 import type { FormState } from "@/app/(dashboard)/touchpoints/actions";
 
@@ -22,26 +23,14 @@ export function TouchpointForm({
   submitLabel: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [clientId, setClientId] = useState(touchpoint?.client_id ?? defaultClientId ?? "");
 
   return (
     <form action={formAction} className="max-w-xl space-y-4">
       <div>
         <label className="block text-sm font-medium text-slate-700">Client</label>
-        <select
-          name="client_id"
-          required
-          defaultValue={touchpoint?.client_id ?? defaultClientId ?? ""}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        >
-          <option value="" disabled>
-            Select a client
-          </option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <input type="hidden" name="client_id" value={clientId} />
+        <ClientCombobox clients={clients} value={clientId} onChange={setClientId} className="mt-1" />
       </div>
 
       <div>
@@ -120,7 +109,7 @@ export function TouchpointForm({
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || !clientId}
         className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Saving..." : submitLabel}

@@ -106,7 +106,7 @@ export default async function ReportsPage() {
                 content: <ReportPreviewPanel report={HOURS_SUMMARY} previewAction={getReportPreviewAction} />,
               },
               {
-                label: "Contract Usage",
+                label: "Block of hrs usage",
                 content: (
                   <ContractUsageLookup
                     clients={autotaskClients ?? []}

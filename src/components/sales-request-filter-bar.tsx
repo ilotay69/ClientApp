@@ -1,5 +1,8 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { ClientCombobox } from "@/components/client-combobox";
+
 // Same "filtered view is a real URL" plain GET auto-submit approach as
 // TaskFilterBar. Stage is a checkbox group (name="stage" repeated) rather
 // than a single-select dropdown, so one or more stages can be highlighted
@@ -19,24 +22,28 @@ export function SalesRequestFilterBar({
 }) {
   const hasFilters =
     values.client || values.stages.length > 0 || values.assignee || values.source;
+  const formRef = useRef<HTMLFormElement>(null);
+  const [clientId, setClientId] = useState(values.client);
 
   return (
-    <form action="/sales-requests" className="space-y-2">
+    <form ref={formRef} action="/sales-requests" className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <select
-          name="client"
-          defaultValue={values.client}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
-        >
-          <option value="">All clients</option>
-          <option value="none">Internal only</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <input type="hidden" name="client" value={clientId} />
+        <ClientCombobox
+          clients={clients}
+          value={clientId}
+          onChange={(id) => {
+            setClientId(id);
+            // Deferred a tick so the hidden input above has actually
+            // picked up the new value before the form reads it — setting
+            // state and submitting in the same handler would still submit
+            // the previous render's value.
+            setTimeout(() => formRef.current?.requestSubmit());
+          }}
+          emptyLabel="All clients"
+          extraOptions={[{ value: "none", label: "Internal only" }]}
+          className="w-56"
+        />
 
         <select
           name="assignee"

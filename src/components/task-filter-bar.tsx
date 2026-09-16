@@ -1,5 +1,8 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { ClientCombobox } from "@/components/client-combobox";
+
 // A plain GET form, auto-submitting on change — same "filtered view is a
 // real URL, filtering happens in the query" approach as the other list
 // pages' filters. Priority and status are both checkbox groups (repeated
@@ -111,25 +114,27 @@ export function TaskFilterBar({
     (showAssignee && values.assignee) ||
     (showProject && values.project) ||
     values.statuses.length > 0;
+  const formRef = useRef<HTMLFormElement>(null);
+  const [clientId, setClientId] = useState(values.client);
 
   return (
-    <form action={action} className="space-y-2">
+    <form ref={formRef} action={action} className="space-y-2">
       <PreserveParams params={preserve} />
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <select
-          name={fieldNames.client}
-          defaultValue={values.client}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
-        >
-          <option value="">All clients</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <input type="hidden" name={fieldNames.client} value={clientId} />
+        <ClientCombobox
+          clients={clients}
+          value={clientId}
+          onChange={(id) => {
+            setClientId(id);
+            // Deferred a tick so the hidden input above has picked up the
+            // new value before the form reads it on submit.
+            setTimeout(() => formRef.current?.requestSubmit());
+          }}
+          emptyLabel="All clients"
+          className="w-56"
+        />
 
         {showAssignee && (
           <select

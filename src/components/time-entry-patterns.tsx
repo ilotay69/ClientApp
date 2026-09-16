@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { Badge } from "@/components/badge";
 import { IndeterminateProgressBar } from "@/components/progress-bar";
+import { ClientCombobox } from "@/components/client-combobox";
 import type { TimeEntryFinding } from "@/lib/time-entry-insights";
 
 type ClientsResult = { id: string; name: string }[] | { error: string };
@@ -54,22 +55,16 @@ export function TimeEntryPatterns({
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-5 py-2">
         {clientsError && <p className="text-sm text-red-600">{clientsError}</p>}
         {!clientsError && (
-          <select
+          <ClientCombobox
+            clients={clients}
             value={selectedClientId}
-            onChange={(e) => {
-              setSelectedClientId(e.target.value);
+            onChange={(id) => {
+              setSelectedClientId(id);
               setResult(null);
             }}
-            disabled={!clients}
-            className="w-full max-w-sm rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-60"
-          >
-            <option value="">{clients ? "Select a client…" : "Loading clients…"}</option>
-            {clients?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            placeholder="Select a client…"
+            className="w-full max-w-sm"
+          />
         )}
         <button
           type="button"

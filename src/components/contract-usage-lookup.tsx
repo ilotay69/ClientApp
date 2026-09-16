@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { formatDate } from "@/lib/format";
+import { ClientCombobox } from "@/components/client-combobox";
 import type { ContractUsageRow } from "@/lib/contract-hours";
 
 function hrs(n: number): string {
@@ -77,18 +78,12 @@ export function ContractUsageLookup({
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-700">Client</label>
-            <select
+            <ClientCombobox
+              clients={clients}
               value={clientId}
-              onChange={(e) => selectClient(e.target.value)}
-              className="mt-1 w-56 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
-            >
-              <option value="">Choose a client…</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={selectClient}
+              className="mt-1 w-56"
+            />
           </div>
           <button
             type="button"
