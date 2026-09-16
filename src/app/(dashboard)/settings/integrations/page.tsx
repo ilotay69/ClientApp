@@ -92,7 +92,6 @@ export default async function IntegrationsSettingsPage({
     { data: blockHoursSubscriptionRows },
     { data: autotaskClientsForBlockHours },
     { data: blockHoursReportSettingsRow },
-    { data: blockHoursReportLogRows },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
@@ -134,11 +133,6 @@ export default async function IntegrationsSettingsPage({
       .not("autotask_company_id", "is", null)
       .order("name"),
     admin.from("block_hours_report_settings").select("cc_email").eq("id", true).maybeSingle(),
-    admin
-      .from("block_hours_report_log")
-      .select("id, sent_at, client_name, to_email, cc_email, error")
-      .order("sent_at", { ascending: false })
-      .limit(100),
   ]);
 
   type ProviderRow = {
@@ -165,23 +159,6 @@ export default async function IntegrationsSettingsPage({
       toEmail: r.to_email,
     };
   });
-
-  type BlockHoursLogRow = {
-    id: string;
-    sent_at: string;
-    client_name: string;
-    to_email: string;
-    cc_email: string | null;
-    error: string | null;
-  };
-  const blockHoursReportLog = ((blockHoursReportLogRows ?? []) as BlockHoursLogRow[]).map((r) => ({
-    id: r.id,
-    sentAt: r.sent_at,
-    clientName: r.client_name,
-    toEmail: r.to_email,
-    ccEmail: r.cc_email,
-    error: r.error,
-  }));
 
   return (
     <div className="space-y-6">
@@ -385,7 +362,6 @@ export default async function IntegrationsSettingsPage({
                     saveCcAction={saveBlockHoursReportCcAction}
                     sendNowAction={sendBlockHoursUsageReportsNowAction}
                     sendToSelectedAction={sendBlockHoursUsageReportsToSelectedAction}
-                    log={blockHoursReportLog}
                   />
                 ),
               },

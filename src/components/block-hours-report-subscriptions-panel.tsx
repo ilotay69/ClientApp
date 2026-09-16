@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { ClientCombobox } from "@/components/client-combobox";
-import { formatDateTime } from "@/lib/format";
 
 type FormState = { error: string | null; success: string | null };
 const initialFormState: FormState = { error: null, success: null };
@@ -14,15 +14,6 @@ export type BlockHoursReportSubscription = {
   toEmail: string;
 };
 
-export type BlockHoursReportLogEntry = {
-  id: string;
-  sentAt: string;
-  clientName: string;
-  toEmail: string;
-  ccEmail: string | null;
-  error: string | null;
-};
-
 export function BlockHoursReportSubscriptionsPanel({
   subscriptions,
   clients,
@@ -32,7 +23,6 @@ export function BlockHoursReportSubscriptionsPanel({
   saveCcAction,
   sendNowAction,
   sendToSelectedAction,
-  log,
 }: {
   subscriptions: BlockHoursReportSubscription[];
   clients: { id: string; name: string; email?: string | null }[];
@@ -50,7 +40,6 @@ export function BlockHoursReportSubscriptionsPanel({
     sent: number;
     errors: { clientName: string; message: string }[];
   }>;
-  log: BlockHoursReportLogEntry[];
 }) {
   const [ccState, ccFormAction, savingCc] = useActionState(saveCcAction, initialFormState);
 
@@ -306,45 +295,12 @@ export function BlockHoursReportSubscriptionsPanel({
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-4 py-2">
-          <h3 className="text-sm font-semibold text-slate-900">Send log</h3>
-          <p className="text-xs text-slate-500">Every attempt, automated or manual — most recent first.</p>
-        </div>
-        <div className="max-h-80 overflow-y-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-slate-500">Date</th>
-                <th className="px-4 py-2 text-left font-medium text-slate-500">Client</th>
-                <th className="px-4 py-2 text-left font-medium text-slate-500">Sent to</th>
-                <th className="px-4 py-2 text-left font-medium text-slate-500">CC</th>
-                <th className="px-4 py-2 text-left font-medium text-slate-500">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {log.map((entry) => (
-                <tr key={entry.id}>
-                  <td className="px-4 py-2 whitespace-nowrap text-slate-600">{formatDateTime(entry.sentAt)}</td>
-                  <td className="px-4 py-2 text-slate-900">{entry.clientName}</td>
-                  <td className="px-4 py-2 text-slate-700">{entry.toEmail}</td>
-                  <td className="px-4 py-2 text-slate-700">{entry.ccEmail ?? "—"}</td>
-                  <td className={`px-4 py-2 ${entry.error ? "text-red-600" : "text-emerald-700"}`}>
-                    {entry.error ?? "Sent"}
-                  </td>
-                </tr>
-              ))}
-              {log.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-slate-500">
-                    Nothing sent yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Link
+        href="/settings/integrations/block-hours-log"
+        className="inline-block text-sm font-medium text-brand underline"
+      >
+        View send log →
+      </Link>
     </div>
   );
 }
