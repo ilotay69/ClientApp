@@ -288,7 +288,7 @@ export function BlockHoursReportSubscriptionsPanel({
           disabled={sending || subscriptions.length === 0}
           className="rounded-md border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
         >
-          {sending ? "Sending…" : "Send now (test)"}
+          {sending ? "Sending…" : "Send to all clients"}
         </button>
         {sendResult && (
           <div className={`text-sm ${sendResult.ok ? "text-emerald-700" : "text-red-600"}`}>
