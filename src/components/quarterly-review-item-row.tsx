@@ -56,18 +56,31 @@ export function QuarterlyReviewItemRow({
 }) {
   const [currentStatus, setCurrentStatus] = useState(status);
   const [draftComments, setDraftComments] = useState(comments ?? "");
-  const [pending, startTransition] = useTransition();
+  // Separate pending flags for status vs. comments: clicking a status
+  // button blurs the comments textarea first (blur fires before click),
+  // which used to share one `pending` flag — that briefly disabled the
+  // status buttons for the save-on-blur, swallowing the very click that
+  // triggered it (the button just never received the click at all), so it
+  // silently took a second click to actually register.
+  const [pendingStatus, startStatusTransition] = useTransition();
+  const [pendingComments, startCommentsTransition] = useTransition();
 
   function saveStatus(next: QuarterlyReviewItemStatus) {
     setCurrentStatus(next);
-    startTransition(() => action(reviewId, itemKey, next, draftComments || null));
+    startStatusTransition(() => action(reviewId, itemKey, next, draftComments || null));
   }
 
   function saveComments() {
-    startTransition(() => action(reviewId, itemKey, currentStatus, draftComments || null));
+    startCommentsTransition(() => action(reviewId, itemKey, currentStatus, draftComments || null));
   }
 
-  const isDisabled = disabled || pending;
+  // Buttons only care about a status save in flight — never about the
+  // comments save triggered by the blur that just happened on the very
+  // click that's about to land on one of them (see the pending split
+  // above). The textarea's own disabled state is the mirror of that: it
+  // only cares about a comments save in flight, not a status click.
+  const buttonsDisabled = disabled || pendingStatus;
+  const textareaDisabled = disabled || pendingComments;
 
   return (
     <div className="border-b border-slate-100 px-4 py-3 last:border-0">
@@ -88,7 +101,7 @@ export function QuarterlyReviewItemRow({
               <button
                 key={value}
                 type="button"
-                disabled={isDisabled}
+                disabled={buttonsDisabled}
                 onClick={() => saveStatus(value)}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium disabled:opacity-60 ${
                   isActive ? ACTIVE_CLASSES[value] : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
@@ -105,7 +118,7 @@ export function QuarterlyReviewItemRow({
         defaultValue={draftComments}
         onChange={(e) => setDraftComments(e.target.value)}
         onBlur={saveComments}
-        disabled={isDisabled}
+        disabled={textareaDisabled}
         rows={2}
         placeholder="Comments…"
         className="mt-2.5 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none disabled:opacity-60"
