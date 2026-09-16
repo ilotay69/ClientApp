@@ -21,6 +21,7 @@ import { getNordLayerSettings } from "@/lib/nordlayer-settings";
 import { getNordPassSettings } from "@/lib/nordpass-settings";
 import { fetchAppOnlyGraphToken } from "@/lib/microsoft-graph";
 import { syncSharedMailboxMessages } from "@/lib/shared-mailbox-sync";
+import { sendBlockHoursUsageReports } from "@/lib/block-hours-report-send";
 
 export type FormState = { error: string | null; success: string | null };
 
@@ -701,4 +702,72 @@ export async function saveEmailTemplateAction(
 
   revalidatePath("/settings/integrations");
   return { error: null, success: "Saved." };
+}
+
+/** Adds one client to the Block of Hours Usage Report auto-send list —
+ * see /api/block-hours-report-send for what actually uses this. */
+export async function addBlockHoursReportSubscriptionAction(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) return { error: "You don't have permission to do that.", success: null };
+
+  const clientId = String(formData.get("client_id") ?? "").trim();
+  const toEmail = String(formData.get("to_email") ?? "").trim();
+  const ccEmail = String(formData.get("cc_email") ?? "").trim();
+  if (!clientId) return { error: "Choose a client.", success: null };
+  if (!toEmail) return { error: "Enter the email it should send to.", success: null };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("block_hours_report_subscriptions").insert({
+    client_id: clientId,
+    to_email: toEmail,
+    cc_email: ccEmail || null,
+    created_by: user.id,
+  });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Added." };
+}
+
+export async function removeBlockHoursReportSubscriptionAction(
+  id: string
+): Promise<{ error: string | null }> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("block_hours_report_subscriptions").delete().eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings/integrations");
+  return { error: null };
+}
+
+/** Manual "Send now" — runs the exact same send this list's cron trigger
+ * runs, on demand, so a saved list can be verified without waiting for
+ * the schedule. */
+export async function sendBlockHoursUsageReportsNowAction(): Promise<{
+  error: string | null;
+  sent: number;
+  errors: { clientName: string; message: string }[];
+}> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { error: "You don't have permission to do that.", sent: 0, errors: [] };
+  }
+
+  const admin = createAdminClient();
+  try {
+    const result = await sendBlockHoursUsageReports(admin);
+    return { error: null, sent: result.sent, errors: result.errors };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to send reports.",
+      sent: 0,
+      errors: [],
+    };
+  }
 }

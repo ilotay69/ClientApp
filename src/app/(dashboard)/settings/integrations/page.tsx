@@ -16,6 +16,7 @@ import { SalesNotificationSettingsForm } from "@/components/sales-notification-s
 import { SharedMailboxSettingsForm } from "@/components/shared-mailbox-settings-form";
 import { QuarterlyReviewReminderSettingsForm } from "@/components/quarterly-review-reminder-settings-form";
 import { EmailTemplateForm } from "@/components/email-template-form";
+import { BlockHoursReportSubscriptionsPanel } from "@/components/block-hours-report-subscriptions-panel";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import { EMAIL_TEMPLATES, getEmailTemplate } from "@/lib/email-templates";
 import {
@@ -41,6 +42,9 @@ import {
   syncSharedMailboxNowAction,
   saveQuarterlyReviewReminderSettings,
   saveEmailTemplateAction,
+  addBlockHoursReportSubscriptionAction,
+  removeBlockHoursReportSubscriptionAction,
+  sendBlockHoursUsageReportsNowAction,
 } from "./actions";
 import {
   listForticloudAccountsAction,
@@ -83,6 +87,8 @@ export default async function IntegrationsSettingsPage({
     { data: reviewReminderRow },
     quarterlyReviewEmailTemplate,
     contractUsageEmailTemplate,
+    { data: blockHoursSubscriptionRows },
+    { data: autotaskClientsForBlockHours },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
@@ -114,6 +120,15 @@ export default async function IntegrationsSettingsPage({
       .maybeSingle(),
     getEmailTemplate(admin, "quarterly_review"),
     getEmailTemplate(admin, "contract_usage_report"),
+    admin
+      .from("block_hours_report_subscriptions")
+      .select("id, to_email, cc_email, clients(id, name)")
+      .order("created_at", { ascending: true }),
+    admin
+      .from("clients")
+      .select("id, name, email:primary_contact_email")
+      .not("autotask_company_id", "is", null)
+      .order("name"),
   ]);
 
   type ProviderRow = {
@@ -125,6 +140,23 @@ export default async function IntegrationsSettingsPage({
   const byProvider = new Map<AiProvider, ProviderRow>(
     (rows ?? []).map((r: ProviderRow) => [r.provider, r] as const)
   );
+
+  type BlockHoursSubscriptionRow = {
+    id: string;
+    to_email: string;
+    cc_email: string | null;
+    clients: { id: string; name: string } | { id: string; name: string }[] | null;
+  };
+  const blockHoursSubscriptions = ((blockHoursSubscriptionRows ?? []) as BlockHoursSubscriptionRow[]).map((r) => {
+    const client = Array.isArray(r.clients) ? r.clients[0] : r.clients;
+    return {
+      id: r.id,
+      clientId: client?.id ?? "",
+      clientName: client?.name ?? "Unknown client",
+      toEmail: r.to_email,
+      ccEmail: r.cc_email,
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -313,6 +345,18 @@ export default async function IntegrationsSettingsPage({
                     currentApproverEmail={reviewReminderRow?.approver_email ?? "ilotay@cgtechnologies.com"}
                     currentIntervalDays={reviewReminderRow?.reminder_interval_days ?? 7}
                     saveAction={saveQuarterlyReviewReminderSettings}
+                  />
+                ),
+              },
+              {
+                label: "Block of Hours Usage Report",
+                content: (
+                  <BlockHoursReportSubscriptionsPanel
+                    subscriptions={blockHoursSubscriptions}
+                    clients={autotaskClientsForBlockHours ?? []}
+                    addAction={addBlockHoursReportSubscriptionAction}
+                    removeAction={removeBlockHoursReportSubscriptionAction}
+                    sendNowAction={sendBlockHoursUsageReportsNowAction}
                   />
                 ),
               },

@@ -605,12 +605,20 @@ export async function sendMailAsSharedMailbox(
   mailboxEmail: string,
   message: {
     to: string;
+    /** Comma/semicolon-separated addresses, same as a typical "CC" field
+     * — split and sent as separate ccRecipients entries. Omit for no CC. */
+    cc?: string | null;
     subject: string;
     html: string;
     text: string;
     attachments?: SharedMailboxAttachment[];
   }
 ): Promise<void> {
+  const ccAddresses = (message.cc ?? "")
+    .split(/[,;]/)
+    .map((a) => a.trim())
+    .filter(Boolean);
+
   const res = await fetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailboxEmail)}/sendMail`,
     {
@@ -624,6 +632,9 @@ export async function sendMailAsSharedMailbox(
           subject: message.subject,
           body: { contentType: "HTML", content: message.html },
           toRecipients: [{ emailAddress: { address: message.to } }],
+          ...(ccAddresses.length > 0
+            ? { ccRecipients: ccAddresses.map((address) => ({ emailAddress: { address } })) }
+            : {}),
           attachments: (message.attachments ?? []).map((a) => ({
             "@odata.type": "#microsoft.graph.fileAttachment",
             name: a.filename,
