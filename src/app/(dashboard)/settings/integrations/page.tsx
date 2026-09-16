@@ -44,6 +44,7 @@ import {
   saveEmailTemplateAction,
   addBlockHoursReportSubscriptionAction,
   removeBlockHoursReportSubscriptionAction,
+  saveBlockHoursReportCcAction,
   sendBlockHoursUsageReportsNowAction,
 } from "./actions";
 import {
@@ -89,6 +90,8 @@ export default async function IntegrationsSettingsPage({
     contractUsageEmailTemplate,
     { data: blockHoursSubscriptionRows },
     { data: autotaskClientsForBlockHours },
+    { data: blockHoursReportSettingsRow },
+    { data: blockHoursReportLogRows },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
@@ -122,13 +125,19 @@ export default async function IntegrationsSettingsPage({
     getEmailTemplate(admin, "contract_usage_report"),
     admin
       .from("block_hours_report_subscriptions")
-      .select("id, to_email, cc_email, clients(id, name)")
+      .select("id, to_email, clients(id, name)")
       .order("created_at", { ascending: true }),
     admin
       .from("clients")
       .select("id, name, email:primary_contact_email")
       .not("autotask_company_id", "is", null)
       .order("name"),
+    admin.from("block_hours_report_settings").select("cc_email").eq("id", true).maybeSingle(),
+    admin
+      .from("block_hours_report_log")
+      .select("id, sent_at, client_name, to_email, cc_email, error")
+      .order("sent_at", { ascending: false })
+      .limit(100),
   ]);
 
   type ProviderRow = {
@@ -144,7 +153,6 @@ export default async function IntegrationsSettingsPage({
   type BlockHoursSubscriptionRow = {
     id: string;
     to_email: string;
-    cc_email: string | null;
     clients: { id: string; name: string } | { id: string; name: string }[] | null;
   };
   const blockHoursSubscriptions = ((blockHoursSubscriptionRows ?? []) as BlockHoursSubscriptionRow[]).map((r) => {
@@ -154,9 +162,25 @@ export default async function IntegrationsSettingsPage({
       clientId: client?.id ?? "",
       clientName: client?.name ?? "Unknown client",
       toEmail: r.to_email,
-      ccEmail: r.cc_email,
     };
   });
+
+  type BlockHoursLogRow = {
+    id: string;
+    sent_at: string;
+    client_name: string;
+    to_email: string;
+    cc_email: string | null;
+    error: string | null;
+  };
+  const blockHoursReportLog = ((blockHoursReportLogRows ?? []) as BlockHoursLogRow[]).map((r) => ({
+    id: r.id,
+    sentAt: r.sent_at,
+    clientName: r.client_name,
+    toEmail: r.to_email,
+    ccEmail: r.cc_email,
+    error: r.error,
+  }));
 
   return (
     <div className="space-y-6">
@@ -354,9 +378,12 @@ export default async function IntegrationsSettingsPage({
                   <BlockHoursReportSubscriptionsPanel
                     subscriptions={blockHoursSubscriptions}
                     clients={autotaskClientsForBlockHours ?? []}
+                    currentCcEmail={blockHoursReportSettingsRow?.cc_email ?? null}
                     addAction={addBlockHoursReportSubscriptionAction}
                     removeAction={removeBlockHoursReportSubscriptionAction}
+                    saveCcAction={saveBlockHoursReportCcAction}
                     sendNowAction={sendBlockHoursUsageReportsNowAction}
+                    log={blockHoursReportLog}
                   />
                 ),
               },

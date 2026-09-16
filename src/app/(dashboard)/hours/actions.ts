@@ -16,6 +16,7 @@ import { fetchTimeEntriesForAnalysis, type TimeEntryForAnalysis } from "@/lib/ti
 import { buildContractUsagePdf } from "@/lib/contract-usage-pdf";
 import { buildContractUsageClientEmail } from "@/lib/resend";
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
+import { getBlockHoursReportCc, logBlockHoursReportSend } from "@/lib/block-hours-report-send";
 import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import {
@@ -269,6 +270,7 @@ export async function sendContractUsageReportAction(
       applyTemplateVars(template.intro, templateVars)
     );
 
+    const ccEmail = await getBlockHoursReportCc(admin);
     const accessToken = await getValidSharedMailboxToken(admin, mailboxSettings);
     const attachments: SharedMailboxAttachment[] = [
       {
@@ -280,14 +282,30 @@ export async function sendContractUsageReportAction(
     ];
     await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
       to: trimmedEmail,
+      cc: ccEmail,
       subject: applyTemplateVars(template.subject, templateVars),
       html,
       text,
       attachments,
     });
+    await logBlockHoursReportSend(admin, {
+      clientId,
+      clientName: client.name,
+      toEmail: trimmedEmail,
+      ccEmail,
+      error: null,
+    });
     return { error: null };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Failed to send the report." };
+    const message = err instanceof Error ? err.message : "Failed to send the report.";
+    await logBlockHoursReportSend(admin, {
+      clientId,
+      clientName: client.name,
+      toEmail: trimmedEmail,
+      ccEmail: null,
+      error: message,
+    });
+    return { error: message };
   }
 }
 

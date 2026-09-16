@@ -715,7 +715,6 @@ export async function addBlockHoursReportSubscriptionAction(
 
   const clientId = String(formData.get("client_id") ?? "").trim();
   const toEmail = String(formData.get("to_email") ?? "").trim();
-  const ccEmail = String(formData.get("cc_email") ?? "").trim();
   if (!clientId) return { error: "Choose a client.", success: null };
   if (!toEmail) return { error: "Enter the email it should send to.", success: null };
 
@@ -723,13 +722,33 @@ export async function addBlockHoursReportSubscriptionAction(
   const { error } = await admin.from("block_hours_report_subscriptions").insert({
     client_id: clientId,
     to_email: toEmail,
-    cc_email: ccEmail || null,
     created_by: user.id,
   });
   if (error) return { error: error.message, success: null };
 
   revalidatePath("/settings/integrations");
   return { error: null, success: "Added." };
+}
+
+/** The one CC address applied to every Block of Hours Usage Report send —
+ * shared across the whole list, not per client. Blank clears it. */
+export async function saveBlockHoursReportCcAction(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) return { error: "You don't have permission to do that.", success: null };
+
+  const ccEmail = String(formData.get("cc_email") ?? "").trim();
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("block_hours_report_settings")
+    .upsert({ id: true, cc_email: ccEmail || null, updated_by: user.id }, { onConflict: "id" });
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
 }
 
 export async function removeBlockHoursReportSubscriptionAction(
