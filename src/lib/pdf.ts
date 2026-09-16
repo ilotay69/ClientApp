@@ -273,6 +273,23 @@ function decodeImage(buf: Buffer): DecodedImage | null {
 
 type Color = [number, number, number]; // 0-1 RGB, for status text
 
+// Standard 4-curve Bezier approximation of a circle (kappa ≈ 0.5522847) —
+// used to draw the "cloud" icon variant below as a few overlapping filled
+// circles, since this hand-built PDF writer has no arc/ellipse primitive
+// of its own, only straight lines and cubic Beziers.
+const CIRCLE_KAPPA = 0.5522847498;
+function filledCirclePathOps(cx: number, cy: number, r: number): string {
+  const k = r * CIRCLE_KAPPA;
+  return (
+    `${cx.toFixed(2)} ${(cy + r).toFixed(2)} m\n` +
+    `${(cx + k).toFixed(2)} ${(cy + r).toFixed(2)} ${(cx + r).toFixed(2)} ${(cy + k).toFixed(2)} ${(cx + r).toFixed(2)} ${cy.toFixed(2)} c\n` +
+    `${(cx + r).toFixed(2)} ${(cy - k).toFixed(2)} ${(cx + k).toFixed(2)} ${(cy - r).toFixed(2)} ${cx.toFixed(2)} ${(cy - r).toFixed(2)} c\n` +
+    `${(cx - k).toFixed(2)} ${(cy - r).toFixed(2)} ${(cx - r).toFixed(2)} ${(cy - k).toFixed(2)} ${(cx - r).toFixed(2)} ${cy.toFixed(2)} c\n` +
+    `${(cx - r).toFixed(2)} ${(cy + k).toFixed(2)} ${(cx - k).toFixed(2)} ${(cy + r).toFixed(2)} ${cx.toFixed(2)} ${(cy + r).toFixed(2)} c\n` +
+    `f\n`
+  );
+}
+
 type Block =
   | { type: "heading"; text: string; level: 1 | 2; center?: boolean; color?: Color; size?: number }
   | { type: "paragraph"; text: string; center?: boolean; color?: Color; size?: number }
@@ -280,7 +297,9 @@ type Block =
   | { type: "image"; buffer: Buffer; label: string | null; id: string }
   | { type: "spacer"; amount: number }
   | { type: "pagebreak" }
-  | { type: "icon" };
+  | { type: "icon"; variant: IconVariant };
+
+export type IconVariant = "monitor" | "cloud" | "devices";
 
 export class PdfContentBuilder {
   private blocks: Block[] = [];
@@ -312,12 +331,16 @@ export class PdfContentBuilder {
     this.blocks.push({ type: "pagebreak" });
     return this;
   }
-  /** A small vector "systems check" graphic (a monitor with a checkmark) —
-   * drawn from plain rectangles and a stroked path rather than an embedded
-   * bitmap, since this hand-built PDF writer has no source image to pull
-   * from and no way to fetch one. Used once, on the title page. */
-  icon() {
-    this.blocks.push({ type: "icon" });
+  /** A small vector graphic for a PDF's title page — drawn from plain
+   * shapes (rectangles, filled circles) rather than an embedded bitmap,
+   * since this hand-built PDF writer has no source image to pull from and
+   * no way to fetch one. "monitor" (a screen with a checkmark) is the
+   * original "systems check" icon, used on the main review PDF; "devices"
+   * (a stack of device outlines) and "cloud" (a cloud blob) give the
+   * standalone Device Health / 365 Licenses section PDFs their own
+   * matching icon instead of reusing the same one for everything. */
+  icon(variant: IconVariant = "monitor") {
+    this.blocks.push({ type: "icon", variant });
     return this;
   }
 
@@ -469,7 +492,7 @@ export class PdfContentBuilder {
         cursorY -= block.amount;
       } else if (block.type === "pagebreak") {
         newPage();
-      } else if (block.type === "icon") {
+      } else if (block.type === "icon" && block.variant === "monitor") {
         // A small vector "monitor with a checkmark" — plain filled
         // rectangles plus one stroked path, all drawn directly as PDF
         // content-stream operators (re/f for rects, m/l/S for the check).
@@ -513,6 +536,51 @@ export class PdfContentBuilder {
         // normal default.
         content += "0 0 0 rg\n0 0 0 RG\n";
         cursorY = baseY - 10;
+      } else if (block.type === "icon" && block.variant === "devices") {
+        // Three stacked device outlines (fanned back-to-front) — matches
+        // "Device Health" better than reusing the single-monitor icon
+        // above, which is meant for the main review's general "systems
+        // check" title page.
+        const boxW = 100;
+        const boxH = 58;
+        ensureSpace(boxH + 34 + 10);
+        const centerXpt = PAGE_WIDTH / 2;
+        const top = cursorY;
+        const offsets: [number, number, Color][] = [
+          [-18, 18, [0.82, 0.86, 0.92]],
+          [-9, 9, [0.55, 0.62, 0.73]],
+          [0, 0, [0.059, 0.09, 0.165]],
+        ];
+        for (const [dx, dy, [r, g, b]] of offsets) {
+          const x = centerXpt - boxW / 2 + dx;
+          const y = top - boxH - 24 + dy;
+          content += `${r} ${g} ${b} rg\n${x.toFixed(2)} ${y.toFixed(2)} ${boxW.toFixed(2)} ${boxH.toFixed(2)} re f\n`;
+        }
+        // A small "online" dot on the front (topmost) device's corner.
+        const dotCx = centerXpt - boxW / 2 + boxW - 14;
+        const dotCy = top - 24 - 14;
+        content += "0.086 0.639 0.290 rg\n" + filledCirclePathOps(dotCx, dotCy, 7);
+        content += "0 0 0 rg\n0 0 0 RG\n";
+        cursorY = top - boxH - 24 - 10;
+      } else if (block.type === "icon" && block.variant === "cloud") {
+        // A cloud blob (three overlapping filled circles over a rounded
+        // base) in Microsoft-365 blue — matches the "365 Licenses" section
+        // PDF better than the generic monitor/devices icons above.
+        const bodyW = 130;
+        const bodyH = 40;
+        ensureSpace(bodyH + 50 + 10);
+        const centerXpt = PAGE_WIDTH / 2;
+        const top = cursorY;
+        const bodyY = top - 50 - bodyH;
+        const cloudColor: Color = [0.0, 0.47, 0.83];
+        content += `${cloudColor[0]} ${cloudColor[1]} ${cloudColor[2]} rg\n${(centerXpt - bodyW / 2).toFixed(2)} ${bodyY.toFixed(2)} ${bodyW.toFixed(2)} ${bodyH.toFixed(2)} re f\n`;
+        const puffY = bodyY + bodyH;
+        content += `${cloudColor[0]} ${cloudColor[1]} ${cloudColor[2]} rg\n`;
+        content += filledCirclePathOps(centerXpt - 34, puffY, 22);
+        content += filledCirclePathOps(centerXpt, puffY + 10, 28);
+        content += filledCirclePathOps(centerXpt + 34, puffY, 22);
+        content += "0 0 0 rg\n0 0 0 RG\n";
+        cursorY = bodyY - 10;
       } else {
         const decoded = decodeImage(block.buffer);
         if (!decoded) {

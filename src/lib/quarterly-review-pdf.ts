@@ -92,6 +92,7 @@ function deviceAgeLabel(d: Pick<DeviceInsightInput, "manufacturer_fulfillment_da
  * rather than merged into the main review PDF, so it can be reviewed and
  * attached to the client email on its own. */
 function appendDeviceHealthSection(doc: PdfContentBuilder, devices: QuarterlyReviewPdfDevice[]) {
+  doc.heading("Device Health", 2);
   const onlineCount = devices.filter((d) => d.is_offline === false).length;
   const offlineCount = devices.filter((d) => d.is_offline === true).length;
   doc.paragraph(
@@ -139,6 +140,7 @@ function appendDeviceHealthSection(doc: PdfContentBuilder, devices: QuarterlyRev
 /** Shared by buildM365LicensesPdf below — same standalone-PDF-per-section
  * posture as Device Health above. */
 function appendM365LicensesSection(doc: PdfContentBuilder, licenses: QuarterlyReviewPdfLicense[]) {
+  doc.heading("365 Licenses", 2);
   for (const l of [...licenses].sort((a, b) => a.skuPartNumber.localeCompare(b.skuPartNumber))) {
     const fullyUsed = l.consumedUnits >= l.enabledUnits;
     doc.item(
@@ -153,23 +155,35 @@ function appendM365LicensesSection(doc: PdfContentBuilder, licenses: QuarterlyRe
 /** One small standalone PDF per optional section (see
  * QUARTERLY_REVIEW_EXTRA_SECTIONS) — generated right when a tech checks it
  * on the review page, previewable there, and attached alongside (not
- * merged into) the main review PDF when the review is sent. */
+ * merged into) the main review PDF when the review is sent. Title page
+ * mirrors the main review PDF's exactly (client name, subtitle, a service-
+ * matched icon, "Prepared by CG Technologies") so it doesn't read as a
+ * bare, unattributed report on its own once it's out of context in an
+ * email attachment. */
 export function buildDeviceHealthPdf(clientName: string, devices: QuarterlyReviewPdfDevice[]): Buffer {
   const doc = new PdfContentBuilder();
-  doc.spacer(40);
-  doc.heading(clientName, 1, { center: true, color: NAVY, size: 22 });
-  doc.paragraph("Device Health", { center: true, color: STATUS_COLORS.recommended, size: 13 });
-  doc.spacer(20);
+  doc.spacer(60);
+  doc.heading(clientName, 1, { center: true, color: NAVY, size: 26 });
+  doc.paragraph("Device Health", { center: true, color: NAVY, size: 15 });
+  doc.spacer(24);
+  doc.icon("devices");
+  doc.spacer(24);
+  doc.paragraph("Prepared by CG Technologies", { center: true, size: 11 });
+  doc.pagebreak();
   appendDeviceHealthSection(doc, devices);
   return doc.build().pdf;
 }
 
 export function buildM365LicensesPdf(clientName: string, licenses: QuarterlyReviewPdfLicense[]): Buffer {
   const doc = new PdfContentBuilder();
-  doc.spacer(40);
-  doc.heading(clientName, 1, { center: true, color: NAVY, size: 22 });
-  doc.paragraph("365 Licenses", { center: true, color: STATUS_COLORS.recommended, size: 13 });
-  doc.spacer(20);
+  doc.spacer(60);
+  doc.heading(clientName, 1, { center: true, color: NAVY, size: 26 });
+  doc.paragraph("365 Licenses", { center: true, color: NAVY, size: 15 });
+  doc.spacer(24);
+  doc.icon("cloud");
+  doc.spacer(24);
+  doc.paragraph("Prepared by CG Technologies", { center: true, size: 11 });
+  doc.pagebreak();
   appendM365LicensesSection(doc, licenses);
   return doc.build().pdf;
 }
