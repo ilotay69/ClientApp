@@ -46,6 +46,7 @@ import {
   removeBlockHoursReportSubscriptionAction,
   saveBlockHoursReportCcAction,
   sendBlockHoursUsageReportsNowAction,
+  sendBlockHoursUsageReportsToSelectedAction,
 } from "./actions";
 import {
   listForticloudAccountsAction,
@@ -383,6 +384,7 @@ export default async function IntegrationsSettingsPage({
                     removeAction={removeBlockHoursReportSubscriptionAction}
                     saveCcAction={saveBlockHoursReportCcAction}
                     sendNowAction={sendBlockHoursUsageReportsNowAction}
+                    sendToSelectedAction={sendBlockHoursUsageReportsToSelectedAction}
                     log={blockHoursReportLog}
                   />
                 ),

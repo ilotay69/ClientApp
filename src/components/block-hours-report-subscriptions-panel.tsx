@@ -31,6 +31,7 @@ export function BlockHoursReportSubscriptionsPanel({
   removeAction,
   saveCcAction,
   sendNowAction,
+  sendToSelectedAction,
   log,
 }: {
   subscriptions: BlockHoursReportSubscription[];
@@ -40,6 +41,11 @@ export function BlockHoursReportSubscriptionsPanel({
   removeAction: (id: string) => Promise<{ error: string | null }>;
   saveCcAction: (prevState: FormState, formData: FormData) => Promise<FormState>;
   sendNowAction: () => Promise<{
+    error: string | null;
+    sent: number;
+    errors: { clientName: string; message: string }[];
+  }>;
+  sendToSelectedAction: (subscriptionIds: string[]) => Promise<{
     error: string | null;
     sent: number;
     errors: { clientName: string; message: string }[];
@@ -54,6 +60,7 @@ export function BlockHoursReportSubscriptionsPanel({
   const addFormRef = useRef<HTMLFormElement>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removePending, startRemove] = useTransition();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [sendResult, setSendResult] = useState<{
     ok: boolean;
@@ -61,10 +68,24 @@ export function BlockHoursReportSubscriptionsPanel({
     errors: { clientName: string; message: string }[];
   } | null>(null);
   const [sending, startSend] = useTransition();
+  const [sendingSelected, startSendSelected] = useTransition();
 
   const selectClient = (id: string) => {
     setClientId(id);
     setToEmail(clients.find((c) => c.id === id)?.email ?? "");
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => (prev.size === subscriptions.length ? new Set() : new Set(subscriptions.map((s) => s.id))));
   };
 
   const remove = (id: string) => {
@@ -72,6 +93,7 @@ export function BlockHoursReportSubscriptionsPanel({
     startRemove(async () => {
       const result = await removeAction(id);
       if (result.error) window.alert(result.error);
+      else setSelectedIds((prev) => (prev.has(id) ? new Set([...prev].filter((x) => x !== id)) : prev));
       setRemovingId(null);
     });
   };
@@ -86,6 +108,22 @@ export function BlockHoursReportSubscriptionsPanel({
         setSendResult({
           ok: true,
           message: `Sent ${result.sent} of ${subscriptions.length}.`,
+          errors: result.errors,
+        });
+      }
+    });
+  };
+
+  const sendToSelected = () => {
+    setSendResult(null);
+    startSendSelected(async () => {
+      const result = await sendToSelectedAction([...selectedIds]);
+      if (result.error) {
+        setSendResult({ ok: false, message: result.error, errors: [] });
+      } else {
+        setSendResult({
+          ok: true,
+          message: `Sent ${result.sent} of ${selectedIds.size} selected.`,
           errors: result.errors,
         });
       }
@@ -144,6 +182,14 @@ export function BlockHoursReportSubscriptionsPanel({
           <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
+              <th className="w-8 px-4 py-2">
+                <input
+                  type="checkbox"
+                  checked={subscriptions.length > 0 && selectedIds.size === subscriptions.length}
+                  onChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+              </th>
               <th className="px-4 py-2 text-left font-medium text-slate-500">Client</th>
               <th className="px-4 py-2 text-left font-medium text-slate-500">Send to</th>
               <th className="px-4 py-2" />
@@ -152,6 +198,14 @@ export function BlockHoursReportSubscriptionsPanel({
           <tbody className="divide-y divide-slate-100">
             {subscriptions.map((s) => (
               <tr key={s.id}>
+                <td className="px-4 py-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(s.id)}
+                    onChange={() => toggleSelected(s.id)}
+                    aria-label={`Select ${s.clientName}`}
+                  />
+                </td>
                 <td className="px-4 py-2 text-slate-900">{s.clientName}</td>
                 <td className="px-4 py-2 text-slate-700">{s.toEmail}</td>
                 <td className="px-4 py-2 text-right">
@@ -168,7 +222,7 @@ export function BlockHoursReportSubscriptionsPanel({
             ))}
             {subscriptions.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-4 text-center text-slate-500">
+                <td colSpan={4} className="px-4 py-4 text-center text-slate-500">
                   No clients on this list yet.
                 </td>
               </tr>
@@ -198,14 +252,15 @@ export function BlockHoursReportSubscriptionsPanel({
           <div>
             <label className="block text-xs font-medium text-slate-700">Send to</label>
             <input
-              type="email"
+              type="text"
               name="to_email"
               value={toEmail}
               onChange={(e) => setToEmail(e.target.value)}
               required
-              placeholder="client@example.com"
-              className="mt-1 w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+              placeholder="client@example.com, another@example.com"
+              className="mt-1 w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
             />
+            <p className="mt-1 text-xs text-slate-500">Separate multiple addresses with a comma or semicolon.</p>
           </div>
           <button
             type="submit"
@@ -219,6 +274,14 @@ export function BlockHoursReportSubscriptionsPanel({
       </div>
 
       <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={sendToSelected}
+          disabled={sendingSelected || selectedIds.size === 0}
+          className="rounded-md bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+        >
+          {sendingSelected ? "Sending…" : `Send to selected (${selectedIds.size})`}
+        </button>
         <button
           type="button"
           onClick={sendNow}

@@ -59,13 +59,17 @@ export async function logBlockHoursReportSend(
  * trigger calling this is scheduled for. Every attempt — success or
  * failure — gets a row in block_hours_report_log. */
 export async function sendBlockHoursUsageReports(
-  admin: Admin = createAdminClient()
+  admin: Admin = createAdminClient(),
+  /** Limits the send to just these subscription rows (the "Send to
+   * selected" button) — omitted entirely (the cron trigger, and the
+   * "Send now (test)" button) sends to every subscription on the list. */
+  subscriptionIds?: string[]
 ): Promise<BlockHoursReportSendResult> {
   const result: BlockHoursReportSendResult = { sent: 0, errors: [] };
 
-  const { data: subscriptions } = await admin
-    .from("block_hours_report_subscriptions")
-    .select("id, to_email, clients(id, name, autotask_company_id)");
+  let query = admin.from("block_hours_report_subscriptions").select("id, to_email, clients(id, name, autotask_company_id)");
+  if (subscriptionIds) query = query.in("id", subscriptionIds);
+  const { data: subscriptions } = await query;
   if (!subscriptions || subscriptions.length === 0) return result;
 
   const settings = await getAutotaskSettings(admin);

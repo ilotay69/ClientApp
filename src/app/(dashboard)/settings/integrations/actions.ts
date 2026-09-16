@@ -791,3 +791,31 @@ export async function sendBlockHoursUsageReportsNowAction(): Promise<{
     };
   }
 }
+
+/** Same send as above, narrowed to just the subscriptions a tech checked
+ * off in the list — for sending a fresh copy to one or two specific
+ * clients without re-sending to everyone on the list. */
+export async function sendBlockHoursUsageReportsToSelectedAction(subscriptionIds: string[]): Promise<{
+  error: string | null;
+  sent: number;
+  errors: { clientName: string; message: string }[];
+}> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { error: "You don't have permission to do that.", sent: 0, errors: [] };
+  }
+  if (subscriptionIds.length === 0) {
+    return { error: "Select at least one client first.", sent: 0, errors: [] };
+  }
+
+  const admin = createAdminClient();
+  try {
+    const result = await sendBlockHoursUsageReports(admin, subscriptionIds);
+    return { error: null, sent: result.sent, errors: result.errors };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to send reports.",
+      sent: 0,
+      errors: [],
+    };
+  }
+}

@@ -604,6 +604,9 @@ export async function sendMailAsSharedMailbox(
   accessToken: string,
   mailboxEmail: string,
   message: {
+    /** Comma/semicolon-separated addresses — split and sent as separate
+     * toRecipients entries, same convention as cc below. A single address
+     * with no delimiter works exactly as before. */
     to: string;
     /** Comma/semicolon-separated addresses, same as a typical "CC" field
      * — split and sent as separate ccRecipients entries. Omit for no CC. */
@@ -614,6 +617,10 @@ export async function sendMailAsSharedMailbox(
     attachments?: SharedMailboxAttachment[];
   }
 ): Promise<void> {
+  const toAddresses = message.to
+    .split(/[,;]/)
+    .map((a) => a.trim())
+    .filter(Boolean);
   const ccAddresses = (message.cc ?? "")
     .split(/[,;]/)
     .map((a) => a.trim())
@@ -631,7 +638,7 @@ export async function sendMailAsSharedMailbox(
         message: {
           subject: message.subject,
           body: { contentType: "HTML", content: message.html },
-          toRecipients: [{ emailAddress: { address: message.to } }],
+          toRecipients: toAddresses.map((address) => ({ emailAddress: { address } })),
           ...(ccAddresses.length > 0
             ? { ccRecipients: ccAddresses.map((address) => ({ emailAddress: { address } })) }
             : {}),
