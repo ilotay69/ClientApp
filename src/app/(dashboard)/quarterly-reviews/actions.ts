@@ -16,6 +16,8 @@ import {
   QUARTERLY_REVIEW_PDF_BUCKET,
 } from "@/lib/quarterly-review-data";
 import { generateQuarterlyReviewSummary } from "@/lib/quarterly-review-analysis";
+import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { fetchOpenQuarterlyReviewTickets, type AutotaskQuarterlyReviewTicket } from "@/lib/autotask";
 import { computeActionItemsText, computeChangesSinceLastReviewText } from "@/lib/quarterly-review-pdf";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import { buildQuarterlyReviewClientEmail } from "@/lib/resend";
@@ -72,7 +74,12 @@ export type CreateReviewState = { error: string } | undefined;
 export async function createQuarterlyReviewAction(
   clientId: string,
   reviewPeriod: string,
-  confirmDuplicate: boolean
+  confirmDuplicate: boolean,
+  /** From the "which open ticket is this review for?" picker — null when
+   * the client had no open quarterly-review ticket, or the tech skipped
+   * picking one. */
+  ticketNumber: string | null,
+  hoursSpent: number | null
 ): Promise<CreateReviewState> {
   const user = await requirePermission("manage_quarterly_reviews");
   if (!user) return { error: "You don't have permission to do that." };
@@ -94,8 +101,47 @@ export async function createQuarterlyReviewAction(
     }
   }
 
-  const reviewId = await createQuarterlyReview(clientId, trimmedPeriod, user.id, admin);
+  const reviewId = await createQuarterlyReview(clientId, trimmedPeriod, user.id, admin, {
+    ticketNumber,
+    hoursSpent,
+  });
   redirect(`/quarterly-reviews/${reviewId}`);
+}
+
+/** Open "quarterly review" recurring tickets for one client, for the new-
+ * review form's ticket picker — see fetchOpenQuarterlyReviewTickets for
+ * exactly how these are identified in Autotask. Returns an empty list
+ * (not an error) for a client with none open, or one not yet linked to
+ * Autotask, since "nothing to pick" is the normal case, not a failure. */
+export async function fetchOpenQuarterlyReviewTicketsAction(
+  clientId: string
+): Promise<{ rows: AutotaskQuarterlyReviewTicket[] } | { error: string }> {
+  if (!(await requirePermission("manage_quarterly_reviews"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  if (!clientId) return { rows: [] };
+
+  const admin = createAdminClient();
+  const { data: client } = await admin
+    .from("clients")
+    .select("autotask_company_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client?.autotask_company_id) return { rows: [] };
+
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) return { rows: [] };
+
+  try {
+    const rows = await fetchOpenQuarterlyReviewTickets(
+      settings.credentials,
+      settings.zoneUrl,
+      client.autotask_company_id
+    );
+    return { rows };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load tickets." };
+  }
 }
 
 export async function saveQuarterlyReviewItemAction(

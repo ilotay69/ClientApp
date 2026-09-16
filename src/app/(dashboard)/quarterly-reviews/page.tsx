@@ -16,7 +16,7 @@ import {
   type QuarterlyReview,
   type ReviewTab,
 } from "@/lib/quarterly-review-data";
-import { createQuarterlyReviewAction } from "./actions";
+import { createQuarterlyReviewAction, fetchOpenQuarterlyReviewTicketsAction } from "./actions";
 import { QuarterlyReviewClientPicker } from "@/components/quarterly-review-client-picker";
 import { NewReviewPanel } from "@/components/new-review-panel";
 
@@ -105,7 +105,12 @@ export default async function QuarterlyReviewsPage({
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <NewReviewPanel clients={clients} defaultClientId={selectedClient?.id ?? null} action={createQuarterlyReviewAction} />
+        <NewReviewPanel
+          clients={clients}
+          defaultClientId={selectedClient?.id ?? null}
+          action={createQuarterlyReviewAction}
+          fetchOpenTicketsAction={fetchOpenQuarterlyReviewTicketsAction}
+        />
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">Client</label>
           <div className="w-56">

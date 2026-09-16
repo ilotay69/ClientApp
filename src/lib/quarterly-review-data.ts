@@ -201,11 +201,21 @@ export async function createQuarterlyReview(
   clientId: string,
   reviewPeriod: string,
   createdBy: string,
-  admin: AdminClient = createAdminClient()
+  admin: AdminClient = createAdminClient(),
+  /** Pre-filled from a tech's pick among that client's open "quarterly
+   * review" recurring tickets (see fetchOpenQuarterlyReviewTickets) —
+   * optional since a client might not have one open yet. */
+  extra?: { ticketNumber?: string | null; hoursSpent?: number | null }
 ): Promise<string> {
   const { data, error } = await admin
     .from("quarterly_reviews")
-    .insert({ client_id: clientId, review_period: reviewPeriod, created_by: createdBy })
+    .insert({
+      client_id: clientId,
+      review_period: reviewPeriod,
+      created_by: createdBy,
+      ticket_number: extra?.ticketNumber ?? null,
+      hours_spent: extra?.hoursSpent ?? null,
+    })
     .select("id")
     .single();
   if (error) throw new Error(`Couldn't create quarterly review: ${error.message}`);

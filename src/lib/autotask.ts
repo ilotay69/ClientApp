@@ -806,6 +806,74 @@ export async function fetchTimeEntriesForTickets(
     .sort((a, b) => (a.dateWorked < b.dateWorked ? 1 : -1));
 }
 
+export type AutotaskQuarterlyReviewTicket = {
+  id: number;
+  ticketNumber: string | null;
+  title: string;
+  createdAt: string | null;
+  /** Every TimeEntry logged against this ticket so far, summed — billable
+   * and non-billable both, since the quarterly review's own hours_spent
+   * field this pre-fills is purely internal tracking that never
+   * distinguishes the two either. */
+  hoursLogged: number;
+};
+
+/** Open tickets for one client that are this MSP's own "quarterly review"
+ * recurring ticket flavor — Source picklist label "Recurring" AND Issue
+ * Type picklist label "System Review" (confirmed against a real example:
+ * a ticket titled "Bluestar - Quarterly System Review" carrying exactly
+ * that combination). Narrower than Source alone, since a client can have
+ * other recurring tickets too (patching, backup checks) that share the
+ * same Source but a different Issue Type. Used to pre-fill a new
+ * quarterly review's ticket_number/hours_spent from whichever one a tech
+ * picks, instead of hand-typing them. */
+export async function fetchOpenQuarterlyReviewTickets(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number
+): Promise<AutotaskQuarterlyReviewTicket[]> {
+  const fields = await fetchEntityFields(creds, zoneUrl, "Tickets");
+  const sourceMap = picklistMap(fields, "source");
+  const issueTypeMap = picklistMap(fields, "issueType");
+
+  const sourceIds = [...sourceMap.entries()]
+    .filter(([, label]) => label.toLowerCase() === "recurring")
+    .map(([id]) => id);
+  const issueTypeIds = [...issueTypeMap.entries()]
+    .filter(([, label]) => label.toLowerCase() === "system review")
+    .map(([id]) => id);
+  if (sourceIds.length === 0 || issueTypeIds.length === 0) return [];
+
+  const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "eq", field: "companyID", value: companyId },
+      { op: "notExist", field: "completedDate" },
+      { op: "in", field: "source", value: sourceIds },
+      { op: "in", field: "issueType", value: issueTypeIds },
+    ],
+  })) as { id: number; ticketNumber?: string; title: string; createDate?: string }[];
+  if (items.length === 0) return [];
+
+  const entries = (await autotaskQueryAllPages(creds, zoneUrl, "TimeEntries", {
+    filter: [{ op: "in", field: "ticketID", value: items.map((t) => t.id) }],
+  })) as { ticketID?: number; hoursWorked?: number }[];
+  const hoursByTicket = new Map<number, number>();
+  for (const e of entries) {
+    if (e.ticketID == null) continue;
+    hoursByTicket.set(e.ticketID, (hoursByTicket.get(e.ticketID) ?? 0) + (e.hoursWorked ?? 0));
+  }
+
+  return items
+    .map((t) => ({
+      id: t.id,
+      ticketNumber: t.ticketNumber ?? null,
+      title: t.title,
+      createdAt: t.createDate ?? null,
+      hoursLogged: hoursByTicket.get(t.id) ?? 0,
+    }))
+    .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+}
+
 export type AutotaskTimeEntryRange = {
   id: number;
   resourceID: number;
