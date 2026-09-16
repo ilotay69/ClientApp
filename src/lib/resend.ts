@@ -307,8 +307,7 @@ export function buildContractUsageClientEmail(clientName: string, rows: Contract
       </p>
       ${summaryHtml}
       <p style="color:#334155;font-size:14px;">
-        If you have any questions about this report, simply reply to this email and a team member
-        will get back to you shortly.
+        If you have any questions about this report, please contact your account manager.
       </p>
       <p style="margin-top:24px;color:#334155;font-size:14px;">
         Best regards,<br />
@@ -319,7 +318,7 @@ export function buildContractUsageClientEmail(clientName: string, rows: Contract
   const summaryText = single
     ? `\n${single.used.toFixed(1)} of ${single.purchased.toFixed(1)} prepaid hours used (${single.percentUsed.toFixed(0)}%) — ${single.remaining.toFixed(1)} hours remaining.\n`
     : "";
-  const text = `Contract Usage Report\nPrepared for ${clientName}\n\nPlease find attached your current prepaid block hours usage report, showing hours purchased, used, and remaining, along with the individual time entries recorded against it.\n${summaryText}\nIf you have any questions about this report, simply reply to this email and a team member will get back to you shortly.\n\nBest regards,\nCG Technologies Team`;
+  const text = `Contract Usage Report\nPrepared for ${clientName}\n\nPlease find attached your current prepaid block hours usage report, showing hours purchased, used, and remaining, along with the individual time entries recorded against it.\n${summaryText}\nIf you have any questions about this report, please contact your account manager.\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }
