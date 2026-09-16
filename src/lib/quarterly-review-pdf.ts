@@ -143,11 +143,18 @@ function appendDeviceHealthSection(doc: PdfContentBuilder, devices: QuarterlyRev
   const ageBreakdown = buildDeviceAgeBreakdown(devices);
   if (ageBreakdown.length > 0) {
     doc.heading("Device Age", 2, { size: 13 });
-    for (const entry of ageBreakdown) {
-      const bucketText = entry.buckets.map((b) => `${b.label}: ${b.count}`).join(", ");
-      const unknownText = entry.unknownCount > 0 ? `, Unknown: ${entry.unknownCount}` : "";
-      doc.paragraph(`${entry.label} — ${bucketText}${unknownText}`);
-    }
+    const hasUnknown = ageBreakdown.some((e) => e.unknownCount > 0);
+    const headers = ["Category", ...ageBreakdown[0].buckets.map((b) => b.label), ...(hasUnknown ? ["Unknown"] : [])];
+    const rows = ageBreakdown.map((entry) => [
+      entry.label,
+      ...entry.buckets.map((b) => (b.count > 0 ? b.count : "–")),
+      ...(hasUnknown ? [entry.unknownCount > 0 ? entry.unknownCount : "–"] : []),
+    ]);
+    doc.table(headers, rows);
+    doc.paragraph(
+      "Age is based on the manufacturer's warranty ship date when NinjaOne has it; otherwise the date the device was first enrolled.",
+      { size: 8, color: [0.58, 0.639, 0.722] }
+    );
     doc.spacer(10);
   }
 

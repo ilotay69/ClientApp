@@ -297,7 +297,8 @@ type Block =
   | { type: "image"; buffer: Buffer; label: string | null; id: string }
   | { type: "spacer"; amount: number }
   | { type: "pagebreak" }
-  | { type: "icon"; variant: IconVariant };
+  | { type: "icon"; variant: IconVariant }
+  | { type: "table"; headers: string[]; rows: (string | number)[][] };
 
 export type IconVariant = "monitor" | "cloud" | "devices";
 
@@ -322,6 +323,15 @@ export class PdfContentBuilder {
   }
   spacer(amount = 10) {
     this.blocks.push({ type: "spacer", amount });
+    return this;
+  }
+  /** A simple bordered data grid — first column left-aligned (for a row
+   * label like "Workstations"), every other column right-aligned (for
+   * numbers) with a light header band and row divider lines. Used for the
+   * Device Age breakdown so it reads as an actual table instead of a
+   * wrapped "label: count, label: count" sentence. */
+  table(headers: string[], rows: (string | number)[][]) {
+    this.blocks.push({ type: "table", headers, rows });
     return this;
   }
   /** Starts a fresh page regardless of how much room is left on the
@@ -492,6 +502,49 @@ export class PdfContentBuilder {
         cursorY -= block.amount;
       } else if (block.type === "pagebreak") {
         newPage();
+      } else if (block.type === "table") {
+        const { headers, rows } = block;
+        const numCols = headers.length;
+        const firstColWidth = Math.min(140, USABLE_WIDTH * 0.28);
+        const otherColWidth = numCols > 1 ? (USABLE_WIDTH - firstColWidth) / (numCols - 1) : 0;
+        const colWidths = headers.map((_, i) => (i === 0 ? firstColWidth : otherColWidth));
+        const rowHeight = 16;
+        const headerHeight = 18;
+        const cellPad = 6;
+
+        ensureSpace(headerHeight + rowHeight);
+        content += `0.94 0.95 0.97 rg\n${MARGIN.toFixed(2)} ${(cursorY - headerHeight).toFixed(2)} ${USABLE_WIDTH.toFixed(2)} ${headerHeight.toFixed(2)} re f\n`;
+        let colX = MARGIN;
+        const headerBaselineY = cursorY - headerHeight + 6;
+        headers.forEach((h, i) => {
+          if (i === 0) {
+            drawText(colX + cellPad, headerBaselineY, h, 9, true);
+          } else {
+            const w = textWidth(h, 9, true);
+            drawText(colX + colWidths[i] - w - cellPad, headerBaselineY, h, 9, true);
+          }
+          colX += colWidths[i];
+        });
+        cursorY -= headerHeight;
+
+        for (const row of rows) {
+          ensureSpace(rowHeight);
+          colX = MARGIN;
+          const rowBaselineY = cursorY - rowHeight + 5;
+          row.forEach((cell, i) => {
+            const text = String(cell);
+            if (i === 0) {
+              drawText(colX + cellPad, rowBaselineY, text, 9, false);
+            } else {
+              const w = textWidth(text, 9, false);
+              drawText(colX + colWidths[i] - w - cellPad, rowBaselineY, text, 9, false);
+            }
+            colX += colWidths[i];
+          });
+          content += `0.90 0.90 0.92 RG\n0.5 w\n${MARGIN.toFixed(2)} ${(cursorY - rowHeight).toFixed(2)} m ${(MARGIN + USABLE_WIDTH).toFixed(2)} ${(cursorY - rowHeight).toFixed(2)} l S\n0 0 0 RG\n`;
+          cursorY -= rowHeight;
+        }
+        cursorY -= 6;
       } else if (block.type === "icon") {
         if (block.variant === "monitor") {
         // A small vector "monitor with a checkmark" — plain filled
