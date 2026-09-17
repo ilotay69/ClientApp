@@ -11,11 +11,12 @@ import type { CatalogSelection, ProposalActionState } from "@/app/(dashboard)/pr
  * The catalog is loaded when the picker is opened, not with the page —
  * it's two live Autotask queries and most edits never need it.
  *
- * Quarterly, semi-annual and yearly services come in as one-off with their
- * real period shown here and carried into the line's detail. A proposal
- * line is only ever one-off or monthly, and quietly relabelling
+ * Quarterly and semi-annual services come in as one-off with their real
+ * period shown here and carried into the line's detail — a proposal line
+ * is only ever one-off, annual, or monthly, and quietly relabelling
  * $300/quarter as $300/month would put a wrong number in front of a
- * client. Showing the period lets the rep decide. */
+ * client. A genuinely yearly service maps straight to "annual" instead.
+ * Showing the odd periods lets the rep decide. */
 export function ProposalCatalogPicker({
   proposalId,
   currency,
@@ -184,6 +185,9 @@ export function ProposalCatalogPicker({
                     {formatMoney(item.unitPrice, currency)}
                     {item.billingPeriod === "monthly" && (
                       <span className="text-xs text-slate-400">/mo</span>
+                    )}
+                    {item.billingPeriod === "annual" && (
+                      <span className="text-xs text-slate-400">/yr</span>
                     )}
                   </span>
                   {item.periodLabel && item.billingPeriod === "one_off" && (

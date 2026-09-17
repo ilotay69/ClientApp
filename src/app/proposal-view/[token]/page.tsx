@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getProposalByAccessToken } from "@/lib/proposal-data";
 import { fetchBrochuresForProposal } from "@/lib/proposal-brochures";
 import { formatDate } from "@/lib/format";
-import { formatMoney, computeProposalTotals } from "@/lib/proposal-totals";
+import { formatMoney } from "@/lib/proposal-totals";
 import { ProposalShell, ProposalMessage, ProposalWordmark } from "@/components/proposal-shell";
 import { ProposalAcceptPanel } from "@/components/proposal-accept-panel";
 import { ProposalViewBeacon } from "@/components/proposal-view-beacon";
@@ -64,7 +64,6 @@ export default async function ProposalViewPage({
   }
 
   if (proposal.acceptedAt) {
-    const totals = computeProposalTotals(proposal.lineItems);
     return (
       <ProposalMessage heading="Already accepted">
         <p>
@@ -72,10 +71,12 @@ export default async function ProposalViewPage({
           {proposal.acceptedByName ? ` by ${proposal.acceptedByName}` : ""} on{" "}
           {formatDate(proposal.acceptedAt)}.
         </p>
-        <p>
-          Agreed total {formatMoney(totals.firstInvoiceTotal, proposal.currency)} on the first
-          invoice, before applicable taxes.
-        </p>
+        {proposal.acceptedTotalAmount !== null && (
+          <p>
+            Agreed total {formatMoney(proposal.acceptedTotalAmount, proposal.currency)}, including
+            HST.
+          </p>
+        )}
       </ProposalMessage>
     );
   }
@@ -103,6 +104,7 @@ export default async function ProposalViewPage({
   const acceptPanel = (
     <ProposalAcceptPanel
       token={token}
+      companyName={proposal.companyName}
       currency={proposal.currency}
       items={proposal.lineItems.map((i) => ({
         id: i.id,
@@ -197,6 +199,20 @@ export default async function ProposalViewPage({
         )}
 
         <p className="mt-12 border-t border-slate-200 pt-6 text-sm text-slate-400">
+          For details of our full Master Service Agreement, and our terms and conditions, please
+          visit{" "}
+          <a
+            href="https://cgtechnologies.com/master-service-agreement/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand hover:underline"
+          >
+            cgtechnologies.com/master-service-agreement
+          </a>
+          .
+        </p>
+
+        <p className="mt-3 text-sm text-slate-400">
           Prepared by CG Technologies for {proposal.companyName}
           {proposal.contactName ? ` · ${proposal.contactName}` : ""}.
         </p>

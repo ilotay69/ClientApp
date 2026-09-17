@@ -15,8 +15,18 @@ import type { AutotaskCatalogItem } from "@/lib/autotask";
 import type { CatalogSelection, ProposalActionState } from "@/app/(dashboard)/proposals/actions";
 
 const BILLING_OPTIONS = [
-  { value: "one_off", label: "One-off" },
+  { value: "one_off", label: "One-time" },
+  { value: "annual", label: "Annually" },
   { value: "monthly", label: "Monthly" },
+];
+
+/** Display order for the three billing-period subgroups within a
+ * Required/Optional group — one-time work first (what gets done), then the
+ * annual and monthly commitments that follow from it. */
+const PERIOD_SECTIONS: { value: ProposalLineItem["billingPeriod"]; label: string; suffix: string }[] = [
+  { value: "one_off", label: "One-time", suffix: "" },
+  { value: "annual", label: "Annually", suffix: "/yr" },
+  { value: "monthly", label: "Monthly", suffix: "/mo" },
 ];
 
 /** The priced part of a proposal.
@@ -117,24 +127,35 @@ export function ProposalPricingTable({
       {items.length > 0 && (
         <div className="mt-4 space-y-1 border-t border-slate-200 pt-3 text-right">
           {totals.oneOffSubtotal > 0 && (
-            <Row label="One-off" value={formatMoney(totals.oneOffSubtotal, currency)} />
+            <Row label="One-time" value={formatMoney(totals.oneOffSubtotal, currency)} />
+          )}
+          {totals.annualSubtotal > 0 && (
+            <Row label="Annually" value={`${formatMoney(totals.annualSubtotal, currency)}/yr`} />
           )}
           {totals.monthlySubtotal > 0 && (
             <Row label="Monthly" value={`${formatMoney(totals.monthlySubtotal, currency)}/mo`} />
           )}
-          {(totals.optionalOneOffAvailable > 0 || totals.optionalMonthlyAvailable > 0) && (
+          {(totals.optionalOneOffAvailable > 0 ||
+            totals.optionalAnnualAvailable > 0 ||
+            totals.optionalMonthlyAvailable > 0) && (
             <p className="text-xs text-slate-500">
               Optional add-ons (if selected) +
               {totals.optionalOneOffAvailable > 0 &&
                 ` ${formatMoney(totals.optionalOneOffAvailable, currency)}`}
+              {totals.optionalAnnualAvailable > 0 &&
+                ` ${formatMoney(totals.optionalAnnualAvailable, currency)}/yr`}
               {totals.optionalMonthlyAvailable > 0 &&
                 ` ${formatMoney(totals.optionalMonthlyAvailable, currency)}/mo`}
             </p>
           )}
+          <Row label={`HST (${(totals.taxRate * 100).toFixed(0)}%)`} value={formatMoney(totals.taxAmount, currency)} />
           <p className="text-lg font-semibold text-slate-900">
             {formatMoney(totals.firstInvoiceTotal, currency)}
           </p>
-          <p className="text-xs text-slate-400">First invoice, before applicable taxes.</p>
+          <p className="text-xs text-slate-400">
+            Due at signing, incl. HST.
+            {totals.monthlySubtotal > 0 && " Monthly charges continue at that rate plus HST."}
+          </p>
         </div>
       )}
     </div>
@@ -176,18 +197,31 @@ function Group({
           {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
         </div>
       )}
-      <div className="divide-y divide-slate-100">
-        {items.map((item) => (
-          <LineItemRow
-            key={item.id}
-            item={item}
-            currency={currency}
-            disabled={disabled}
-            updateAction={updateAction}
-            deleteAction={deleteAction}
-          />
-        ))}
-      </div>
+      {/* One-time / Annually / Monthly, each its own list — a rep pricing a
+          migration project (one-time) alongside ongoing support (monthly)
+          shouldn't have to read down a single mixed list to tell which is
+          which. Empty periods render nothing. */}
+      {PERIOD_SECTIONS.map((section) => {
+        const periodItems = items.filter((i) => i.billingPeriod === section.value);
+        if (periodItems.length === 0) return null;
+        return (
+          <div key={section.value} className="mt-2 first:mt-0">
+            <p className="text-xs font-medium text-slate-400">{section.label}</p>
+            <div className="divide-y divide-slate-100">
+              {periodItems.map((item) => (
+                <LineItemRow
+                  key={item.id}
+                  item={item}
+                  currency={currency}
+                  disabled={disabled}
+                  updateAction={updateAction}
+                  deleteAction={deleteAction}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -270,6 +304,7 @@ function LineItemRow({
           currency
         )}
         {item.billingPeriod === "monthly" && <span className="text-xs text-slate-400">/mo</span>}
+        {item.billingPeriod === "annual" && <span className="text-xs text-slate-400">/yr</span>}
       </div>
 
       {!disabled && (

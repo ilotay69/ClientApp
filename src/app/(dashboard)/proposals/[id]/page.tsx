@@ -15,7 +15,7 @@ import { ProposalBrochurePicker } from "@/components/proposal-brochure-picker";
 import { fetchProposalBrochures, fetchLinkedBrochureIds } from "@/lib/proposal-brochures";
 import { formatDate } from "@/lib/format";
 import { resolveAppUrl } from "@/lib/app-url";
-import { formatProposalHeadline } from "@/lib/proposal-totals";
+import { formatProposalHeadline, formatMoney } from "@/lib/proposal-totals";
 import {
   updateProposalFieldAction,
   updateProposalSectionAction,
@@ -216,7 +216,24 @@ export default async function ProposalDetailPage({
                   {proposal.acceptedByName ? ` by ${proposal.acceptedByName}` : ""}
                 </Detail>
               )}
+              {proposal.acceptedAt && proposal.acceptedTotalAmount !== null && (
+                <Detail label="Agreed total">
+                  {formatMoney(proposal.acceptedTotalAmount, proposal.currency)} incl. HST
+                </Detail>
+              )}
             </dl>
+            {proposal.acceptedAt && proposal.acceptedVia === "link" && (
+              <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                Accepted online. Authority confirmed:{" "}
+                {proposal.acceptAuthorityConfirmed ? "yes" : "no"}
+                {proposal.acceptedUserAgent && (
+                  <>
+                    <br />
+                    <span title={proposal.acceptedUserAgent}>Browser recorded at acceptance.</span>
+                  </>
+                )}
+              </p>
+            )}
           </div>
 
           {canManage && (

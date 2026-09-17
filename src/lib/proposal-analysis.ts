@@ -39,7 +39,8 @@ function buildItemsBlock(items: ProposalItemForDraft[], currency: string): strin
   return items
     .map((item) => {
       const price = formatMoney(item.unitPrice, currency);
-      const period = item.billingPeriod === "monthly" ? "/month" : " one-off";
+      const period =
+        item.billingPeriod === "monthly" ? "/month" : item.billingPeriod === "annual" ? "/year" : " one-off";
       const qty = item.quantity !== 1 ? ` x${item.quantity}` : "";
       const optional = item.isOptional ? " [OPTIONAL ADD-ON]" : "";
       const detail = item.detail ? ` — ${item.detail}` : "";

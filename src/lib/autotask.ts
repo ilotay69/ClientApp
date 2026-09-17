@@ -1872,7 +1872,7 @@ export type AutotaskCatalogItem = {
   name: string;
   description: string | null;
   unitPrice: number;
-  billingPeriod: "one_off" | "monthly";
+  billingPeriod: "one_off" | "annual" | "monthly";
   /** The tenant's own label for a service's billing period ("Monthly",
    * "Quarterly", ...). Shown in the picker so a rep can see at a glance
    * that a quarterly service is not a monthly one — see the mapping note
@@ -1884,13 +1884,13 @@ export type AutotaskCatalogItem = {
  * Products — for the proposal line-item picker.
  *
  * Billing period mapping is deliberately conservative. A proposal line is
- * either one-off or monthly, but Autotask services can also be quarterly,
- * semi-annual or yearly. Only a genuinely monthly service is imported as
- * monthly; every other period comes in as one-off with its real period
- * shown in the picker and appended to the line's detail. Dividing a
- * quarterly rate into a monthly one, or labelling $300/quarter as
- * $300/month, would put a wrong number in front of a client — better that
- * the rep sees the period and decides.
+ * one-off, annual, or monthly, but Autotask services can also be
+ * quarterly or semi-annual. Only a genuinely monthly or yearly service
+ * imports as monthly/annual; a quarterly or semi-annual one comes in as
+ * one-off with its real period shown in the picker and appended to the
+ * line's detail. Dividing a quarterly rate into a monthly one, or folding
+ * a semi-annual fee into "annual", would put a wrong number in front of a
+ * client — better that the rep sees the period and decides.
  *
  * Products and Services are fetched independently and a failure in either
  * is swallowed rather than failing the whole picker: plenty of Autotask API
@@ -1943,7 +1943,11 @@ export async function fetchAutotaskCatalog(
         // description which is often written for staff, not the client.
         description: s.invoiceDescription || s.description || null,
         unitPrice: Number(s.unitPrice ?? 0),
-        billingPeriod: /month/i.test(periodLabel ?? "") ? "monthly" : "one_off",
+        billingPeriod: /month/i.test(periodLabel ?? "")
+          ? "monthly"
+          : /^(year|annual)/i.test(periodLabel ?? "")
+            ? "annual"
+            : "one_off",
         periodLabel,
       });
     }

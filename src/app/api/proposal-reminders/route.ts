@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
           description: i.description as string,
           quantity: Number(i.quantity ?? 0),
           unitPrice: Number(i.unit_price ?? 0),
-          billingPeriod: (i.billing_period as "one_off" | "monthly") ?? "one_off",
+          billingPeriod: (i.billing_period as "one_off" | "annual" | "monthly") ?? "one_off",
           isOptional: Boolean(i.is_optional),
           isSelected: Boolean(i.is_selected),
         }))

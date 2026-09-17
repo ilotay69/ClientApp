@@ -9,7 +9,13 @@
  * prospect page runs this in the browser on every checkbox tick, and the
  * cron route runs it on the server. */
 
-export type ProposalBillingPeriod = "one_off" | "monthly";
+export type ProposalBillingPeriod = "one_off" | "annual" | "monthly";
+
+/** Ontario HST. CG doesn't currently need this configurable per client or
+ * per province — flagged here as the one spot to change if that ever stops
+ * being true, rather than a value copied into every surface that shows a
+ * total. */
+export const HST_RATE = 0.13;
 
 export type ProposalLineItemInput = {
   id: string;
@@ -22,18 +28,28 @@ export type ProposalLineItemInput = {
 };
 
 export type ProposalTotals = {
-  /** One-off items that are included — i.e. every non-optional item, plus
-   * any optional one the prospect has actually ticked. */
+  /** Included items by billing period — every non-optional item, plus any
+   * optional one the prospect has actually ticked. */
   oneOffSubtotal: number;
+  annualSubtotal: number;
   monthlySubtotal: number;
   /** What the prospect could still add — the optional items NOT currently
-   * selected. Drives the "add-ons you can tick" strip, and the muted
-   * "optional add-ons (if selected)" line in the staff editor. */
+   * selected, by period. Drives the "add-ons you can tick" strip, and the
+   * muted "optional add-ons (if selected)" line in the staff editor. */
   optionalOneOffAvailable: number;
+  optionalAnnualAvailable: number;
   optionalMonthlyAvailable: number;
-  /** What they'd be billed first: the one-off work plus the first month.
-   * Before taxes — nothing here models tax, and every surface that prints
-   * this must say so. */
+  /** What's due at signing, before tax: the one-time work, the first
+   * year's worth of anything annual, and the first month of anything
+   * recurring monthly. */
+  firstInvoiceSubtotal: number;
+  taxRate: number;
+  /** HST on firstInvoiceSubtotal only. The ongoing monthlySubtotal is taxed
+   * again on every future invoice, but there's nothing to sum for invoices
+   * that haven't happened yet — surfaces show that as "+ HST" next to the
+   * recurring figure instead of a computed number. */
+  taxAmount: number;
+  /** firstInvoiceSubtotal + taxAmount — the actual number due at signing. */
   firstInvoiceTotal: number;
   includedItemCount: number;
 };
@@ -41,7 +57,9 @@ export type ProposalTotals = {
 /** Rounds to cents. Floats can't hold 0.1 exactly, so 3 × 19.99 lands on
  * 59.970000000000006 — harmless alone, visible once a dozen of them are
  * summed and printed next to a number the client is being asked to agree
- * to. Each line is rounded before it's added, never after. */
+ * to. Each line is rounded before it's added, never after; tax is
+ * calculated on the already-rounded subtotal, the way an invoice does it,
+ * not on a sum of unrounded lines. */
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -56,8 +74,10 @@ export function lineTotal(item: ProposalLineItemInput): number {
  * meaningful for optional rows). */
 export function computeProposalTotals(items: ProposalLineItemInput[]): ProposalTotals {
   let oneOffSubtotal = 0;
+  let annualSubtotal = 0;
   let monthlySubtotal = 0;
   let optionalOneOffAvailable = 0;
+  let optionalAnnualAvailable = 0;
   let optionalMonthlyAvailable = 0;
   let includedItemCount = 0;
 
@@ -68,23 +88,35 @@ export function computeProposalTotals(items: ProposalLineItemInput[]): ProposalT
     if (included) {
       includedItemCount += 1;
       if (item.billingPeriod === "monthly") monthlySubtotal += total;
+      else if (item.billingPeriod === "annual") annualSubtotal += total;
       else oneOffSubtotal += total;
     } else if (item.billingPeriod === "monthly") {
       optionalMonthlyAvailable += total;
+    } else if (item.billingPeriod === "annual") {
+      optionalAnnualAvailable += total;
     } else {
       optionalOneOffAvailable += total;
     }
   }
 
   oneOffSubtotal = round2(oneOffSubtotal);
+  annualSubtotal = round2(annualSubtotal);
   monthlySubtotal = round2(monthlySubtotal);
+
+  const firstInvoiceSubtotal = round2(oneOffSubtotal + annualSubtotal + monthlySubtotal);
+  const taxAmount = round2(firstInvoiceSubtotal * HST_RATE);
 
   return {
     oneOffSubtotal,
+    annualSubtotal,
     monthlySubtotal,
     optionalOneOffAvailable: round2(optionalOneOffAvailable),
+    optionalAnnualAvailable: round2(optionalAnnualAvailable),
     optionalMonthlyAvailable: round2(optionalMonthlyAvailable),
-    firstInvoiceTotal: round2(oneOffSubtotal + monthlySubtotal),
+    firstInvoiceSubtotal,
+    taxRate: HST_RATE,
+    taxAmount,
+    firstInvoiceTotal: round2(firstInvoiceSubtotal + taxAmount),
     includedItemCount,
   };
 }
@@ -106,13 +138,18 @@ export function formatMoney(value: number | null | undefined, currency = "CAD"):
   }).format(value);
 }
 
-/** The headline a proposal gets in the list, the email and the accept bar.
- * One-off and recurring are kept distinct rather than collapsed into a
- * single figure — "$4,800 + $650/month" is the number an MSP client
- * actually needs to see, and summing them would misstate both. */
+/** The compact headline used for scanning — the proposals list, the
+ * editor's sidebar, the email subject/body lead-in. Before tax, and each
+ * period kept distinct rather than collapsed into one figure: "$4,800 one-
+ * time + $1,200/year + $650/month" is the number an MSP client actually
+ * needs, and summing periods together would misstate all of them. Where a
+ * client is looking at a number they're about to agree to (the accept
+ * panel, the email's big number), use totals.firstInvoiceTotal instead —
+ * that one includes HST. */
 export function formatProposalHeadline(totals: ProposalTotals, currency = "CAD"): string {
   const parts: string[] = [];
-  if (totals.oneOffSubtotal > 0) parts.push(formatMoney(totals.oneOffSubtotal, currency));
+  if (totals.oneOffSubtotal > 0) parts.push(`${formatMoney(totals.oneOffSubtotal, currency)} one-time`);
+  if (totals.annualSubtotal > 0) parts.push(`${formatMoney(totals.annualSubtotal, currency)}/year`);
   if (totals.monthlySubtotal > 0) parts.push(`${formatMoney(totals.monthlySubtotal, currency)}/month`);
   if (parts.length === 0) return formatMoney(0, currency);
   return parts.join(" + ");

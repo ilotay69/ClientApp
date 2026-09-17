@@ -371,7 +371,7 @@ export type CatalogSelection = {
   name: string;
   detail: string | null;
   unitPrice: number;
-  billingPeriod: "one_off" | "monthly";
+  billingPeriod: "one_off" | "annual" | "monthly";
 };
 
 /** Adds the ticked catalog entries as line items.
@@ -417,7 +417,10 @@ export async function addProposalLineItemsFromCatalogAction(
       detail: selection.detail ? selection.detail.slice(0, 1000) : null,
       quantity: 1,
       unit_price: Number.isFinite(price) ? Math.max(0, price) : 0,
-      billing_period: selection.billingPeriod === "monthly" ? "monthly" : "one_off",
+      billing_period:
+        selection.billingPeriod === "monthly" || selection.billingPeriod === "annual"
+          ? selection.billingPeriod
+          : "one_off",
       sort_order: nextOrder++,
     };
   });
@@ -472,7 +475,7 @@ export async function updateProposalLineItemAction(
       break;
     }
     case "billing_period":
-      if (value !== "one_off" && value !== "monthly") return;
+      if (value !== "one_off" && value !== "annual" && value !== "monthly") return;
       patch = { billing_period: value };
       break;
     case "is_optional": {
@@ -820,6 +823,9 @@ export async function markProposalAcceptedByStaffAction(
   if (!name) return { ok: false, message: "Enter who accepted it." };
 
   const admin = createAdminClient();
+  const proposal = await getProposal(proposalId, admin);
+  if (!proposal) return { ok: false, message: "Proposal not found." };
+
   const { data, error } = await admin
     .from("proposals")
     .update({
@@ -828,6 +834,15 @@ export async function markProposalAcceptedByStaffAction(
       accepted_by_name: name,
       accepted_via: "staff",
       accepted_recorded_by: user.id,
+      // A snapshot of what was agreed to, same as the link-acceptance path
+      // — the totals module's numbers, not a live re-read later. There's
+      // no per-item authority checkbox for a phone call, but a staff
+      // member recording it is themselves vouching for it, which is what
+      // this column exists to capture.
+      accepted_total_amount: proposal.totals.firstInvoiceTotal,
+      accepted_tax_amount: proposal.totals.taxAmount,
+      accepted_tax_rate: proposal.totals.taxRate,
+      accept_authority_confirmed: true,
     })
     .eq("id", proposalId)
     .is("accepted_at", null)

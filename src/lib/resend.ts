@@ -368,7 +368,7 @@ export function buildProposalEmail(
       <p style="color:#334155;">${escapeHtml(intro)}</p>
       <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
         <p style="margin:0 0 4px;color:#0f172a;font-size:20px;font-weight:600;">${escapeHtml(headlineTotal)}</p>
-        <p style="margin:0 0 14px;color:#94a3b8;font-size:12px;">Before applicable taxes.</p>
+        <p style="margin:0 0 14px;color:#94a3b8;font-size:12px;">Plus HST.</p>
         <p style="color:#334155;font-size:14px;margin:0 0 12px;">${escapeHtml(note)}</p>
         <a href="${viewUrl}" style="display:inline-block;background:#e93e3f;color:#ffffff;font-weight:600;font-size:15px;text-decoration:none;padding:12px 22px;border-radius:6px;">Review &amp; accept</a>
         ${validUntilHtml}
@@ -382,7 +382,7 @@ export function buildProposalEmail(
 
   const reminderText = reminderLabel ? `${reminderLabel} — this proposal is still open.\n\n` : "";
   const validUntilText = validUntil ? `\nThis proposal is valid until ${validUntil}.` : "";
-  const text = `${reminderText}${proposalTitle}\nPrepared for ${companyName}\n\n${recipientName ? `Hi ${recipientName},` : "Hello,"}\n\n${intro}\n\n${headlineTotal} (before applicable taxes)\n\n${note}\n\nReview and accept here: ${viewUrl}${validUntilText}\n\nBest regards,\nCG Technologies Team`;
+  const text = `${reminderText}${proposalTitle}\nPrepared for ${companyName}\n\n${recipientName ? `Hi ${recipientName},` : "Hello,"}\n\n${intro}\n\n${headlineTotal} (plus HST)\n\n${note}\n\nReview and accept here: ${viewUrl}${validUntilText}\n\nBest regards,\nCG Technologies Team`;
 
   return { html, text };
 }

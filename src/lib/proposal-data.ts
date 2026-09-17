@@ -69,6 +69,19 @@ export type Proposal = {
   acceptedByName: string | null;
   acceptedByEmail: string | null;
   acceptedVia: string | null;
+  /** What was actually agreed to, snapshotted at the moment of acceptance
+   * — independent of whatever the line items say now. Null until
+   * accepted. See acceptProposalByTokenAction / migration 131. */
+  acceptedTotalAmount: number | null;
+  acceptedTaxAmount: number | null;
+  acceptedTaxRate: number | null;
+  /** Salted hash and raw string, same posture as proposal_views — enough
+   * to answer "did this come from a real browser, and does it match other
+   * activity", never used to identify anyone. Null for a staff-recorded
+   * (accepted_via='staff') acceptance, which has no browser to capture. */
+  acceptedIpHash: string | null;
+  acceptedUserAgent: string | null;
+  acceptAuthorityConfirmed: boolean;
   declinedAt: string | null;
   declineReason: string | null;
   reminderCount: number;
@@ -116,6 +129,9 @@ export type ProposalPublicView = {
   validUntil: string | null;
   acceptedAt: string | null;
   acceptedByName: string | null;
+  /** The permanent snapshot from the moment of acceptance, not a live
+   * recompute — see migration 131. Null until accepted. */
+  acceptedTotalAmount: number | null;
   sections: ProposalSection[];
   lineItems: ProposalLineItem[];
   /** Derived here rather than on the page so every caller agrees on what
@@ -128,7 +144,9 @@ const PROPOSAL_COLUMNS = `
   title, status, currency, intro, closing_note, valid_until, access_token,
   owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
   last_viewed_at, view_count, accepted_at, accepted_by_name,
-  accepted_by_email, accepted_via, declined_at, decline_reason,
+  accepted_by_email, accepted_via, accepted_total_amount, accepted_tax_amount,
+  accepted_tax_rate, accepted_ip_hash, accepted_user_agent,
+  accept_authority_confirmed, declined_at, decline_reason,
   reminder_count, last_reminder_at, created_at, updated_at
 `;
 
@@ -264,6 +282,12 @@ export async function getProposal(
     acceptedByName: data.accepted_by_name ?? null,
     acceptedByEmail: data.accepted_by_email ?? null,
     acceptedVia: data.accepted_via ?? null,
+    acceptedTotalAmount: data.accepted_total_amount !== null && data.accepted_total_amount !== undefined ? Number(data.accepted_total_amount) : null,
+    acceptedTaxAmount: data.accepted_tax_amount !== null && data.accepted_tax_amount !== undefined ? Number(data.accepted_tax_amount) : null,
+    acceptedTaxRate: data.accepted_tax_rate !== null && data.accepted_tax_rate !== undefined ? Number(data.accepted_tax_rate) : null,
+    acceptedIpHash: data.accepted_ip_hash ?? null,
+    acceptedUserAgent: data.accepted_user_agent ?? null,
+    acceptAuthorityConfirmed: Boolean(data.accept_authority_confirmed),
     declinedAt: data.declined_at ?? null,
     declineReason: data.decline_reason ?? null,
     reminderCount: data.reminder_count ?? 0,
@@ -382,8 +406,8 @@ export async function getProposalByAccessToken(
     .from("proposals")
     .select(
       `id, title, status, currency, intro, closing_note, valid_until,
-       accepted_at, accepted_by_name, prospect_company, prospect_contact_name,
-       clients(name)`
+       accepted_at, accepted_by_name, accepted_total_amount, prospect_company,
+       prospect_contact_name, clients(name)`
     )
     .eq("access_token", token)
     .maybeSingle();
@@ -419,6 +443,10 @@ export async function getProposalByAccessToken(
     validUntil: data.valid_until ?? null,
     acceptedAt: data.accepted_at ?? null,
     acceptedByName: data.accepted_by_name ?? null,
+    acceptedTotalAmount:
+      data.accepted_total_amount !== null && data.accepted_total_amount !== undefined
+        ? Number(data.accepted_total_amount)
+        : null,
     sections: (sectionRows ?? []).map(toSection),
     lineItems: (itemRows ?? []).map(toLineItem),
     isExpired: isProposalExpired(status, data.valid_until ?? null),

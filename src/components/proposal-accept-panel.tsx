@@ -14,6 +14,12 @@ import type { AcceptProposalResult } from "@/app/proposal-view/[token]/actions";
  * presentation, not something any total is computed from. */
 type AcceptPanelItem = ProposalLineItemInput & { detail: string | null };
 
+const PERIOD_SECTIONS: { value: AcceptPanelItem["billingPeriod"]; label: string; suffix: string }[] = [
+  { value: "one_off", label: "One-time", suffix: "" },
+  { value: "annual", label: "Annually", suffix: "/yr" },
+  { value: "monthly", label: "Monthly", suffix: "/mo" },
+];
+
 /** The pricing summary, the optional add-ons, and the accept button — the
  * only interactive part of the prospect's page.
  *
@@ -26,16 +32,23 @@ type AcceptPanelItem = ProposalLineItemInput & { detail: string | null };
  * database rows — this is presentation, not the record. */
 export function ProposalAcceptPanel({
   token,
+  companyName,
   currency,
   items,
   acceptAction,
 }: {
   token: string;
+  companyName: string;
   currency: string;
   items: AcceptPanelItem[];
   acceptAction: (
     token: string,
-    input: { acceptedByName: string; acceptedByEmail: string; selectedOptionalItemIds: string[] }
+    input: {
+      acceptedByName: string;
+      acceptedByEmail: string;
+      selectedOptionalItemIds: string[];
+      authorityConfirmed: boolean;
+    }
   ) => Promise<AcceptProposalResult>;
 }) {
   const optional = useMemo(() => items.filter((i) => i.isOptional), [items]);
@@ -46,6 +59,7 @@ export function ProposalAcceptPanel({
   );
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [authorityConfirmed, setAuthorityConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -66,11 +80,20 @@ export function ProposalAcceptPanel({
 
   const submit = () => {
     setError(null);
+    if (!name.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+    if (!authorityConfirmed) {
+      setError("Please confirm you have authority to accept this proposal.");
+      return;
+    }
     startTransition(async () => {
       const result = await acceptAction(token, {
         acceptedByName: name,
         acceptedByEmail: email,
         selectedOptionalItemIds: [...selected],
+        authorityConfirmed,
       });
       if (result.ok) setAccepted(true);
       else setError(result.message);
@@ -85,9 +108,8 @@ export function ProposalAcceptPanel({
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
         <h2 className="text-xl font-semibold text-emerald-900">Accepted — thank you</h2>
         <p className="mt-2 text-base text-emerald-800">
-          Recorded {formatMoney(totals.firstInvoiceTotal, currency)} on your first invoice, before
-          applicable taxes. Your CG contact has been notified and will be in touch to get things
-          started.
+          Recorded {formatMoney(totals.firstInvoiceTotal, currency)} due at signing, including
+          HST. Your CG contact has been notified and will be in touch to get things started.
         </p>
       </div>
     );
@@ -98,25 +120,36 @@ export function ProposalAcceptPanel({
       <div className="rounded-2xl border border-slate-200 p-5 sm:p-6">
         <h2 className="text-xl font-semibold text-slate-900">Your investment</h2>
 
-        <ul className="mt-4 space-y-2">
-          {included.map((item) => (
-            <li key={item.id}>
-              <div className="flex items-baseline justify-between gap-4 text-base">
-                <span className="min-w-0 text-slate-700">
-                  {item.description}
-                  {item.quantity !== 1 && <span className="text-slate-400"> × {item.quantity}</span>}
-                </span>
-                <span className="shrink-0 tabular-nums text-slate-900">
-                  {formatMoney(lineTotal(item), currency)}
-                  {item.billingPeriod === "monthly" && (
-                    <span className="text-sm text-slate-400">/mo</span>
-                  )}
-                </span>
-              </div>
-              {item.detail && <p className="mt-0.5 text-sm text-slate-500">{item.detail}</p>}
-            </li>
-          ))}
-        </ul>
+        {PERIOD_SECTIONS.map((section) => {
+          const periodItems = included.filter((i) => i.billingPeriod === section.value);
+          if (periodItems.length === 0) return null;
+          return (
+            <div key={section.value} className="mt-5 first:mt-4">
+              <p className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+                {section.label}
+              </p>
+              <ul className="mt-2 space-y-2">
+                {periodItems.map((item) => (
+                  <li key={item.id}>
+                    <div className="flex items-baseline justify-between gap-4 text-base">
+                      <span className="min-w-0 text-slate-700">
+                        {item.description}
+                        {item.quantity !== 1 && (
+                          <span className="text-slate-400"> × {item.quantity}</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-slate-900">
+                        {formatMoney(lineTotal(item), currency)}
+                        <span className="text-sm text-slate-400">{section.suffix}</span>
+                      </span>
+                    </div>
+                    {item.detail && <p className="mt-0.5 text-sm text-slate-500">{item.detail}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
 
         {optional.length > 0 && (
           <div className="mt-6">
@@ -147,6 +180,9 @@ export function ProposalAcceptPanel({
                       {item.billingPeriod === "monthly" && (
                         <span className="text-sm text-slate-400">/mo</span>
                       )}
+                      {item.billingPeriod === "annual" && (
+                        <span className="text-sm text-slate-400">/yr</span>
+                      )}
                     </span>
                   </label>
                 </li>
@@ -155,27 +191,24 @@ export function ProposalAcceptPanel({
           </div>
         )}
 
-        <div className="mt-6 border-t border-slate-200 pt-4 text-right">
+        <div className="mt-6 space-y-1 border-t border-slate-200 pt-4 text-right">
           {totals.oneOffSubtotal > 0 && (
-            <p className="text-base text-slate-600">
-              One-off{" "}
-              <span className="tabular-nums text-slate-900">
-                {formatMoney(totals.oneOffSubtotal, currency)}
-              </span>
-            </p>
+            <TotalLine label="One-time" value={formatMoney(totals.oneOffSubtotal, currency)} />
+          )}
+          {totals.annualSubtotal > 0 && (
+            <TotalLine label="Annually" value={`${formatMoney(totals.annualSubtotal, currency)}/yr`} />
           )}
           {totals.monthlySubtotal > 0 && (
-            <p className="text-base text-slate-600">
-              Monthly{" "}
-              <span className="tabular-nums text-slate-900">
-                {formatMoney(totals.monthlySubtotal, currency)}
-              </span>
-            </p>
+            <TotalLine label="Monthly" value={`${formatMoney(totals.monthlySubtotal, currency)}/mo`} />
           )}
+          <TotalLine label={`HST (${(totals.taxRate * 100).toFixed(0)}%)`} value={formatMoney(totals.taxAmount, currency)} />
           <p className="mt-1 text-3xl font-semibold tabular-nums text-slate-900">
             {formatMoney(totals.firstInvoiceTotal, currency)}
           </p>
-          <p className="text-sm text-slate-400">First invoice, before applicable taxes.</p>
+          <p className="text-sm text-slate-400">
+            Due at signing, including HST.
+            {totals.monthlySubtotal > 0 && " Monthly charges continue at that rate plus HST."}
+          </p>
         </div>
       </div>
 
@@ -210,6 +243,19 @@ export function ProposalAcceptPanel({
           </label>
         </div>
 
+        <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3">
+          <input
+            type="checkbox"
+            checked={authorityConfirmed}
+            onChange={(e) => setAuthorityConfirmed(e.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300"
+          />
+          <span className="text-sm text-slate-600">
+            I have the authority to accept this proposal on behalf of{" "}
+            <strong>{companyName}</strong>.
+          </span>
+        </label>
+
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
         <button
@@ -222,5 +268,14 @@ export function ProposalAcceptPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+function TotalLine({ label, value }: { label: string; value: string }) {
+  return (
+    <p className="text-base text-slate-600">
+      {label}{" "}
+      <span className="tabular-nums text-slate-900">{value}</span>
+    </p>
   );
 }

@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/server";
 import { createAlert } from "@/lib/alerts";
 import { sendPushToUsers } from "@/lib/push-notifications";
-import { computeProposalTotals, formatProposalHeadline } from "@/lib/proposal-totals";
+import { computeProposalTotals, formatProposalHeadline, formatMoney } from "@/lib/proposal-totals";
 import { isProposalExpired, type ProposalStatus } from "@/lib/proposal-data";
 
 // These actions are reachable by anyone holding a proposal link — there is
@@ -113,11 +113,25 @@ export type AcceptProposalResult = { ok: boolean; message: string };
 
 export async function acceptProposalByTokenAction(
   token: string,
-  input: { acceptedByName: string; acceptedByEmail: string; selectedOptionalItemIds: string[] }
+  input: {
+    acceptedByName: string;
+    acceptedByEmail: string;
+    selectedOptionalItemIds: string[];
+    authorityConfirmed: boolean;
+  }
 ): Promise<AcceptProposalResult> {
   const name = input.acceptedByName?.trim() ?? "";
   const email = input.acceptedByEmail?.trim() ?? "";
   if (!name) return { ok: false, message: "Please enter your name." };
+  // Not identity verification — nobody is cryptographically signing
+  // anything here — but a recorded, affirmative statement of authority is
+  // the standard a court or an internal dispute actually looks for in a
+  // click-to-accept flow. Required server-side, not just a disabled
+  // button: see the file-level note on why nothing the page rendered is
+  // trusted.
+  if (!input.authorityConfirmed) {
+    return { ok: false, message: "Please confirm you have authority to accept this proposal." };
+  }
 
   const admin = createAdminClient();
 
@@ -143,10 +157,18 @@ export async function acceptProposalByTokenAction(
     return { ok: false, message: "This proposal has expired. Please ask your contact for an updated copy." };
   }
 
+  const h = await headers();
+  const userAgent = (h.get("user-agent") ?? "").slice(0, 500);
+  const ipHash = hashIp(await clientIp());
+
   // The proposal row is updated FIRST, guarded on accepted_at still being
   // null. Two submits racing each other — a double-click, or a resent POST
   // — both reach here, but only one matches that filter, so only one gets a
-  // row back and the other exits without touching anything.
+  // row back and the other exits without touching anything. Everything
+  // knowable at this point (who, and the circumstances of the click) is
+  // written in this same claim — the totals below need the optional-item
+  // write to happen first, so they're recorded in a second update once
+  // we've already secured the row.
   const acceptedAt = new Date().toISOString();
   const { data: claimed } = await admin
     .from("proposals")
@@ -156,6 +178,9 @@ export async function acceptProposalByTokenAction(
       accepted_by_name: name,
       accepted_by_email: email || null,
       accepted_via: "link",
+      accepted_ip_hash: ipHash,
+      accepted_user_agent: userAgent || null,
+      accept_authority_confirmed: true,
     })
     .eq("id", proposal.id)
     .is("accepted_at", null)
@@ -187,8 +212,8 @@ export async function acceptProposalByTokenAction(
   }
 
   // Read the totals back from the database rather than trusting anything
-  // the browser sent — the number in the alert is the number that was
-  // actually agreed to.
+  // the browser sent — this is the number that gets permanently recorded
+  // as what was agreed to, so it must come from the rows, not the request.
   const { data: finalItems } = await admin
     .from("proposal_line_items")
     .select("id, description, quantity, unit_price, billing_period, is_optional, is_selected")
@@ -200,11 +225,24 @@ export async function acceptProposalByTokenAction(
       description: i.description as string,
       quantity: Number(i.quantity ?? 0),
       unitPrice: Number(i.unit_price ?? 0),
-      billingPeriod: (i.billing_period as "one_off" | "monthly") ?? "one_off",
+      billingPeriod: (i.billing_period as "one_off" | "annual" | "monthly") ?? "one_off",
       isOptional: Boolean(i.is_optional),
       isSelected: Boolean(i.is_selected),
     }))
   );
+
+  // A permanent snapshot of what was actually agreed to and what it added
+  // up to at that moment — independent of whatever the line items say
+  // later. Nothing else in this app rewrites an accepted proposal's items,
+  // but this is the record that survives even if that ever changes.
+  await admin
+    .from("proposals")
+    .update({
+      accepted_total_amount: totals.firstInvoiceTotal,
+      accepted_tax_amount: totals.taxAmount,
+      accepted_tax_rate: totals.taxRate,
+    })
+    .eq("id", proposal.id);
 
   const client = Array.isArray(proposal.clients) ? proposal.clients[0] : proposal.clients;
   const company = client?.name ?? proposal.prospect_company ?? "A prospect";
@@ -219,7 +257,7 @@ export async function acceptProposalByTokenAction(
       [proposal.owner_id, proposal.created_by],
       "proposal_accepted",
       `${company} accepted "${proposal.title}"`,
-      `${name} accepted it — ${headline}, before applicable taxes.`,
+      `${name} accepted it — ${headline} — ${formatMoney(totals.firstInvoiceTotal, proposal.currency ?? "CAD")} incl. HST due at signing.`,
       `/proposals/${proposal.id}`
     );
   } catch (err) {
