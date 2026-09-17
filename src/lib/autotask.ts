@@ -1018,6 +1018,36 @@ export type AutotaskTimeEntryRange = {
  * queried by dateWorked/resourceID without a ticketID filter. Paginated up
  * to autotaskQueryAllPages' safety cap (20 pages) — plenty for a month-wide
  * backfill for any team size this app is likely to see. */
+type RawTimeEntry = {
+  id: number;
+  resourceID: number;
+  hoursWorked?: number;
+  hoursToBill?: number;
+  dateWorked: string;
+  ticketID?: number;
+  taskID?: number;
+  summaryNotes?: string;
+  contractID?: number;
+  isNonBillable?: boolean;
+  billingApprovalDateTime?: string | null;
+};
+
+function toTimeEntryRange(e: RawTimeEntry): AutotaskTimeEntryRange {
+  return {
+    id: e.id,
+    resourceID: e.resourceID,
+    hoursWorked: e.hoursWorked as number,
+    hoursToBill: e.hoursToBill ?? (e.hoursWorked as number),
+    dateWorked: e.dateWorked,
+    ticketID: e.ticketID ?? null,
+    taskID: e.taskID ?? null,
+    summaryNotes: e.summaryNotes ?? null,
+    contractID: e.contractID ?? null,
+    isNonBillable: e.isNonBillable ?? false,
+    isApproved: e.billingApprovalDateTime != null,
+  };
+}
+
 export async function fetchTimeEntriesInRange(
   creds: AutotaskCredentials,
   zoneUrl: string,
@@ -1035,34 +1065,57 @@ export async function fetchTimeEntriesInRange(
     ],
   });
 
-  type RawTimeEntry = {
-    id: number;
-    resourceID: number;
-    hoursWorked?: number;
-    hoursToBill?: number;
-    dateWorked: string;
-    ticketID?: number;
-    taskID?: number;
-    summaryNotes?: string;
-    contractID?: number;
-    isNonBillable?: boolean;
-    billingApprovalDateTime?: string | null;
-  };
-  return (items as RawTimeEntry[])
-    .filter((e) => e.hoursWorked != null)
-    .map((e) => ({
-      id: e.id,
-      resourceID: e.resourceID,
-      hoursWorked: e.hoursWorked as number,
-      hoursToBill: e.hoursToBill ?? (e.hoursWorked as number),
-      dateWorked: e.dateWorked,
-      ticketID: e.ticketID ?? null,
-      taskID: e.taskID ?? null,
-      summaryNotes: e.summaryNotes ?? null,
-      contractID: e.contractID ?? null,
-      isNonBillable: e.isNonBillable ?? false,
-      isApproved: e.billingApprovalDateTime != null,
-    }));
+  return (items as RawTimeEntry[]).filter((e) => e.hoursWorked != null).map(toTimeEntryRange);
+}
+
+/** One technician's entries for a single day — the drill-down behind the
+ * Team Hours dashboard widget, which otherwise only ever showed a summed
+ * number with no way to see what made it up. Scoped by resourceID +
+ * dateWorked directly rather than reusing fetchTimeEntriesInRange (which is
+ * account-wide across every resource), since this only ever needs one
+ * resource's one day. */
+export async function fetchTimeEntriesForResourceDay(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  resourceId: number,
+  dateStr: string
+): Promise<AutotaskTimeEntryRange[]> {
+  const items = await autotaskQuery(creds, zoneUrl, "TimeEntries", {
+    filter: [
+      { op: "eq", field: "resourceID", value: resourceId },
+      { op: "eq", field: "dateWorked", value: dateStr },
+    ],
+    MaxRecords: 200,
+  });
+
+  return (items as RawTimeEntry[]).filter((e) => e.hoursWorked != null).map(toTimeEntryRange);
+}
+
+/** Batched ticket title/number/company lookup for a set of ticket ids — same
+ * "in" filter posture as resolveTicketCompanyIds, just returning more than
+ * one field per ticket so a time-entry drill-down can show something more
+ * useful than a bare ticket id. */
+export async function resolveTicketSummaries(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketIds: number[]
+): Promise<Map<number, { ticketNumber: string | null; title: string; companyId: number | null }>> {
+  const map = new Map<number, { ticketNumber: string | null; title: string; companyId: number | null }>();
+  const uniqueIds = [...new Set(ticketIds)].filter((id) => Number.isFinite(id));
+  if (uniqueIds.length === 0) return map;
+
+  try {
+    const items = (await autotaskQueryAllPages(creds, zoneUrl, "Tickets", {
+      filter: [{ op: "in", field: "id", value: uniqueIds }],
+    })) as { id: number; ticketNumber?: string; title?: string; companyID?: number }[];
+    for (const t of items) {
+      map.set(t.id, { ticketNumber: t.ticketNumber ?? null, title: t.title ?? "", companyId: t.companyID ?? null });
+    }
+  } catch (err) {
+    console.error("resolveTicketSummaries: Autotask lookup failed", err);
+  }
+
+  return map;
 }
 
 export type AutotaskContractBlock = {

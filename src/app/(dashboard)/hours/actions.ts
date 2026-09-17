@@ -5,11 +5,13 @@ import { requirePermission } from "@/lib/permissions";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import {
   fetchResourceHoursSummary,
+  fetchResourceDayEntries,
   fetchHoursByGroup,
   fetchNonBillableHoursByGroup,
   lastBusinessDayBefore,
   ymd,
   type ResourceHoursRow,
+  type ResourceDayEntry,
   type HoursByGroupRow,
 } from "@/lib/resource-hours";
 import { fetchTimeEntriesForAnalysis, type TimeEntryForAnalysis } from "@/lib/time-entry-insights";
@@ -26,13 +28,17 @@ import {
   type ContractUsageRow,
 } from "@/lib/contract-hours";
 import { fetchAgingOpenTickets, type AgingTicketRow } from "@/lib/ticket-aging";
-import { searchTicketsForCompany, type AutotaskTicketSearchRow } from "@/lib/autotask";
+import {
+  searchTicketsForCompany,
+  resolveResourceNames,
+  type AutotaskTicketSearchRow,
+} from "@/lib/autotask";
 
 /** Live from Autotask, on demand — not synced/stored anywhere, since "hours
  * worked today" is only ever meaningful as of right now, not as a cached
  * value that goes stale the moment someone logs more time. */
 export async function fetchResourceHoursAction(): Promise<
-  { rows: ResourceHoursRow[] } | { error: string }
+  { rows: ResourceHoursRow[]; todayDate: string; yesterdayDate: string } | { error: string }
 > {
   if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
@@ -46,9 +52,47 @@ export async function fetchResourceHoursAction(): Promise<
 
   try {
     const rows = await fetchResourceHoursSummary(settings.credentials, settings.zoneUrl);
-    return { rows };
+    const now = new Date();
+    // Handed back alongside the rows so the widget's "Today"/"Yesterday"
+    // links can point at the exact dateWorked this summary itself used —
+    // "yesterday" is the last business day, not the last calendar day (see
+    // lastBusinessDayBefore), so the widget must not recompute it itself.
+    return { rows, todayDate: ymd(now), yesterdayDate: ymd(lastBusinessDayBefore(now)) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load hours." };
+  }
+}
+
+/** The Team Hours widget's drill-down — one technician's individual time
+ * entries for one day, live from Autotask. Same permission as the widget
+ * itself (view_lookups): whoever can see the summary can see what makes it
+ * up. */
+export async function fetchResourceDayEntriesAction(
+  resourceId: string,
+  dateStr: string
+): Promise<{ resourceName: string; entries: ResourceDayEntry[] } | { error: string }> {
+  if (!(await requirePermission("view_lookups"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  const parsedId = Number(resourceId);
+  if (!Number.isFinite(parsedId) || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return { error: "Invalid resource or date." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const [entries, resourceNames] = await Promise.all([
+      fetchResourceDayEntries(admin, settings.credentials, settings.zoneUrl, parsedId, dateStr),
+      resolveResourceNames(settings.credentials, settings.zoneUrl, [parsedId]),
+    ]);
+    return { resourceName: resourceNames.get(parsedId) ?? `Resource ${parsedId}`, entries };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load time entries." };
   }
 }
 

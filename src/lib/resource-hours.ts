@@ -1,6 +1,8 @@
 import {
   fetchTimeEntriesInRange,
+  fetchTimeEntriesForResourceDay,
   resolveTicketCompanyIds,
+  resolveTicketSummaries,
   resolveResourceNames,
   type AutotaskCredentials,
 } from "@/lib/autotask";
@@ -177,6 +179,74 @@ export async function fetchResourceHoursSummary(
   }
 
   return [...byResource.values()].sort((a, b) => b.thisMonth - a.thisMonth);
+}
+
+export type ResourceDayEntry = {
+  id: number;
+  hoursWorked: number;
+  ticketId: number | null;
+  ticketNumber: string | null;
+  ticketTitle: string | null;
+  clientId: string | null;
+  clientName: string | null;
+  summaryNotes: string | null;
+  isNonBillable: boolean;
+};
+
+/** One technician's individual time entries for a single day — the
+ * drill-down behind the Team Hours dashboard widget's Today/Yesterday
+ * figures, which otherwise only ever show a summed number with no way to
+ * see what it was made of. Ticket title/number resolved in one batched
+ * Autotask pass (resolveTicketSummaries); client name resolved through this
+ * app's own clients.autotask_company_id, same posture as
+ * fetchClientHoursSummary above rather than a second live Autotask call. */
+export async function fetchResourceDayEntries(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  resourceId: number,
+  dateStr: string
+): Promise<ResourceDayEntry[]> {
+  const entries = await fetchTimeEntriesForResourceDay(creds, zoneUrl, resourceId, dateStr);
+
+  const ticketIds = [...new Set(entries.map((e) => e.ticketID).filter((id): id is number => id != null))];
+  const ticketSummaries = await resolveTicketSummaries(creds, zoneUrl, ticketIds);
+
+  const companyIds = [
+    ...new Set([...ticketSummaries.values()].map((t) => t.companyId).filter((id): id is number => id != null)),
+  ];
+  const { data: clients } = await admin
+    .from("clients")
+    .select("id, name, autotask_company_id")
+    .in("autotask_company_id", companyIds.length > 0 ? companyIds : [-1]);
+  const clientByCompanyId = new Map<number, { id: string; name: string }>(
+    (clients ?? []).map(
+      (c: {
+        id: string;
+        name: string;
+        autotask_company_id: number;
+      }): [number, { id: string; name: string }] => [c.autotask_company_id, { id: c.id, name: c.name }]
+    )
+  );
+
+  return entries
+    .map((e) => {
+      const ticket = e.ticketID != null ? ticketSummaries.get(e.ticketID) : undefined;
+      const client = ticket?.companyId != null ? clientByCompanyId.get(ticket.companyId) : undefined;
+      return {
+        id: e.id,
+        hoursWorked: e.hoursWorked,
+        ticketId: e.ticketID,
+        ticketNumber: ticket?.ticketNumber ?? null,
+        ticketTitle: ticket?.title ?? null,
+        clientId: client?.id ?? null,
+        clientName: client?.name ?? null,
+        summaryNotes: e.summaryNotes,
+        isNonBillable: e.isNonBillable,
+      };
+    })
+    .sort((a, b) => b.hoursWorked - a.hoursWorked);
 }
 
 export type HoursByGroupRow = { groupId: string | null; groupName: string; hours: number };

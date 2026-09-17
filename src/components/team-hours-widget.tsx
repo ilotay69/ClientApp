@@ -5,7 +5,9 @@ import Link from "next/link";
 import { IconClock } from "@/components/icons";
 import type { ResourceHoursRow } from "@/lib/resource-hours";
 
-type ActionResult = { rows: ResourceHoursRow[] } | { error: string };
+type ActionResult =
+  | { rows: ResourceHoursRow[]; todayDate: string; yesterdayDate: string }
+  | { error: string };
 
 /** Live from Autotask, fetched client-side after the rest of the Dashboard
  * has already rendered — this is the one widget that can't just come back
@@ -57,10 +59,20 @@ export function TeamHoursWidget({ action }: { action: () => Promise<ActionResult
         ) : (
           <div className="divide-y divide-slate-100">
             {rows.map((r) => (
-              <div key={r.resourceId ?? r.resourceName} className="px-4 py-1.5">
+              <Link
+                key={r.resourceId ?? r.resourceName}
+                href={
+                  r.resourceId
+                    ? `/dashboard/resource-hours?resourceId=${r.resourceId}&date=${state.yesterdayDate}`
+                    : "#"
+                }
+                className="block px-4 py-1.5 hover:bg-teal-50/60"
+              >
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <span className="min-w-0 truncate font-medium text-slate-900">{r.resourceName}</span>
                   <span className="shrink-0 text-xs text-slate-500">
+                    Today <span className="font-semibold text-slate-700">{r.today.toFixed(1)}h</span>
+                    <span className="mx-1 text-slate-300">·</span>
                     Yesterday <span className="font-semibold text-slate-700">{r.yesterday.toFixed(1)}h</span>
                   </span>
                 </div>
@@ -72,10 +84,10 @@ export function TeamHoursWidget({ action }: { action: () => Promise<ActionResult
                     />
                   </div>
                   <span className="shrink-0 text-xs font-semibold tabular-nums text-teal-700">
-                    {r.thisMonth.toFixed(1)}h
+                    {r.thisMonth.toFixed(1)}h this month
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
