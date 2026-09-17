@@ -1127,3 +1127,95 @@ export async function fetchProposalViewsAction(
     userAgent: r.user_agent,
   }));
 }
+
+// ----------------------------------------------------------------- reports
+
+export type ProposalActivityRow = {
+  id: string;
+  proposalNumber: number;
+  title: string;
+  companyName: string;
+  sentAt: string | null;
+  viewCount: number;
+  lastViewedAt: string | null;
+  acceptedAt: string | null;
+};
+
+export type ProposalActivityReport = {
+  /** Sent, never opened yet. */
+  sent: ProposalActivityRow[];
+  /** Sent and opened at least once, but no decision yet. */
+  waiting: ProposalActivityRow[];
+  accepted: ProposalActivityRow[];
+};
+
+/** Every proposal SENT within the last N days (not created - a proposal
+ * drafted long ago but only sent recently is exactly what this report is
+ * for), bucketed by where it currently stands. A proposal sent in the
+ * window that's since been declined/withdrawn/expired shows in none of
+ * the three lists - this report is about live pipeline movement (what's
+ * unopened, what's waiting on a decision, what's landed), not a full
+ * history dump. */
+export async function fetchProposalActivityReportAction(
+  days: number
+): Promise<ProposalActivityReport | { error: string }> {
+  const user = await requirePermission("view_proposals");
+  if (!user) return { error: "You don't have permission to do that." };
+
+  const clampedDays = Math.min(Math.max(Math.trunc(days) || 1, 1), 365);
+  const cutoff = new Date(Date.now() - clampedDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("proposals")
+    .select(
+      "id, proposal_number, title, prospect_company, status, sent_at, view_count, last_viewed_at, accepted_at, clients(name)"
+    )
+    .not("sent_at", "is", null)
+    .gte("sent_at", cutoff)
+    .order("sent_at", { ascending: false });
+
+  if (error) return { error: error.message };
+
+  type Row = {
+    id: string;
+    proposal_number: number;
+    title: string;
+    prospect_company: string | null;
+    status: string;
+    sent_at: string | null;
+    view_count: number | null;
+    last_viewed_at: string | null;
+    accepted_at: string | null;
+    clients: { name: string } | { name: string }[] | null;
+  };
+
+  const sent: ProposalActivityRow[] = [];
+  const waiting: ProposalActivityRow[] = [];
+  const accepted: ProposalActivityRow[] = [];
+
+  for (const r of (data ?? []) as Row[]) {
+    // Declined/withdrawn/expired are deliberately excluded from all three
+    // buckets - this report is "what's actively moving", not every status
+    // a sent proposal could have ended up in.
+    if (r.status !== "sent" && r.status !== "accepted") continue;
+
+    const client = Array.isArray(r.clients) ? r.clients[0] : r.clients;
+    const row: ProposalActivityRow = {
+      id: r.id,
+      proposalNumber: Number(r.proposal_number),
+      title: r.title,
+      companyName: client?.name ?? r.prospect_company ?? "Unknown",
+      sentAt: r.sent_at,
+      viewCount: r.view_count ?? 0,
+      lastViewedAt: r.last_viewed_at,
+      acceptedAt: r.accepted_at,
+    };
+
+    if (r.status === "accepted") accepted.push(row);
+    else if (row.viewCount === 0) sent.push(row);
+    else waiting.push(row);
+  }
+
+  return { sent, waiting, accepted };
+}

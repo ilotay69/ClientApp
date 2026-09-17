@@ -6,6 +6,7 @@ import { ContractUsageLookup } from "@/components/contract-usage-lookup";
 import { HoursLookup } from "@/components/hours-lookup";
 import { TicketLookup } from "@/components/ticket-lookup";
 import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
+import { ProposalActivityReportPanel } from "@/components/proposal-activity-report";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import { getReportPreviewAction } from "./actions";
 import {
@@ -16,6 +17,7 @@ import {
   searchAutotaskTicketsAction,
 } from "../hours/actions";
 import { fetchHuntressSiemLogsAction } from "../hours/huntress-actions";
+import { fetchProposalActivityReportAction } from "../proposals/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -238,6 +240,15 @@ export default async function ReportsPage() {
               {
                 label: CLIENT_ROSTER.title,
                 content: <ReportPreviewPanel report={CLIENT_ROSTER} previewAction={getReportPreviewAction} />,
+              },
+            ],
+          },
+          {
+            group: "Proposals",
+            tabs: [
+              {
+                label: "Activity",
+                content: <ProposalActivityReportPanel action={fetchProposalActivityReportAction} />,
               },
             ],
           },
