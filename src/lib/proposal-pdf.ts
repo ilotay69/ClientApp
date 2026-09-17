@@ -43,9 +43,11 @@ export function buildProposalPdf(
   // From/to address block - who this document is actually between,
   // previously missing from the signed copy entirely.
   doc.paragraph(`From: ${companyInfo.companyName}`, { size: 10 });
+  if (proposal.ownerName?.trim()) doc.paragraph(proposal.ownerName, { size: 10 });
   if (companyInfo.address?.trim()) doc.paragraph(companyInfo.address, { size: 10 });
   doc.spacer(8);
   doc.paragraph(`To: ${companyName}`, { size: 10 });
+  if (proposal.prospectContactName?.trim()) doc.paragraph(proposal.prospectContactName, { size: 10 });
   if (proposal.prospectAddress?.trim()) doc.paragraph(proposal.prospectAddress, { size: 10 });
   doc.spacer(16);
 

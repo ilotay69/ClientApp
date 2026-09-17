@@ -183,11 +183,13 @@ export default async function ProposalViewPage({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">From</p>
             <p className="mt-1 font-medium text-slate-700">{companyInfo.companyName}</p>
+            {proposal.ownerName && <p>{proposal.ownerName}</p>}
             {companyInfo.address && <p className="whitespace-pre-line">{companyInfo.address}</p>}
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">To</p>
             <p className="mt-1 font-medium text-slate-700">{proposal.companyName}</p>
+            {proposal.contactName && <p>{proposal.contactName}</p>}
             {proposal.address && <p className="whitespace-pre-line">{proposal.address}</p>}
           </div>
         </div>

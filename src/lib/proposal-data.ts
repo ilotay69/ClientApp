@@ -161,6 +161,10 @@ export type ProposalPublicView = {
   companyName: string;
   contactName: string | null;
   address: string | null;
+  /** The assigned rep's name only - never their email, which stays
+   * internal even here. Shown next to CG's own name in the From/To block
+   * so the prospect sees who they're actually dealing with. */
+  ownerName: string | null;
   intro: string | null;
   closingNote: string | null;
   validUntil: string | null;
@@ -479,7 +483,7 @@ export async function getProposalByAccessToken(
     .select(
       `id, proposal_number, quotation_number, title, status, currency, intro, closing_note, valid_until,
        payment_terms, accepted_at, accepted_by_name, accepted_total_amount, prospect_company,
-       prospect_contact_name, prospect_address, clients(name)`
+       prospect_contact_name, prospect_address, clients(name), owner_profile:owner_id(full_name)`
     )
     .eq("access_token", token)
     .maybeSingle();
@@ -501,6 +505,7 @@ export async function getProposalByAccessToken(
   ]);
 
   const client = Array.isArray(data.clients) ? data.clients[0] : data.clients;
+  const owner = Array.isArray(data.owner_profile) ? data.owner_profile[0] : data.owner_profile;
   const status = data.status as ProposalStatus;
 
   return {
@@ -513,6 +518,7 @@ export async function getProposalByAccessToken(
     companyName: client?.name ?? data.prospect_company ?? "",
     contactName: data.prospect_contact_name ?? null,
     address: data.prospect_address ?? null,
+    ownerName: owner?.full_name ?? null,
     intro: data.intro ?? null,
     closingNote: data.closing_note ?? null,
     validUntil: data.valid_until ?? null,
