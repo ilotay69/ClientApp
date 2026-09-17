@@ -85,6 +85,8 @@ Skip a ticket entirely (don't include it in the output at all) if there's nothin
 
 ${blocks.join("\n\n")}
 
+Never use an em dash (—) in key_point or pending_action; use a plain hyphen (-), a comma, or a new sentence instead.
+
 Use the ${TOOL_NAME} tool.`;
 }
 

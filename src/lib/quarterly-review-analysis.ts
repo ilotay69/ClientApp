@@ -61,6 +61,8 @@ Checklist results (items marked Not Applicable are omitted below):
 
 ${itemsBlock || "(nothing recorded yet)"}
 
+Never use an em dash (—) in the summary; use a plain hyphen (-), a comma, or a new sentence instead.
+
 Use the ${TOOL_NAME} tool.`;
 }
 

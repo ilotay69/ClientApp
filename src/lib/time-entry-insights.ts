@@ -176,6 +176,8 @@ Only report a real pattern backed by what the notes actually say — don't inven
 Time entries (most recent ${Math.min(entries.length, MAX_ENTRIES)} of ${entries.length}):
 ${buildEntryList(entries)}
 
+Never use an em dash (—) in title or detail; use a plain hyphen (-), a comma, or a new sentence instead.
+
 Use the ${TOOL_NAME} tool.`;
 }
 

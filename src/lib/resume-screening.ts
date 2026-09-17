@@ -316,7 +316,9 @@ earlier job) — leave any of these null if it genuinely can't be told from what
 guess. Note explicitly in technical_ability or customer_relationships
 if your verdict is based only on notification content with no resume yet. Report
 exactly one entry per resume_number shown above — don't skip any, and don't invent
-extra ones.`;
+extra ones. In overall_summary, technical_ability, customer_relationships, and
+job_stability_reasoning, never use an em dash (—); use a plain hyphen (-), a comma,
+or a new sentence instead.`;
 }
 
 async function callAnthropicToolMultimodal(

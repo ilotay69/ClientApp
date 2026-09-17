@@ -432,5 +432,5 @@ Look for, in order of importance:
 6. opportunity — a possible upsell or new-service signal that isn't urgent, including a WORKSTATION running an end-of-life/soon-to-expire OS (again, judge this against real vendor support lifecycles you know, not just an old-sounding version number) worth a hardware or OS refresh conversation. A workstation is lower-severity than a server running the same EOL OS (see urgent_alert above) — same underlying fact, different priority.
 7. follow_up / other — anything else that looks unhandled, including an open ticket that seems to have gone quiet.
 
-Mark priority "high" only for something genuinely time-sensitive or important — most suggestions should be "normal". Use the report_suggestions tool.`;
+Mark priority "high" only for something genuinely time-sensitive or important — most suggestions should be "normal". In summary and detail, never use an em dash (—); use a plain hyphen (-), a comma, or a new sentence instead. Use the report_suggestions tool.`;
 }

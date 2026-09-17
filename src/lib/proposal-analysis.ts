@@ -122,7 +122,8 @@ Rules:
 - Describe only what is in the line item list. Do not invent services, hardware, SLAs, response times, headcount, certifications or guarantees.
 - Lead with business outcomes, not product names. The reader is a business owner or office manager, not a technician.
 - No prices or totals in any field except where the schema says otherwise — the pricing table below your text carries those.
-- Plain Canadian English. No marketing superlatives, no "cutting-edge", no "leverage", no em-dash-heavy sales copy.
+- Plain Canadian English. No marketing superlatives, no "cutting-edge", no "leverage".
+- Never use an em dash (—). Use a plain hyphen (-), a comma, or a new sentence instead.
 - Keep it tight. A proposal that takes ten minutes to read gets read by nobody.
 
 Use the ${TOOL_NAME} tool.`;

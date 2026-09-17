@@ -307,12 +307,14 @@ function buildDigestPrompt(threads: DigestThread[], lookbackDays: number, focus:
     .join("\n");
 
   const instruction = focus
-    ? `The user specifically asked for this: "${focus}" — write the briefing to answer that, using only the threads below. If none of the threads below are relevant to what they asked, say so plainly instead of forcing an answer. Still give a short, prioritized list of concrete next actions for today.`
-    : `Write one sentence per thread worth mentioning, ordered most urgent first, in the exact style of these examples: "Please get back to Jordan — he asked about the renewal pricing 6 days ago." / "You still haven't heard back from Attilio on the quote you sent 12 days ago." Don't invent detail beyond what's shown. Then give a short, prioritized list of concrete actions for today.`;
+    ? `The user specifically asked for this: "${focus}" - write the briefing to answer that, using only the threads below. If none of the threads below are relevant to what they asked, say so plainly instead of forcing an answer. Still give a short, prioritized list of concrete next actions for today.`
+    : `Write one sentence per thread worth mentioning, ordered most urgent first, in the exact style of these examples: "Please get back to Jordan, he asked about the renewal pricing 6 days ago." / "You still haven't heard back from Attilio on the quote you sent 12 days ago." Don't invent detail beyond what's shown. Then give a short, prioritized list of concrete actions for today.`;
 
-  return `You're writing a short mailbox briefing for someone, in plain second-person language — like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days across their whole mailbox (Deleted Items, Junk, and Drafts excluded — automated notifications/newsletters/alerts and anything they asked to exclude are already filtered out too), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message. Each thread has a [N] number — reference it via thread_number in your response so each sentence can be traced back to its thread.
+  return `You're writing a short mailbox briefing for someone, in plain second-person language - like a sharp assistant telling them what's pending. Below are their open email threads from the last ${lookbackDays} days across their whole mailbox (Deleted Items, Junk, and Drafts excluded - automated notifications/newsletters/alerts and anything they asked to exclude are already filtered out too), most overdue first, each marked whether they're waiting on a reply from someone else ("awaiting their reply") or someone is waiting on a reply from them ("awaiting your reply"), plus a short preview of the last message. Each thread has a [N] number - reference it via thread_number in your response so each sentence can be traced back to its thread.
 
 ${instruction}
+
+Never use an em dash (—) in your sentences; use a plain hyphen (-), a comma, or a new sentence instead, same as this instruction does.
 
 Threads:
 ${lines || "None."}

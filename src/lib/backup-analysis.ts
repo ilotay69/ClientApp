@@ -43,6 +43,8 @@ ${blocks}
 
 Read all of this together and report a rolling-summary analysis: what's recurring/unresolved, what's improved, and what concretely needs to be done next.
 
+Never use an em dash (—) in the analysis; use a plain hyphen (-), a comma, or a new sentence instead.
+
 Use the ${TOOL_NAME} tool.`;
 }
 

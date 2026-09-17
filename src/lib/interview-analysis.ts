@@ -50,6 +50,8 @@ Staff's own interview notes, oldest first:
 
 ${notesBlock}
 
+Never use an em dash (—) in the analysis; use a plain hyphen (-), a comma, or a new sentence instead.
+
 Use the ${TOOL_NAME} tool.`;
 }
 
