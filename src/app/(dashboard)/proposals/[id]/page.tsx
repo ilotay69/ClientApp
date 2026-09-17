@@ -85,7 +85,7 @@ export default async function ProposalDetailPage({
           </Link>
           <h1 className="mt-1 truncate text-2xl font-semibold text-slate-900">{proposal.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Proposal #{proposal.proposalNumber} ·{" "}
+            Proposal {proposal.quotationNumber ?? `#${proposal.proposalNumber}`} ·{" "}
             {proposal.clientName ?? proposal.prospectCompany ?? "No recipient yet"}
             {proposal.prospectContactName ? ` · ${proposal.prospectContactName}` : ""}
           </p>

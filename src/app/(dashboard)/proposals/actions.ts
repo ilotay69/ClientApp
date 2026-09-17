@@ -81,6 +81,37 @@ const DEFAULT_SECTIONS = [
   },
 ];
 
+/** "BS-20260917-1432"-style reference shown everywhere instead of the
+ * plain internal #14 sequence (proposal_number, migration 132) - initials
+ * from the client/prospect company name's first two words, plus the date
+ * and time it's created in the office's own timezone (not server UTC,
+ * same reasoning as the dashboard's "good morning" greeting - a proposal
+ * created at 11pm Toronto time shouldn't stamp tomorrow's date). Assigned
+ * once here, at creation, and never regenerated. A single-word name
+ * (e.g. "Acme") repeats its first two letters rather than leaving the
+ * second slot blank, so the prefix is always two characters. */
+function buildQuotationNumber(companyName: string | null): string {
+  const words = (companyName ?? "").trim().split(/\s+/).filter(Boolean);
+  let initials: string;
+  if (words.length >= 2) initials = (words[0][0] + words[1][0]).toUpperCase();
+  else if (words.length === 1 && words[0].length >= 2) initials = words[0].slice(0, 2).toUpperCase();
+  else if (words.length === 1) initials = (words[0][0] + words[0][0]).toUpperCase();
+  else initials = "XX";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+
+  return `${initials}-${part("year")}${part("month")}${part("day")}-${part("hour")}${part("minute")}`;
+}
+
 export async function createProposalAction(
   title: string,
   recipient: {
@@ -129,6 +160,7 @@ export async function createProposalAction(
       title: trimmedTitle,
       owner_id: user.id,
       created_by: user.id,
+      quotation_number: buildQuotationNumber(snapshotCompany),
     })
     .select("id")
     .single();
@@ -1152,6 +1184,7 @@ export async function fetchProposalViewsAction(
 export type ProposalActivityRow = {
   id: string;
   proposalNumber: number;
+  quotationNumber: string | null;
   title: string;
   companyName: string;
   ownerName: string | null;
@@ -1186,7 +1219,7 @@ export async function fetchProposalActivityReportAction(
   const { data, error } = await admin
     .from("proposals")
     .select(
-      `id, proposal_number, title, prospect_company, currency, status, sent_at, view_count,
+      `id, proposal_number, quotation_number, title, prospect_company, currency, status, sent_at, view_count,
        accepted_at, accepted_total_amount, clients(name), owner_profile:owner_id(full_name)`
     )
     .not("sent_at", "is", null)
@@ -1198,6 +1231,7 @@ export async function fetchProposalActivityReportAction(
   type Row = {
     id: string;
     proposal_number: number;
+    quotation_number: string | null;
     title: string;
     prospect_company: string | null;
     currency: string | null;
@@ -1264,6 +1298,7 @@ export async function fetchProposalActivityReportAction(
     return {
       id: r.id,
       proposalNumber: Number(r.proposal_number),
+      quotationNumber: r.quotation_number ?? null,
       title: r.title,
       companyName: client?.name ?? r.prospect_company ?? "Unknown",
       ownerName: owner?.full_name ?? null,

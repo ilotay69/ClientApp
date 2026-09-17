@@ -17,7 +17,8 @@ export function ProposalListRow({ proposal }: { proposal: ProposalListItem }) {
     >
       <span className="order-first w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
         <span className="block truncate text-sm font-medium text-slate-900">
-          <span className="text-slate-400">#{proposal.proposalNumber}</span> {proposal.title}
+          <span className="text-slate-400">{proposal.quotationNumber ?? `#${proposal.proposalNumber}`}</span>{" "}
+          {proposal.title}
         </span>
         <span className="block truncate text-xs text-slate-500">{proposal.recipientLabel}</span>
       </span>

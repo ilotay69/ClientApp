@@ -159,7 +159,7 @@ export function ProposalActivityReportPanel({
                     <td className="px-4 py-2 align-middle text-slate-700">{r.companyName}</td>
                     <td className="px-4 py-2 align-middle">
                       <Link href={`/proposals/${r.id}`} className="text-brand hover:underline">
-                        #{r.proposalNumber} {r.title}
+                        {r.quotationNumber ?? `#${r.proposalNumber}`} {r.title}
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right align-middle font-medium text-slate-900">

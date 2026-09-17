@@ -168,7 +168,7 @@ export default async function ProposalViewPage({
 
       <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-16">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-          Proposal #{proposal.proposalNumber} for {proposal.companyName}
+          Proposal {proposal.quotationNumber ?? `#${proposal.proposalNumber}`} for {proposal.companyName}
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
           {proposal.title}

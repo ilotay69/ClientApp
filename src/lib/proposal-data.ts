@@ -46,11 +46,16 @@ export type ProposalLineItem = {
  * prospect must never see. */
 export type Proposal = {
   id: string;
-  /** Short, human-friendly reference for phone/email ("Proposal #142") —
-   * an auto-incrementing identity column (migration 132), purely a label.
+  /** Internal-only sequence (migration 132) — no longer shown anywhere;
+   * quotationNumber below is the reference staff and clients actually see.
    * The access_token in the URL remains the only real credential; this is
    * never accepted as a lookup key anywhere. */
   proposalNumber: number;
+  /** The client-facing reference ("BS-20260917-1432") — initials from the
+   * company name plus the creation date/time, assigned once at creation
+   * (migration 139). Null for a proposal created before that migration;
+   * display code falls back to `#${proposalNumber}` in that case. */
+  quotationNumber: string | null;
   clientId: string | null;
   clientName: string | null;
   prospectCompany: string | null;
@@ -117,6 +122,7 @@ export type Proposal = {
 export type ProposalListItem = {
   id: string;
   proposalNumber: number;
+  quotationNumber: string | null;
   title: string;
   status: ProposalStatus;
   currency: string;
@@ -144,6 +150,7 @@ export type ProposalListItem = {
 export type ProposalPublicView = {
   id: string;
   proposalNumber: number;
+  quotationNumber: string | null;
   title: string;
   status: ProposalStatus;
   currency: string;
@@ -165,7 +172,7 @@ export type ProposalPublicView = {
 };
 
 const PROPOSAL_COLUMNS = `
-  id, proposal_number, client_id, prospect_company, prospect_contact_name, prospect_email,
+  id, proposal_number, quotation_number, client_id, prospect_company, prospect_contact_name, prospect_email,
   title, status, currency, intro, closing_note, valid_until, access_token,
   owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
   last_viewed_at, view_count, accepted_at, accepted_by_name,
@@ -306,6 +313,7 @@ export async function getProposal(
   return {
     id: data.id,
     proposalNumber: Number(data.proposal_number),
+    quotationNumber: data.quotation_number ?? null,
     clientId: data.client_id ?? null,
     clientName: client?.name ?? null,
     prospectCompany: data.prospect_company ?? null,
@@ -375,7 +383,7 @@ export async function listProposals(
   let query = admin
     .from("proposals")
     .select(
-      `id, proposal_number, client_id, prospect_company, title, status, currency, valid_until,
+      `id, proposal_number, quotation_number, client_id, prospect_company, title, status, currency, valid_until,
        sent_at, first_viewed_at, last_viewed_at, view_count, accepted_at, processing_internally,
        updated_at, owner_id, clients(name), owner_profile:owner_id(full_name)`
     )
@@ -424,6 +432,7 @@ export async function listProposals(
     return {
       id: row.id as string,
       proposalNumber: Number(row.proposal_number),
+      quotationNumber: (row.quotation_number as string) ?? null,
       title: row.title as string,
       status: row.status as ProposalStatus,
       currency: (row.currency as string) ?? "CAD",
@@ -460,7 +469,7 @@ export async function getProposalByAccessToken(
   const { data, error } = await admin
     .from("proposals")
     .select(
-      `id, proposal_number, title, status, currency, intro, closing_note, valid_until,
+      `id, proposal_number, quotation_number, title, status, currency, intro, closing_note, valid_until,
        accepted_at, accepted_by_name, accepted_total_amount, prospect_company,
        prospect_contact_name, clients(name)`
     )
@@ -489,6 +498,7 @@ export async function getProposalByAccessToken(
   return {
     id: data.id,
     proposalNumber: Number(data.proposal_number),
+    quotationNumber: data.quotation_number ?? null,
     title: data.title,
     status,
     currency: data.currency ?? "CAD",

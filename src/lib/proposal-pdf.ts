@@ -28,7 +28,10 @@ export function buildProposalPdf(
 
   doc.spacer(30);
   doc.heading(companyName, 1, { center: true, color: NAVY, size: 22 });
-  doc.paragraph(`Proposal #${proposal.proposalNumber}: ${proposal.title}`, { center: true, size: 13 });
+  doc.paragraph(`Proposal ${proposal.quotationNumber ?? `#${proposal.proposalNumber}`}: ${proposal.title}`, {
+    center: true,
+    size: 13,
+  });
   if (proposal.acceptedAt) {
     doc.paragraph(`Accepted ${formatDate(proposal.acceptedAt)}`, { center: true, size: 10 });
   }
