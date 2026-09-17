@@ -21,39 +21,42 @@ const BUCKETS = [
 
 type Bucket = (typeof BUCKETS)[number]["value"];
 
+// Processing Internally is a sub-split of "accepted", not a real status
+// (see migration 138) — an accepted proposal is either still just
+// "accepted" or has been flagged as being worked on internally, never
+// both tabs at once.
+const bucketOf = (p: Pick<ProposalListItem, "status" | "processingInternally">): Bucket => {
+  if (p.status === "draft") return "draft";
+  if (p.status === "sent") return "sent";
+  if (p.status === "accepted") return p.processingInternally ? "processing_internally" : "accepted";
+  return "closed";
+};
+
 // Automatic, not a field anyone sets - a proposal is for an existing
 // client the same way it always has been: client_id is set (picked from
 // the Autotask-linked client dropdown) versus null (a prospect_company
 // typed in by hand). See createProposalAction's own recipient.clientId
 // check.
-type Recipient = "prospect" | "client";
-const RECIPIENT_LABEL: Record<Recipient, string> = { prospect: "Prospects", client: "Existing Clients" };
-const recipientOf = (p: Pick<ProposalListItem, "clientId">): Recipient => (p.clientId ? "client" : "prospect");
-
-const SUMMARY_LIMIT = 10;
+const isExistingClient = (p: Pick<ProposalListItem, "clientId">) => Boolean(p.clientId);
 
 export default async function ProposalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ bucket?: string; q?: string; client?: string; mine?: string; recipient?: string }>;
+  searchParams: Promise<{ pBucket?: string; cBucket?: string; q?: string; mine?: string }>;
 }) {
-  const { bucket: rawBucket, q, client, mine, recipient: rawRecipient } = await searchParams;
+  const { pBucket: rawPBucket, cBucket: rawCBucket, q, mine } = await searchParams;
 
   const supabase = await createClient();
   if (!(await hasPermission(supabase, "view_proposals"))) redirect("/dashboard");
   const canManage = await hasPermission(supabase, "manage_proposals");
   const user = await getCurrentUser();
 
-  const bucket = (BUCKETS.find((b) => b.value === rawBucket)?.value ?? "draft") as Bucket;
+  const pBucket = (BUCKETS.find((b) => b.value === rawPBucket)?.value ?? "draft") as Bucket;
+  const cBucket = (BUCKETS.find((b) => b.value === rawCBucket)?.value ?? "draft") as Bucket;
   const mineOnly = mine === "1";
-  const recipient = (rawRecipient === "prospect" || rawRecipient === "client" ? rawRecipient : null) as Recipient | null;
 
-  // Fetched once without the bucket filter and split here, rather than one
-  // query for the visible rows plus another for the tab counts — the search
-  // and client filters are already applied, so this is the same working set
-  // either way.
   const [rawAll, { data: clients }] = await Promise.all([
-    listProposals({ search: q, clientId: client }),
+    listProposals({ search: q }),
     supabase
       .from("clients")
       .select("id, name, contactName:primary_contact_name, contactEmail:primary_contact_email, address")
@@ -61,24 +64,8 @@ export default async function ProposalsPage({
   ]);
   const all = mineOnly ? rawAll.filter((p) => p.ownerId === user?.id) : rawAll;
 
-  // Processing Internally is a sub-split of "accepted", not a real status
-  // (see migration 138) — an accepted proposal is either still just
-  // "accepted" or has been flagged as being worked on internally, never
-  // both tabs at once.
-  const bucketOf = (p: Pick<ProposalListItem, "status" | "processingInternally">): Bucket => {
-    if (p.status === "draft") return "draft";
-    if (p.status === "sent") return "sent";
-    if (p.status === "accepted") return p.processingInternally ? "processing_internally" : "accepted";
-    return "closed";
-  };
-
-  // The detail view (reached via a summary panel's "View all") scopes
-  // everything below to one recipient type; the overview (no recipient in
-  // the URL) shows both summary panels plus the full, unscoped bucket list
-  // exactly as before this feature existed.
-  const scoped = recipient ? all.filter((p) => recipientOf(p) === recipient) : all;
-  const proposals = scoped.filter((p) => bucketOf(p) === bucket);
-  const countFor = (value: Bucket) => scoped.filter((p) => bucketOf(p) === value).length;
+  const prospects = all.filter((p) => !isExistingClient(p));
+  const existingClients = all.filter((p) => isExistingClient(p));
 
   return (
     <div className="space-y-6">
@@ -89,135 +76,112 @@ export default async function ProposalsPage({
             Build a proposal, send it as a link, and see who&apos;s actually reading it.
           </p>
         </div>
-        {canManage && (
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/proposals/brochures"
-              className="text-xs text-slate-500 underline hover:text-slate-800"
-            >
-              Manage brochures
-            </Link>
-            <NewProposalPanel clients={clients ?? []} action={createProposalAction} />
-          </div>
-        )}
-      </div>
-
-      {recipient ? (
-        <Link
-          href={filterHref("/proposals", { q, mine })}
-          className="text-xs text-slate-500 underline hover:text-slate-800"
-        >
-          ← Back to overview
-        </Link>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {(["prospect", "client"] as const).map((r) => (
-            <SummaryPanel key={r} recipient={r} proposals={all.filter((p) => recipientOf(p) === r)} q={q} mine={mine} />
-          ))}
-        </div>
-      )}
-
-      <div>
-        {recipient && (
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
-            {RECIPIENT_LABEL[recipient]}
-          </h2>
-        )}
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <SearchBox
-            action="/proposals"
-            placeholder="Search proposals…"
-            defaultValue={q}
-            keep={{ bucket, client, mine, recipient: recipient ?? undefined }}
-          />
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-2 text-sm">
-            <FilterLink href={filterHref("/proposals", { bucket, q, client, recipient: recipient ?? undefined })} active={!mineOnly}>
+            <FilterLink href={filterHref("/proposals", { pBucket, cBucket, q })} active={!mineOnly}>
               All
             </FilterLink>
-            <FilterLink
-              href={filterHref("/proposals", { bucket, q, client, mine: "1", recipient: recipient ?? undefined })}
-              active={mineOnly}
-            >
+            <FilterLink href={filterHref("/proposals", { pBucket, cBucket, q, mine: "1" })} active={mineOnly}>
               Mine
             </FilterLink>
           </div>
-        </div>
-
-        <div className="mt-3 border-b border-slate-200">
-          <div className="flex flex-wrap gap-4">
-            {BUCKETS.map((b) => (
+          {canManage && (
+            <>
               <Link
-                key={b.value}
-                href={filterHref("/proposals", { bucket: b.value, q, client, mine, recipient: recipient ?? undefined })}
-                className={`-mb-px border-b-2 px-1 pb-2 text-sm font-medium ${
-                  bucket === b.value
-                    ? "border-brand text-brand"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                href="/proposals/brochures"
+                className="text-xs text-slate-500 underline hover:text-slate-800"
               >
-                {b.label}
-                <span className="ml-1.5 text-xs text-slate-400">{countFor(b.value)}</span>
+                Manage brochures
               </Link>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
-          {proposals.map((proposal) => (
-            <ProposalListRow key={proposal.id} proposal={proposal} />
-          ))}
-          {proposals.length === 0 && (
-            <p className="px-5 py-8 text-center text-sm text-slate-500">
-              {q || client || mineOnly
-                ? "No proposals match that filter."
-                : "Nothing here yet. Start one with New proposal."}
-            </p>
+              <NewProposalPanel clients={clients ?? []} action={createProposalAction} />
+            </>
           )}
         </div>
       </div>
+
+      <SearchBox
+        action="/proposals"
+        placeholder="Search proposals…"
+        defaultValue={q}
+        keep={{ pBucket, cBucket, mine }}
+      />
+
+      <RecipientSection
+        title="Prospects"
+        paramName="pBucket"
+        bucket={pBucket}
+        otherParams={{ cBucket, q, mine }}
+        items={prospects}
+      />
+
+      <RecipientSection
+        title="Existing Clients"
+        paramName="cBucket"
+        bucket={cBucket}
+        otherParams={{ pBucket, q, mine }}
+        items={existingClients}
+      />
     </div>
   );
 }
 
-/** Up to SUMMARY_LIMIT most recently touched proposals of one recipient
- * type, any status - a quick glance, not a filtered browse (that's what
- * clicking through to the detail view, scoped by recipient, is for). */
-function SummaryPanel({
-  recipient,
-  proposals,
-  q,
-  mine,
+/** One recipient type's own full status-tab view - its own tab strip,
+ * its own bucket counts, scoped to just its own items (prospects and
+ * existing clients never share a bucket count or a tab selection with
+ * each other). otherParams carries the OTHER section's current bucket
+ * (plus q/mine) through every link here, so switching this section's tab
+ * never resets the other section's. */
+function RecipientSection({
+  title,
+  paramName,
+  bucket,
+  otherParams,
+  items,
 }: {
-  recipient: Recipient;
-  proposals: ProposalListItem[];
-  q?: string;
-  mine?: string;
+  title: string;
+  paramName: "pBucket" | "cBucket";
+  bucket: Bucket;
+  otherParams: Record<string, string | undefined>;
+  items: ProposalListItem[];
 }) {
-  const visible = proposals.slice(0, SUMMARY_LIMIT);
+  const visible = items.filter((p) => bucketOf(p) === bucket);
+  const countFor = (value: Bucket) => items.filter((p) => bucketOf(p) === value).length;
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-2.5">
-        <h2 className="text-sm font-semibold text-slate-900">{RECIPIENT_LABEL[recipient]}</h2>
-        <span className="text-xs text-slate-400">{proposals.length}</span>
-      </div>
-      {visible.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-slate-500">Nothing here yet.</p>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {visible.map((proposal) => (
-            <ProposalListRow key={proposal.id} proposal={proposal} />
+    <div>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+        {title} <span className="normal-case text-slate-400">({items.length})</span>
+      </h2>
+
+      <div className="border-b border-slate-200">
+        <div className="flex flex-wrap gap-4">
+          {BUCKETS.map((b) => (
+            <Link
+              key={b.value}
+              href={filterHref("/proposals", { ...otherParams, [paramName]: b.value })}
+              className={`-mb-px border-b-2 px-1 pb-2 text-sm font-medium ${
+                bucket === b.value
+                  ? "border-brand text-brand"
+                  : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {b.label}
+              <span className="ml-1.5 text-xs text-slate-400">{countFor(b.value)}</span>
+            </Link>
           ))}
         </div>
-      )}
-      {proposals.length > SUMMARY_LIMIT && (
-        <Link
-          href={filterHref("/proposals", { recipient, q, mine })}
-          className="block border-t border-slate-100 px-4 py-2 text-center text-xs font-medium text-brand hover:underline"
-        >
-          View all {proposals.length}
-        </Link>
-      )}
+      </div>
+
+      <div className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
+        {visible.map((proposal) => (
+          <ProposalListRow key={proposal.id} proposal={proposal} />
+        ))}
+        {visible.length === 0 && (
+          <p className="px-5 py-8 text-center text-sm text-slate-500">
+            {items.length === 0 ? `Nothing here yet.` : "Nothing in this status."}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
