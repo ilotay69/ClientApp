@@ -7,16 +7,17 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { createAlert } from "@/lib/alerts";
 import { sendPushToUsers } from "@/lib/push-notifications";
 import { computeProposalTotals, formatProposalHeadline, formatMoney } from "@/lib/proposal-totals";
-import { isProposalExpired, type ProposalStatus } from "@/lib/proposal-data";
+import { isProposalExpired, getProposal, type ProposalStatus } from "@/lib/proposal-data";
 import {
   PROPOSAL_SIGNATURES_BUCKET,
   parseSignatureDataUrl,
   MAX_SIGNATURE_BYTES,
 } from "@/lib/proposal-signature";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
-import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { buildProposalAcceptedClientEmail } from "@/lib/resend";
+import { buildProposalPdf } from "@/lib/proposal-pdf";
 
 // These actions are reachable by anyone holding a proposal link — there is
 // no login on this route at all. Two rules follow from that, and every
@@ -363,11 +364,32 @@ export async function acceptProposalByTokenAction(
         applyTemplateVars(template.intro, templateVars),
         applyTemplateVars(template.note, templateVars)
       );
+
+      // Reloaded fresh rather than reused from above: this needs
+      // accepted_at/accepted_by_name/the signature path and sections, none
+      // of which the pre-accept `proposal` row carries (it was read before
+      // any of today's updates). signatureBuffer itself is passed straight
+      // through instead of re-downloading it from storage - it's already
+      // decoded in memory, and a storage hiccup shouldn't be able to drop
+      // the signature from the client's own copy of what they just signed.
+      const attachments: SharedMailboxAttachment[] = [];
+      const acceptedProposal = await getProposal(proposal.id, admin);
+      if (acceptedProposal) {
+        const { pdf } = buildProposalPdf(acceptedProposal, signatureBuffer);
+        attachments.push({
+          filename: `${proposal.title} - Signed.pdf`,
+          contentBase64: pdf.toString("base64"),
+          contentType: "application/pdf",
+          isInline: false,
+        });
+      }
+
       await sendMailAsSharedMailbox(graphToken, mailboxEmail, {
         to: email,
         subject: applyTemplateVars(template.subject, templateVars),
         html,
         text,
+        attachments,
       });
     }
   } catch (err) {

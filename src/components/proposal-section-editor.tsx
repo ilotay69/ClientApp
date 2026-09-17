@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { InlineTextEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
 import type { ProposalSection } from "@/lib/proposal-data";
@@ -30,6 +30,16 @@ export function ProposalSectionEditor({
 }) {
   const [body, setBody] = useState(section.body ?? "");
   const [pending, startTransition] = useTransition();
+
+  // Re-syncs when the section's own body changes underneath this same
+  // component instance (same section id, so React reuses it rather than
+  // remounting) - without this, useState's initializer only ever ran once
+  // at mount, so text written by something else (the AI draft applying
+  // straight into this section, another tab) never showed up here even
+  // though the underlying row genuinely changed.
+  useEffect(() => {
+    setBody(section.body ?? "");
+  }, [section.body]);
 
   const saveBody = () => {
     if (body === (section.body ?? "")) return;

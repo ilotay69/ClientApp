@@ -8,7 +8,8 @@ import { getProposal, computeProposalBlockers } from "@/lib/proposal-data";
 import { formatProposalHeadline } from "@/lib/proposal-totals";
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { buildProposalEmail, buildProposalAcceptedClientEmail } from "@/lib/resend";
-import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
+import { buildProposalPdf } from "@/lib/proposal-pdf";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
@@ -936,11 +937,29 @@ export async function markProposalAcceptedByStaffAction(
           applyTemplateVars(template.intro, templateVars),
           applyTemplateVars(template.note, templateVars)
         );
+
+        // Reloaded fresh: `proposal` above was read before the update just
+        // above set accepted_at/accepted_by_name, so the PDF needs its own
+        // current copy. No signature to embed here - a phone acceptance has
+        // no drawn signature, only the staff member who recorded it.
+        const attachments: SharedMailboxAttachment[] = [];
+        const acceptedProposal = await getProposal(proposalId, admin);
+        if (acceptedProposal) {
+          const { pdf } = buildProposalPdf(acceptedProposal, null);
+          attachments.push({
+            filename: `${proposal.title} - Signed.pdf`,
+            contentBase64: pdf.toString("base64"),
+            contentType: "application/pdf",
+            isInline: false,
+          });
+        }
+
         await sendMailAsSharedMailbox(graphToken, mailboxEmail, {
           to: recipientEmail,
           subject: applyTemplateVars(template.subject, templateVars),
           html,
           text,
+          attachments,
         });
       }
     } catch (err) {
