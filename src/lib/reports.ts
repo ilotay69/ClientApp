@@ -1,5 +1,8 @@
 import { formatDate, humanizeLabel } from "@/lib/format";
-import { fetchClientHoursSummary } from "@/lib/resource-hours";
+import { fetchClientHoursSummary, fetchResourceHoursSummary, lastBusinessDayBefore, ymd } from "@/lib/resource-hours";
+import { fetchTimeEntriesForAnalysis } from "@/lib/time-entry-insights";
+import { fetchContractBlockHours } from "@/lib/contract-hours";
+import { fetchAgingOpenTickets } from "@/lib/ticket-aging";
 import type { AutotaskCredentials } from "@/lib/autotask";
 import { fetchForticloudDeviceInventory } from "@/lib/forticloud-lookups";
 import type { ForticloudCredentials } from "@/lib/forticloud";
@@ -163,6 +166,101 @@ export async function buildHoursSummaryReport(
   return {
     headers: ["Client", "Today", "Yesterday", "This week", "This month"],
     rows: rows.map((r) => [r.clientName, r.today.toFixed(1), r.yesterday.toFixed(1), r.thisWeek.toFixed(1), r.thisMonth.toFixed(1)]),
+  };
+}
+
+/** Per-resource version of the client summary above — same four columns,
+ * one row per Autotask resource instead of per client. Moved over from
+ * the Lookups page's "Resource Hours" tab; that tab's OTHER half (the
+ * flexible by-client-or-resource / N-days picker, HoursLookup) stays
+ * Lookups-only — it's parameterized by what the user picks, not a fixed
+ * dataset a static CSV download can represent. */
+export async function buildResourceHoursReport(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<ReportData> {
+  const rows = await fetchResourceHoursSummary(creds, zoneUrl);
+  return {
+    headers: ["Resource", "Today", "Yesterday", "This week", "This month"],
+    rows: rows.map((r) => [
+      r.resourceName,
+      r.today.toFixed(1),
+      r.yesterday.toFixed(1),
+      r.thisWeek.toFixed(1),
+      r.thisMonth.toFixed(1),
+    ]),
+  };
+}
+
+/** Every individual time entry from the last business day — "yesterday"
+ * meaning the last business day, same definition the Lookups tab used
+ * (a Monday shows Friday's entries, not Sunday's). Zero parameters, so
+ * it's a real report despite being date-scoped: the date itself isn't a
+ * user choice, it's always "the last business day as of now". */
+export async function buildYesterdayTimeEntriesReport(
+  admin: Supabase,
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<ReportData> {
+  const yesterdayStr = ymd(lastBusinessDayBefore(new Date()));
+  const entries = await fetchTimeEntriesForAnalysis(admin, creds, zoneUrl, yesterdayStr, yesterdayStr);
+  return {
+    headers: ["Client", "Resource", "Ticket #", "Hours", "Date", "Notes"],
+    rows: entries.map((e) => [
+      e.clientName,
+      e.resourceName,
+      e.ticketId,
+      e.hoursWorked.toFixed(2),
+      formatDate(e.dateWorked),
+      e.summaryNotes,
+    ]),
+  };
+}
+
+/** Prepaid/block hours remaining for every active Contract Block,
+ * account-wide — purchased vs. used vs. remaining. Distinct from
+ * "Block of hrs usage" (already in Reports): that one is a single
+ * client's block with its own line items and an email-to-client button;
+ * this is the account-wide summary across every client at once. */
+export async function buildContractBlockHoursReport(
+  admin: Supabase,
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<ReportData> {
+  const rows = await fetchContractBlockHours(admin, creds, zoneUrl);
+  return {
+    headers: ["Client", "Contract", "Purchased", "Used", "Remaining", "% used", "Start", "End"],
+    rows: rows.map((r) => [
+      r.clientName,
+      r.contractName,
+      r.purchased.toFixed(1),
+      r.used.toFixed(1),
+      r.remaining.toFixed(1),
+      `${Math.round(r.percentUsed)}%`,
+      formatDate(r.startDate),
+      formatDate(r.endDate),
+    ]),
+  };
+}
+
+/** Every open ticket account-wide, oldest/most-overdue first. */
+export async function buildAgingTicketsReport(
+  admin: Supabase,
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<ReportData> {
+  const rows = await fetchAgingOpenTickets(admin, creds, zoneUrl);
+  return {
+    headers: ["Client", "Ticket", "Queue", "Assigned to", "Days open", "Due date", "Overdue"],
+    rows: rows.map((r) => [
+      r.clientName,
+      r.title,
+      r.queueName,
+      r.assignedResourceName,
+      r.daysOpen,
+      r.dueDate ? formatDate(r.dueDate) : null,
+      r.isOverdue ? "Yes" : "No",
+    ]),
   };
 }
 

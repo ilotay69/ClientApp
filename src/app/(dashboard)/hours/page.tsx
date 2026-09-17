@@ -1,12 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
-import { ResourceHoursReport } from "@/components/resource-hours-report";
-import { YesterdayTimeEntries } from "@/components/yesterday-time-entries";
 import { HoursLookup } from "@/components/hours-lookup";
-import { ContractBlockHours } from "@/components/contract-block-hours";
-import { ContractUsageLookup } from "@/components/contract-usage-lookup";
-import { AgingOpenTickets } from "@/components/aging-open-tickets";
 import { TicketLookup } from "@/components/ticket-lookup";
 import { OfflineDevicesLookup } from "@/components/offline-devices-lookup";
 import { DiskAlertsLookup } from "@/components/disk-alerts-lookup";
@@ -28,14 +23,8 @@ import { ForticloudDevices } from "@/components/forticloud-devices";
 import { WizerTrainingMetrics } from "@/components/wizer-training-metrics";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import {
-  fetchResourceHoursAction,
-  fetchYesterdayTimeEntriesAction,
   fetchHoursByGroupAction,
   fetchNonBillableHoursByGroupAction,
-  fetchContractBlockHoursAction,
-  fetchContractUsageAction,
-  sendContractUsageReportAction,
-  fetchAgingOpenTicketsAction,
   searchAutotaskTicketsAction,
 } from "./actions";
 import {
@@ -84,7 +73,9 @@ export default async function HoursPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Lookups</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Time logged in Autotask, by resource — today, yesterday, this week, and this month.
+          Interactive tools you drive yourself — pick a client, a date range, or type a search —
+          rather than a fixed dataset. For a fixed report you can preview and download as a CSV,
+          see Reports instead.
         </p>
       </div>
 
@@ -93,18 +84,15 @@ export default async function HoursPage() {
           {
             group: "Autotask",
             tabs: [
+              // The fixed per-resource today/yesterday/week/month table that
+              // used to sit above this (ResourceHoursReport) moved to
+              // Reports → "Resource hours" — it had zero parameters, so it's
+              // a real report. This tool stays here because it isn't one:
+              // groupBy and days are picked live, so there's no fixed
+              // dataset a static CSV download could represent.
               {
-                label: "Resource Hours",
-                content: (
-                  <div className="space-y-6">
-                    <ResourceHoursReport action={fetchResourceHoursAction} />
-                    <HoursLookup key="by-client-or-resource" action={fetchHoursByGroupAction} />
-                  </div>
-                ),
-              },
-              {
-                label: "Yesterday's Entries",
-                content: <YesterdayTimeEntries action={fetchYesterdayTimeEntriesAction} />,
+                label: "Hours by Group",
+                content: <HoursLookup key="by-client-or-resource" action={fetchHoursByGroupAction} />,
               },
               {
                 label: "Non-Billable Hours",
@@ -116,24 +104,6 @@ export default async function HoursPage() {
                     subtitle="Hours logged as non-billable in Autotask over a range you pick — live, nothing stored."
                   />
                 ),
-              },
-              {
-                label: "Block Hours",
-                content: <ContractBlockHours action={fetchContractBlockHoursAction} />,
-              },
-              {
-                label: "Block of hrs usage",
-                content: (
-                  <ContractUsageLookup
-                    clients={autotaskClients ?? []}
-                    action={fetchContractUsageAction}
-                    sendAction={sendContractUsageReportAction}
-                  />
-                ),
-              },
-              {
-                label: "Aging Tickets",
-                content: <AgingOpenTickets action={fetchAgingOpenTicketsAction} />,
               },
               {
                 label: "Ticket Lookup",

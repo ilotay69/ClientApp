@@ -14,7 +14,12 @@ import {
   buildForticloudDevicesReport,
   buildBitdefenderEndpointsReport,
   buildWizerMetricsReport,
+  buildResourceHoursReport,
+  buildYesterdayTimeEntriesReport,
+  buildContractBlockHoursReport,
+  buildAgingTicketsReport,
   type ReportCell,
+  type ReportData,
 } from "@/lib/reports";
 
 export type ReportKey =
@@ -24,7 +29,11 @@ export type ReportKey =
   | "hours"
   | "forticloud"
   | "bitdefender_endpoints"
-  | "wizer_metrics";
+  | "wizer_metrics"
+  | "resource_hours"
+  | "yesterday_entries"
+  | "block_hours"
+  | "aging_tickets";
 
 export type ReportPreview = {
   headers: string[];
@@ -35,10 +44,34 @@ export type ReportPreview = {
 
 const PREVIEW_LIMIT = 50;
 
+/** Forces a compile error if a switch over ReportKey ever leaves a key
+ * unhandled — `key` can only narrow to `never` here if every other case
+ * already claimed its literal. Without this, an unhandled key at runtime
+ * would leave `data` undefined and crash on `data.headers` below instead
+ * of failing at build time when the key was added. */
+function assertUnreachable(key: never): never {
+  throw new Error(`Unhandled report key: ${key}`);
+}
+
+/** "Autotask isn't connected" is the same guard for every Autotask-backed
+ * report below — pulled out so each case is one line instead of repeating
+ * the same three. Returns null (and the caller should bail) when it's not
+ * set up. */
+async function requireAutotaskSettings(admin: ReturnType<typeof createAdminClient>) {
+  const settings = await getAutotaskSettings(admin);
+  return settings?.zoneUrl ? settings : null;
+}
+
 /** Same query/column logic each CSV download route uses (see
  * src/lib/reports.ts) — capped to a preview window so a large export
  * doesn't mean rendering thousands of table rows just to look at it
- * before deciding to download. */
+ * before deciding to download.
+ *
+ * A switch, not if/else-if — with this many report keys now (and more
+ * being added over several stages), a chain ending in a bare `else` would
+ * silently misroute the moment a key was added without an explicit branch.
+ * Each case is required to return or fall through to the shared handling
+ * below; TypeScript flags an unhandled ReportKey as a type error here. */
 export async function getReportPreviewAction(key: ReportKey): Promise<ReportPreview | { error: string }> {
   const supabase = await createClient();
   if (!(await hasPermission(supabase, "view_team_wide"))) {
@@ -46,45 +79,83 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
   }
 
   try {
-    let data;
-    if (key === "clients") {
-      data = await buildClientRosterReport(supabase);
-    } else if (key === "devices") {
-      data = await buildDeviceInventoryReport(supabase);
-    } else if (key === "tickets") {
-      data = await buildOpenTicketsReport(supabase);
-    } else if (key === "hours") {
-      const admin = createAdminClient();
-      const settings = await getAutotaskSettings(admin);
-      if (!settings?.zoneUrl) {
-        return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+    let data: ReportData;
+    switch (key) {
+      case "clients":
+        data = await buildClientRosterReport(supabase);
+        break;
+      case "devices":
+        data = await buildDeviceInventoryReport(supabase);
+        break;
+      case "tickets":
+        data = await buildOpenTicketsReport(supabase);
+        break;
+      case "hours": {
+        const admin = createAdminClient();
+        const settings = await requireAutotaskSettings(admin);
+        if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildHoursSummaryReport(admin, settings.credentials, settings.zoneUrl);
+        break;
       }
-      data = await buildHoursSummaryReport(admin, settings.credentials, settings.zoneUrl);
-    } else if (key === "forticloud") {
-      const admin = createAdminClient();
-      const { data: rows } = await admin.from("forticloud_accounts").select("label, api_user, api_password");
-      if (!rows || rows.length === 0) {
-        return { error: "No FortiCloud accounts configured yet — add one under Settings → Integrations." };
+      case "resource_hours": {
+        const admin = createAdminClient();
+        const settings = await requireAutotaskSettings(admin);
+        if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildResourceHoursReport(settings.credentials, settings.zoneUrl);
+        break;
       }
-      const accounts = rows.map((r) => ({
-        label: r.label,
-        creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
-      }));
-      data = await buildForticloudDevicesReport(accounts);
-    } else if (key === "bitdefender_endpoints") {
-      const admin = createAdminClient();
-      const settings = await getBitdefenderSettings(admin);
-      if (!settings) {
-        return { error: "Bitdefender GravityZone isn't connected yet — set it up under Settings → Integrations." };
+      case "yesterday_entries": {
+        const admin = createAdminClient();
+        const settings = await requireAutotaskSettings(admin);
+        if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildYesterdayTimeEntriesReport(admin, settings.credentials, settings.zoneUrl);
+        break;
       }
-      data = await buildBitdefenderEndpointsReport(settings);
-    } else {
-      const admin = createAdminClient();
-      const settings = await getWizerSettings(admin);
-      if (!settings) {
-        return { error: "Wizer isn't connected yet — set it up under Settings → Integrations." };
+      case "block_hours": {
+        const admin = createAdminClient();
+        const settings = await requireAutotaskSettings(admin);
+        if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildContractBlockHoursReport(admin, settings.credentials, settings.zoneUrl);
+        break;
       }
-      data = await buildWizerMetricsReport(settings);
+      case "aging_tickets": {
+        const admin = createAdminClient();
+        const settings = await requireAutotaskSettings(admin);
+        if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildAgingTicketsReport(admin, settings.credentials, settings.zoneUrl);
+        break;
+      }
+      case "forticloud": {
+        const admin = createAdminClient();
+        const { data: rows } = await admin.from("forticloud_accounts").select("label, api_user, api_password");
+        if (!rows || rows.length === 0) {
+          return { error: "No FortiCloud accounts configured yet — add one under Settings → Integrations." };
+        }
+        const accounts = rows.map((r: { label: string; api_user: string; api_password: string }) => ({
+          label: r.label,
+          creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
+        }));
+        data = await buildForticloudDevicesReport(accounts);
+        break;
+      }
+      case "bitdefender_endpoints": {
+        const admin = createAdminClient();
+        const settings = await getBitdefenderSettings(admin);
+        if (!settings) {
+          return { error: "Bitdefender GravityZone isn't connected yet — set it up under Settings → Integrations." };
+        }
+        data = await buildBitdefenderEndpointsReport(settings);
+        break;
+      }
+      case "wizer_metrics": {
+        const admin = createAdminClient();
+        const settings = await getWizerSettings(admin);
+        if (!settings) return { error: "Wizer isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildWizerMetricsReport(settings);
+        break;
+      }
+      default:
+        return assertUnreachable(key);
     }
 
     return {

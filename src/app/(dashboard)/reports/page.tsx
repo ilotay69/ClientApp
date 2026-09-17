@@ -31,6 +31,35 @@ const HOURS_SUMMARY: ReportDefinition = {
   description: "Today/yesterday/week/month logged hours per client, live from Autotask.",
 };
 
+const RESOURCE_HOURS: ReportDefinition = {
+  key: "resource_hours",
+  downloadHref: "/api/reports/resource-hours",
+  title: "Resource hours",
+  description: "Today/yesterday/week/month logged hours per resource (technician), live from Autotask.",
+};
+
+const YESTERDAY_ENTRIES: ReportDefinition = {
+  key: "yesterday_entries",
+  downloadHref: "/api/reports/yesterday-entries",
+  title: "Yesterday's time entries",
+  description: "Every individual time entry from the last business day, live from Autotask.",
+};
+
+const BLOCK_HOURS: ReportDefinition = {
+  key: "block_hours",
+  downloadHref: "/api/reports/block-hours",
+  title: "Block hours remaining",
+  description:
+    "Purchased/used/remaining for every active Contract Block, account-wide — for a single client's own usage with an email-to-client option, use Block of hrs usage below instead.",
+};
+
+const AGING_TICKETS: ReportDefinition = {
+  key: "aging_tickets",
+  downloadHref: "/api/reports/aging-tickets",
+  title: "Aging tickets",
+  description: "Every open Autotask ticket account-wide, oldest/most-overdue first.",
+};
+
 const DEVICE_INVENTORY: ReportDefinition = {
   key: "devices",
   downloadHref: "/api/reports/devices",
@@ -106,6 +135,18 @@ export default async function ReportsPage() {
                 content: <ReportPreviewPanel report={HOURS_SUMMARY} previewAction={getReportPreviewAction} />,
               },
               {
+                label: RESOURCE_HOURS.title,
+                content: <ReportPreviewPanel report={RESOURCE_HOURS} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: YESTERDAY_ENTRIES.title,
+                content: <ReportPreviewPanel report={YESTERDAY_ENTRIES} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: BLOCK_HOURS.title,
+                content: <ReportPreviewPanel report={BLOCK_HOURS} previewAction={getReportPreviewAction} />,
+              },
+              {
                 label: "Block of hrs usage",
                 content: (
                   <ContractUsageLookup
@@ -114,6 +155,10 @@ export default async function ReportsPage() {
                     sendAction={sendContractUsageReportAction}
                   />
                 ),
+              },
+              {
+                label: AGING_TICKETS.title,
+                content: <ReportPreviewPanel report={AGING_TICKETS} previewAction={getReportPreviewAction} />,
               },
             ],
           },
