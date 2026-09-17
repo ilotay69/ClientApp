@@ -80,6 +80,12 @@ export type Proposal = {
   acceptedByName: string | null;
   acceptedByEmail: string | null;
   acceptedVia: string | null;
+  /** Staff-only tracking flag, separate from status — checked once
+   * fulfillment/onboarding actually starts. Moves the proposal from the
+   * "Accepted" tab to its own "Processing Internally" tab on the list
+   * page; doesn't affect the client-facing side at all. See migration
+   * 138 and setProposalProcessingInternallyAction. */
+  processingInternally: boolean;
   /** What was actually agreed to, snapshotted at the moment of acceptance
    * — independent of whatever the line items say now. Null until
    * accepted. See acceptProposalByTokenAction / migration 131. */
@@ -123,6 +129,7 @@ export type ProposalListItem = {
   lastViewedAt: string | null;
   viewCount: number;
   acceptedAt: string | null;
+  processingInternally: boolean;
   updatedAt: string;
   totals: ProposalTotals;
 };
@@ -163,7 +170,8 @@ const PROPOSAL_COLUMNS = `
   last_viewed_at, view_count, accepted_at, accepted_by_name,
   accepted_by_email, accepted_via, accepted_total_amount, accepted_tax_amount,
   accepted_tax_rate, accepted_ip, accepted_user_agent,
-  accept_authority_confirmed, accepted_signature_path, declined_at, decline_reason,
+  accept_authority_confirmed, accepted_signature_path, processing_internally,
+  declined_at, decline_reason,
   reminder_count, last_reminder_at, created_at, updated_at
 `;
 
@@ -330,6 +338,7 @@ export async function getProposal(
     acceptedUserAgent: data.accepted_user_agent ?? null,
     acceptAuthorityConfirmed: Boolean(data.accept_authority_confirmed),
     acceptedSignaturePath: data.accepted_signature_path ?? null,
+    processingInternally: Boolean(data.processing_internally),
     declinedAt: data.declined_at ?? null,
     declineReason: data.decline_reason ?? null,
     reminderCount: data.reminder_count ?? 0,
@@ -366,7 +375,7 @@ export async function listProposals(
     .from("proposals")
     .select(
       `id, proposal_number, client_id, prospect_company, title, status, currency, valid_until,
-       sent_at, first_viewed_at, last_viewed_at, view_count, accepted_at,
+       sent_at, first_viewed_at, last_viewed_at, view_count, accepted_at, processing_internally,
        updated_at, clients(name), owner_profile:owner_id(full_name)`
     )
     .order("updated_at", { ascending: false });
@@ -429,6 +438,7 @@ export async function listProposals(
       lastViewedAt: (row.last_viewed_at as string) ?? null,
       viewCount: (row.view_count as number) ?? 0,
       acceptedAt: (row.accepted_at as string) ?? null,
+      processingInternally: Boolean(row.processing_internally),
       updatedAt: row.updated_at as string,
       totals: computeProposalTotals(toTotalsInput(items)),
     };

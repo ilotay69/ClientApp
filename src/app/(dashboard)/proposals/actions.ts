@@ -1015,6 +1015,31 @@ export async function revokeProposalLinkAction(proposalId: string): Promise<Prop
   return { ok: true, message: "Link revoked. Anyone who opens it now sees an invalid-link page." };
 }
 
+/** Staff-only tracking, independent of the client-facing status — checked
+ * once fulfillment/onboarding actually starts on an accepted proposal.
+ * Guarded on status = 'accepted' since that's the only state the
+ * Processing Internally tab (and the checkbox itself) ever applies to. */
+export async function setProposalProcessingInternallyAction(
+  proposalId: string,
+  checked: boolean
+): Promise<ProposalActionState> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return DENIED;
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("proposals")
+    .update({ processing_internally: checked })
+    .eq("id", proposalId)
+    .eq("status", "accepted")
+    .select("id")
+    .maybeSingle();
+
+  if (!data) return { ok: false, message: "Only an accepted proposal can be marked as processing." };
+  revalidateProposal(proposalId);
+  return { ok: true, message: checked ? "Marked as processing internally." : "Unmarked." };
+}
+
 /** The raw open log behind the "opened 4 times" pill — loaded on demand
  * rather than with the page, since it's only ever looked at when someone is
  * specifically arguing about whether a proposal was received. */

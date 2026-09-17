@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
-import { listProposals, type ProposalListFilters } from "@/lib/proposal-data";
+import { listProposals, type ProposalListItem } from "@/lib/proposal-data";
 import { ProposalListRow } from "@/components/proposal-list-row";
 import { NewProposalPanel } from "@/components/new-proposal-panel";
 import { SearchBox } from "@/components/search-box";
@@ -14,8 +14,11 @@ export const dynamic = "force-dynamic";
 const BUCKETS = [
   { value: "open", label: "Open" },
   { value: "accepted", label: "Accepted" },
+  { value: "processing_internally", label: "Processing Internally" },
   { value: "closed", label: "Closed" },
 ] as const;
+
+type Bucket = (typeof BUCKETS)[number]["value"];
 
 export default async function ProposalsPage({
   searchParams,
@@ -28,8 +31,7 @@ export default async function ProposalsPage({
   if (!(await hasPermission(supabase, "view_proposals"))) redirect("/dashboard");
   const canManage = await hasPermission(supabase, "manage_proposals");
 
-  const bucket = (BUCKETS.find((b) => b.value === rawBucket)?.value ??
-    "open") as ProposalListFilters["bucket"];
+  const bucket = (BUCKETS.find((b) => b.value === rawBucket)?.value ?? "open") as Bucket;
 
   // Fetched once without the bucket filter and split here, rather than one
   // query for the visible rows plus another for the tab counts — the search
@@ -40,13 +42,17 @@ export default async function ProposalsPage({
     supabase.from("clients").select("id, name").order("name"),
   ]);
 
-  const bucketOf = (status: string) => {
-    if (status === "draft" || status === "sent") return "open";
-    if (status === "accepted") return "accepted";
+  // Processing Internally is a sub-split of "accepted", not a real status
+  // (see migration 138) — an accepted proposal is either still just
+  // "accepted" or has been flagged as being worked on internally, never
+  // both tabs at once.
+  const bucketOf = (p: Pick<ProposalListItem, "status" | "processingInternally">): Bucket => {
+    if (p.status === "draft" || p.status === "sent") return "open";
+    if (p.status === "accepted") return p.processingInternally ? "processing_internally" : "accepted";
     return "closed";
   };
-  const proposals = all.filter((p) => bucketOf(p.status) === bucket);
-  const countFor = (value: string) => all.filter((p) => bucketOf(p.status) === value).length;
+  const proposals = all.filter((p) => bucketOf(p) === bucket);
+  const countFor = (value: Bucket) => all.filter((p) => bucketOf(p) === value).length;
 
   return (
     <div className="space-y-6">

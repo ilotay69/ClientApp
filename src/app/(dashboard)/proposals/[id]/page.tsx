@@ -10,6 +10,7 @@ import { ProposalPricingTable } from "@/components/proposal-pricing-table";
 import { InlineDateEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
 import { ProposalSendPanel } from "@/components/proposal-send-panel";
+import { ProposalProcessingCheckbox } from "@/components/proposal-processing-checkbox";
 import { ProposalAiDraft } from "@/components/proposal-ai-draft";
 import { ProposalBrochurePicker } from "@/components/proposal-brochure-picker";
 import { fetchProposalBrochures, fetchLinkedBrochureIds } from "@/lib/proposal-brochures";
@@ -39,6 +40,7 @@ import {
   withdrawProposalAction,
   reviseProposalAction,
   revokeProposalLinkAction,
+  setProposalProcessingInternallyAction,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -211,6 +213,13 @@ export default async function ProposalDetailPage({
                 <Detail label="Accepted">
                   {formatDate(proposal.acceptedAt)}
                   {proposal.acceptedByName ? ` by ${proposal.acceptedByName}` : ""}
+                  {canManage && (
+                    <ProposalProcessingCheckbox
+                      proposalId={proposal.id}
+                      initialChecked={proposal.processingInternally}
+                      action={setProposalProcessingInternallyAction}
+                    />
+                  )}
                 </Detail>
               )}
               {proposal.acceptedAt && proposal.acceptedTotalAmount !== null && (
