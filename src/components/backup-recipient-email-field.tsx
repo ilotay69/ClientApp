@@ -58,7 +58,7 @@ export function BackupRecipientEmailField({
         }
       }}
       placeholder="ops@cgtechnologies.com"
-      className="w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+      className="w-full sm:w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
     />
   );
 }

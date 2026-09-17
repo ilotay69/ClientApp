@@ -122,7 +122,7 @@ export function ClientMappingTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search clients…"
-          className="w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+          className="w-full sm:w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
         />
         <div className="flex gap-1">
           {FILTERS.map((f) => (

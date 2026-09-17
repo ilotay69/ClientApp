@@ -87,12 +87,12 @@ export function SalesRequestRow({
             setExpanded((prev) => !prev);
           }
         }}
-        className="flex w-full cursor-pointer items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
+        className="flex w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left hover:bg-slate-50 sm:flex-nowrap sm:px-5"
       >
         <span className="w-24 shrink-0 text-xs text-slate-500">{formatDate(request.created_at)}</span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{clientName ?? "Internal"}</span>
         <span className="w-32 shrink-0 truncate text-sm text-slate-700">{assigneeName ?? "—"}</span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+        <span className="order-first w-full min-w-0 truncate text-sm font-medium text-slate-900 sm:order-none sm:w-auto sm:flex-1">
           {request.title}
         </span>
         <span className="shrink-0" onClick={(e) => e.stopPropagation()}>

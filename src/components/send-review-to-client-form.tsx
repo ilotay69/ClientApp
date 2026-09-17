@@ -39,7 +39,7 @@ export function SendReviewToClientForm({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="client@example.com"
-        className="w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+        className="w-full sm:w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
       />
       <button
         type="button"

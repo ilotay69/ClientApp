@@ -221,7 +221,7 @@ export function SidebarNav({
         href={item.href}
         onClick={() => setMobileOpen(false)}
         aria-current={active ? "page" : undefined}
-        className={`flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+        className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors md:py-1.5 ${
           active
             ? "bg-brand text-white"
             : "text-white/70 hover:bg-white/10 hover:text-white"
@@ -310,7 +310,7 @@ export function SidebarNav({
       {/* Mobile top bar — safe-top keeps the title and menu button clear of
           the iOS status bar, which draws over the app when it's installed
           (appleWebApp.statusBarStyle is black-translucent). */}
-      <div className="safe-top safe-x flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
+      <div className="safe-top safe-x sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
         <span className="text-sm font-semibold text-charcoal">
           <span className="text-brand">CG</span> Ops
         </span>
@@ -332,7 +332,7 @@ export function SidebarNav({
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 left-0 w-72 shadow-xl">{sidebarContent}</div>
+          <div className="absolute inset-y-0 left-0 w-[min(80vw,18rem)] shadow-xl">{sidebarContent}</div>
         </div>
       )}
 

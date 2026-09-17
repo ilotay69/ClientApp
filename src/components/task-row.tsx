@@ -100,6 +100,12 @@ export function TaskRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteState]);
 
+  // The fixed meta columns in the summary row below (due/client/project/
+  // person) need ~560px before the title even starts, which doesn't fit a
+  // phone. Rather than hiding the due date or client on mobile, the row
+  // wraps: the title takes the first line on its own and the rest flows
+  // underneath it. From sm up it's the single non-wrapping row it's always
+  // been.
   return (
     <div className="border-b border-slate-100 last:border-b-0">
       <div
@@ -112,7 +118,7 @@ export function TaskRow({
             setExpanded((prev) => !prev);
           }
         }}
-        className="flex w-full cursor-pointer items-center gap-3 px-5 py-2 text-left hover:bg-slate-50"
+        className="flex w-full cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left hover:bg-slate-50 sm:flex-nowrap sm:px-5"
       >
         <span className="w-24 shrink-0 text-xs text-slate-500">
           {task.due_date ? formatDate(task.due_date) : "—"}
@@ -126,7 +132,7 @@ export function TaskRow({
         {personLabel && (
           <span className="w-32 shrink-0 truncate text-sm text-slate-700">{personLabel}</span>
         )}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
+        <span className="order-first w-full min-w-0 truncate text-sm font-medium text-slate-900 sm:order-none sm:w-auto sm:flex-1">
           {task.title}
         </span>
         <span className="flex shrink-0 items-center gap-2">

@@ -207,7 +207,7 @@ export function BlockHoursReportSubscriptionsPanel({
             name="cc_email"
             defaultValue={currentCcEmail ?? ""}
             placeholder="e.g. accounts@cgtechnologies.com"
-            className="mt-1 w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+            className="mt-1 w-full sm:w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
           />
           <p className="mt-1 text-xs text-slate-500">
             One address (or a comma-separated list) CC'd on every report this list sends —
@@ -311,7 +311,7 @@ export function BlockHoursReportSubscriptionsPanel({
               onChange={(e) => setToEmail(e.target.value)}
               required
               placeholder="client@example.com, another@example.com"
-              className="mt-1 w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+              className="mt-1 w-full sm:w-72 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
             />
             <p className="mt-1 text-xs text-slate-500">Separate multiple addresses with a comma or semicolon.</p>
           </div>

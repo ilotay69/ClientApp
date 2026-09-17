@@ -189,7 +189,7 @@ export default async function MyToDoPage({
       <TaskQuickAdd clients={clients ?? []} projects={[]} members={[]} action={createTask} personal />
 
       <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-50 px-3 py-2 sm:flex-nowrap sm:px-5">
           <SortableColumnHeader label="Due" field="due_date" activeField={sortField} activeDir={sortDir} hrefFor={sortHrefFor} className="w-24" />
           <SortableColumnHeader label="Client" field="client" activeField={sortField} activeDir={sortDir} hrefFor={sortHrefFor} className="w-32" />
           <SortableColumnHeader label="Title" field="title" activeField={sortField} activeDir={sortDir} hrefFor={sortHrefFor} className="min-w-0 flex-1" />

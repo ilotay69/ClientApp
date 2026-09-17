@@ -40,7 +40,7 @@ export function NordLayerSettingsForm({
         </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
         {state.success && <p className="text-sm text-emerald-700">{state.success}</p>}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
             disabled={pending}

@@ -24,7 +24,7 @@ export function MyAutotaskResourceForm({
         <select
           name="autotask_resource_id"
           defaultValue={currentResourceId != null ? String(currentResourceId) : ""}
-          className="mt-1 w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+          className="mt-1 w-full sm:w-64 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
         >
           <option value="">Not set — match by name instead</option>
           {resources.map((r) => (

@@ -52,7 +52,7 @@ export function HuntressMappingButton({
       </button>
 
       {expanded && (
-        <div className="absolute right-0 z-20 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
+        <div className="absolute right-0 z-20 mt-2 w-[min(90vw,20rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
           <p className="text-sm text-slate-500">Search for this client&apos;s Huntress organization.</p>
           <div className="mt-2 flex gap-2">
             <input

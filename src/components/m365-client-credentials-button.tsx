@@ -37,7 +37,7 @@ export function M365ClientCredentialsButton({
       </button>
 
       {expanded && (
-        <div className="absolute right-0 z-20 mt-2 w-96 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
+        <div className="absolute right-0 z-20 mt-2 w-[min(90vw,24rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
           <p className="text-sm text-slate-500">
             Enter this client&apos;s own Microsoft 365 app registration — created and consented by
             their admin, in their own tenant.
