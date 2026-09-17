@@ -26,6 +26,7 @@ import {
   IconClipboardCheck,
   IconSliders,
   IconFileText,
+  IconNetwork,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -161,6 +162,16 @@ export function SidebarNav({
             href: "/settings/integrations",
             label: "Integrations",
             icon: IconSparkles,
+            ownerOnly: integrationsOwnerOnly,
+          },
+          // Same gate as Integrations (linking a client's NinjaOne org/M365
+          // tenant/Huntress org is the same kind of wiring) — its own top-
+          // level link instead of a tab on Integrations since it's a
+          // frequent, standalone task (onboarding a new client).
+          {
+            href: "/settings/client-mapping",
+            label: "Client Mapping",
+            icon: IconNetwork,
             ownerOnly: integrationsOwnerOnly,
           },
         ]

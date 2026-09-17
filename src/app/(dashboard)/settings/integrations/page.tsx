@@ -17,19 +17,7 @@ import { SharedMailboxSettingsForm } from "@/components/shared-mailbox-settings-
 import { QuarterlyReviewReminderSettingsForm } from "@/components/quarterly-review-reminder-settings-form";
 import { EmailTemplateForm } from "@/components/email-template-form";
 import { BlockHoursReportSubscriptionsPanel } from "@/components/block-hours-report-subscriptions-panel";
-import { ClientMappingTable, type ClientMappingRow } from "@/components/client-mapping-table";
 import { GroupedTabs } from "@/components/grouped-tabs";
-import {
-  searchNinjaOneOrganizationsAction,
-  linkClientNinjaOneOrganization,
-  unlinkClientNinjaOneOrganization,
-  saveM365ClientCredentialsAction,
-  testM365ClientConnectionAction,
-  unlinkClientM365Tenant,
-  searchHuntressOrganizationsAction,
-  linkClientHuntressOrganization,
-  unlinkClientHuntressOrganization,
-} from "@/app/(dashboard)/clients/actions";
 import { EMAIL_TEMPLATES, getEmailTemplate } from "@/lib/email-templates";
 import {
   saveAiProviderSettings,
@@ -106,8 +94,6 @@ export default async function IntegrationsSettingsPage({
     { data: blockHoursSubscriptionRows },
     { data: autotaskClientsForBlockHours },
     { data: blockHoursReportSettingsRow },
-    { data: mappingClientRows },
-    { data: m365CredentialRows },
   ] = await Promise.all([
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
@@ -149,18 +135,6 @@ export default async function IntegrationsSettingsPage({
       .not("autotask_company_id", "is", null)
       .order("name"),
     admin.from("block_hours_report_settings").select("cc_email").eq("id", true).maybeSingle(),
-    // Every client, not just Autotask-linked ones — a client with no
-    // NinjaOne/365 mapping yet is precisely what the Client Mapping tab
-    // exists to surface, so filtering any of them out would hide the work.
-    admin
-      .from("clients")
-      .select("id, name, ninjaone_organization_id, m365_tenant_id, huntress_organization_id")
-      .order("name"),
-    // m365_client_credentials is service-role only and keyed by client_id,
-    // so credential presence can't come from the clients select above.
-    // app_client_id only (never the secret) — the form just needs to show
-    // which id is on file so someone can tell whether it's the right one.
-    admin.from("m365_client_credentials").select("client_id, app_client_id"),
   ]);
 
   type ProviderRow = {
@@ -188,37 +162,14 @@ export default async function IntegrationsSettingsPage({
     };
   });
 
-  type MappingClientRow = {
-    id: string;
-    name: string;
-    ninjaone_organization_id: number | null;
-    m365_tenant_id: string | null;
-    huntress_organization_id: number | null;
-  };
-  const m365AppClientIdByClientId = new Map<string, string | null>(
-    ((m365CredentialRows ?? []) as { client_id: string; app_client_id: string | null }[]).map((r) => [
-      r.client_id,
-      r.app_client_id,
-    ])
-  );
-  const clientMappingRows: ClientMappingRow[] = ((mappingClientRows ?? []) as MappingClientRow[]).map((c) => ({
-    id: c.id,
-    name: c.name,
-    ninjaoneOrganizationId: c.ninjaone_organization_id,
-    m365TenantId: c.m365_tenant_id,
-    hasM365Credentials: Boolean(m365AppClientIdByClientId.get(c.id)),
-    m365AppClientId: m365AppClientIdByClientId.get(c.id) ?? null,
-    huntressOrganizationId: c.huntress_organization_id,
-  }));
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Integrations</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Connect the AI provider that powers the dashboard&apos;s Insights
-          feed, and external tools like Autotask. Each client&apos;s own
-          NinjaOne organization and Microsoft 365 tenant are linked under
-          Client Mapping.
+          Connect the AI provider that powers the dashboard&apos;s Insights feed, and external
+          tools like Autotask. Each client&apos;s own NinjaOne organization, Microsoft 365
+          tenant, and Huntress organization are linked under Settings → Client Mapping.
         </p>
       </div>
 
@@ -307,28 +258,6 @@ export default async function IntegrationsSettingsPage({
                     lastSyncErrorAt={sharedMailboxRow?.last_sync_error_at ?? null}
                     testAction={testSharedMailboxConnectionAction}
                     syncAction={syncSharedMailboxNowAction}
-                  />
-                ),
-              },
-            ],
-          },
-          {
-            group: "Client Mapping",
-            tabs: [
-              {
-                label: "NinjaOne, 365 & Huntress",
-                content: (
-                  <ClientMappingTable
-                    rows={clientMappingRows}
-                    searchNinjaOneAction={searchNinjaOneOrganizationsAction}
-                    linkNinjaOneAction={linkClientNinjaOneOrganization}
-                    unlinkNinjaOneAction={unlinkClientNinjaOneOrganization}
-                    saveM365Action={saveM365ClientCredentialsAction}
-                    testM365Action={testM365ClientConnectionAction}
-                    unlinkM365Action={unlinkClientM365Tenant}
-                    searchHuntressAction={searchHuntressOrganizationsAction}
-                    linkHuntressAction={linkClientHuntressOrganization}
-                    unlinkHuntressAction={unlinkClientHuntressOrganization}
                   />
                 ),
               },
