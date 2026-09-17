@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { getBitdefenderSettings } from "@/lib/bitdefender-settings";
 import { getWizerSettings } from "@/lib/wizer-settings";
+import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
 import type { ForticloudCredentials } from "@/lib/forticloud";
 import {
   buildClientRosterReport,
@@ -18,6 +19,12 @@ import {
   buildYesterdayTimeEntriesReport,
   buildContractBlockHoursReport,
   buildAgingTicketsReport,
+  buildOfflineDevicesReport,
+  buildDiskAlertsReport,
+  buildAgingHardwareReport,
+  buildOsEolReport,
+  buildAntivirusAlertsReport,
+  buildMissingPatchesReport,
   type ReportCell,
   type ReportData,
 } from "@/lib/reports";
@@ -33,7 +40,13 @@ export type ReportKey =
   | "resource_hours"
   | "yesterday_entries"
   | "block_hours"
-  | "aging_tickets";
+  | "aging_tickets"
+  | "offline_devices"
+  | "disk_alerts"
+  | "aging_hardware"
+  | "os_eol"
+  | "antivirus_alerts"
+  | "missing_patches";
 
 export type ReportPreview = {
   headers: string[];
@@ -123,6 +136,34 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
         const settings = await requireAutotaskSettings(admin);
         if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
         data = await buildAgingTicketsReport(admin, settings.credentials, settings.zoneUrl);
+        break;
+      }
+      case "offline_devices":
+        data = await buildOfflineDevicesReport(createAdminClient());
+        break;
+      case "disk_alerts":
+        data = await buildDiskAlertsReport(createAdminClient());
+        break;
+      case "aging_hardware":
+        data = await buildAgingHardwareReport(createAdminClient());
+        break;
+      case "os_eol":
+        data = await buildOsEolReport(createAdminClient());
+        break;
+      case "antivirus_alerts": {
+        const admin = createAdminClient();
+        const settings = await getNinjaOneSettings(admin);
+        if (!settings) return { error: "NinjaOne isn't connected yet — set it up under Settings → Integrations." };
+        const token = await getValidNinjaOneToken(admin, settings);
+        data = await buildAntivirusAlertsReport(admin, settings.credentials, token);
+        break;
+      }
+      case "missing_patches": {
+        const admin = createAdminClient();
+        const settings = await getNinjaOneSettings(admin);
+        if (!settings) return { error: "NinjaOne isn't connected yet — set it up under Settings → Integrations." };
+        const token = await getValidNinjaOneToken(admin, settings);
+        data = await buildMissingPatchesReport(admin, settings.credentials, token);
         break;
       }
       case "forticloud": {

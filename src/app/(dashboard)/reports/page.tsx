@@ -68,6 +68,48 @@ const DEVICE_INVENTORY: ReportDefinition = {
     "Every NinjaOne-synced device across all clients — OS, status, hardware age. As current as each client's last NinjaOne sync.",
 };
 
+const OFFLINE_DEVICES: ReportDefinition = {
+  key: "offline_devices",
+  downloadHref: "/api/reports/offline-devices",
+  title: "Offline devices",
+  description: "Every offline device across all clients, from the last NinjaOne sync.",
+};
+
+const DISK_ALERTS: ReportDefinition = {
+  key: "disk_alerts",
+  downloadHref: "/api/reports/disk-alerts",
+  title: "Disk alerts",
+  description: "Every device account-wide over the disk-usage alert threshold, from the last NinjaOne sync.",
+};
+
+const AGING_HARDWARE: ReportDefinition = {
+  key: "aging_hardware",
+  downloadHref: "/api/reports/aging-hardware",
+  title: "Aging hardware",
+  description: "Every device account-wide by hardware age, from the last NinjaOne sync.",
+};
+
+const OS_EOL: ReportDefinition = {
+  key: "os_eol",
+  downloadHref: "/api/reports/os-eol",
+  title: "OS end-of-life",
+  description: "Every device account-wide running an OS approaching or past its end-of-life date.",
+};
+
+const ANTIVIRUS_ALERTS: ReportDefinition = {
+  key: "antivirus_alerts",
+  downloadHref: "/api/reports/antivirus-alerts",
+  title: "Antivirus alerts",
+  description: "Every device account-wide whose antivirus isn't actively protecting it, live from NinjaOne.",
+};
+
+const MISSING_PATCHES: ReportDefinition = {
+  key: "missing_patches",
+  downloadHref: "/api/reports/missing-patches",
+  title: "Missing patches",
+  description: "Every device account-wide with a missing patch, live from NinjaOne.",
+};
+
 const FORTICLOUD_DEVICES: ReportDefinition = {
   key: "forticloud",
   downloadHref: "/api/reports/forticloud",
@@ -168,6 +210,30 @@ export default async function ReportsPage() {
               {
                 label: DEVICE_INVENTORY.title,
                 content: <ReportPreviewPanel report={DEVICE_INVENTORY} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: OFFLINE_DEVICES.title,
+                content: <ReportPreviewPanel report={OFFLINE_DEVICES} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: DISK_ALERTS.title,
+                content: <ReportPreviewPanel report={DISK_ALERTS} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: AGING_HARDWARE.title,
+                content: <ReportPreviewPanel report={AGING_HARDWARE} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: OS_EOL.title,
+                content: <ReportPreviewPanel report={OS_EOL} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: ANTIVIRUS_ALERTS.title,
+                content: <ReportPreviewPanel report={ANTIVIRUS_ALERTS} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: MISSING_PATCHES.title,
+                content: <ReportPreviewPanel report={MISSING_PATCHES} previewAction={getReportPreviewAction} />,
               },
             ],
           },

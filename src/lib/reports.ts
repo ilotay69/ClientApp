@@ -10,6 +10,14 @@ import { fetchGravityZoneEndpointInventory } from "@/lib/bitdefender-lookups";
 import type { BitdefenderCredentials } from "@/lib/bitdefender";
 import { fetchWizerCompanyMetrics } from "@/lib/wizer-lookups";
 import type { WizerCredentials } from "@/lib/wizer";
+import {
+  fetchOfflineDevicesAccountWide,
+  fetchDiskAlertsAccountWide,
+  fetchAgingHardwareAccountWide,
+  fetchOsEolAccountWide,
+} from "@/lib/device-lookups";
+import { fetchAntivirusAlertsAccountWide, fetchMissingPatchesAccountWide } from "@/lib/device-security-lookups";
+import type { NinjaOneCredentials } from "@/lib/ninjaone";
 
 export type ReportCell = string | number | boolean | null | undefined;
 export type ReportData = { headers: string[]; rows: ReportCell[][] };
@@ -326,5 +334,83 @@ export async function buildWizerMetricsReport(creds: WizerCredentials): Promise<
       r.phishingClicked,
       r.phishingReported,
     ]),
+  };
+}
+
+/** These four are plain reads of the ninjaone_devices table (synced hourly
+ * by the ninjaone-sync cron) — no live NinjaOne call, so no settings guard
+ * is needed in the caller beyond the permission check, same as the
+ * Lookups tabs they're moved from. */
+export async function buildOfflineDevicesReport(admin: Supabase): Promise<ReportData> {
+  const rows = await fetchOfflineDevicesAccountWide(admin);
+  return {
+    headers: ["Client", "Device", "Type", "Days offline", "Last contact"],
+    rows: rows.map((r) => [
+      r.clientName,
+      r.systemName,
+      r.nodeClass ? humanizeLabel(r.nodeClass.toLowerCase()) : null,
+      r.daysOffline,
+      r.lastContact ? formatDate(r.lastContact) : null,
+    ]),
+  };
+}
+
+export async function buildDiskAlertsReport(admin: Supabase): Promise<ReportData> {
+  const rows = await fetchDiskAlertsAccountWide(admin);
+  return {
+    headers: ["Client", "Device", "Disk used", "% used"],
+    rows: rows.map((r) => [
+      r.clientName,
+      r.systemName,
+      `${Math.round(r.totalBytes / 1024 ** 3)} GB`,
+      `${Math.round(r.percentUsed)}%`,
+    ]),
+  };
+}
+
+/** Split into two reports rather than one "Hardware Lifecycle" report —
+ * aging hardware (by age in years) and OS end-of-life (by EOL date) are
+ * different row shapes with no natural shared column set, unlike the
+ * Lookups tab which could just stack two independent tables in one UI. */
+export async function buildAgingHardwareReport(admin: Supabase): Promise<ReportData> {
+  const rows = await fetchAgingHardwareAccountWide(admin);
+  return {
+    headers: ["Client", "Device", "Type", "Age (years)"],
+    rows: rows.map((r) => [r.clientName, r.systemName, humanizeLabel(r.deviceType), r.ageYears.toFixed(1)]),
+  };
+}
+
+export async function buildOsEolReport(admin: Supabase): Promise<ReportData> {
+  const rows = await fetchOsEolAccountWide(admin);
+  return {
+    headers: ["Client", "Device", "OS", "End of life", "Days to EOL"],
+    rows: rows.map((r) => [r.clientName, r.systemName, r.osName, `${r.eolLabel} (${formatDate(r.eolDate)})`, r.daysToEol]),
+  };
+}
+
+/** These two need a live per-organization NinjaOne call (antivirus/patch
+ * status isn't synced into ninjaone_devices) — same as the Lookups tabs,
+ * the integration must be connected. */
+export async function buildAntivirusAlertsReport(
+  admin: Supabase,
+  creds: NinjaOneCredentials,
+  token: string
+): Promise<ReportData> {
+  const rows = await fetchAntivirusAlertsAccountWide(admin, creds, token);
+  return {
+    headers: ["Client", "Device", "Product", "State", "Definitions"],
+    rows: rows.map((r) => [r.clientName, r.deviceName, r.productName, r.productState, r.definitionStatus]),
+  };
+}
+
+export async function buildMissingPatchesReport(
+  admin: Supabase,
+  creds: NinjaOneCredentials,
+  token: string
+): Promise<ReportData> {
+  const rows = await fetchMissingPatchesAccountWide(admin, creds, token);
+  return {
+    headers: ["Client", "Device", "Patch", "KB", "Severity", "Status"],
+    rows: rows.map((r) => [r.clientName, r.deviceName, r.patchName, r.kbNumber, r.severity, r.status]),
   };
 }

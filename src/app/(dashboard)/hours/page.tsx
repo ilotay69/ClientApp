@@ -3,11 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { HoursLookup } from "@/components/hours-lookup";
 import { TicketLookup } from "@/components/ticket-lookup";
-import { OfflineDevicesLookup } from "@/components/offline-devices-lookup";
-import { DiskAlertsLookup } from "@/components/disk-alerts-lookup";
-import { HardwareLifecycleLookup } from "@/components/hardware-lifecycle-lookup";
-import { AntivirusAlertsLookup } from "@/components/antivirus-alerts-lookup";
-import { MissingPatchesLookup } from "@/components/missing-patches-lookup";
 import { SecureScoreRollup } from "@/components/secure-score-rollup";
 import { LicenseUtilizationRollup } from "@/components/license-utilization-rollup";
 import { MfaGapsRollup } from "@/components/mfa-gaps-rollup";
@@ -27,14 +22,6 @@ import {
   fetchNonBillableHoursByGroupAction,
   searchAutotaskTicketsAction,
 } from "./actions";
-import {
-  fetchOfflineDevicesAction,
-  fetchDiskAlertsAction,
-  fetchAgingHardwareAction,
-  fetchOsEolAction,
-  fetchAntivirusAlertsAction,
-  fetchMissingPatchesAction,
-} from "./ninjaone-actions";
 import {
   fetchSecureScoreRollupAction,
   fetchLicenseUtilizationRollupAction,
@@ -110,33 +97,6 @@ export default async function HoursPage() {
                 content: (
                   <TicketLookup clients={autotaskClients ?? []} action={searchAutotaskTicketsAction} />
                 ),
-              },
-            ],
-          },
-          {
-            group: "NinjaOne",
-            tabs: [
-              {
-                label: "Offline Devices",
-                content: <OfflineDevicesLookup action={fetchOfflineDevicesAction} />,
-              },
-              {
-                label: "Disk Alerts",
-                content: <DiskAlertsLookup action={fetchDiskAlertsAction} />,
-              },
-              {
-                label: "Hardware Lifecycle",
-                content: (
-                  <HardwareLifecycleLookup agingAction={fetchAgingHardwareAction} eolAction={fetchOsEolAction} />
-                ),
-              },
-              {
-                label: "Antivirus",
-                content: <AntivirusAlertsLookup action={fetchAntivirusAlertsAction} />,
-              },
-              {
-                label: "Missing Patches",
-                content: <MissingPatchesLookup action={fetchMissingPatchesAction} />,
               },
             ],
           },
