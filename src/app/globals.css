@@ -20,30 +20,6 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* A step down from Tailwind's default type scale, applied once here so
- * every text-{size} utility across the whole app shrinks together — this
- * is a data-dense ops tool, not marketing copy, so more should fit on
- * screen without every page having to be hand-tuned separately. Floors
- * out at 10px (text-xs) to stay legible. */
-@theme {
-  --text-xs: 0.625rem;
-  --text-xs--line-height: 0.9375rem;
-  --text-sm: 0.75rem;
-  --text-sm--line-height: 1.0625rem;
-  --text-base: 0.8125rem;
-  --text-base--line-height: 1.1875rem;
-  --text-lg: 0.9375rem;
-  --text-lg--line-height: 1.3125rem;
-  --text-xl: 1.0625rem;
-  --text-xl--line-height: 1.4375rem;
-  --text-2xl: 1.25rem;
-  --text-2xl--line-height: 1.6875rem;
-  --text-3xl: 1.5625rem;
-  --text-3xl--line-height: 1.9375rem;
-  --text-4xl: 1.8125rem;
-  --text-4xl--line-height: 2.1875rem;
-}
-
 body {
   background: #ffffff;
   color: var(--color-charcoal);
@@ -51,11 +27,10 @@ body {
 }
 
 /* iOS Safari zooms the whole page whenever a form control smaller than
- * 16px takes focus — and the type scale above deliberately puts every
- * input at text-sm (12px), so on a phone tapping any field yanked the
- * layout around and left it zoomed. Only applied below the md breakpoint:
- * the density above it is the point of that scale, and desktop browsers
- * don't do this. */
+ * 16px takes focus, and most inputs across the app render at text-sm, so
+ * on a phone tapping any field yanked the layout around and left it
+ * zoomed. Only applied below the md breakpoint: desktop browsers don't
+ * do this. */
 @media (max-width: 767px) {
   input,
   select,
@@ -106,17 +81,15 @@ body {
   }
 }
 
-/* Restores Tailwind's stock type scale inside one subtree.
- *
- * The scale above is deliberately shrunk for a dense ops tool, which is
- * exactly wrong for a sales document a prospect reads on their phone
- * before deciding whether to spend money. Because every text-{size}
- * utility compiles to `font-size: var(--text-{size})`, redefining those
- * variables on an ancestor cascades to everything inside it — so the
- * prospect-facing proposal page gets marketing-grade sizing by adding one
- * class at its root, with no per-element overrides and nothing global
- * changed. The staff preview wears the same class so what a rep previews
- * is what the prospect sees. */
+/* Pins the prospect-facing proposal page to Tailwind's stock type scale,
+ * independent of whatever the app's own global scale is at any given
+ * time — a sales document a prospect reads on their phone shouldn't
+ * shrink just because the ops side of the app later gets denser again.
+ * Because every text-{size} utility compiles to `font-size:
+ * var(--text-{size})`, redefining those variables on an ancestor
+ * cascades to everything inside it, so this is applied once at the
+ * page's root rather than per-element. The staff preview wears the same
+ * class so what a rep previews is what the prospect sees. */
 .proposal-type {
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
