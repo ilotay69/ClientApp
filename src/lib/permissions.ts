@@ -12,6 +12,7 @@ export type PermissionKey =
   | "manage_touchpoints"
   | "delete_tasks"
   | "manage_integrations"
+  | "manage_client_mapping"
   | "manage_sales_requests"
   | "view_domain_health"
   | "view_lookups"
@@ -40,6 +41,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   manage_touchpoints: "Create, edit & delete touchpoints",
   delete_tasks: "Delete tasks",
   manage_integrations: "Configure AI providers & integrations",
+  manage_client_mapping: "Link each client's NinjaOne org, Microsoft 365 tenant & Huntress org",
   manage_sales_requests: "Create, edit & delete sales requests",
   view_domain_health: "View the Domain Health tool",
   view_lookups: "View the Lookups page (Autotask/NinjaOne/M365/security vendor data)",

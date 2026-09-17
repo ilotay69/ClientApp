@@ -32,6 +32,7 @@ export default async function DashboardLayout({
 
   const me = await getMyPermissions(supabase);
   const canManageIntegrations = me?.permissions.has("manage_integrations") ?? false;
+  const canManageClientMapping = me?.permissions.has("manage_client_mapping") ?? false;
   const canManageTeam = me?.permissions.has("manage_team") ?? false;
   const canViewReports = me?.permissions.has("view_team_wide") ?? false;
   const canManageTouchpoints = me?.permissions.has("manage_touchpoints") ?? false;
@@ -51,6 +52,7 @@ export default async function DashboardLayout({
   const OWNER_ONLY_KEYS: PermissionKey[] = [
     "manage_team",
     "manage_integrations",
+    "manage_client_mapping",
     "manage_touchpoints",
     "view_domain_health",
     "manage_recruitment",
@@ -62,6 +64,7 @@ export default async function DashboardLayout({
   const ownerOnly = await fetchOwnerOnlyPermissions(supabase, OWNER_ONLY_KEYS);
   const teamOwnerOnly = ownerOnly.manage_team;
   const integrationsOwnerOnly = ownerOnly.manage_integrations;
+  const clientMappingOwnerOnly = ownerOnly.manage_client_mapping;
   const touchpointsOwnerOnly = ownerOnly.manage_touchpoints;
   const domainHealthOwnerOnly = ownerOnly.view_domain_health;
   const recruitmentOwnerOnly = ownerOnly.manage_recruitment;
@@ -75,6 +78,7 @@ export default async function DashboardLayout({
       <SidebarNav
         userLabel={profile?.full_name ?? user?.email ?? ""}
         canManageIntegrations={canManageIntegrations}
+        canManageClientMapping={canManageClientMapping}
         canManageTeam={canManageTeam}
         canViewReports={canViewReports}
         canManageTouchpoints={canManageTouchpoints}
@@ -92,6 +96,7 @@ export default async function DashboardLayout({
         canViewProposals={canViewProposals}
         teamOwnerOnly={teamOwnerOnly}
         integrationsOwnerOnly={integrationsOwnerOnly}
+        clientMappingOwnerOnly={clientMappingOwnerOnly}
         touchpointsOwnerOnly={touchpointsOwnerOnly}
         domainHealthOwnerOnly={domainHealthOwnerOnly}
         recruitmentOwnerOnly={recruitmentOwnerOnly}

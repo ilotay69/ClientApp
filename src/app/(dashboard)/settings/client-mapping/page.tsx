@@ -16,12 +16,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Same gate as Settings -> Integrations, which this page moved out of —
-// linking a client's NinjaOne org / M365 tenant / Huntress org is exactly
-// the kind of integration wiring that permission already covers.
 export default async function ClientMappingSettingsPage() {
   const supabase = await createClient();
-  if (!(await hasPermission(supabase, "manage_integrations"))) {
+  if (!(await hasPermission(supabase, "manage_client_mapping"))) {
     redirect("/dashboard");
   }
 

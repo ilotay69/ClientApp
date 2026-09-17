@@ -45,6 +45,7 @@ type NavItem = {
 export function SidebarNav({
   userLabel,
   canManageIntegrations,
+  canManageClientMapping,
   canManageTeam,
   canViewReports,
   canManageTouchpoints,
@@ -62,6 +63,7 @@ export function SidebarNav({
   canViewProposals,
   teamOwnerOnly,
   integrationsOwnerOnly,
+  clientMappingOwnerOnly,
   touchpointsOwnerOnly,
   domainHealthOwnerOnly,
   recruitmentOwnerOnly,
@@ -73,6 +75,7 @@ export function SidebarNav({
 }: {
   userLabel: string;
   canManageIntegrations: boolean;
+  canManageClientMapping: boolean;
   canManageTeam: boolean;
   canViewReports: boolean;
   canManageTouchpoints: boolean;
@@ -92,6 +95,7 @@ export function SidebarNav({
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
   integrationsOwnerOnly: boolean;
+  clientMappingOwnerOnly: boolean;
   touchpointsOwnerOnly: boolean;
   domainHealthOwnerOnly: boolean;
   recruitmentOwnerOnly: boolean;
@@ -164,15 +168,19 @@ export function SidebarNav({
             icon: IconSparkles,
             ownerOnly: integrationsOwnerOnly,
           },
-          // Same gate as Integrations (linking a client's NinjaOne org/M365
-          // tenant/Huntress org is the same kind of wiring) — its own top-
-          // level link instead of a tab on Integrations since it's a
-          // frequent, standalone task (onboarding a new client).
+        ]
+      : []),
+    // Its own permission, separate from manage_integrations — onboarding
+    // a new client (linking their NinjaOne org/M365 tenant/Huntress org)
+    // is a frequent task that shouldn't require also being trusted with
+    // API keys and AI provider settings.
+    ...(canManageClientMapping
+      ? [
           {
             href: "/settings/client-mapping",
             label: "Client Mapping",
             icon: IconNetwork,
-            ownerOnly: integrationsOwnerOnly,
+            ownerOnly: clientMappingOwnerOnly,
           },
         ]
       : []),
