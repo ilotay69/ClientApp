@@ -9,7 +9,9 @@ import { ProposalSectionEditor } from "@/components/proposal-section-editor";
 import { ProposalPricingTable } from "@/components/proposal-pricing-table";
 import { InlineTextEdit, InlineDateEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
+import { ProposalSendPanel } from "@/components/proposal-send-panel";
 import { formatDate } from "@/lib/format";
+import { resolveAppUrl } from "@/lib/app-url";
 import { formatProposalHeadline } from "@/lib/proposal-totals";
 import {
   updateProposalFieldAction,
@@ -21,6 +23,12 @@ import {
   updateProposalLineItemAction,
   deleteProposalLineItemAction,
   deleteProposalAction,
+  sendProposalAction,
+  markProposalAcceptedByStaffAction,
+  declineProposalAction,
+  withdrawProposalAction,
+  reviseProposalAction,
+  revokeProposalLinkAction,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -104,27 +112,47 @@ export default async function ProposalDetailPage({
             </ul>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Ready to send
-            </p>
-            {blockers.length === 0 ? (
-              <p className="mt-2 text-xs text-emerald-700">Everything&apos;s in place.</p>
-            ) : (
-              <ul className="mt-2 space-y-1.5">
-                {blockers.map((blocker) => (
-                  <li key={blocker} className="flex gap-2 text-xs text-slate-600">
-                    <span className="text-slate-300">○</span>
-                    {blocker}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-3 text-xs text-slate-400">
-              Sending is wired up in the next step — for now this is the checklist it&apos;ll
-              enforce.
-            </p>
-          </div>
+          {isDraft && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Ready to send
+              </p>
+              {blockers.length === 0 ? (
+                <p className="mt-2 text-xs text-emerald-700">Everything&apos;s in place.</p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {blockers.map((blocker) => (
+                    <li key={blocker} className="flex gap-2 text-xs text-slate-600">
+                      <span className="text-slate-300">○</span>
+                      {blocker}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {canManage && (
+            <ProposalSendPanel
+              status={proposal.status}
+              defaultEmail={proposal.sentToEmail ?? proposal.prospectEmail ?? ""}
+              blockers={blockers}
+              viewUrl={
+                proposal.accessToken ? `${resolveAppUrl()}/proposal-view/${proposal.accessToken}` : null
+              }
+              sentAt={proposal.sentAt}
+              sentToEmail={proposal.sentToEmail}
+              viewCount={proposal.viewCount}
+              lastViewedAt={proposal.lastViewedAt}
+              reminderCount={proposal.reminderCount}
+              sendAction={sendProposalAction.bind(null, proposal.id)}
+              markAcceptedAction={markProposalAcceptedByStaffAction.bind(null, proposal.id)}
+              declineAction={declineProposalAction.bind(null, proposal.id)}
+              withdrawAction={withdrawProposalAction.bind(null, proposal.id)}
+              reviseAction={reviseProposalAction.bind(null, proposal.id)}
+              revokeLinkAction={revokeProposalLinkAction.bind(null, proposal.id)}
+            />
+          )}
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Details</p>

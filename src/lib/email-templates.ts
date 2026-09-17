@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any;
 
-export type EmailTemplateKey = "quarterly_review" | "contract_usage_report";
+export type EmailTemplateKey = "quarterly_review" | "contract_usage_report" | "proposal";
 
 export type EmailTemplateDef = {
   key: EmailTemplateKey;
@@ -49,6 +49,21 @@ export const EMAIL_TEMPLATES: EmailTemplateDef[] = [
     noteLabel: "Note after usage summary",
     noteDescription: "Shown just below the hours-used summary, before the sign-off.",
     defaultNote: "If you have any questions about this report, please contact your account manager.",
+  },
+  {
+    key: "proposal",
+    label: "Proposal",
+    description:
+      "Sent when a proposal goes out to a prospect or client, and again on each reminder while it's still unanswered.",
+    placeholders: ["{recipient_name}", "{company_name}", "{proposal_title}", "{valid_until}"],
+    defaultSubject: "Proposal — {proposal_title} — {company_name}",
+    defaultIntro:
+      "Thank you for your time. We've put together the proposal below based on what we discussed — everything is laid out online, including a few optional extras you can add if they're useful.",
+    noteLabel: "Note next to Review & accept",
+    noteDescription:
+      "Shown just above the Review & accept button — the only text there, so write it as a complete sentence.",
+    defaultNote:
+      "Have a read through, and accept online when you're ready. If anything needs changing, just reply and we'll sort it out.",
   },
 ];
 

@@ -324,3 +324,65 @@ function escapeHtml(value: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
+
+/** The proposal email.
+ *
+ * Deliberately short, and deliberately carries no PDF. The entire point is
+ * to get the prospect onto the tracked link — that's where opens are
+ * counted, where optional add-ons can be ticked, and where they can accept
+ * in one tap. An attachment gives them a way to read the whole thing
+ * without ever touching the link, which throws away the signal the feature
+ * exists to produce. The PDF goes out with the acceptance confirmation
+ * instead, when it's a record rather than a sales document.
+ *
+ * Totals are stated as one-off and monthly separately rather than summed:
+ * "$4,800 + $650/month" is the number an MSP client actually needs, and
+ * collapsing them into one figure would misstate both. */
+export function buildProposalEmail(
+  recipientName: string | null,
+  companyName: string,
+  proposalTitle: string,
+  headlineTotal: string,
+  viewUrl: string,
+  validUntil: string | null,
+  intro: string,
+  note: string,
+  reminderLabel?: string | null
+) {
+  const greeting = recipientName ? `Hi ${escapeHtml(recipientName)},` : "Hello,";
+  const validUntilHtml = validUntil
+    ? `<p style="color:#94a3b8;font-size:13px;margin:12px 0 0;">This proposal is valid until ${escapeHtml(validUntil)}.</p>`
+    : "";
+  const reminderBannerHtml = reminderLabel
+    ? `<div style="margin-bottom:16px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
+        <p style="margin:0;color:#92400e;font-size:13px;font-weight:600;">${escapeHtml(reminderLabel)} — this proposal is still open.</p>
+      </div>`
+    : "";
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;">
+      ${reminderBannerHtml}
+      <h2 style="color:#0f172a;">${escapeHtml(proposalTitle)}</h2>
+      <p style="color:#64748b;">Prepared for ${escapeHtml(companyName)}</p>
+      <p style="color:#334155;">${greeting}</p>
+      <p style="color:#334155;">${escapeHtml(intro)}</p>
+      <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
+        <p style="margin:0 0 4px;color:#0f172a;font-size:20px;font-weight:600;">${escapeHtml(headlineTotal)}</p>
+        <p style="margin:0 0 14px;color:#94a3b8;font-size:12px;">Before applicable taxes.</p>
+        <p style="color:#334155;font-size:14px;margin:0 0 12px;">${escapeHtml(note)}</p>
+        <a href="${viewUrl}" style="display:inline-block;background:#e93e3f;color:#ffffff;font-weight:600;font-size:15px;text-decoration:none;padding:12px 22px;border-radius:6px;">Review &amp; accept</a>
+        ${validUntilHtml}
+      </div>
+      <p style="margin-top:24px;color:#334155;font-size:14px;">
+        Best regards,<br />
+        CG Technologies Team
+      </p>
+    </div>
+  `;
+
+  const reminderText = reminderLabel ? `${reminderLabel} — this proposal is still open.\n\n` : "";
+  const validUntilText = validUntil ? `\nThis proposal is valid until ${validUntil}.` : "";
+  const text = `${reminderText}${proposalTitle}\nPrepared for ${companyName}\n\n${recipientName ? `Hi ${recipientName},` : "Hello,"}\n\n${intro}\n\n${headlineTotal} (before applicable taxes)\n\n${note}\n\nReview and accept here: ${viewUrl}${validUntilText}\n\nBest regards,\nCG Technologies Team`;
+
+  return { html, text };
+}

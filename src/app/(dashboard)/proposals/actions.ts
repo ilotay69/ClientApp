@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
+import { getProposal, computeProposalBlockers } from "@/lib/proposal-data";
+import { formatProposalHeadline } from "@/lib/proposal-totals";
+import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
+import { buildProposalEmail } from "@/lib/resend";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+import { resolveAppUrl } from "@/lib/app-url";
+import { formatDate } from "@/lib/format";
 
 export type ProposalActionState = { ok: boolean; message: string };
 export type CreateProposalState = { error: string } | undefined;
@@ -392,6 +400,108 @@ export async function deleteProposalLineItemAction(itemId: string): Promise<void
 }
 
 // --------------------------------------------------------------- lifecycle
+
+/** Sends the proposal, or re-sends it as a reminder.
+ *
+ * The access token is minted here on the first send and then kept for the
+ * life of the proposal. Quarterly reviews rotate their token on every send,
+ * because a corrected review must invalidate the old link — but a prospect
+ * forwards a proposal link to their business partner or their accountant,
+ * and rotating it would break it under them with no explanation.
+ * revokeProposalLinkAction is the deliberate way to kill a link. */
+export async function sendProposalAction(
+  proposalId: string,
+  toEmail: string
+): Promise<ProposalActionState> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return DENIED;
+
+  const trimmedEmail = toEmail.trim();
+  if (!trimmedEmail) return { ok: false, message: "Enter an email address to send to." };
+
+  const admin = createAdminClient();
+  const proposal = await getProposal(proposalId, admin);
+  if (!proposal) return { ok: false, message: "Proposal not found." };
+
+  const isResend = proposal.status === "sent";
+  if (proposal.status !== "draft" && !isResend) {
+    return { ok: false, message: "This proposal isn't in a state that can be sent." };
+  }
+
+  // The same checks the editor's "Ready to send" list shows, run again here
+  // — the button being enabled is not the authority on whether this is
+  // sendable.
+  const blockers = computeProposalBlockers({ ...proposal, prospectEmail: trimmedEmail });
+  if (blockers.length > 0) {
+    return { ok: false, message: blockers[0]! };
+  }
+
+  const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+  if (!mailboxEmail) return { ok: false, message: "The shared mailbox isn't configured." };
+  const settings = await getSharedMailboxSettings(admin);
+  if (!settings) return { ok: false, message: "The shared mailbox integration isn't set up yet." };
+
+  const accessToken = proposal.accessToken ?? crypto.randomUUID();
+  const viewUrl = `${resolveAppUrl()}/proposal-view/${accessToken}`;
+
+  try {
+    const graphToken = await getValidSharedMailboxToken(admin, settings);
+    const template = await getEmailTemplate(admin, "proposal");
+    const templateVars = {
+      recipient_name: proposal.prospectContactName ?? "",
+      company_name: proposal.clientName ?? proposal.prospectCompany ?? "",
+      proposal_title: proposal.title,
+      valid_until: formatDate(proposal.validUntil),
+    };
+
+    const { html, text } = buildProposalEmail(
+      proposal.prospectContactName,
+      proposal.clientName ?? proposal.prospectCompany ?? "",
+      proposal.title,
+      formatProposalHeadline(proposal.totals, proposal.currency),
+      viewUrl,
+      proposal.validUntil ? formatDate(proposal.validUntil) : null,
+      applyTemplateVars(template.intro, templateVars),
+      applyTemplateVars(template.note, templateVars),
+      isResend ? `Reminder ${proposal.reminderCount + 1}` : null
+    );
+
+    await sendMailAsSharedMailbox(graphToken, mailboxEmail, {
+      to: trimmedEmail,
+      subject: applyTemplateVars(template.subject, templateVars),
+      html,
+      text,
+    });
+  } catch (err) {
+    console.error("sendProposalAction: send failed", err);
+    return { ok: false, message: "Sending failed — check the shared mailbox settings." };
+  }
+
+  await admin
+    .from("proposals")
+    .update(
+      isResend
+        ? {
+            reminder_count: proposal.reminderCount + 1,
+            last_reminder_at: new Date().toISOString(),
+            sent_to_email: trimmedEmail,
+          }
+        : {
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            sent_to_email: trimmedEmail,
+            prospect_email: trimmedEmail,
+            access_token: accessToken,
+          }
+    )
+    .eq("id", proposalId);
+
+  revalidateProposal(proposalId);
+  return {
+    ok: true,
+    message: isResend ? `Reminder sent to ${trimmedEmail}.` : `Sent to ${trimmedEmail}.`,
+  };
+}
 
 /** Records an acceptance that happened off-platform — the prospect said yes
  * on a call. Guarded on accepted_at still being null so it can't overwrite
