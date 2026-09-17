@@ -33,6 +33,7 @@ import {
   setProposalBrochuresAction,
   deleteProposalAction,
   sendProposalAction,
+  getProposalPreviewLinkAction,
   markProposalAcceptedByStaffAction,
   declineProposalAction,
   withdrawProposalAction,
@@ -162,6 +163,7 @@ export default async function ProposalDetailPage({
             <ProposalSendPanel
               status={proposal.status}
               defaultEmail={proposal.sentToEmail ?? proposal.prospectEmail ?? ""}
+              createdByEmail={proposal.createdByEmail}
               blockers={blockers}
               viewUrl={
                 proposal.accessToken ? `${resolveAppUrl()}/proposal-view/${proposal.accessToken}` : null
@@ -172,6 +174,7 @@ export default async function ProposalDetailPage({
               lastViewedAt={proposal.lastViewedAt}
               reminderCount={proposal.reminderCount}
               sendAction={sendProposalAction.bind(null, proposal.id)}
+              previewAction={getProposalPreviewLinkAction.bind(null, proposal.id)}
               markAcceptedAction={markProposalAcceptedByStaffAction.bind(null, proposal.id)}
               declineAction={declineProposalAction.bind(null, proposal.id)}
               withdrawAction={withdrawProposalAction.bind(null, proposal.id)}

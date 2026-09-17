@@ -6,6 +6,7 @@ import { formatDate, formatAge } from "@/lib/format";
 import type { ProposalActionState } from "@/app/(dashboard)/proposals/actions";
 
 type Action = () => Promise<ProposalActionState>;
+type PreviewResult = { ok: true; url: string } | { ok: false; message: string };
 
 /** Everything you do to a proposal once the writing is done: send it, chase
  * it, record what happened to it.
@@ -18,6 +19,7 @@ type Action = () => Promise<ProposalActionState>;
 export function ProposalSendPanel({
   status,
   defaultEmail,
+  createdByEmail,
   blockers,
   viewUrl,
   sentAt,
@@ -26,6 +28,7 @@ export function ProposalSendPanel({
   lastViewedAt,
   reminderCount,
   sendAction,
+  previewAction,
   markAcceptedAction,
   declineAction,
   withdrawAction,
@@ -34,6 +37,10 @@ export function ProposalSendPanel({
 }: {
   status: string;
   defaultEmail: string;
+  /** Prefills the CC field once checked — usually the same person sending
+   * it, but not always (a manager sending what a rep drafted), so it's
+   * still freely editable rather than locked to this. */
+  createdByEmail: string | null;
   blockers: string[];
   viewUrl: string | null;
   sentAt: string | null;
@@ -41,7 +48,8 @@ export function ProposalSendPanel({
   viewCount: number;
   lastViewedAt: string | null;
   reminderCount: number;
-  sendAction: (toEmail: string) => Promise<ProposalActionState>;
+  sendAction: (toEmail: string, ccEmail: string | null) => Promise<ProposalActionState>;
+  previewAction: () => Promise<PreviewResult>;
   markAcceptedAction: (name: string) => Promise<ProposalActionState>;
   declineAction: (reason: string) => Promise<ProposalActionState>;
   withdrawAction: Action;
@@ -50,11 +58,14 @@ export function ProposalSendPanel({
 }) {
   const router = useRouter();
   const [email, setEmail] = useState(defaultEmail);
+  const [ccEnabled, setCcEnabled] = useState(false);
+  const [ccEmail, setCcEmail] = useState(createdByEmail ?? "");
   const [acceptedBy, setAcceptedBy] = useState("");
   const [declineReason, setDeclineReason] = useState("");
-  const [result, setResult] = useState<ProposalActionState | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [previewing, startPreview] = useTransition();
 
   const run = (fn: () => Promise<ProposalActionState>) => {
     setResult(null);
@@ -64,6 +75,16 @@ export function ProposalSendPanel({
   const isDraft = status === "draft";
   const isSent = status === "sent";
   const isClosed = !isDraft && !isSent;
+
+  // Keeps the "Email" box in step with the record's actual prospect_email
+  // (edited separately, in the Details card) instead of freezing at
+  // whatever it was on first mount — without this, the two could quietly
+  // drift apart the moment the 10s poll below (or anyone else) refreshed
+  // the page with a changed prospectEmail/sentToEmail, showing one value
+  // here and a different one in Details for the same underlying field.
+  useEffect(() => {
+    setEmail(defaultEmail);
+  }, [defaultEmail]);
 
   // Polls for the "Opened"/"Reminders" stats while a proposal is actually
   // out for signature — a rep watching this page after sending it sees an
@@ -81,6 +102,25 @@ export function ProposalSendPanel({
     }, 10_000);
     return () => clearInterval(id);
   }, [isSent, router]);
+
+  const openPreview = () => {
+    // Opened synchronously, before the action resolves, then redirected
+    // once it does — a tab opened only after an awaited call returns is
+    // outside the original click's "user gesture" window in most browsers
+    // and gets popup-blocked. This is the standard workaround.
+    const win = window.open("", "_blank");
+    setResult(null);
+    startPreview(async () => {
+      const res = await previewAction();
+      if (res.ok) {
+        if (win) win.location.href = res.url;
+        else setResult({ ok: true, message: `Preview: ${res.url}` });
+      } else {
+        win?.close();
+        setResult({ ok: false, message: res.message });
+      }
+    });
+  };
 
   return (
     <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -106,23 +146,55 @@ export function ProposalSendPanel({
             </span>
           </label>
 
+          <div>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={ccEnabled}
+                onChange={(e) => setCcEnabled(e.target.checked)}
+                className="rounded border-slate-300 text-brand focus:ring-brand"
+              />
+              CC me
+            </label>
+            {ccEnabled && (
+              <input
+                type="text"
+                value={ccEmail}
+                onChange={(e) => setCcEmail(e.target.value)}
+                placeholder="cc@company.com"
+                className="mt-1.5 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none"
+              />
+            )}
+          </div>
+
           {blockers.length > 0 && (
             <p className="text-xs text-amber-700">
               Finish the readiness checklist first — {blockers[0]}
             </p>
           )}
 
-          <button
-            type="button"
-            disabled={pending || blockers.length > 0 || !email.trim()}
-            onClick={() => run(() => sendAction(email))}
-            className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
-          >
-            {pending ? "Sending…" : "Send proposal"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={pending || blockers.length > 0 || !email.trim()}
+              onClick={() => run(() => sendAction(email, ccEnabled ? ccEmail : null))}
+              className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+            >
+              {pending ? "Sending…" : "Send proposal"}
+            </button>
+            <button
+              type="button"
+              disabled={previewing}
+              onClick={openPreview}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            >
+              {previewing ? "Opening…" : "Preview link"}
+            </button>
+          </div>
           <p className="text-xs text-slate-400">
             No PDF is attached — the email drives them to the link, which is where opens are
-            counted and where they can accept.
+            counted and where they can accept. Preview link opens exactly what the client will
+            see, without emailing anyone or counting as a view.
           </p>
         </>
       )}
@@ -186,7 +258,7 @@ export function ProposalSendPanel({
           <button
             type="button"
             disabled={pending || !email.trim()}
-            onClick={() => run(() => sendAction(email))}
+            onClick={() => run(() => sendAction(email, ccEnabled ? ccEmail : null))}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
             {pending ? "Sending…" : "Send a reminder"}

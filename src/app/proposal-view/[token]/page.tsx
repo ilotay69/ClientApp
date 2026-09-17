@@ -7,6 +7,8 @@ import { ProposalShell, ProposalMessage, ProposalWordmark } from "@/components/p
 import { ProposalAcceptPanel } from "@/components/proposal-accept-panel";
 import { ProposalViewBeacon } from "@/components/proposal-view-beacon";
 import { acceptProposalByTokenAction, recordProposalViewAction } from "./actions";
+import { createClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +49,17 @@ export default async function ProposalViewPage({
     );
   }
 
-  if (proposal.status === "draft") {
+  // Recognizes a signed-in staff member opening their own tracked link
+  // (e.g. from the "Preview" button in the editor, in the same browser)
+  // so a draft can be checked before it's ever emailed, and so a rep
+  // double-checking a link they already sent never inflates the "opened
+  // X times" count that's meant to reflect the CLIENT's engagement. A
+  // prospect never has this session cookie, so this can't be spoofed by
+  // guessing at query params.
+  const supabase = await createClient();
+  const isStaffPreview = await hasPermission(supabase, "manage_proposals");
+
+  if (proposal.status === "draft" && !isStaffPreview) {
     return (
       <ProposalMessage heading="This proposal isn't ready yet">
         <p>Please check back once your CG Technologies contact has sent it through.</p>
@@ -130,7 +142,18 @@ export default async function ProposalViewPage({
 
   return (
     <ProposalShell>
-      <ProposalViewBeacon token={token} recordAction={recordProposalViewAction} />
+      {/* Never mounted for a staff preview — this is what keeps a rep
+          double-checking their own link, or opening it before sending,
+          from ever counting as the client having opened it. */}
+      {!isStaffPreview && <ProposalViewBeacon token={token} recordAction={recordProposalViewAction} />}
+
+      {isStaffPreview && (
+        <div className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-center text-sm font-medium text-amber-800 sm:px-8">
+          {proposal.status === "draft"
+            ? "Staff preview — this hasn't been sent yet, and opening it doesn't count as a view."
+            : "Staff preview — opening this link doesn't count as a client view."}
+        </div>
+      )}
 
       <header className="border-b border-slate-200 px-5 py-4 sm:px-8">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">

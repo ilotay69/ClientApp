@@ -707,17 +707,19 @@ export async function setProposalBrochuresAction(
  * and rotating it would break it under them with no explanation.
  * revokeProposalLinkAction is the deliberate way to kill a link.
  *
- * toEmail may be a comma/semicolon-separated list — sendMailAsSharedMailbox
- * splits it into separate recipients, same convention as its cc param. */
+ * toEmail (and ccEmail) may be a comma/semicolon-separated list —
+ * sendMailAsSharedMailbox splits both into separate recipients. */
 export async function sendProposalAction(
   proposalId: string,
-  toEmail: string
+  toEmail: string,
+  ccEmail: string | null
 ): Promise<ProposalActionState> {
   const user = await requirePermission("manage_proposals");
   if (!user) return DENIED;
 
   const trimmedEmail = toEmail.trim();
   if (!trimmedEmail) return { ok: false, message: "Enter an email address to send to." };
+  const trimmedCc = ccEmail?.trim() || null;
 
   const admin = createAdminClient();
   const proposal = await getProposal(proposalId, admin);
@@ -773,6 +775,7 @@ export async function sendProposalAction(
     // clicking through.
     await sendMailAsSharedMailbox(graphToken, mailboxEmail, {
       to: trimmedEmail,
+      cc: trimmedCc,
       subject: applyTemplateVars(template.subject, templateVars),
       html,
       text,
@@ -806,6 +809,35 @@ export async function sendProposalAction(
     ok: true,
     message: isResend ? `Reminder sent to ${trimmedEmail}.` : `Sent to ${trimmedEmail}.`,
   };
+}
+
+/** Mints (or returns the existing) access token so staff can open and read
+ * the exact page a client will see before ever sending an email — without
+ * this, a draft has no token yet, since sendProposalAction only mints one
+ * at send time. Deliberately does NOT touch status/sent_at: previewing a
+ * draft must not turn it into a "sent" proposal. The public page itself
+ * (proposal-view/[token]/page.tsx) recognizes a signed-in staff viewer and
+ * renders a draft normally instead of the "not ready yet" placeholder, and
+ * skips the view-tracking beacon so a preview never inflates the "opened
+ * X times" signal a rep relies on. */
+export async function getProposalPreviewLinkAction(
+  proposalId: string
+): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return { ok: false, message: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  const proposal = await getProposal(proposalId, admin);
+  if (!proposal) return { ok: false, message: "Proposal not found." };
+
+  let token = proposal.accessToken;
+  if (!token) {
+    token = crypto.randomUUID();
+    const { error } = await admin.from("proposals").update({ access_token: token }).eq("id", proposalId);
+    if (error) return { ok: false, message: error.message };
+  }
+
+  return { ok: true, url: `${resolveAppUrl()}/proposal-view/${token}` };
 }
 
 /** Records an acceptance that happened off-platform — the prospect said yes

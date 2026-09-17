@@ -70,6 +70,7 @@ export type Proposal = {
    * shared mailbox the send goes out from. */
   ownerEmail: string | null;
   createdById: string | null;
+  createdByEmail: string | null;
   sentAt: string | null;
   sentToEmail: string | null;
   firstViewedAt: string | null;
@@ -248,7 +249,9 @@ export async function getProposal(
 ): Promise<Proposal | null> {
   const { data, error } = await admin
     .from("proposals")
-    .select(`${PROPOSAL_COLUMNS}, clients(name), owner_profile:owner_id(full_name, email)`)
+    .select(
+      `${PROPOSAL_COLUMNS}, clients(name), owner_profile:owner_id(full_name, email), created_by_profile:created_by(email)`
+    )
     .eq("id", id)
     .maybeSingle();
   if (error || !data) return null;
@@ -270,6 +273,9 @@ export async function getProposal(
 
   const client = Array.isArray(data.clients) ? data.clients[0] : data.clients;
   const owner = Array.isArray(data.owner_profile) ? data.owner_profile[0] : data.owner_profile;
+  const createdByProfile = Array.isArray(data.created_by_profile)
+    ? data.created_by_profile[0]
+    : data.created_by_profile;
   const lineItems = (itemRows ?? []).map(toLineItem);
 
   return {
@@ -291,6 +297,7 @@ export async function getProposal(
     ownerName: owner?.full_name ?? null,
     ownerEmail: owner?.email ?? null,
     createdById: data.created_by ?? null,
+    createdByEmail: createdByProfile?.email ?? null,
     sentAt: data.sent_at ?? null,
     sentToEmail: data.sent_to_email ?? null,
     firstViewedAt: data.first_viewed_at ?? null,
