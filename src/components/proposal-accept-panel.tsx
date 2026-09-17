@@ -132,10 +132,10 @@ export function ProposalAcceptPanel({
   if (accepted) {
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
-        <h2 className="text-xl font-semibold text-emerald-900">Accepted — thank you</h2>
+        <h2 className="text-xl font-semibold text-emerald-900">Thank you for accepting!</h2>
         <p className="mt-2 text-base text-emerald-800">
           Recorded {formatMoney(totals.firstInvoiceTotal, currency)} due at signing, including
-          HST. Your CG contact has been notified and will be in touch to get things started.
+          HST. Our Sales Team will be in touch with you shortly for next steps.
         </p>
       </div>
     );

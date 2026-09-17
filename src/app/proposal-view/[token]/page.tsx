@@ -64,8 +64,14 @@ export default async function ProposalViewPage({
   }
 
   if (proposal.acceptedAt) {
+    // Reached both moments after the accept button (if the page happens to
+    // reload rather than swapping in place — see ProposalAcceptPanel) and
+    // by anyone reopening the link long after. There's no way to tell those
+    // two apart server-side, and a prospect rereading their own accepted
+    // proposal wants the same reassurance either way, not a curt notice —
+    // so this always reads as a thank-you, never "already".
     return (
-      <ProposalMessage heading="Already accepted">
+      <ProposalMessage heading="Thank you for accepting!">
         <p>
           {proposal.title} was accepted
           {proposal.acceptedByName ? ` by ${proposal.acceptedByName}` : ""} on{" "}
@@ -77,6 +83,7 @@ export default async function ProposalViewPage({
             HST.
           </p>
         )}
+        <p>Our Sales Team will be in touch with you shortly for next steps.</p>
       </ProposalMessage>
     );
   }
