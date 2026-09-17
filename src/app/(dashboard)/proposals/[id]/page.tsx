@@ -7,7 +7,7 @@ import { Badge } from "@/components/badge";
 import { ProposalEngagementPill } from "@/components/proposal-engagement-pill";
 import { ProposalSectionEditor } from "@/components/proposal-section-editor";
 import { ProposalPricingTable } from "@/components/proposal-pricing-table";
-import { InlineDateEdit } from "@/components/task-field-editor";
+import { InlineDateEdit, InlineTextEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
 import { ProposalSendPanel } from "@/components/proposal-send-panel";
 import { ProposalProcessingCheckbox } from "@/components/proposal-processing-checkbox";
@@ -208,6 +208,19 @@ export default async function ProposalDetailPage({
                 )}
               </Detail>
               <Detail label="Owner">{proposal.ownerName ?? "—"}</Detail>
+              <Detail label="Address">
+                {editable ? (
+                  <InlineTextEdit
+                    taskId={proposal.id}
+                    field="prospect_address"
+                    value={proposal.prospectAddress ?? ""}
+                    emptyLabel="Add an address"
+                    action={updateProposalFieldAction}
+                  />
+                ) : (
+                  (proposal.prospectAddress ?? "—")
+                )}
+              </Detail>
               {proposal.sentAt && <Detail label="Sent">{formatDate(proposal.sentAt)}</Detail>}
               {proposal.acceptedAt && (
                 <Detail label="Accepted">

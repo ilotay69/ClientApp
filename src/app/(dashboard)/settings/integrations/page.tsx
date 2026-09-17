@@ -13,6 +13,7 @@ import { NordLayerSettingsForm } from "@/components/nordlayer-settings-form";
 import { NordPassSettingsForm } from "@/components/nordpass-settings-form";
 import { ForticloudAccountsPanel } from "@/components/forticloud-accounts-panel";
 import { SalesNotificationSettingsForm } from "@/components/sales-notification-settings-form";
+import { CompanyInfoForm } from "@/components/company-info-form";
 import { SharedMailboxSettingsForm } from "@/components/shared-mailbox-settings-form";
 import { QuarterlyReviewReminderSettingsForm } from "@/components/quarterly-review-reminder-settings-form";
 import { EmailTemplateForm } from "@/components/email-template-form";
@@ -38,6 +39,7 @@ import {
   testNordLayerConnectionAction,
   saveNordPassSettings,
   saveSalesNotificationSettings,
+  saveCompanyInfoAction,
   testSharedMailboxConnectionAction,
   syncSharedMailboxNowAction,
   saveQuarterlyReviewReminderSettings,
@@ -87,6 +89,7 @@ export default async function IntegrationsSettingsPage({
     { data: nordLayerRow },
     { data: nordPassRow },
     { data: salesNotifyRow },
+    { data: companyInfoRow },
     { data: sharedMailboxRow },
     { data: reviewReminderRow },
     emailTemplates,
@@ -112,6 +115,7 @@ export default async function IntegrationsSettingsPage({
     admin.from("nordlayer_settings").select("api_key").eq("id", true).maybeSingle(),
     admin.from("nordpass_settings").select("private_key").eq("id", true).maybeSingle(),
     admin.from("sales_notification_settings").select("rep_email").eq("id", true).maybeSingle(),
+    admin.from("company_info").select("company_name, address").eq("id", true).maybeSingle(),
     admin
       .from("shared_mailbox_settings")
       .select("last_synced_at, last_sync_error, last_sync_error_at")
@@ -261,6 +265,21 @@ export default async function IntegrationsSettingsPage({
                     lastSyncErrorAt={sharedMailboxRow?.last_sync_error_at ?? null}
                     testAction={testSharedMailboxConnectionAction}
                     syncAction={syncSharedMailboxNowAction}
+                  />
+                ),
+              },
+            ],
+          },
+          {
+            group: "Company Info",
+            tabs: [
+              {
+                label: "Company Info",
+                content: (
+                  <CompanyInfoForm
+                    currentCompanyName={companyInfoRow?.company_name ?? "CG Technologies"}
+                    currentAddress={companyInfoRow?.address ?? null}
+                    saveAction={saveCompanyInfoAction}
                   />
                 ),
               },

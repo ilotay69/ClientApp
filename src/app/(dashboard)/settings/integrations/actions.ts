@@ -555,6 +555,30 @@ export async function saveNordPassSettings(_prevState: FormState, formData: Form
   return { error: null, success: "Saved." };
 }
 
+export async function saveCompanyInfoAction(
+  _prevState: FormState,
+  formData: FormData
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) {
+    return { error: "You don't have permission to do that.", success: null };
+  }
+
+  const companyName = String(formData.get("company_name") ?? "").trim();
+  if (!companyName) return { error: "Company name is required.", success: null };
+  const address = emptyToUndefined(formData.get("address")) ?? null;
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("company_info")
+    .upsert({ id: true, company_name: companyName, address, updated_by: user.id }, { onConflict: "id" });
+
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: "Saved." };
+}
+
 export async function saveSalesNotificationSettings(
   _prevState: FormState,
   formData: FormData

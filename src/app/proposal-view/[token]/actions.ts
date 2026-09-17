@@ -18,6 +18,7 @@ import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/mic
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { buildProposalAcceptedClientEmail } from "@/lib/resend";
 import { buildProposalPdf } from "@/lib/proposal-pdf";
+import { getCompanyInfo } from "@/lib/company-info";
 
 // These actions are reachable by anyone holding a proposal link — there is
 // no login on this route at all. Two rules follow from that, and every
@@ -375,7 +376,7 @@ export async function acceptProposalByTokenAction(
       const attachments: SharedMailboxAttachment[] = [];
       const acceptedProposal = await getProposal(proposal.id, admin);
       if (acceptedProposal) {
-        const { pdf } = buildProposalPdf(acceptedProposal, signatureBuffer);
+        const { pdf } = buildProposalPdf(acceptedProposal, signatureBuffer, await getCompanyInfo(admin));
         attachments.push({
           filename: `${proposal.title} - Signed.pdf`,
           contentBase64: pdf.toString("base64"),

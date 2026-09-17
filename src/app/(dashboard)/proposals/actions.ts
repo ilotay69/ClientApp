@@ -10,6 +10,7 @@ import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { buildProposalEmail, buildProposalAcceptedClientEmail } from "@/lib/resend";
 import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { buildProposalPdf } from "@/lib/proposal-pdf";
+import { getCompanyInfo } from "@/lib/company-info";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
@@ -119,6 +120,7 @@ export async function createProposalAction(
     company: string | null;
     contactName: string | null;
     email: string | null;
+    address: string | null;
   }
 ): Promise<CreateProposalState> {
   const user = await requirePermission("manage_proposals");
@@ -157,6 +159,7 @@ export async function createProposalAction(
       prospect_company: snapshotCompany,
       prospect_contact_name: recipient.contactName?.trim() || null,
       prospect_email: recipient.email?.trim() || null,
+      prospect_address: recipient.address?.trim() || null,
       title: trimmedTitle,
       owner_id: user.id,
       created_by: user.id,
@@ -199,6 +202,7 @@ export async function updateProposalFieldAction(
     "prospect_company",
     "prospect_contact_name",
     "prospect_email",
+    "prospect_address",
   ]);
   if (!ALLOWED.has(field)) return;
 
@@ -977,7 +981,7 @@ export async function markProposalAcceptedByStaffAction(
         const attachments: SharedMailboxAttachment[] = [];
         const acceptedProposal = await getProposal(proposalId, admin);
         if (acceptedProposal) {
-          const { pdf } = buildProposalPdf(acceptedProposal, null);
+          const { pdf } = buildProposalPdf(acceptedProposal, null, await getCompanyInfo(admin));
           attachments.push({
             filename: `${proposal.title} - Signed.pdf`,
             contentBase64: pdf.toString("base64"),

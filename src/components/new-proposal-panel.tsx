@@ -23,6 +23,7 @@ export function NewProposalPanel({
       company: string | null;
       contactName: string | null;
       email: string | null;
+      address: string | null;
     }
   ) => Promise<CreateProposalState>;
 }) {
@@ -33,6 +34,7 @@ export function NewProposalPanel({
   const [company, setCompany] = useState("");
   const [contactName, setContactName] = useState("");
   const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -56,6 +58,7 @@ export function NewProposalPanel({
         company: kind === "prospect" ? company : null,
         contactName,
         email,
+        address,
       });
       // On success the action redirects and never returns, so anything
       // here is a real validation failure.
@@ -142,6 +145,16 @@ export function NewProposalPanel({
           />
         </Field>
       </div>
+
+      <Field label="Address">
+        <textarea
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          rows={2}
+          placeholder={"123 Example St, Suite 100\nCity, Province  Postal Code"}
+          className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none"
+        />
+      </Field>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 

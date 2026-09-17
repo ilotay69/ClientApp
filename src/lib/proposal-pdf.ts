@@ -2,6 +2,7 @@ import { PdfContentBuilder } from "@/lib/pdf";
 import { formatDate } from "@/lib/format";
 import { formatMoney, lineTotal } from "@/lib/proposal-totals";
 import type { Proposal } from "@/lib/proposal-data";
+import type { CompanyInfo } from "@/lib/company-info";
 
 const NAVY: [number, number, number] = [0.059, 0.09, 0.165];
 
@@ -21,7 +22,8 @@ const PERIOD_SUFFIX: Record<string, string> = {
  * still null on it. */
 export function buildProposalPdf(
   proposal: Proposal,
-  signatureBuffer: Buffer | null
+  signatureBuffer: Buffer | null,
+  companyInfo: CompanyInfo
 ): { pdf: Buffer; embeddedImageIds: Set<string> } {
   const doc = new PdfContentBuilder();
   const companyName = proposal.clientName ?? proposal.prospectCompany ?? "Client";
@@ -36,6 +38,15 @@ export function buildProposalPdf(
     doc.paragraph(`Accepted ${formatDate(proposal.acceptedAt)}`, { center: true, size: 10 });
   }
   doc.spacer(20);
+
+  // From/to address block - who this document is actually between,
+  // previously missing from the signed copy entirely.
+  doc.paragraph(`From: ${companyInfo.companyName}`, { size: 10 });
+  if (companyInfo.address?.trim()) doc.paragraph(companyInfo.address, { size: 10 });
+  doc.spacer(8);
+  doc.paragraph(`To: ${companyName}`, { size: 10 });
+  if (proposal.prospectAddress?.trim()) doc.paragraph(proposal.prospectAddress, { size: 10 });
+  doc.spacer(16);
 
   if (proposal.intro?.trim()) {
     doc.paragraph(proposal.intro);

@@ -9,6 +9,7 @@ import { ProposalViewBeacon } from "@/components/proposal-view-beacon";
 import { acceptProposalByTokenAction, recordProposalViewAction } from "./actions";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
+import { getCompanyInfo } from "@/lib/company-info";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,10 @@ export default async function ProposalViewPage({
     );
   }
 
-  const brochures = await fetchBrochuresForProposal(proposal.id);
+  const [brochures, companyInfo] = await Promise.all([
+    fetchBrochuresForProposal(proposal.id),
+    getCompanyInfo(),
+  ]);
   const bodySections = proposal.sections.filter((s) => s.body?.trim() || s.kind === "pricing");
   // The accept panel normally renders inside the pricing section, where the
   // numbers are. If someone deleted that section, it falls to the bottom of
@@ -173,6 +177,20 @@ export default async function ProposalViewPage({
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
           {proposal.title}
         </h1>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 text-sm text-slate-500 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">From</p>
+            <p className="mt-1 font-medium text-slate-700">{companyInfo.companyName}</p>
+            {companyInfo.address && <p className="whitespace-pre-line">{companyInfo.address}</p>}
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">To</p>
+            <p className="mt-1 font-medium text-slate-700">{proposal.companyName}</p>
+            {proposal.address && <p className="whitespace-pre-line">{proposal.address}</p>}
+          </div>
+        </div>
+
         {proposal.intro && (
           <p className="mt-4 whitespace-pre-line text-lg leading-relaxed text-slate-600">
             {proposal.intro}

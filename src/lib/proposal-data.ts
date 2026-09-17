@@ -61,6 +61,7 @@ export type Proposal = {
   prospectCompany: string | null;
   prospectContactName: string | null;
   prospectEmail: string | null;
+  prospectAddress: string | null;
   title: string;
   status: ProposalStatus;
   currency: string;
@@ -156,6 +157,7 @@ export type ProposalPublicView = {
   currency: string;
   companyName: string;
   contactName: string | null;
+  address: string | null;
   intro: string | null;
   closingNote: string | null;
   validUntil: string | null;
@@ -173,7 +175,7 @@ export type ProposalPublicView = {
 
 const PROPOSAL_COLUMNS = `
   id, proposal_number, quotation_number, client_id, prospect_company, prospect_contact_name, prospect_email,
-  title, status, currency, intro, closing_note, valid_until, access_token,
+  prospect_address, title, status, currency, intro, closing_note, valid_until, access_token,
   owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
   last_viewed_at, view_count, accepted_at, accepted_by_name,
   accepted_by_email, accepted_via, accepted_total_amount, accepted_tax_amount,
@@ -319,6 +321,7 @@ export async function getProposal(
     prospectCompany: data.prospect_company ?? null,
     prospectContactName: data.prospect_contact_name ?? null,
     prospectEmail: data.prospect_email ?? null,
+    prospectAddress: data.prospect_address ?? null,
     title: data.title,
     status: data.status as ProposalStatus,
     currency: data.currency ?? "CAD",
@@ -471,7 +474,7 @@ export async function getProposalByAccessToken(
     .select(
       `id, proposal_number, quotation_number, title, status, currency, intro, closing_note, valid_until,
        accepted_at, accepted_by_name, accepted_total_amount, prospect_company,
-       prospect_contact_name, clients(name)`
+       prospect_contact_name, prospect_address, clients(name)`
     )
     .eq("access_token", token)
     .maybeSingle();
@@ -504,6 +507,7 @@ export async function getProposalByAccessToken(
     currency: data.currency ?? "CAD",
     companyName: client?.name ?? data.prospect_company ?? "",
     contactName: data.prospect_contact_name ?? null,
+    address: data.prospect_address ?? null,
     intro: data.intro ?? null,
     closingNote: data.closing_note ?? null,
     validUntil: data.valid_until ?? null,
