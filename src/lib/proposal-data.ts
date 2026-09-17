@@ -228,11 +228,27 @@ export function isProposalExpired(
  * A pure function over an already-loaded proposal, so the editor's "Ready
  * to send" checklist and sendProposalAction's own guard run the exact same
  * rules — a Send button that's enabled while the server would refuse (or
- * vice versa) is its own bug. */
-export function computeProposalBlockers(proposal: Proposal): string[] {
+ * vice versa) is its own bug.
+ *
+ * requireStoredEmail defaults true (the checklist card's use, and
+ * sendProposalAction's own guard, which substitutes the about-to-be-sent
+ * address into prospectEmail before calling this — so "stored" there
+ * means "the one about to be saved"). Pass false for the Send panel's own
+ * disabled-button check: the panel has no separate persisted email field
+ * any more, only its own live "Email" input, which already independently
+ * requires non-empty — checking the OLD stored value there too would
+ * permanently block Send on a proposal that was created with no email set,
+ * since nothing else ever writes prospect_email before a send succeeds. */
+export function computeProposalBlockers(
+  proposal: Proposal,
+  opts?: { requireStoredEmail?: boolean }
+): string[] {
+  const requireStoredEmail = opts?.requireStoredEmail ?? true;
   const blockers: string[] = [];
   if (!proposal.title.trim()) blockers.push("Give the proposal a title.");
-  if (!proposal.prospectEmail?.trim()) blockers.push("Add the recipient's email address.");
+  if (requireStoredEmail && !proposal.prospectEmail?.trim()) {
+    blockers.push("Add the recipient's email address.");
+  }
   if (proposal.lineItems.filter((i) => !i.isOptional).length === 0) {
     blockers.push("Add at least one non-optional line item.");
   }

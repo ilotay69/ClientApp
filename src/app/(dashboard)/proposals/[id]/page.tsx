@@ -7,7 +7,7 @@ import { Badge } from "@/components/badge";
 import { ProposalEngagementPill } from "@/components/proposal-engagement-pill";
 import { ProposalSectionEditor } from "@/components/proposal-section-editor";
 import { ProposalPricingTable } from "@/components/proposal-pricing-table";
-import { InlineTextEdit, InlineDateEdit } from "@/components/task-field-editor";
+import { InlineDateEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
 import { ProposalSendPanel } from "@/components/proposal-send-panel";
 import { ProposalAiDraft } from "@/components/proposal-ai-draft";
@@ -64,6 +64,10 @@ export default async function ProposalDetailPage({
   ]);
 
   const blockers = computeProposalBlockers(proposal);
+  // The Send panel's own Email field is now the only place an address is
+  // entered — there's no longer a separate persisted "Recipient email" to
+  // check, and the panel already disables Send while that field is empty.
+  const sendBlockers = computeProposalBlockers(proposal, { requireStoredEmail: false });
   const isDraft = proposal.status === "draft";
   const editable = canManage && isDraft;
 
@@ -164,7 +168,7 @@ export default async function ProposalDetailPage({
               status={proposal.status}
               defaultEmail={proposal.sentToEmail ?? proposal.prospectEmail ?? ""}
               createdByEmail={proposal.createdByEmail}
-              blockers={blockers}
+              blockers={sendBlockers}
               viewUrl={
                 proposal.accessToken ? `${resolveAppUrl()}/proposal-view/${proposal.accessToken}` : null
               }
@@ -199,19 +203,6 @@ export default async function ProposalDetailPage({
                   />
                 ) : (
                   formatDate(proposal.validUntil)
-                )}
-              </Detail>
-              <Detail label="Recipient email">
-                {editable ? (
-                  <InlineTextEdit
-                    taskId={proposal.id}
-                    field="prospect_email"
-                    value={proposal.prospectEmail ?? ""}
-                    emptyLabel="Add an email"
-                    action={updateProposalFieldAction}
-                  />
-                ) : (
-                  (proposal.prospectEmail ?? "—")
                 )}
               </Detail>
               <Detail label="Owner">{proposal.ownerName ?? "—"}</Detail>
