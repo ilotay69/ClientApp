@@ -78,6 +78,15 @@ const ACCENTS = {
     bar: "bg-pink-500",
     dot: "bg-pink-400",
   },
+  cyan: {
+    body: "bg-gradient-to-br from-cyan-50 via-white to-white",
+    border: "border-cyan-100",
+    tile: "bg-cyan-500",
+    number: "text-cyan-600",
+    label: "text-cyan-700/70",
+    bar: "bg-cyan-500",
+    dot: "bg-cyan-400",
+  },
 } as const;
 
 export type DashboardAccent = keyof typeof ACCENTS;

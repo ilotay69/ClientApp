@@ -7,6 +7,7 @@ type AnyClient = any;
 export type DashboardWidgetKey =
   | "alerts"
   | "my_tasks"
+  | "my_personal_tasks"
   | "my_tickets"
   | "touchpoints_due"
   | "touchpoints_upcoming"
@@ -33,6 +34,11 @@ export type DashboardWidgetDef = {
 export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   { key: "alerts", label: "Alerts", description: "Notifications addressed to you that you haven't acknowledged yet." },
   { key: "my_tasks", label: "My Open Tasks", description: "Tasks assigned to you that aren't done yet." },
+  {
+    key: "my_personal_tasks",
+    label: "My Personal Tasks",
+    description: "Your own My To-Do list items — private to you, whether or not they're tied to work in this app.",
+  },
   { key: "my_tickets", label: "My Tickets", description: "Open Autotask tickets assigned to you." },
   { key: "touchpoints_due", label: "Touchpoints Past Due", description: "Client touchpoints that are overdue." },
   { key: "touchpoints_upcoming", label: "Touchpoints Coming Up", description: "Client touchpoints scheduled soon." },
@@ -54,7 +60,13 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   { key: "recruitment", label: "Recruitment", description: "New candidates waiting to be screened." },
 ];
 
-const DEFAULT_ELIGIBLE_KEYS: DashboardWidgetKey[] = ["alerts", "my_tasks", "my_tickets", "active_projects"];
+const DEFAULT_ELIGIBLE_KEYS: DashboardWidgetKey[] = [
+  "alerts",
+  "my_tasks",
+  "my_personal_tasks",
+  "my_tickets",
+  "active_projects",
+];
 
 /** Which widgets this user could possibly see at all, independent of their
  * own on/off preference — a widget behind a permission they don't hold

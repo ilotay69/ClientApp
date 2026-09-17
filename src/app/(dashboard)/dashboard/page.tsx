@@ -23,6 +23,7 @@ import {
   IconUsers,
   IconClipboardCheck,
   IconTag,
+  IconList,
 } from "@/components/icons";
 import { formatDate, isOverdue } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
@@ -99,6 +100,7 @@ export default async function DashboardPage() {
 
   const [
     { data: myTasks },
+    { data: myPersonalTasks },
     { data: allOpenTasks },
     { data: dueTouchpoints },
     { data: activeProjects },
@@ -112,6 +114,15 @@ export default async function DashboardPage() {
       .select("id, kind, title, due_date, clients(name)")
       .eq("assigned_to", user?.id ?? "")
       .not("status", "in", "(done,dismissed)")
+      .order("due_date", { ascending: true, nullsFirst: false }),
+    // RLS already scopes this to the current user's own personal tasks
+    // (see supabase/023_task_privacy.sql) — same query my-todo's "My
+    // Tasks" tab uses, just capped to 5 for the widget.
+    supabase
+      .from("tasks")
+      .select("id, title, due_date, clients(name)")
+      .eq("is_personal", true)
+      .neq("status", "done")
       .order("due_date", { ascending: true, nullsFirst: false }),
     supabase
       .from("tasks")
@@ -288,6 +299,37 @@ export default async function DashboardPage() {
                     <p className="truncate text-sm font-medium text-slate-900">{t.title}</p>
                     <p className="truncate text-xs text-slate-500">
                       {(t.clients as unknown as { name: string } | null)?.name ?? "No client"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {isOverdue(t.due_date) && <OverdueBadge />}
+                    <span className="text-xs text-slate-500">{formatDate(t.due_date)}</span>
+                  </div>
+                </WidgetRow>
+              ))
+            )}
+          </DashboardWidgetCard>
+        )}
+
+        {enabled.has("my_personal_tasks") && (
+          <DashboardWidgetCard
+            title="My Personal Tasks"
+            count={myPersonalTasks?.length ?? 0}
+            countLabel="on your to-do list"
+            icon={IconList}
+            accent="cyan"
+            href="/my-todo?tab=tasks"
+            urgent={(myPersonalTasks ?? []).some((t) => isOverdue(t.due_date))}
+          >
+            {(myPersonalTasks ?? []).length === 0 ? (
+              <EmptyRow text="Nothing on your list yet." />
+            ) : (
+              (myPersonalTasks ?? []).slice(0, 5).map((t) => (
+                <WidgetRow accent="cyan" key={t.id} href="/my-todo?tab=tasks">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">{t.title}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {(t.clients as unknown as { name: string } | null)?.name ?? "Personal"}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
