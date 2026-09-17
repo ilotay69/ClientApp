@@ -98,7 +98,10 @@ export default async function DashboardLayout({
         quarterlyReviewsOwnerOnly={quarterlyReviewsOwnerOnly}
         signOutAction={signOut}
       />
-      <main className="px-4 py-8 md:pl-64">
+      {/* Tighter vertical padding on a phone — 32px top and bottom pushed
+          most pages below the fold for no benefit on a small screen —
+          and safe-x so content clears the notch in landscape. */}
+      <main className="safe-x px-4 py-4 md:py-8 md:pl-64">
         <div className="w-full">{children}</div>
       </main>
     </div>

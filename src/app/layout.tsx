@@ -19,6 +19,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#333333",
+  // width/initialScale are Next's defaults already; spelled out so the
+  // whole viewport contract is visible in one place. viewportFit "cover"
+  // is the part that matters: without it iOS reports every
+  // env(safe-area-inset-*) as 0, so the .safe-* helpers in globals.css
+  // would silently do nothing under the translucent status bar.
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

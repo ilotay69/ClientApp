@@ -50,6 +50,36 @@ body {
   font-family: var(--font-sans);
 }
 
+/* iOS Safari zooms the whole page whenever a form control smaller than
+ * 16px takes focus — and the type scale above deliberately puts every
+ * input at text-sm (12px), so on a phone tapping any field yanked the
+ * layout around and left it zoomed. Only applied below the md breakpoint:
+ * the density above it is the point of that scale, and desktop browsers
+ * don't do this. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* The app is installed as a PWA with a black-translucent status bar,
+ * which means iOS draws content *under* the status bar and home
+ * indicator. Without these the top of the page sits behind the clock.
+ * Applied to the shell rather than body so a fixed sidebar/header can
+ * opt in independently. */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 /* Indeterminate progress bar (IndeterminateProgressBar component) — for a
  * long-running action with no real percentage to report (an AI analysis
  * call), a sliding bar reads as "still working" without pretending to

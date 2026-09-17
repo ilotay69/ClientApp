@@ -239,7 +239,10 @@ export function SidebarNav({
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col bg-charcoal text-white">
+    // safe-top/-bottom: shared by the mobile drawer and the desktop rail,
+    // so an installed PWA doesn't put the CG Ops mark under the status bar
+    // or the Sign out button under the home indicator.
+    <div className="safe-top safe-bottom flex h-full flex-col bg-charcoal text-white">
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-base font-semibold tracking-tight text-white">
           <span className="text-brand">CG</span> Ops
@@ -304,8 +307,10 @@ export function SidebarNav({
 
   return (
     <>
-      {/* Mobile top bar */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
+      {/* Mobile top bar — safe-top keeps the title and menu button clear of
+          the iOS status bar, which draws over the app when it's installed
+          (appleWebApp.statusBarStyle is black-translucent). */}
+      <div className="safe-top safe-x flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
         <span className="text-sm font-semibold text-charcoal">
           <span className="text-brand">CG</span> Ops
         </span>
