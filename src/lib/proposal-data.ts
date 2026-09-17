@@ -1,0 +1,406 @@
+import { createAdminClient } from "@/lib/supabase/server";
+import {
+  computeProposalTotals,
+  type ProposalBillingPeriod,
+  type ProposalLineItemInput,
+  type ProposalTotals,
+} from "@/lib/proposal-totals";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AdminClient = any;
+
+export type ProposalStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "declined"
+  | "expired"
+  | "withdrawn";
+
+export type ProposalSection = {
+  id: string;
+  kind: string;
+  heading: string;
+  body: string | null;
+  sortOrder: number;
+};
+
+export type ProposalLineItem = {
+  id: string;
+  description: string;
+  detail: string | null;
+  quantity: number;
+  unitPrice: number;
+  billingPeriod: ProposalBillingPeriod;
+  isOptional: boolean;
+  isSelected: boolean;
+  sortOrder: number;
+};
+
+/** The full staff-side shape — everything, including the internal fields a
+ * prospect must never see. */
+export type Proposal = {
+  id: string;
+  clientId: string | null;
+  clientName: string | null;
+  prospectCompany: string | null;
+  prospectContactName: string | null;
+  prospectEmail: string | null;
+  title: string;
+  status: ProposalStatus;
+  currency: string;
+  intro: string | null;
+  closingNote: string | null;
+  validUntil: string | null;
+  accessToken: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
+  /** The rep's own address — used as the reply-to and the "questions? get
+   * hold of me" line, so a prospect replies to a person rather than to the
+   * shared mailbox the send goes out from. */
+  ownerEmail: string | null;
+  createdById: string | null;
+  sentAt: string | null;
+  sentToEmail: string | null;
+  firstViewedAt: string | null;
+  lastViewedAt: string | null;
+  viewCount: number;
+  acceptedAt: string | null;
+  acceptedByName: string | null;
+  acceptedByEmail: string | null;
+  acceptedVia: string | null;
+  declinedAt: string | null;
+  declineReason: string | null;
+  reminderCount: number;
+  lastReminderAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sections: ProposalSection[];
+  lineItems: ProposalLineItem[];
+  totals: ProposalTotals;
+};
+
+export type ProposalListItem = {
+  id: string;
+  title: string;
+  status: ProposalStatus;
+  currency: string;
+  recipientLabel: string;
+  clientId: string | null;
+  ownerName: string | null;
+  validUntil: string | null;
+  sentAt: string | null;
+  firstViewedAt: string | null;
+  lastViewedAt: string | null;
+  viewCount: number;
+  acceptedAt: string | null;
+  updatedAt: string;
+  totals: ProposalTotals;
+};
+
+/** What the prospect's public page is allowed to know. Deliberately a
+ * different type from Proposal rather than a subset picked at the render
+ * site: created_by, sent_to_email, owner identity, the view log and the
+ * access token itself must never reach a page served to someone holding
+ * only a link, and a separate type makes leaking one a compile error
+ * rather than an oversight. */
+export type ProposalPublicView = {
+  id: string;
+  title: string;
+  status: ProposalStatus;
+  currency: string;
+  companyName: string;
+  contactName: string | null;
+  intro: string | null;
+  closingNote: string | null;
+  validUntil: string | null;
+  acceptedAt: string | null;
+  acceptedByName: string | null;
+  sections: ProposalSection[];
+  lineItems: ProposalLineItem[];
+  /** Derived here rather than on the page so every caller agrees on what
+   * "this link is no longer live" means. */
+  isExpired: boolean;
+};
+
+const PROPOSAL_COLUMNS = `
+  id, client_id, prospect_company, prospect_contact_name, prospect_email,
+  title, status, currency, intro, closing_note, valid_until, access_token,
+  owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
+  last_viewed_at, view_count, accepted_at, accepted_by_name,
+  accepted_by_email, accepted_via, declined_at, decline_reason,
+  reminder_count, last_reminder_at, created_at, updated_at
+`;
+
+function toLineItem(row: Record<string, unknown>): ProposalLineItem {
+  return {
+    id: row.id as string,
+    description: (row.description as string) ?? "",
+    detail: (row.detail as string) ?? null,
+    // numeric(12,2) comes back from PostgREST as a string, not a number —
+    // Number() here rather than at every call site, so the totals module
+    // only ever sees real numbers.
+    quantity: Number(row.quantity ?? 0),
+    unitPrice: Number(row.unit_price ?? 0),
+    billingPeriod: (row.billing_period as ProposalBillingPeriod) ?? "one_off",
+    isOptional: Boolean(row.is_optional),
+    isSelected: Boolean(row.is_selected),
+    sortOrder: Number(row.sort_order ?? 0),
+  };
+}
+
+function toSection(row: Record<string, unknown>): ProposalSection {
+  return {
+    id: row.id as string,
+    kind: (row.kind as string) ?? "custom",
+    heading: (row.heading as string) ?? "",
+    body: (row.body as string) ?? null,
+    sortOrder: Number(row.sort_order ?? 0),
+  };
+}
+
+export function toTotalsInput(items: ProposalLineItem[]): ProposalLineItemInput[] {
+  return items.map((i) => ({
+    id: i.id,
+    description: i.description,
+    quantity: i.quantity,
+    unitPrice: i.unitPrice,
+    billingPeriod: i.billingPeriod,
+    isOptional: i.isOptional,
+    isSelected: i.isSelected,
+  }));
+}
+
+/** True when a proposal's own validity date has passed, regardless of
+ * whether the nightly cron has got around to flipping its status yet. The
+ * public page must not rely on the cron having run. */
+export function isProposalExpired(
+  status: ProposalStatus,
+  validUntil: string | null
+): boolean {
+  if (status === "expired") return true;
+  if (status === "accepted" || status === "draft") return false;
+  if (!validUntil) return false;
+  // valid_until is a date column: the proposal is good through the end of
+  // that day, so compare dates and not timestamps.
+  const today = new Date().toISOString().slice(0, 10);
+  return validUntil < today;
+}
+
+export async function getProposal(
+  id: string,
+  admin: AdminClient = createAdminClient()
+): Promise<Proposal | null> {
+  const { data, error } = await admin
+    .from("proposals")
+    .select(`${PROPOSAL_COLUMNS}, clients(name), owner_profile:owner_id(full_name, email)`)
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+
+  const [{ data: sectionRows }, { data: itemRows }] = await Promise.all([
+    admin
+      .from("proposal_sections")
+      .select("id, kind, heading, body, sort_order")
+      .eq("proposal_id", id)
+      .order("sort_order", { ascending: true }),
+    admin
+      .from("proposal_line_items")
+      .select(
+        "id, description, detail, quantity, unit_price, billing_period, is_optional, is_selected, sort_order"
+      )
+      .eq("proposal_id", id)
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  const client = Array.isArray(data.clients) ? data.clients[0] : data.clients;
+  const owner = Array.isArray(data.owner_profile) ? data.owner_profile[0] : data.owner_profile;
+  const lineItems = (itemRows ?? []).map(toLineItem);
+
+  return {
+    id: data.id,
+    clientId: data.client_id ?? null,
+    clientName: client?.name ?? null,
+    prospectCompany: data.prospect_company ?? null,
+    prospectContactName: data.prospect_contact_name ?? null,
+    prospectEmail: data.prospect_email ?? null,
+    title: data.title,
+    status: data.status as ProposalStatus,
+    currency: data.currency ?? "CAD",
+    intro: data.intro ?? null,
+    closingNote: data.closing_note ?? null,
+    validUntil: data.valid_until ?? null,
+    accessToken: data.access_token ?? null,
+    ownerId: data.owner_id ?? null,
+    ownerName: owner?.full_name ?? null,
+    ownerEmail: owner?.email ?? null,
+    createdById: data.created_by ?? null,
+    sentAt: data.sent_at ?? null,
+    sentToEmail: data.sent_to_email ?? null,
+    firstViewedAt: data.first_viewed_at ?? null,
+    lastViewedAt: data.last_viewed_at ?? null,
+    viewCount: data.view_count ?? 0,
+    acceptedAt: data.accepted_at ?? null,
+    acceptedByName: data.accepted_by_name ?? null,
+    acceptedByEmail: data.accepted_by_email ?? null,
+    acceptedVia: data.accepted_via ?? null,
+    declinedAt: data.declined_at ?? null,
+    declineReason: data.decline_reason ?? null,
+    reminderCount: data.reminder_count ?? 0,
+    lastReminderAt: data.last_reminder_at ?? null,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    sections: (sectionRows ?? []).map(toSection),
+    lineItems,
+    totals: computeProposalTotals(toTotalsInput(lineItems)),
+  };
+}
+
+export type ProposalListFilters = {
+  /** "open" folds draft+sent together — a proposal that's been opened but
+   * not answered is still open, and "viewed" isn't a status (see 129). */
+  bucket?: "open" | "accepted" | "closed";
+  search?: string;
+  /** A client id, or the literal "none" for proposals to brand-new
+   * prospects that have no clients row at all. */
+  clientId?: string;
+};
+
+const BUCKET_STATUSES: Record<string, ProposalStatus[]> = {
+  open: ["draft", "sent"],
+  accepted: ["accepted"],
+  closed: ["declined", "expired", "withdrawn"],
+};
+
+export async function listProposals(
+  filters: ProposalListFilters = {},
+  admin: AdminClient = createAdminClient()
+): Promise<ProposalListItem[]> {
+  let query = admin
+    .from("proposals")
+    .select(
+      `id, client_id, prospect_company, title, status, currency, valid_until,
+       sent_at, first_viewed_at, last_viewed_at, view_count, accepted_at,
+       updated_at, clients(name), owner_profile:owner_id(full_name)`
+    )
+    .order("updated_at", { ascending: false });
+
+  if (filters.bucket && BUCKET_STATUSES[filters.bucket]) {
+    query = query.in("status", BUCKET_STATUSES[filters.bucket]);
+  }
+  if (filters.clientId === "none") {
+    query = query.is("client_id", null);
+  } else if (filters.clientId) {
+    query = query.eq("client_id", filters.clientId);
+  }
+  if (filters.search) {
+    // Escape the PostgREST or() separators so a comma or paren in the search
+    // box can't break out of this filter expression.
+    const safe = filters.search.replace(/[,()]/g, " ").trim();
+    if (safe) query = query.or(`title.ilike.%${safe}%,prospect_company.ilike.%${safe}%`);
+  }
+
+  const { data } = await query;
+  if (!data) return [];
+
+  // One query for every proposal's line items rather than one per row —
+  // totals are shown on every list row, and N+1 here would be a query per
+  // proposal on a page that's meant to be scanned.
+  const ids = data.map((r: { id: string }) => r.id);
+  const { data: itemRows } = ids.length
+    ? await admin
+        .from("proposal_line_items")
+        .select("proposal_id, id, description, quantity, unit_price, billing_period, is_optional, is_selected, sort_order")
+        .in("proposal_id", ids)
+    : { data: [] };
+
+  const itemsByProposal = new Map<string, ProposalLineItem[]>();
+  for (const row of itemRows ?? []) {
+    const list = itemsByProposal.get(row.proposal_id) ?? [];
+    list.push(toLineItem(row));
+    itemsByProposal.set(row.proposal_id, list);
+  }
+
+  return data.map((row: Record<string, unknown>) => {
+    const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+    const owner = Array.isArray(row.owner_profile) ? row.owner_profile[0] : row.owner_profile;
+    const items = itemsByProposal.get(row.id as string) ?? [];
+    return {
+      id: row.id as string,
+      title: row.title as string,
+      status: row.status as ProposalStatus,
+      currency: (row.currency as string) ?? "CAD",
+      recipientLabel:
+        (client as { name?: string } | null)?.name ??
+        (row.prospect_company as string) ??
+        "Unknown",
+      clientId: (row.client_id as string) ?? null,
+      ownerName: (owner as { full_name?: string } | null)?.full_name ?? null,
+      validUntil: (row.valid_until as string) ?? null,
+      sentAt: (row.sent_at as string) ?? null,
+      firstViewedAt: (row.first_viewed_at as string) ?? null,
+      lastViewedAt: (row.last_viewed_at as string) ?? null,
+      viewCount: (row.view_count as number) ?? 0,
+      acceptedAt: (row.accepted_at as string) ?? null,
+      updatedAt: row.updated_at as string,
+      totals: computeProposalTotals(toTotalsInput(items)),
+    };
+  });
+}
+
+/** Looked up by the random, unguessable access_token from the public link
+ * (src/app/proposal-view) — never by proposal id, since that page has no
+ * login at all and must not accept an arbitrary id straight from the URL.
+ *
+ * Returns the narrowed ProposalPublicView, so nothing internal can reach
+ * the prospect's page even by accident. */
+export async function getProposalByAccessToken(
+  token: string,
+  admin: AdminClient = createAdminClient()
+): Promise<ProposalPublicView | null> {
+  const { data, error } = await admin
+    .from("proposals")
+    .select(
+      `id, title, status, currency, intro, closing_note, valid_until,
+       accepted_at, accepted_by_name, prospect_company, prospect_contact_name,
+       clients(name)`
+    )
+    .eq("access_token", token)
+    .maybeSingle();
+  if (error || !data) return null;
+
+  const [{ data: sectionRows }, { data: itemRows }] = await Promise.all([
+    admin
+      .from("proposal_sections")
+      .select("id, kind, heading, body, sort_order")
+      .eq("proposal_id", data.id)
+      .order("sort_order", { ascending: true }),
+    admin
+      .from("proposal_line_items")
+      .select(
+        "id, description, detail, quantity, unit_price, billing_period, is_optional, is_selected, sort_order"
+      )
+      .eq("proposal_id", data.id)
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  const client = Array.isArray(data.clients) ? data.clients[0] : data.clients;
+  const status = data.status as ProposalStatus;
+
+  return {
+    id: data.id,
+    title: data.title,
+    status,
+    currency: data.currency ?? "CAD",
+    companyName: client?.name ?? data.prospect_company ?? "",
+    contactName: data.prospect_contact_name ?? null,
+    intro: data.intro ?? null,
+    closingNote: data.closing_note ?? null,
+    validUntil: data.valid_until ?? null,
+    acceptedAt: data.accepted_at ?? null,
+    acceptedByName: data.accepted_by_name ?? null,
+    sections: (sectionRows ?? []).map(toSection),
+    lineItems: (itemRows ?? []).map(toLineItem),
+    isExpired: isProposalExpired(status, data.valid_until ?? null),
+  };
+}
