@@ -89,7 +89,12 @@ function assertUnreachable(key: never): never {
  * set up. */
 async function requireAutotaskSettings(admin: ReturnType<typeof createAdminClient>) {
   const settings = await getAutotaskSettings(admin);
-  return settings?.zoneUrl ? settings : null;
+  // Rebuilt as a new object literal (not `return settings`) so TypeScript
+  // narrows `zoneUrl` to `string` for every caller — returning the original
+  // `settings` reference keeps its declared `string | null` type even though
+  // the truthy check above already ruled out null at this exact spot.
+  if (!settings?.zoneUrl) return null;
+  return { ...settings, zoneUrl: settings.zoneUrl };
 }
 
 /** Same query/column logic each CSV download route uses (see
