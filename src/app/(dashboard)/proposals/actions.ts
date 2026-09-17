@@ -68,7 +68,7 @@ const DEFAULT_SECTIONS = [
   },
   {
     kind: "pricing",
-    heading: "Investment",
+    heading: "Quote Details",
     body: "",
     sort_order: 2,
   },

@@ -92,7 +92,7 @@ export function ProposalSendPanel({
         <>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Send to
+              Email
             </span>
             <input
               type="text"

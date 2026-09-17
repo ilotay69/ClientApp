@@ -337,7 +337,10 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
   return (
     <div className="flex items-start justify-between gap-2">
       <dt className="shrink-0 text-slate-400">{label}</dt>
-      <dd className="min-w-0 text-right text-slate-700">{children}</dd>
+      {/* flex-1 + break-words: a long semicolon-joined email list has no
+          whitespace to wrap at, so without these it overflowed past the
+          card instead of wrapping onto a second line. */}
+      <dd className="min-w-0 flex-1 break-words text-right text-slate-700">{children}</dd>
     </div>
   );
 }
