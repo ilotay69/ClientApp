@@ -36,7 +36,6 @@ export default async function DashboardLayout({
   const canViewReports = me?.permissions.has("view_team_wide") ?? false;
   const canManageTouchpoints = me?.permissions.has("manage_touchpoints") ?? false;
   const canViewDomainHealth = me?.permissions.has("view_domain_health") ?? false;
-  const canViewLookups = me?.permissions.has("view_lookups") ?? false;
   const canViewAnalysis = me?.permissions.has("view_analysis") ?? false;
   const canViewDashboard = me?.permissions.has("view_dashboard") ?? false;
   const canViewClients = me?.permissions.has("view_clients") ?? false;
@@ -80,7 +79,6 @@ export default async function DashboardLayout({
         canViewReports={canViewReports}
         canManageTouchpoints={canManageTouchpoints}
         canViewDomainHealth={canViewDomainHealth}
-        canViewLookups={canViewLookups}
         canViewAnalysis={canViewAnalysis}
         canViewDashboard={canViewDashboard}
         canViewClients={canViewClients}

@@ -3,9 +3,19 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { ReportPreviewPanel, type ReportDefinition } from "@/components/report-preview-panel";
 import { ContractUsageLookup } from "@/components/contract-usage-lookup";
+import { HoursLookup } from "@/components/hours-lookup";
+import { TicketLookup } from "@/components/ticket-lookup";
+import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
 import { GroupedTabs } from "@/components/grouped-tabs";
 import { getReportPreviewAction } from "./actions";
-import { fetchContractUsageAction, sendContractUsageReportAction } from "../hours/actions";
+import {
+  fetchContractUsageAction,
+  sendContractUsageReportAction,
+  fetchHoursByGroupAction,
+  fetchNonBillableHoursByGroupAction,
+  searchAutotaskTicketsAction,
+} from "../hours/actions";
+import { fetchHuntressSiemLogsAction } from "../hours/huntress-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -202,7 +212,7 @@ export default async function ReportsPage() {
   }
 
   // Only clients actually mapped to Autotask can be looked up this way —
-  // same reasoning as the Lookups page's own client picker.
+  // an unmapped one would just fail with "not linked" on every search.
   const { data: autotaskClients } = await supabase
     .from("clients")
     .select("id, name, email:primary_contact_email")
@@ -214,7 +224,9 @@ export default async function ReportsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Pick a report to preview it, then download the full CSV if it's what you need.
+          Pick a report to preview it, then download the full CSV if it's what you need. A few tabs
+          below are interactive tools instead — pick a client, a date range, or type a search — for
+          data that doesn't fit a fixed export.
         </p>
       </div>
 
@@ -265,6 +277,29 @@ export default async function ReportsPage() {
               {
                 label: AGING_TICKETS.title,
                 content: <ReportPreviewPanel report={AGING_TICKETS} previewAction={getReportPreviewAction} />,
+              },
+              // The three tabs below are interactive tools, not fixed
+              // reports — groupBy/days/search are picked live, so there's
+              // no static dataset a CSV download could represent. Moved
+              // here from the retired Lookups page rather than left behind.
+              {
+                label: "Hours by Group",
+                content: <HoursLookup key="by-client-or-resource" action={fetchHoursByGroupAction} />,
+              },
+              {
+                label: "Non-Billable Hours",
+                content: (
+                  <HoursLookup
+                    key="non-billable"
+                    action={fetchNonBillableHoursByGroupAction}
+                    title="Non-billable hours by client or resource"
+                    subtitle="Hours logged as non-billable in Autotask over a range you pick — live, nothing stored."
+                  />
+                ),
+              },
+              {
+                label: "Ticket Lookup",
+                content: <TicketLookup clients={autotaskClients ?? []} action={searchAutotaskTicketsAction} />,
               },
             ],
           },
@@ -342,6 +377,10 @@ export default async function ReportsPage() {
                 content: (
                   <ReportPreviewPanel report={HUNTRESS_OPEN_INCIDENTS} previewAction={getReportPreviewAction} />
                 ),
+              },
+              {
+                label: "Huntress SIEM",
+                content: <HuntressSiemLogs action={fetchHuntressSiemLogsAction} />,
               },
             ],
           },

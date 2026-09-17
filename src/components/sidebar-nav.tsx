@@ -15,7 +15,6 @@ import {
   IconSparkles,
   IconTag,
   IconUsers,
-  IconClock,
   IconDownload,
   IconRefresh,
   IconGlobe,
@@ -49,7 +48,6 @@ export function SidebarNav({
   canViewReports,
   canManageTouchpoints,
   canViewDomainHealth,
-  canViewLookups,
   canViewAnalysis,
   canViewDashboard,
   canViewClients,
@@ -78,7 +76,6 @@ export function SidebarNav({
   canViewReports: boolean;
   canManageTouchpoints: boolean;
   canViewDomainHealth: boolean;
-  canViewLookups: boolean;
   canViewAnalysis: boolean;
   canViewDashboard: boolean;
   canViewClients: boolean;
@@ -190,7 +187,6 @@ export function SidebarNav({
   ];
 
   const insightsLinks: NavItem[] = [
-    ...(canViewLookups ? [{ href: "/hours", label: "Lookups", icon: IconClock }] : []),
     ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
     ...(canViewAnalysis
       ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]

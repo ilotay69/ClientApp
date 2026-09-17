@@ -10,9 +10,9 @@ type ActionResult = { rows: ResourceHoursRow[] } | { error: string };
 /** Live from Autotask, fetched client-side after the rest of the Dashboard
  * has already rendered — this is the one widget that can't just come back
  * with the page's own Supabase queries (fetchResourceHoursSummary hits
- * Autotask directly, same as the Lookups page's own "Hours worked"
- * widget), so it gets its own loading state instead of blocking the whole
- * page on an external API call. */
+ * Autotask directly, same as the Reports page's "Resource hours" tab), so
+ * it gets its own loading state instead of blocking the whole page on an
+ * external API call. */
 export function TeamHoursWidget({ action }: { action: () => Promise<ActionResult> }) {
   const [state, setState] = useState<ActionResult | null>(null);
 
@@ -33,7 +33,7 @@ export function TeamHoursWidget({ action }: { action: () => Promise<ActionResult
 
   return (
     <div className="relative rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 via-white to-white shadow-sm transition-shadow hover:shadow-md">
-      <Link href="/hours" className="flex items-center justify-between gap-2.5 rounded-t-2xl px-4 py-3">
+      <Link href="/reports" className="flex items-center justify-between gap-2.5 rounded-t-2xl px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-500 text-white shadow-sm">
             <IconClock className="h-4 w-4" />
