@@ -311,13 +311,46 @@ export function ProposalSendPanel({
           </div>
 
           <div className="flex flex-wrap gap-2 pt-1">
-            <SmallButton pending={pending} onClick={() => run(reviseAction)}>
+            <SmallButton
+              pending={pending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Put this proposal back into draft so you can edit it? The client's existing link will show \"not ready yet\" until you send it again, at which point it shows your changes. Sending/view history stays as-is."
+                  )
+                ) {
+                  run(reviseAction);
+                }
+              }}
+            >
               Revise
             </SmallButton>
-            <SmallButton pending={pending} onClick={() => run(withdrawAction)}>
+            <SmallButton
+              pending={pending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Withdraw this proposal? The client's link will immediately show it's no longer available. You can Revise it back to draft later to send an updated version."
+                  )
+                ) {
+                  run(withdrawAction);
+                }
+              }}
+            >
               Withdraw
             </SmallButton>
-            <SmallButton pending={pending} onClick={() => run(revokeLinkAction)}>
+            <SmallButton
+              pending={pending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Revoke this link? Anyone who opens it from now on, including the client, sees an invalid-link page. Sending again will issue a new link."
+                  )
+                ) {
+                  run(revokeLinkAction);
+                }
+              }}
+            >
               Revoke link
             </SmallButton>
           </div>
