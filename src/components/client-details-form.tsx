@@ -15,6 +15,7 @@ export function ClientDetailsForm({
   primaryContactName,
   primaryContactEmail,
   primaryContactPhone,
+  address,
   notes,
   ownerId,
   ownerName,
@@ -26,6 +27,7 @@ export function ClientDetailsForm({
   primaryContactName: string | null;
   primaryContactEmail: string | null;
   primaryContactPhone: string | null;
+  address: string | null;
   notes: string | null;
   ownerId: string | null;
   ownerName: string | null;
@@ -46,6 +48,12 @@ export function ClientDetailsForm({
           <Detail label="Phone" value={primaryContactPhone} />
           <Detail label="Account owner" value={ownerName} />
         </dl>
+        {address && (
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Address</p>
+            <p className="mt-0.5 whitespace-pre-line text-sm text-slate-700">{address}</p>
+          </div>
+        )}
         {notes && (
           <div className="mt-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Notes</p>
@@ -101,6 +109,16 @@ export function ClientDetailsForm({
             ))}
           </select>
         </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-slate-700">Address</label>
+        <textarea
+          name="address"
+          rows={2}
+          defaultValue={address ?? ""}
+          placeholder="Synced from Autotask, or enter manually"
+          className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+        />
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-700">Notes</label>

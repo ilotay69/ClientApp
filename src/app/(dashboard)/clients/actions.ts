@@ -101,6 +101,7 @@ export async function updateClientDetailsAction(
       primary_contact_name: emptyToNull(formData.get("primary_contact_name")),
       primary_contact_email: emptyToNull(formData.get("primary_contact_email")),
       primary_contact_phone: emptyToNull(formData.get("primary_contact_phone")),
+      address: emptyToNull(formData.get("address")),
       notes: emptyToNull(formData.get("notes")),
       owner_id: emptyToNull(formData.get("owner_id")),
     })

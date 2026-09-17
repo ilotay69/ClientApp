@@ -385,6 +385,7 @@ export default async function ClientDetailPage({
                       primaryContactName={client.primary_contact_name}
                       primaryContactEmail={client.primary_contact_email}
                       primaryContactPhone={client.primary_contact_phone}
+                      address={client.address}
                       notes={client.notes}
                       ownerId={client.owner_id}
                       ownerName={ownerName}
