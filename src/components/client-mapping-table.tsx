@@ -103,18 +103,10 @@ export function ClientMappingTable({
 
   return (
     <div className="max-w-4xl space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-slate-900">Client Mapping</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Link each client to their NinjaOne organization and Microsoft 365 tenant. Mapping a client
-          here is what makes their Devices, Licenses and Secure Score data start syncing —
-          it&apos;s the same link that used to be set from each client&apos;s own page.
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          {rows.length} client{rows.length === 1 ? "" : "s"} · {missingNinja} without NinjaOne ·{" "}
-          {missingM365} without 365 · {missingHuntress} without Huntress
-        </p>
-      </div>
+      <p className="text-xs text-slate-500">
+        {rows.length} client{rows.length === 1 ? "" : "s"} · {missingNinja} without NinjaOne ·{" "}
+        {missingM365} without 365 · {missingHuntress} without Huntress
+      </p>
 
       <div className="flex flex-wrap items-center gap-2">
         <input

@@ -51,69 +51,84 @@ export function NinjaOneMappingButton({
         {organizationId !== null ? "Change NinjaOne mapping" : "Link to NinjaOne"}
       </button>
 
+      {/* Fixed + centered rather than an absolute dropdown anchored to the
+          button — this renders inside a horizontally-scrolling table (see
+          client-mapping-table.tsx), and `overflow-x-auto` on that ancestor
+          forces `overflow-y` to `auto` too (an unset axis follows the set
+          one per the CSS overflow spec), which clipped an absolute popover
+          on both axes into a tiny scrollable box. Fixed positioning is
+          relative to the viewport, so no ancestor's overflow can clip it. */}
       {expanded && (
-        <div className="absolute right-0 z-20 mt-2 w-[min(90vw,20rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
-          <p className="text-sm text-slate-500">Search for this client&apos;s NinjaOne organization.</p>
-          <div className="mt-2 flex gap-2">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runSearch()}
-              placeholder="Organization name"
-              autoFocus
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={runSearch}
-              disabled={searching || !query.trim()}
-              className="shrink-0 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-            >
-              {searching ? "..." : "Search"}
-            </button>
-          </div>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          {results.length > 0 && (
-            <ul className="mt-2 divide-y divide-slate-100 rounded-md border border-slate-100">
-              {results.map((o) => (
-                <li key={o.id} className="flex items-center justify-between gap-2 px-3 py-2">
-                  <span className="text-sm text-slate-900">{o.name}</span>
-                  <button
-                    type="button"
-                    disabled={linking}
-                    onClick={() =>
-                      startLink(async () => {
-                        await linkAction(o.id);
-                        close();
-                      })
-                    }
-                    className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                  >
-                    Link
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="mt-3 flex items-center gap-3">
-            <button type="button" onClick={close} className="text-xs text-slate-500 hover:underline">
-              Close
-            </button>
-            {organizationId !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={close}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm text-slate-500">Search for this client&apos;s NinjaOne organization.</p>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                placeholder="Organization name"
+                autoFocus
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
               <button
                 type="button"
-                disabled={linking}
-                onClick={() =>
-                  startLink(async () => {
-                    await unlinkAction();
-                    close();
-                  })
-                }
-                className="text-xs text-red-600 hover:underline disabled:opacity-60"
+                onClick={runSearch}
+                disabled={searching || !query.trim()}
+                className="shrink-0 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"
               >
-                Remove mapping
+                {searching ? "..." : "Search"}
               </button>
+            </div>
+            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            {results.length > 0 && (
+              <ul className="mt-2 divide-y divide-slate-100 rounded-md border border-slate-100">
+                {results.map((o) => (
+                  <li key={o.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span className="text-sm text-slate-900">{o.name}</span>
+                    <button
+                      type="button"
+                      disabled={linking}
+                      onClick={() =>
+                        startLink(async () => {
+                          await linkAction(o.id);
+                          close();
+                        })
+                      }
+                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                    >
+                      Link
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
+            <div className="mt-3 flex items-center gap-3">
+              <button type="button" onClick={close} className="text-xs text-slate-500 hover:underline">
+                Close
+              </button>
+              {organizationId !== null && (
+                <button
+                  type="button"
+                  disabled={linking}
+                  onClick={() =>
+                    startLink(async () => {
+                      await unlinkAction();
+                      close();
+                    })
+                  }
+                  className="text-xs text-red-600 hover:underline disabled:opacity-60"
+                >
+                  Remove mapping
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
