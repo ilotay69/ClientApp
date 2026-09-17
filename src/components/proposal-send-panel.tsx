@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { formatDate, formatAge } from "@/lib/format";
 import type { ProposalActionState } from "@/app/(dashboard)/proposals/actions";
 
@@ -47,6 +48,7 @@ export function ProposalSendPanel({
   reviseAction: Action;
   revokeLinkAction: Action;
 }) {
+  const router = useRouter();
   const [email, setEmail] = useState(defaultEmail);
   const [acceptedBy, setAcceptedBy] = useState("");
   const [declineReason, setDeclineReason] = useState("");
@@ -62,6 +64,23 @@ export function ProposalSendPanel({
   const isDraft = status === "draft";
   const isSent = status === "sent";
   const isClosed = !isDraft && !isSent;
+
+  // Polls for the "Opened"/"Reminders" stats while a proposal is actually
+  // out for signature — a rep watching this page after sending it sees an
+  // open land without a manual reload. Stops once it's no longer "sent"
+  // (accepted/declined/withdrawn — nothing left to watch for), and only
+  // fires while the tab is actually visible, so a forgotten background tab
+  // doesn't keep polling. router.refresh() re-runs the page's own Server
+  // Component fetch, same mechanism as DashboardRefreshButton — one
+  // indexed lookup by id, negligible load even run continuously by a
+  // couple of open tabs.
+  useEffect(() => {
+    if (!isSent) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [isSent, router]);
 
   return (
     <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -253,8 +272,14 @@ export function ProposalSendPanel({
 function Line({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-2">
-      <dt className="text-slate-400">{label}</dt>
-      <dd className="text-right text-slate-600">{children}</dd>
+      <dt className="shrink-0 text-slate-400">{label}</dt>
+      {/* min-w-0 lets a flex child shrink below its content's intrinsic
+          width — without it, a long value (several semicolon-joined email
+          addresses) refused to wrap and overflowed past the card's edge,
+          into whatever sat next to it. break-words forces a wrap even
+          without whitespace to break at, since an email/address list has
+          none. */}
+      <dd className="min-w-0 flex-1 text-right break-words text-slate-600">{children}</dd>
     </div>
   );
 }
