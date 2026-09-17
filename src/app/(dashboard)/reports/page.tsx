@@ -124,6 +124,48 @@ const BITDEFENDER_ENDPOINTS: ReportDefinition = {
   description: "Every protected endpoint across every company, live — OS, last successful scan, and agent update status.",
 };
 
+const SECURE_SCORE_ROLLUP: ReportDefinition = {
+  key: "secure_score_rollup",
+  downloadHref: "/api/reports/secure-score-rollup",
+  title: "Secure Score",
+  description: "Microsoft Secure Score across every client with an M365 tenant linked, live from Graph.",
+};
+
+const LICENSE_UTILIZATION: ReportDefinition = {
+  key: "license_utilization",
+  downloadHref: "/api/reports/license-utilization",
+  title: "License Utilization",
+  description: "Assigned vs. available seats per license SKU across every client, live from Graph.",
+};
+
+const MFA_GAPS: ReportDefinition = {
+  key: "mfa_gaps",
+  downloadHref: "/api/reports/mfa-gaps",
+  title: "MFA Gaps",
+  description: "Every user account-wide without MFA registered, live from Graph.",
+};
+
+const INACTIVE_ACCOUNTS: ReportDefinition = {
+  key: "inactive_accounts",
+  downloadHref: "/api/reports/inactive-accounts",
+  title: "Inactive Accounts",
+  description: "Every user account-wide with no recent sign-in activity, live from Graph.",
+};
+
+const PRIVILEGED_ROLES: ReportDefinition = {
+  key: "privileged_roles",
+  downloadHref: "/api/reports/privileged-roles",
+  title: "Privileged Roles",
+  description: "Every privileged Entra role assignment across every client, live from Graph.",
+};
+
+const MAILBOX_USAGE_ROLLUP: ReportDefinition = {
+  key: "mailbox_usage_rollup",
+  downloadHref: "/api/reports/mailbox-usage-rollup",
+  title: "Mailbox Storage",
+  description: "Mailbox storage usage across every client with an M365 tenant linked, live from Graph.",
+};
+
 const WIZER_METRICS: ReportDefinition = {
   key: "wizer_metrics",
   downloadHref: "/api/reports/wizer",
@@ -234,6 +276,35 @@ export default async function ReportsPage() {
               {
                 label: MISSING_PATCHES.title,
                 content: <ReportPreviewPanel report={MISSING_PATCHES} previewAction={getReportPreviewAction} />,
+              },
+            ],
+          },
+          {
+            group: "Microsoft 365",
+            tabs: [
+              {
+                label: SECURE_SCORE_ROLLUP.title,
+                content: <ReportPreviewPanel report={SECURE_SCORE_ROLLUP} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: LICENSE_UTILIZATION.title,
+                content: <ReportPreviewPanel report={LICENSE_UTILIZATION} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: MFA_GAPS.title,
+                content: <ReportPreviewPanel report={MFA_GAPS} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: INACTIVE_ACCOUNTS.title,
+                content: <ReportPreviewPanel report={INACTIVE_ACCOUNTS} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: PRIVILEGED_ROLES.title,
+                content: <ReportPreviewPanel report={PRIVILEGED_ROLES} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: MAILBOX_USAGE_ROLLUP.title,
+                content: <ReportPreviewPanel report={MAILBOX_USAGE_ROLLUP} previewAction={getReportPreviewAction} />,
               },
             ],
           },

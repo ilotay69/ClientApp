@@ -18,9 +18,29 @@ import {
 } from "@/lib/device-lookups";
 import { fetchAntivirusAlertsAccountWide, fetchMissingPatchesAccountWide } from "@/lib/device-security-lookups";
 import type { NinjaOneCredentials } from "@/lib/ninjaone";
+import {
+  fetchSecureScoreRollup,
+  fetchLicenseUtilizationRollup,
+  fetchMfaGapsRollup,
+  fetchInactiveAccountsRollup,
+  fetchPrivilegedRolesRollup,
+  fetchMailboxUsageRollup,
+  type ClientLookupError,
+} from "@/lib/m365-lookups";
 
 export type ReportCell = string | number | boolean | null | undefined;
-export type ReportData = { headers: string[]; rows: ReportCell[][] };
+export type ReportData = {
+  headers: string[];
+  rows: ReportCell[][];
+  /** Per-client failures for a report that queries every configured
+   * client independently (the M365 rollups below) — a missing Graph
+   * permission on one client's app registration shouldn't blank the whole
+   * report, but silently dropping that client's rows with no indication
+   * would let a real gap in the data go unnoticed. Preview-only: the CSV
+   * download itself is just headers/rows, since a spreadsheet isn't a
+   * good place for "3 clients failed" prose. */
+  warnings?: string[];
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supabase = any;
@@ -412,5 +432,87 @@ export async function buildMissingPatchesReport(
   return {
     headers: ["Client", "Device", "Patch", "KB", "Severity", "Status"],
     rows: rows.map((r) => [r.clientName, r.deviceName, r.patchName, r.kbNumber, r.severity, r.status]),
+  };
+}
+
+/** Shared by all six M365 rollup reports below — turns per-client
+ * failures (a missing Graph permission, a not-yet-consented app
+ * registration) into a short warnings list rather than either silently
+ * dropping that client's rows or failing the whole report. */
+function clientErrorWarnings(errors: ClientLookupError[]): string[] | undefined {
+  if (errors.length === 0) return undefined;
+  return errors.map((e) => `${e.clientName}: ${e.error}`);
+}
+
+export async function buildSecureScoreRollupReport(admin: Supabase): Promise<ReportData> {
+  const { rows, errors } = await fetchSecureScoreRollup(admin);
+  return {
+    headers: ["Client", "Score", "Max", "%"],
+    rows: rows.map((r) => [r.clientName, r.currentScore, r.maxScore, `${Math.round(r.percent)}%`]),
+    warnings: clientErrorWarnings(errors),
+  };
+}
+
+export async function buildLicenseUtilizationRollupReport(admin: Supabase): Promise<ReportData> {
+  const { rows, errors } = await fetchLicenseUtilizationRollup(admin);
+  return {
+    headers: ["Client", "SKU", "Purchased", "Consumed", "Available", "% used"],
+    rows: rows.map((r) => [
+      r.clientName,
+      r.skuPartNumber,
+      r.purchased,
+      r.consumed,
+      r.available,
+      `${Math.round(r.percentUsed)}%`,
+    ]),
+    warnings: clientErrorWarnings(errors),
+  };
+}
+
+export async function buildMfaGapsRollupReport(admin: Supabase): Promise<ReportData> {
+  const { rows, errors } = await fetchMfaGapsRollup(admin);
+  return {
+    headers: ["Client", "User", "Display name", "Admin"],
+    rows: rows.map((r) => [r.clientName, r.userPrincipalName, r.userDisplayName, r.isAdmin ? "Yes" : "No"]),
+    warnings: clientErrorWarnings(errors),
+  };
+}
+
+export async function buildInactiveAccountsRollupReport(admin: Supabase): Promise<ReportData> {
+  const { rows, errors } = await fetchInactiveAccountsRollup(admin);
+  return {
+    headers: ["Client", "User", "Display name", "Days since sign-in"],
+    rows: rows.map((r) => [
+      r.clientName,
+      r.userPrincipalName,
+      r.displayName,
+      r.daysSinceSignIn ?? "Never signed in",
+    ]),
+    warnings: clientErrorWarnings(errors),
+  };
+}
+
+export async function buildPrivilegedRolesRollupReport(admin: Supabase): Promise<ReportData> {
+  const { rows, errors } = await fetchPrivilegedRolesRollup(admin);
+  return {
+    headers: ["Client", "Role", "Member", "UPN"],
+    rows: rows.map((r) => [r.clientName, r.roleName, r.memberDisplayName, r.memberUpn]),
+    warnings: clientErrorWarnings(errors),
+  };
+}
+
+export async function buildMailboxUsageRollupReport(admin: Supabase): Promise<ReportData> {
+  const { rows, errors } = await fetchMailboxUsageRollup(admin);
+  return {
+    headers: ["Client", "User", "Display name", "Storage used", "Quota", "% used"],
+    rows: rows.map((r) => [
+      r.clientName,
+      r.userPrincipalName,
+      r.displayName,
+      `${Math.round(r.storageUsedBytes / 1024 ** 3)} GB`,
+      `${Math.round(r.quotaBytes / 1024 ** 3)} GB`,
+      `${Math.round(r.percentUsed)}%`,
+    ]),
+    warnings: clientErrorWarnings(errors),
   };
 }

@@ -3,12 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { HoursLookup } from "@/components/hours-lookup";
 import { TicketLookup } from "@/components/ticket-lookup";
-import { SecureScoreRollup } from "@/components/secure-score-rollup";
-import { LicenseUtilizationRollup } from "@/components/license-utilization-rollup";
-import { MfaGapsRollup } from "@/components/mfa-gaps-rollup";
-import { InactiveAccountsRollup } from "@/components/inactive-accounts-rollup";
-import { PrivilegedRolesRollup } from "@/components/privileged-roles-rollup";
-import { MailboxUsageRollup } from "@/components/mailbox-usage-rollup";
 import { HuntressAgentAlerts } from "@/components/huntress-agent-alerts";
 import { HuntressOpenIncidents } from "@/components/huntress-open-incidents";
 import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
@@ -22,14 +16,6 @@ import {
   fetchNonBillableHoursByGroupAction,
   searchAutotaskTicketsAction,
 } from "./actions";
-import {
-  fetchSecureScoreRollupAction,
-  fetchLicenseUtilizationRollupAction,
-  fetchMfaGapsRollupAction,
-  fetchInactiveAccountsRollupAction,
-  fetchPrivilegedRolesRollupAction,
-  fetchMailboxUsageRollupAction,
-} from "./m365-actions";
 import {
   fetchHuntressAgentAlertsAction,
   fetchHuntressOpenIncidentsAction,
@@ -97,35 +83,6 @@ export default async function HoursPage() {
                 content: (
                   <TicketLookup clients={autotaskClients ?? []} action={searchAutotaskTicketsAction} />
                 ),
-              },
-            ],
-          },
-          {
-            group: "Microsoft 365",
-            tabs: [
-              {
-                label: "Secure Score",
-                content: <SecureScoreRollup action={fetchSecureScoreRollupAction} />,
-              },
-              {
-                label: "License Utilization",
-                content: <LicenseUtilizationRollup action={fetchLicenseUtilizationRollupAction} />,
-              },
-              {
-                label: "MFA Gaps",
-                content: <MfaGapsRollup action={fetchMfaGapsRollupAction} />,
-              },
-              {
-                label: "Inactive Accounts",
-                content: <InactiveAccountsRollup action={fetchInactiveAccountsRollupAction} />,
-              },
-              {
-                label: "Privileged Roles",
-                content: <PrivilegedRolesRollup action={fetchPrivilegedRolesRollupAction} />,
-              },
-              {
-                label: "Mailbox Storage",
-                content: <MailboxUsageRollup action={fetchMailboxUsageRollupAction} />,
               },
             ],
           },

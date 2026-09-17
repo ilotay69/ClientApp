@@ -25,6 +25,12 @@ import {
   buildOsEolReport,
   buildAntivirusAlertsReport,
   buildMissingPatchesReport,
+  buildSecureScoreRollupReport,
+  buildLicenseUtilizationRollupReport,
+  buildMfaGapsRollupReport,
+  buildInactiveAccountsRollupReport,
+  buildPrivilegedRolesRollupReport,
+  buildMailboxUsageRollupReport,
   type ReportCell,
   type ReportData,
 } from "@/lib/reports";
@@ -46,13 +52,24 @@ export type ReportKey =
   | "aging_hardware"
   | "os_eol"
   | "antivirus_alerts"
-  | "missing_patches";
+  | "missing_patches"
+  | "secure_score_rollup"
+  | "license_utilization"
+  | "mfa_gaps"
+  | "inactive_accounts"
+  | "privileged_roles"
+  | "mailbox_usage_rollup";
 
 export type ReportPreview = {
   headers: string[];
   rows: ReportCell[][];
   totalRows: number;
   truncated: boolean;
+  /** Per-client fetch failures for a rollup that spans every client's own
+   * M365 credentials — surfaced in the preview only, never in the CSV
+   * download, so one client's expired token doesn't hide from staff without
+   * blocking everyone else's rows. See src/lib/reports.ts. */
+  warnings?: string[];
 };
 
 const PREVIEW_LIMIT = 50;
@@ -195,6 +212,24 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
         data = await buildWizerMetricsReport(settings);
         break;
       }
+      case "secure_score_rollup":
+        data = await buildSecureScoreRollupReport(createAdminClient());
+        break;
+      case "license_utilization":
+        data = await buildLicenseUtilizationRollupReport(createAdminClient());
+        break;
+      case "mfa_gaps":
+        data = await buildMfaGapsRollupReport(createAdminClient());
+        break;
+      case "inactive_accounts":
+        data = await buildInactiveAccountsRollupReport(createAdminClient());
+        break;
+      case "privileged_roles":
+        data = await buildPrivilegedRolesRollupReport(createAdminClient());
+        break;
+      case "mailbox_usage_rollup":
+        data = await buildMailboxUsageRollupReport(createAdminClient());
+        break;
       default:
         return assertUnreachable(key);
     }
@@ -204,6 +239,7 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
       rows: data.rows.slice(0, PREVIEW_LIMIT),
       totalRows: data.rows.length,
       truncated: data.rows.length > PREVIEW_LIMIT,
+      warnings: data.warnings,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load report." };

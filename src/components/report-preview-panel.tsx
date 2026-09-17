@@ -117,6 +117,19 @@ export function ReportPreviewPanel({
 
       {preview && "error" in preview && <p className="px-5 py-4 text-sm text-red-600">{preview.error}</p>}
 
+      {preview && !("error" in preview) && preview.warnings && preview.warnings.length > 0 && (
+        <div className="border-b border-amber-100 bg-amber-50 px-5 py-2">
+          <p className="text-xs font-medium text-amber-800">
+            Couldn't load {preview.warnings.length === 1 ? "one client" : `${preview.warnings.length} clients`}:
+          </p>
+          <ul className="mt-0.5 list-inside list-disc text-xs text-amber-700">
+            {preview.warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {preview && !("error" in preview) && (
         <>
           <div className="border-b border-slate-100 px-5 py-2">
