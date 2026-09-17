@@ -68,7 +68,20 @@ body {
  * which means iOS draws content *under* the status bar and home
  * indicator. Without these the top of the page sits behind the clock.
  * Applied to the shell rather than body so a fixed sidebar/header can
- * opt in independently. */
+ * opt in independently.
+ *
+ * ONLY USE THESE ON AN ELEMENT WITH NO PADDING UTILITY ON THE SAME AXIS.
+ * They are plain CSS, so they are unlayered, and unlayered rules beat
+ * everything inside Tailwind's @layer utilities regardless of source
+ * order. Combining `safe-x` with `px-4` or `md:pl-64` does not add an
+ * inset — it REPLACES that padding with env(), which is 0px on any device
+ * without a notch. That is exactly how the dashboard's 256px sidebar
+ * gutter got zeroed and every page ended up underneath the sidebar.
+ *
+ * When an element needs both, write the inset as an arbitrary value so it
+ * stays in the utility layer and the two can't fight:
+ *   pl-[max(1rem,env(safe-area-inset-left))]
+ * See (dashboard)/layout.tsx and the mobile top bar in sidebar-nav.tsx. */
 .safe-top {
   padding-top: env(safe-area-inset-top, 0px);
 }

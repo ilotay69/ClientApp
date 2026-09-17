@@ -104,9 +104,20 @@ export default async function DashboardLayout({
         signOutAction={signOut}
       />
       {/* Tighter vertical padding on a phone — 32px top and bottom pushed
-          most pages below the fold for no benefit on a small screen —
-          and safe-x so content clears the notch in landscape. */}
-      <main className="safe-x px-4 py-4 md:py-8 md:pl-64">
+          most pages below the fold for no benefit on a small screen.
+          md:pl-64 is the gutter that keeps every page clear of the fixed
+          sidebar.
+
+          The notch inset is a max-md: arbitrary value rather than the
+          .safe-x class, and that is not a style preference. .safe-x is
+          plain CSS in globals.css, so it is UNLAYERED, and unlayered rules
+          beat everything in Tailwind's @layer utilities no matter what
+          order they appear in. Putting it here set padding-left to
+          env(safe-area-inset-left) — 0px in any desktop browser — which
+          silently overrode md:pl-64 and dropped every page underneath the
+          sidebar. Scoping to max-md: means it cannot overlap md:pl-64 at
+          all, and max() keeps the phone's own 1rem gutter. */}
+      <main className="px-4 py-4 max-md:pl-[max(1rem,env(safe-area-inset-left))] max-md:pr-[max(1rem,env(safe-area-inset-right))] md:py-8 md:pl-64">
         <div className="w-full">{children}</div>
       </main>
     </div>

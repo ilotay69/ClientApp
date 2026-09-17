@@ -325,10 +325,17 @@ export function SidebarNav({
 
   return (
     <>
-      {/* Mobile top bar — safe-top keeps the title and menu button clear of
-          the iOS status bar, which draws over the app when it's installed
-          (appleWebApp.statusBarStyle is black-translucent). */}
-      <div className="safe-top safe-x sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
+      {/* Mobile top bar — keeps the title and menu button clear of the iOS
+          status bar, which draws over the app when it's installed
+          (appleWebApp.statusBarStyle is black-translucent).
+
+          Written as arbitrary values rather than the .safe-top/.safe-x
+          classes: those are unlayered CSS and so override Tailwind's
+          utility layer outright, which meant they replaced this bar's
+          px-4/py-3 with a 0px inset on any device without a notch, leaving
+          the title flush against the edge. max() keeps the normal padding
+          as the floor. */}
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white pb-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
         <span className="text-sm font-semibold text-charcoal">
           <span className="text-brand">CG</span> Ops
         </span>
