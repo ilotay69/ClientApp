@@ -18,6 +18,12 @@ const STATUS_OPTIONS = [
   { value: "expired", label: "Expired" },
 ];
 
+const RECIPIENT_TYPE_OPTIONS = [
+  { value: "all", label: "All types" },
+  { value: "client", label: "Existing client" },
+  { value: "prospect", label: "Prospect" },
+] as const;
+
 /** "Last N days" is by sent_at, not created_at - a proposal drafted long
  * ago but sent recently is exactly what this report is meant to surface,
  * same convention as the Autotask lookups' own day-range pickers.
@@ -36,6 +42,7 @@ export function ProposalActivityReportPanel({
 
   const [status, setStatus] = useState("all");
   const [owner, setOwner] = useState("all");
+  const [recipientType, setRecipientType] = useState("all");
   const [query, setQuery] = useState("");
 
   const run = () => {
@@ -57,10 +64,11 @@ export function ProposalActivityReportPanel({
     return rows.filter((r) => {
       if (status !== "all" && r.status !== status) return false;
       if (owner !== "all" && r.ownerName !== owner) return false;
+      if (recipientType !== "all" && r.recipientType !== recipientType) return false;
       if (q && !r.companyName.toLowerCase().includes(q) && !r.title.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [rows, status, owner, query]);
+  }, [rows, status, owner, recipientType, query]);
 
   // Grouped by currency rather than just summed - a single mixed total
   // would be meaningless if a proposal in the window used a different
@@ -143,6 +151,17 @@ export function ProposalActivityReportPanel({
                 </option>
               ))}
             </select>
+            <select
+              value={recipientType}
+              onChange={(e) => setRecipientType(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+            >
+              {RECIPIENT_TYPE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
             <span className="text-xs text-slate-400">
               {visible.length} of {rows.length}
             </span>
@@ -171,6 +190,7 @@ export function ProposalActivityReportPanel({
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Quote #</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Owner</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Client</th>
+                  <th className="px-4 py-2 text-left font-medium text-slate-500">Type</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Title</th>
                   <th className="px-4 py-2 text-right font-medium text-slate-500">$ Value</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Status</th>
@@ -191,6 +211,9 @@ export function ProposalActivityReportPanel({
                       {r.ownerName ?? "—"}
                     </td>
                     <td className="px-4 py-2 align-middle text-slate-700">{r.companyName}</td>
+                    <td className="whitespace-nowrap px-4 py-2 align-middle text-slate-500">
+                      {r.recipientType === "client" ? "Existing client" : "Prospect"}
+                    </td>
                     <td className="px-4 py-2 align-middle text-slate-700">{r.title}</td>
                     <td className="whitespace-nowrap px-4 py-2 text-right align-middle font-medium text-slate-900">
                       {formatMoney(r.value, r.currency)}
@@ -207,7 +230,7 @@ export function ProposalActivityReportPanel({
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                    <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                       {rows.length === 0 ? "Nothing sent in that range." : "No rows match that filter."}
                     </td>
                   </tr>

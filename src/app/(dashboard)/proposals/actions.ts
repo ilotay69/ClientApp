@@ -1252,6 +1252,11 @@ export type ProposalActivityRow = {
   quotationNumber: string | null;
   title: string;
   companyName: string;
+  /** Derived exactly like the Proposals list page's own split (see
+   * isExistingClient there) - client_id set means an existing client
+   * picked from the Autotask-linked dropdown, null means a hand-typed
+   * prospect. Not a stored field. */
+  recipientType: "client" | "prospect";
   ownerName: string | null;
   sentAt: string | null;
   /** The real lifecycle status - "sent" covers both never-opened and
@@ -1284,7 +1289,7 @@ export async function fetchProposalActivityReportAction(
   const { data, error } = await admin
     .from("proposals")
     .select(
-      `id, proposal_number, quotation_number, title, prospect_company, currency, status, sent_at, view_count,
+      `id, proposal_number, quotation_number, title, client_id, prospect_company, currency, status, sent_at, view_count,
        accepted_at, accepted_total_amount, clients(name), owner_profile:owner_id(full_name)`
     )
     .not("sent_at", "is", null)
@@ -1298,6 +1303,7 @@ export async function fetchProposalActivityReportAction(
     proposal_number: number;
     quotation_number: string | null;
     title: string;
+    client_id: string | null;
     prospect_company: string | null;
     currency: string | null;
     status: string;
@@ -1366,6 +1372,7 @@ export async function fetchProposalActivityReportAction(
       quotationNumber: r.quotation_number ?? null,
       title: r.title,
       companyName: client?.name ?? r.prospect_company ?? "Unknown",
+      recipientType: r.client_id ? "client" : "prospect",
       ownerName: owner?.full_name ?? null,
       sentAt: r.sent_at,
       status: r.status,
