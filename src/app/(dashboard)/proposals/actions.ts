@@ -14,6 +14,8 @@ import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchAutotaskCatalog, type AutotaskCatalogItem } from "@/lib/autotask";
+import { getActiveAiSettings } from "@/lib/ai/settings";
+import { generateProposalDraft, type ProposalDraft } from "@/lib/proposal-analysis";
 
 export type ProposalActionState = { ok: boolean; message: string };
 export type CreateProposalState = { error: string } | undefined;
@@ -499,6 +501,157 @@ export async function deleteProposalLineItemAction(itemId: string): Promise<void
 
   await admin.from("proposal_line_items").delete().eq("id", itemId);
   revalidateProposal(item.proposal_id);
+}
+
+// ---------------------------------------------------------------------- ai
+
+export type ProposalDraftResult =
+  | { draft: ProposalDraft; targets: { kind: string; heading: string; hasContent: boolean }[] }
+  | { error: string };
+
+/** Drafts the client-facing sections from the priced line items.
+ *
+ * Returns the draft for review — it deliberately writes nothing. The rep
+ * decides what lands in the document, because this text goes in front of a
+ * client with CG's name on it and an AI paragraph nobody read is a
+ * liability, not a time-saver. applyProposalDraftAction does the writing. */
+export async function generateProposalDraftAction(
+  proposalId: string
+): Promise<ProposalDraftResult> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return { error: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  const proposal = await getProposal(proposalId, admin);
+  if (!proposal) return { error: "Proposal not found." };
+  if (proposal.status !== "draft") {
+    return { error: "This proposal isn't a draft any more." };
+  }
+  if (proposal.lineItems.length === 0) {
+    return { error: "Add the line items first — the draft is written from what you're quoting." };
+  }
+
+  const aiSettings = await getActiveAiSettings(admin);
+  if (!aiSettings) {
+    return { error: "No AI provider is configured — set one up under Settings → Integrations." };
+  }
+
+  try {
+    const draft = await generateProposalDraft(
+      proposal.clientName ?? proposal.prospectCompany ?? "the client",
+      proposal.title,
+      proposal.lineItems.map((item) => ({
+        description: item.description,
+        detail: item.detail,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        billingPeriod: item.billingPeriod,
+        isOptional: item.isOptional,
+      })),
+      proposal.currency,
+      aiSettings,
+      proposal.intro
+    );
+    if (!draft) return { error: "The AI provider returned nothing usable. Try again." };
+
+    return {
+      draft,
+      targets: proposal.sections.map((s) => ({
+        kind: s.kind,
+        heading: s.heading,
+        hasContent: Boolean(s.body?.trim()),
+      })),
+    };
+  } catch (err) {
+    console.error("generateProposalDraftAction failed", err);
+    return {
+      error: err instanceof Error ? err.message : "Couldn't generate a draft.",
+    };
+  }
+}
+
+/** Which drafted field belongs in which section kind. "benefits" has no
+ * default section — createProposalAction seeds Overview / What we'll do /
+ * Investment / Next steps — so applying it creates one, positioned right
+ * after the deployment section where it reads best. */
+const DRAFT_FIELD_TO_SECTION_KIND: Record<string, string> = {
+  overview: "overview",
+  deploying: "steps",
+  pricingNote: "pricing",
+  nextSteps: "next_steps",
+};
+
+export async function applyProposalDraftAction(
+  proposalId: string,
+  field: string,
+  text: string
+): Promise<ProposalActionState> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return DENIED;
+
+  const body = text.trim();
+  if (!body) return { ok: false, message: "Nothing to apply." };
+
+  const admin = createAdminClient();
+  if (!(await assertDraft(proposalId, admin))) {
+    return { ok: false, message: "This proposal isn't a draft any more." };
+  }
+
+  if (field === "benefits") {
+    const { data: existing } = await admin
+      .from("proposal_sections")
+      .select("id, sort_order, kind")
+      .eq("proposal_id", proposalId)
+      .order("sort_order", { ascending: true });
+
+    const rows = (existing ?? []) as { id: string; sort_order: number; kind: string }[];
+    const already = rows.find((s) => s.kind === "benefits");
+    if (already) {
+      await admin.from("proposal_sections").update({ body }).eq("id", already.id);
+      revalidateProposal(proposalId);
+      return { ok: true, message: "Benefits updated." };
+    }
+
+    // Slot it directly after the deployment section, shuffling everything
+    // below down one so the new section doesn't collide on sort_order.
+    const after = rows.find((s) => s.kind === "steps");
+    const position = (after?.sort_order ?? rows.length - 1) + 1;
+    for (const row of rows.filter((s) => s.sort_order >= position)) {
+      await admin
+        .from("proposal_sections")
+        .update({ sort_order: row.sort_order + 1 })
+        .eq("id", row.id);
+    }
+    await admin.from("proposal_sections").insert({
+      proposal_id: proposalId,
+      kind: "benefits",
+      heading: "What this gives you",
+      body,
+      sort_order: position,
+    });
+    revalidateProposal(proposalId);
+    return { ok: true, message: "Added a \"What this gives you\" section." };
+  }
+
+  const kind = DRAFT_FIELD_TO_SECTION_KIND[field];
+  if (!kind) return { ok: false, message: "Unknown section." };
+
+  const { data: section } = await admin
+    .from("proposal_sections")
+    .select("id, heading")
+    .eq("proposal_id", proposalId)
+    .eq("kind", kind)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!section) {
+    return { ok: false, message: "That section has been deleted from this proposal." };
+  }
+
+  await admin.from("proposal_sections").update({ body }).eq("id", section.id);
+  revalidateProposal(proposalId);
+  return { ok: true, message: `${section.heading} updated.` };
 }
 
 // --------------------------------------------------------------- lifecycle

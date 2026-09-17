@@ -10,6 +10,7 @@ import { ProposalPricingTable } from "@/components/proposal-pricing-table";
 import { InlineTextEdit, InlineDateEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
 import { ProposalSendPanel } from "@/components/proposal-send-panel";
+import { ProposalAiDraft } from "@/components/proposal-ai-draft";
 import { formatDate } from "@/lib/format";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatProposalHeadline } from "@/lib/proposal-totals";
@@ -24,6 +25,8 @@ import {
   deleteProposalLineItemAction,
   fetchAutotaskCatalogAction,
   addProposalLineItemsFromCatalogAction,
+  generateProposalDraftAction,
+  applyProposalDraftAction,
   deleteProposalAction,
   sendProposalAction,
   markProposalAcceptedByStaffAction,
@@ -213,6 +216,14 @@ export default async function ProposalDetailPage({
               This proposal has been sent, so its content is locked — the recipient is reading this
               exact document at their link. Use Revise to put it back into draft.
             </p>
+          )}
+
+          {editable && proposal.lineItems.length > 0 && (
+            <ProposalAiDraft
+              proposalId={proposal.id}
+              generateAction={generateProposalDraftAction}
+              applyAction={applyProposalDraftAction}
+            />
           )}
 
           {proposal.sections.map((section, index) => (
