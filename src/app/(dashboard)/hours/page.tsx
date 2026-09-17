@@ -3,8 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { HoursLookup } from "@/components/hours-lookup";
 import { TicketLookup } from "@/components/ticket-lookup";
-import { HuntressAgentAlerts } from "@/components/huntress-agent-alerts";
-import { HuntressOpenIncidents } from "@/components/huntress-open-incidents";
 import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
 import { BitdefenderEndpoints } from "@/components/bitdefender-endpoints";
 import { BitdefenderOpenIncidents } from "@/components/bitdefender-open-incidents";
@@ -16,11 +14,7 @@ import {
   fetchNonBillableHoursByGroupAction,
   searchAutotaskTicketsAction,
 } from "./actions";
-import {
-  fetchHuntressAgentAlertsAction,
-  fetchHuntressOpenIncidentsAction,
-  fetchHuntressSiemLogsAction,
-} from "./huntress-actions";
+import { fetchHuntressSiemLogsAction } from "./huntress-actions";
 import { fetchGravityZoneEndpointsAction, fetchGravityZoneOpenIncidentsAction } from "./bitdefender-actions";
 import { fetchForticloudDevicesAction } from "./forticloud-actions";
 import { fetchWizerCompanyMetricsAction } from "./wizer-actions";
@@ -89,14 +83,6 @@ export default async function HoursPage() {
           {
             group: "Huntress",
             tabs: [
-              {
-                label: "Huntress Agents",
-                content: <HuntressAgentAlerts action={fetchHuntressAgentAlertsAction} />,
-              },
-              {
-                label: "Huntress Incidents",
-                content: <HuntressOpenIncidents action={fetchHuntressOpenIncidentsAction} />,
-              },
               {
                 label: "Huntress SIEM",
                 content: <HuntressSiemLogs action={fetchHuntressSiemLogsAction} />,

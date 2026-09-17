@@ -27,6 +27,8 @@ import {
   fetchMailboxUsageRollup,
   type ClientLookupError,
 } from "@/lib/m365-lookups";
+import { fetchHuntressAgentAlerts, fetchHuntressOpenIncidents } from "@/lib/huntress-lookups";
+import type { HuntressCredentials } from "@/lib/huntress";
 
 export type ReportCell = string | number | boolean | null | undefined;
 export type ReportData = {
@@ -514,5 +516,21 @@ export async function buildMailboxUsageRollupReport(admin: Supabase): Promise<Re
       `${Math.round(r.percentUsed)}%`,
     ]),
     warnings: clientErrorWarnings(errors),
+  };
+}
+
+export async function buildHuntressAgentAlertsReport(creds: HuntressCredentials): Promise<ReportData> {
+  const rows = await fetchHuntressAgentAlerts(creds);
+  return {
+    headers: ["Organization", "Host", "Days since check-in", "Issues"],
+    rows: rows.map((r) => [r.organizationName, r.hostname, r.daysSinceCallback, r.issues.join("; ")]),
+  };
+}
+
+export async function buildHuntressOpenIncidentsReport(creds: HuntressCredentials): Promise<ReportData> {
+  const rows = await fetchHuntressOpenIncidents(creds);
+  return {
+    headers: ["Organization", "Subject", "Severity", "Status", "Sent"],
+    rows: rows.map((r) => [r.organizationName, r.subject, r.severity, r.status, formatDate(r.sentAt)]),
   };
 }

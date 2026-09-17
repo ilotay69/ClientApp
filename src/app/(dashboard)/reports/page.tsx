@@ -166,6 +166,21 @@ const MAILBOX_USAGE_ROLLUP: ReportDefinition = {
   description: "Mailbox storage usage across every client with an M365 tenant linked, live from Graph.",
 };
 
+const HUNTRESS_AGENT_ALERTS: ReportDefinition = {
+  key: "huntress_agent_alerts",
+  downloadHref: "/api/reports/huntress-agent-alerts",
+  title: "Huntress Agents",
+  description:
+    "Every Huntress agent account-wide with a real health concern — no check-in, missing EDR, unhealthy Defender or firewall, live.",
+};
+
+const HUNTRESS_OPEN_INCIDENTS: ReportDefinition = {
+  key: "huntress_open_incidents",
+  downloadHref: "/api/reports/huntress-open-incidents",
+  title: "Huntress Incidents",
+  description: "Every Huntress incident report account-wide still actively open, critical severity first, live.",
+};
+
 const WIZER_METRICS: ReportDefinition = {
   key: "wizer_metrics",
   downloadHref: "/api/reports/wizer",
@@ -305,6 +320,21 @@ export default async function ReportsPage() {
               {
                 label: MAILBOX_USAGE_ROLLUP.title,
                 content: <ReportPreviewPanel report={MAILBOX_USAGE_ROLLUP} previewAction={getReportPreviewAction} />,
+              },
+            ],
+          },
+          {
+            group: "Huntress",
+            tabs: [
+              {
+                label: HUNTRESS_AGENT_ALERTS.title,
+                content: <ReportPreviewPanel report={HUNTRESS_AGENT_ALERTS} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: HUNTRESS_OPEN_INCIDENTS.title,
+                content: (
+                  <ReportPreviewPanel report={HUNTRESS_OPEN_INCIDENTS} previewAction={getReportPreviewAction} />
+                ),
               },
             ],
           },

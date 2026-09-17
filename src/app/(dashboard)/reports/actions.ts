@@ -6,6 +6,7 @@ import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { getBitdefenderSettings } from "@/lib/bitdefender-settings";
 import { getWizerSettings } from "@/lib/wizer-settings";
 import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
+import { getHuntressSettings } from "@/lib/huntress-settings";
 import type { ForticloudCredentials } from "@/lib/forticloud";
 import {
   buildClientRosterReport,
@@ -31,6 +32,8 @@ import {
   buildInactiveAccountsRollupReport,
   buildPrivilegedRolesRollupReport,
   buildMailboxUsageRollupReport,
+  buildHuntressAgentAlertsReport,
+  buildHuntressOpenIncidentsReport,
   type ReportCell,
   type ReportData,
 } from "@/lib/reports";
@@ -58,7 +61,9 @@ export type ReportKey =
   | "mfa_gaps"
   | "inactive_accounts"
   | "privileged_roles"
-  | "mailbox_usage_rollup";
+  | "mailbox_usage_rollup"
+  | "huntress_agent_alerts"
+  | "huntress_open_incidents";
 
 export type ReportPreview = {
   headers: string[];
@@ -235,6 +240,20 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
       case "mailbox_usage_rollup":
         data = await buildMailboxUsageRollupReport(createAdminClient());
         break;
+      case "huntress_agent_alerts": {
+        const admin = createAdminClient();
+        const settings = await getHuntressSettings(admin);
+        if (!settings) return { error: "Huntress isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildHuntressAgentAlertsReport(settings);
+        break;
+      }
+      case "huntress_open_incidents": {
+        const admin = createAdminClient();
+        const settings = await getHuntressSettings(admin);
+        if (!settings) return { error: "Huntress isn't connected yet — set it up under Settings → Integrations." };
+        data = await buildHuntressOpenIncidentsReport(settings);
+        break;
+      }
       default:
         return assertUnreachable(key);
     }
