@@ -606,9 +606,9 @@ export async function generateProposalDraftAction(
 }
 
 /** Which drafted field belongs in which section kind. "benefits" has no
- * default section — createProposalAction seeds Overview / What we'll do /
- * Investment / Next steps — so applying it creates one, positioned right
- * after the deployment section where it reads best. */
+ * default section - createProposalAction seeds Overview / What we'll do /
+ * Quote Details / Next steps - so applying it creates one, positioned
+ * right after the deployment section where it reads best. */
 const DRAFT_FIELD_TO_SECTION_KIND: Record<string, string> = {
   overview: "overview",
   deploying: "steps",
