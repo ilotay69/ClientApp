@@ -62,6 +62,19 @@ export function ProposalActivityReportPanel({
     });
   }, [rows, status, owner, query]);
 
+  // Grouped by currency rather than just summed - a single mixed total
+  // would be meaningless if a proposal in the window used a different
+  // currency, even though in practice that's rare. Recomputes from
+  // `visible`, so it always reflects the current filters, not the full
+  // unfiltered fetch.
+  const totalsByCurrency = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const r of visible) {
+      totals.set(r.currency, (totals.get(r.currency) ?? 0) + r.value);
+    }
+    return [...totals.entries()];
+  }, [visible]);
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-5 py-2">
@@ -135,11 +148,27 @@ export function ProposalActivityReportPanel({
             </span>
           </div>
 
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-200 bg-slate-50 px-5 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Total{visible.length !== rows.length ? " (filtered)" : ""}
+            </span>
+            {totalsByCurrency.length === 0 ? (
+              <span className="text-sm font-semibold text-slate-900">{formatMoney(0)}</span>
+            ) : (
+              totalsByCurrency.map(([currency, total]) => (
+                <span key={currency} className="text-sm font-semibold text-slate-900">
+                  {formatMoney(total, currency)}
+                </span>
+              ))
+            )}
+          </div>
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Date</th>
+                  <th className="px-4 py-2 text-left font-medium text-slate-500">Quote #</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Owner</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Client</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-500">Title</th>
@@ -153,15 +182,16 @@ export function ProposalActivityReportPanel({
                     <td className="whitespace-nowrap px-4 py-2 align-middle text-slate-700">
                       {formatDate(r.sentAt)}
                     </td>
+                    <td className="whitespace-nowrap px-4 py-2 align-middle">
+                      <Link href={`/proposals/${r.id}`} className="text-brand hover:underline">
+                        {r.quotationNumber ?? `#${r.proposalNumber}`}
+                      </Link>
+                    </td>
                     <td className="whitespace-nowrap px-4 py-2 align-middle text-slate-700">
                       {r.ownerName ?? "—"}
                     </td>
                     <td className="px-4 py-2 align-middle text-slate-700">{r.companyName}</td>
-                    <td className="px-4 py-2 align-middle">
-                      <Link href={`/proposals/${r.id}`} className="text-brand hover:underline">
-                        {r.quotationNumber ?? `#${r.proposalNumber}`} {r.title}
-                      </Link>
-                    </td>
+                    <td className="px-4 py-2 align-middle text-slate-700">{r.title}</td>
                     <td className="whitespace-nowrap px-4 py-2 text-right align-middle font-medium text-slate-900">
                       {formatMoney(r.value, r.currency)}
                     </td>
@@ -177,7 +207,7 @@ export function ProposalActivityReportPanel({
                 ))}
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                       {rows.length === 0 ? "Nothing sent in that range." : "No rows match that filter."}
                     </td>
                   </tr>
