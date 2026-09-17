@@ -239,10 +239,13 @@ export type AutotaskPrimaryContact = {
   email: string | null;
 };
 
-/** The one Contact Autotask allows to be flagged primaryContact=true for a
+/** The Contact Autotask allows to be flagged primaryContact=true for a
  * company (it enforces at most one per company, unsetting any previous
- * one) — this is a real designation, not a guess at "whichever contact
- * happens to be first". Null if the company has none set. */
+ * one) — a real designation, preferred whenever set. In practice plenty of
+ * companies never get that flag set by anyone, so this falls back to the
+ * first active contact with an email (or just the first active contact)
+ * rather than leaving a proposal's Contact name/email blank when the
+ * company clearly has contacts on file. */
 export async function fetchPrimaryContactForCompany(
   creds: AutotaskCredentials,
   zoneUrl: string,
@@ -259,10 +262,12 @@ export async function fetchPrimaryContactForCompany(
   })) as RawContact[];
 
   const raw = items[0];
-  if (!raw) return null;
-  const name = [raw.firstName, raw.lastName].filter(Boolean).join(" ").trim();
-  if (!name) return null;
-  return { name, email: raw.emailAddress?.trim() || null };
+  const name = raw ? [raw.firstName, raw.lastName].filter(Boolean).join(" ").trim() : "";
+  if (raw && name) return { name, email: raw.emailAddress?.trim() || null };
+
+  const contacts = await fetchContactsForCompany(creds, zoneUrl, companyId);
+  const fallback = contacts.find((c) => c.email) ?? contacts[0];
+  return fallback ? { name: fallback.name, email: fallback.email } : null;
 }
 
 /** One company's own mailing address, combined into a single display
