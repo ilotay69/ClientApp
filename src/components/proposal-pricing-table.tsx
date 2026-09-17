@@ -10,6 +10,9 @@ import {
   type ProposalLineItemInput,
 } from "@/lib/proposal-totals";
 import type { ProposalLineItem } from "@/lib/proposal-data";
+import { ProposalCatalogPicker } from "@/components/proposal-catalog-picker";
+import type { AutotaskCatalogItem } from "@/lib/autotask";
+import type { CatalogSelection, ProposalActionState } from "@/app/(dashboard)/proposals/actions";
 
 const BILLING_OPTIONS = [
   { value: "one_off", label: "One-off" },
@@ -35,6 +38,8 @@ export function ProposalPricingTable({
   addAction,
   updateAction,
   deleteAction,
+  fetchCatalogAction,
+  addFromCatalogAction,
 }: {
   proposalId: string;
   items: ProposalLineItem[];
@@ -43,6 +48,11 @@ export function ProposalPricingTable({
   addAction: (proposalId: string) => Promise<void>;
   updateAction: (itemId: string, field: string, value: string) => Promise<void>;
   deleteAction: (itemId: string) => Promise<void>;
+  fetchCatalogAction: () => Promise<{ items: AutotaskCatalogItem[] } | { error: string }>;
+  addFromCatalogAction: (
+    proposalId: string,
+    selections: CatalogSelection[]
+  ) => Promise<ProposalActionState>;
 }) {
   const [adding, startAdd] = useTransition();
 
@@ -65,14 +75,22 @@ export function ProposalPricingTable({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-900">Pricing</h2>
         {!disabled && (
-          <button
-            type="button"
-            disabled={adding}
-            onClick={() => startAdd(() => void addAction(proposalId))}
-            className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-          >
-            {adding ? "Adding…" : "Add line item"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ProposalCatalogPicker
+              proposalId={proposalId}
+              currency={currency}
+              fetchAction={fetchCatalogAction}
+              addAction={addFromCatalogAction}
+            />
+            <button
+              type="button"
+              disabled={adding}
+              onClick={() => startAdd(() => void addAction(proposalId))}
+              className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            >
+              {adding ? "Adding…" : "Add blank line"}
+            </button>
+          </div>
         )}
       </div>
 

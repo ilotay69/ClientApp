@@ -12,6 +12,8 @@ import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
+import { getAutotaskSettings } from "@/lib/autotask-settings";
+import { fetchAutotaskCatalog, type AutotaskCatalogItem } from "@/lib/autotask";
 
 export type ProposalActionState = { ok: boolean; message: string };
 export type CreateProposalState = { error: string } | undefined;
@@ -324,6 +326,106 @@ export async function addProposalLineItemAction(proposalId: string): Promise<voi
     sort_order: (last?.sort_order ?? -1) + 1,
   });
   revalidateProposal(proposalId);
+}
+
+/** The Autotask service/product catalog, for the line-item picker.
+ *
+ * Fetched on demand when the picker is opened rather than with the page:
+ * it's two live Autotask queries plus a picklist lookup, and most edits to
+ * a proposal never touch it. Same lazy posture as the other Autotask
+ * panels in this app. */
+export async function fetchAutotaskCatalogAction(): Promise<
+  { items: AutotaskCatalogItem[] } | { error: string }
+> {
+  if (!(await requirePermission("manage_proposals"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+  }
+
+  try {
+    const items = await fetchAutotaskCatalog(settings.credentials, settings.zoneUrl);
+    if (items.length === 0) {
+      return { error: "Autotask returned no active services or products." };
+    }
+    return { items };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Couldn't load the catalog from Autotask.",
+    };
+  }
+}
+
+export type CatalogSelection = {
+  name: string;
+  detail: string | null;
+  unitPrice: number;
+  billingPeriod: "one_off" | "monthly";
+};
+
+/** Adds the ticked catalog entries as line items.
+ *
+ * The chosen name/price/period come from the client rather than being
+ * re-fetched from Autotask here. That's a deliberate call, not laziness:
+ * the caller already holds manage_proposals, which lets them type any
+ * price they like straight into the pricing table, so re-fetching would
+ * buy no protection — only a second round of live Autotask queries on
+ * every add. The values are still range-checked and length-capped below,
+ * because "can't escalate privilege" isn't the same as "can write
+ * anything into the database". */
+export async function addProposalLineItemsFromCatalogAction(
+  proposalId: string,
+  selections: CatalogSelection[]
+): Promise<ProposalActionState> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return DENIED;
+
+  if (!Array.isArray(selections) || selections.length === 0) {
+    return { ok: false, message: "Nothing selected." };
+  }
+
+  const admin = createAdminClient();
+  if (!(await assertDraft(proposalId, admin))) {
+    return { ok: false, message: "This proposal isn't a draft any more." };
+  }
+
+  const { data: last } = await admin
+    .from("proposal_line_items")
+    .select("sort_order")
+    .eq("proposal_id", proposalId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let nextOrder = (last?.sort_order ?? -1) + 1;
+  const rows = selections.slice(0, 100).map((selection) => {
+    const price = Number(selection.unitPrice);
+    return {
+      proposal_id: proposalId,
+      description: (selection.name || "Untitled item").slice(0, 300),
+      detail: selection.detail ? selection.detail.slice(0, 1000) : null,
+      quantity: 1,
+      unit_price: Number.isFinite(price) ? Math.max(0, price) : 0,
+      billing_period: selection.billingPeriod === "monthly" ? "monthly" : "one_off",
+      sort_order: nextOrder++,
+    };
+  });
+
+  const { error } = await admin.from("proposal_line_items").insert(rows);
+  if (error) {
+    console.error("addProposalLineItemsFromCatalogAction: insert failed", error);
+    return { ok: false, message: "Couldn't add those items." };
+  }
+
+  revalidateProposal(proposalId);
+  return {
+    ok: true,
+    message: `Added ${rows.length} item${rows.length === 1 ? "" : "s"}.`,
+  };
 }
 
 export async function updateProposalLineItemAction(

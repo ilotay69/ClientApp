@@ -1861,3 +1861,124 @@ export async function fetchMyTickets(
 export function buildAutotaskTicketUrl(webZoneUrl: string, ticketId: number): string {
   return `${webZoneUrl.replace(/\/$/, "")}/Autotask/AutotaskExtend/ExecuteCommand.aspx?Code=OpenTicketDetail&TicketID=${ticketId}`;
 }
+
+export type AutotaskCatalogItem = {
+  /** "service:123" / "product:456" — Services and Products are separate
+   * entities with their own id sequences, so neither id alone is unique
+   * across the combined list the picker shows. */
+  key: string;
+  kind: "service" | "product";
+  id: number;
+  name: string;
+  description: string | null;
+  unitPrice: number;
+  billingPeriod: "one_off" | "monthly";
+  /** The tenant's own label for a service's billing period ("Monthly",
+   * "Quarterly", ...). Shown in the picker so a rep can see at a glance
+   * that a quarterly service is not a monthly one — see the mapping note
+   * below for why that matters. */
+  periodLabel: string | null;
+};
+
+/** Everything sellable in Autotask — recurring Services and one-off
+ * Products — for the proposal line-item picker.
+ *
+ * Billing period mapping is deliberately conservative. A proposal line is
+ * either one-off or monthly, but Autotask services can also be quarterly,
+ * semi-annual or yearly. Only a genuinely monthly service is imported as
+ * monthly; every other period comes in as one-off with its real period
+ * shown in the picker and appended to the line's detail. Dividing a
+ * quarterly rate into a monthly one, or labelling $300/quarter as
+ * $300/month, would put a wrong number in front of a client — better that
+ * the rep sees the period and decides.
+ *
+ * Products and Services are fetched independently and a failure in either
+ * is swallowed rather than failing the whole picker: plenty of Autotask API
+ * Users have read access to one and not the other.
+ */
+export async function fetchAutotaskCatalog(
+  creds: AutotaskCredentials,
+  zoneUrl: string
+): Promise<AutotaskCatalogItem[]> {
+  const items: AutotaskCatalogItem[] = [];
+
+  let periodLabels = new Map<number, string>();
+  try {
+    periodLabels = picklistMap(await fetchEntityFields(creds, zoneUrl, "Services"), "periodType");
+  } catch (err) {
+    console.error("Autotask Services periodType picklist failed — periods will show as unknown", err);
+  }
+
+  type RawService = {
+    id: number;
+    name?: string;
+    description?: string;
+    invoiceDescription?: string;
+    unitPrice?: number;
+    periodType?: number | string;
+    isActive?: boolean;
+  };
+  try {
+    const services = (await autotaskQueryAllPages(creds, zoneUrl, "Services", {
+      filter: [{ op: "eq", field: "isActive", value: true }],
+      MaxRecords: 500,
+    })) as RawService[];
+
+    for (const s of services) {
+      const rawPeriod = s.periodType;
+      const periodLabel =
+        typeof rawPeriod === "number"
+          ? (periodLabels.get(rawPeriod) ?? null)
+          : typeof rawPeriod === "string"
+            ? rawPeriod
+            : null;
+      items.push({
+        key: `service:${s.id}`,
+        kind: "service",
+        id: s.id,
+        name: s.name || `Service ${s.id}`,
+        description: s.description || s.invoiceDescription || null,
+        unitPrice: Number(s.unitPrice ?? 0),
+        billingPeriod: /month/i.test(periodLabel ?? "") ? "monthly" : "one_off",
+        periodLabel,
+      });
+    }
+  } catch (err) {
+    console.error("Autotask Services catalog fetch failed", err);
+  }
+
+  type RawProduct = {
+    id: number;
+    name?: string;
+    description?: string;
+    unitPrice?: number;
+    msrp?: number;
+    isActive?: boolean;
+  };
+  try {
+    const products = (await autotaskQueryAllPages(creds, zoneUrl, "Products", {
+      filter: [{ op: "eq", field: "isActive", value: true }],
+      MaxRecords: 500,
+    })) as RawProduct[];
+
+    for (const p of products) {
+      items.push({
+        key: `product:${p.id}`,
+        kind: "product",
+        id: p.id,
+        name: p.name || `Product ${p.id}`,
+        description: p.description || null,
+        // msrp is the customer-facing number when it's set; unitPrice can
+        // be the internal cost figure depending on how the tenant has
+        // configured the product, so it's only the fallback.
+        unitPrice: Number(p.msrp || p.unitPrice || 0),
+        billingPeriod: "one_off",
+        periodLabel: null,
+      });
+    }
+  } catch (err) {
+    console.error("Autotask Products catalog fetch failed", err);
+  }
+
+  return items.sort((a, b) => a.name.localeCompare(b.name));
+}

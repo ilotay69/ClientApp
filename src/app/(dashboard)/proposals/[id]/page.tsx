@@ -22,6 +22,8 @@ import {
   addProposalLineItemAction,
   updateProposalLineItemAction,
   deleteProposalLineItemAction,
+  fetchAutotaskCatalogAction,
+  addProposalLineItemsFromCatalogAction,
   deleteProposalAction,
   sendProposalAction,
   markProposalAcceptedByStaffAction,
@@ -234,6 +236,8 @@ export default async function ProposalDetailPage({
                     addAction={addProposalLineItemAction}
                     updateAction={updateProposalLineItemAction}
                     deleteAction={deleteProposalLineItemAction}
+                    fetchCatalogAction={fetchAutotaskCatalogAction}
+                    addFromCatalogAction={addProposalLineItemsFromCatalogAction}
                   />
                 </div>
               )}
