@@ -124,6 +124,13 @@ const BITDEFENDER_ENDPOINTS: ReportDefinition = {
   description: "Every protected endpoint across every company, live — OS, last successful scan, and agent update status.",
 };
 
+const BITDEFENDER_OPEN_INCIDENTS: ReportDefinition = {
+  key: "bitdefender_open_incidents",
+  downloadHref: "/api/reports/bitdefender-open-incidents",
+  title: "Bitdefender Incidents",
+  description: "Every EDR/XDR incident account-wide still open or in progress, highest priority first, live.",
+};
+
 const SECURE_SCORE_ROLLUP: ReportDefinition = {
   key: "secure_score_rollup",
   downloadHref: "/api/reports/secure-score-rollup",
@@ -353,6 +360,12 @@ export default async function ReportsPage() {
               {
                 label: BITDEFENDER_ENDPOINTS.title,
                 content: <ReportPreviewPanel report={BITDEFENDER_ENDPOINTS} previewAction={getReportPreviewAction} />,
+              },
+              {
+                label: BITDEFENDER_OPEN_INCIDENTS.title,
+                content: (
+                  <ReportPreviewPanel report={BITDEFENDER_OPEN_INCIDENTS} previewAction={getReportPreviewAction} />
+                ),
               },
             ],
           },

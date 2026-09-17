@@ -15,6 +15,7 @@ import {
   buildHoursSummaryReport,
   buildForticloudDevicesReport,
   buildBitdefenderEndpointsReport,
+  buildBitdefenderOpenIncidentsReport,
   buildWizerMetricsReport,
   buildResourceHoursReport,
   buildYesterdayTimeEntriesReport,
@@ -63,7 +64,8 @@ export type ReportKey =
   | "privileged_roles"
   | "mailbox_usage_rollup"
   | "huntress_agent_alerts"
-  | "huntress_open_incidents";
+  | "huntress_open_incidents"
+  | "bitdefender_open_incidents";
 
 export type ReportPreview = {
   headers: string[];
@@ -213,6 +215,15 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
           return { error: "Bitdefender GravityZone isn't connected yet — set it up under Settings → Integrations." };
         }
         data = await buildBitdefenderEndpointsReport(settings);
+        break;
+      }
+      case "bitdefender_open_incidents": {
+        const admin = createAdminClient();
+        const settings = await getBitdefenderSettings(admin);
+        if (!settings) {
+          return { error: "Bitdefender GravityZone isn't connected yet — set it up under Settings → Integrations." };
+        }
+        data = await buildBitdefenderOpenIncidentsReport(settings);
         break;
       }
       case "wizer_metrics": {

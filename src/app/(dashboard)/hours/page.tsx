@@ -4,8 +4,6 @@ import { hasPermission } from "@/lib/permissions";
 import { HoursLookup } from "@/components/hours-lookup";
 import { TicketLookup } from "@/components/ticket-lookup";
 import { HuntressSiemLogs } from "@/components/huntress-siem-logs";
-import { BitdefenderEndpoints } from "@/components/bitdefender-endpoints";
-import { BitdefenderOpenIncidents } from "@/components/bitdefender-open-incidents";
 import { ForticloudDevices } from "@/components/forticloud-devices";
 import { WizerTrainingMetrics } from "@/components/wizer-training-metrics";
 import { GroupedTabs } from "@/components/grouped-tabs";
@@ -15,7 +13,6 @@ import {
   searchAutotaskTicketsAction,
 } from "./actions";
 import { fetchHuntressSiemLogsAction } from "./huntress-actions";
-import { fetchGravityZoneEndpointsAction, fetchGravityZoneOpenIncidentsAction } from "./bitdefender-actions";
 import { fetchForticloudDevicesAction } from "./forticloud-actions";
 import { fetchWizerCompanyMetricsAction } from "./wizer-actions";
 
@@ -86,19 +83,6 @@ export default async function HoursPage() {
               {
                 label: "Huntress SIEM",
                 content: <HuntressSiemLogs action={fetchHuntressSiemLogsAction} />,
-              },
-            ],
-          },
-          {
-            group: "Bitdefender",
-            tabs: [
-              {
-                label: "Bitdefender Endpoints",
-                content: <BitdefenderEndpoints action={fetchGravityZoneEndpointsAction} />,
-              },
-              {
-                label: "Bitdefender Incidents",
-                content: <BitdefenderOpenIncidents action={fetchGravityZoneOpenIncidentsAction} />,
               },
             ],
           },

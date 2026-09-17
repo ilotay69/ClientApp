@@ -6,7 +6,7 @@ import { fetchAgingOpenTickets } from "@/lib/ticket-aging";
 import type { AutotaskCredentials } from "@/lib/autotask";
 import { fetchForticloudDeviceInventory } from "@/lib/forticloud-lookups";
 import type { ForticloudCredentials } from "@/lib/forticloud";
-import { fetchGravityZoneEndpointInventory } from "@/lib/bitdefender-lookups";
+import { fetchGravityZoneEndpointInventory, fetchGravityZoneOpenIncidents } from "@/lib/bitdefender-lookups";
 import type { BitdefenderCredentials } from "@/lib/bitdefender";
 import { fetchWizerCompanyMetrics } from "@/lib/wizer-lookups";
 import type { WizerCredentials } from "@/lib/wizer";
@@ -327,6 +327,24 @@ export async function buildBitdefenderEndpointsReport(creds: BitdefenderCredenti
       r.ip,
       r.productOutdated ? "Needs update" : "Up to date",
       r.lastScanDate ? formatDate(r.lastScanDate) : null,
+    ]),
+  };
+}
+
+/** Every EDR/XDR incident account-wide still open or in progress, highest
+ * priority first — same fetcher as the Bitdefender Incidents lookup. */
+export async function buildBitdefenderOpenIncidentsReport(creds: BitdefenderCredentials): Promise<ReportData> {
+  const rows = await fetchGravityZoneOpenIncidents(creds);
+  return {
+    headers: ["Company", "Endpoint", "Detection", "Priority", "Severity", "Status", "Created"],
+    rows: rows.map((r) => [
+      r.companyName,
+      r.computerName,
+      r.detectionName,
+      r.priority,
+      r.severityScore,
+      r.status,
+      formatDate(r.created),
     ]),
   };
 }
