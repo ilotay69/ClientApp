@@ -9,6 +9,11 @@ import {
 } from "@/lib/proposal-totals";
 import type { AcceptProposalResult } from "@/app/proposal-view/[token]/actions";
 
+/** ProposalLineItemInput plus the invoice-facing wording, which the totals
+ * module (proposal-totals.ts) deliberately knows nothing about — it's
+ * presentation, not something any total is computed from. */
+type AcceptPanelItem = ProposalLineItemInput & { detail: string | null };
+
 /** The pricing summary, the optional add-ons, and the accept button — the
  * only interactive part of the prospect's page.
  *
@@ -27,7 +32,7 @@ export function ProposalAcceptPanel({
 }: {
   token: string;
   currency: string;
-  items: ProposalLineItemInput[];
+  items: AcceptPanelItem[];
   acceptAction: (
     token: string,
     input: { acceptedByName: string; acceptedByEmail: string; selectedOptionalItemIds: string[] }
@@ -95,17 +100,20 @@ export function ProposalAcceptPanel({
 
         <ul className="mt-4 space-y-2">
           {included.map((item) => (
-            <li key={item.id} className="flex items-baseline justify-between gap-4 text-base">
-              <span className="min-w-0 text-slate-700">
-                {item.description}
-                {item.quantity !== 1 && <span className="text-slate-400"> × {item.quantity}</span>}
-              </span>
-              <span className="shrink-0 tabular-nums text-slate-900">
-                {formatMoney(lineTotal(item), currency)}
-                {item.billingPeriod === "monthly" && (
-                  <span className="text-sm text-slate-400">/mo</span>
-                )}
-              </span>
+            <li key={item.id}>
+              <div className="flex items-baseline justify-between gap-4 text-base">
+                <span className="min-w-0 text-slate-700">
+                  {item.description}
+                  {item.quantity !== 1 && <span className="text-slate-400"> × {item.quantity}</span>}
+                </span>
+                <span className="shrink-0 tabular-nums text-slate-900">
+                  {formatMoney(lineTotal(item), currency)}
+                  {item.billingPeriod === "monthly" && (
+                    <span className="text-sm text-slate-400">/mo</span>
+                  )}
+                </span>
+              </div>
+              {item.detail && <p className="mt-0.5 text-sm text-slate-500">{item.detail}</p>}
             </li>
           ))}
         </ul>
@@ -121,15 +129,18 @@ export function ProposalAcceptPanel({
             <ul className="mt-3 space-y-2">
               {optional.map((item) => (
                 <li key={item.id}>
-                  <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4 hover:border-slate-300">
+                  <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 hover:border-slate-300">
                     <input
                       type="checkbox"
                       checked={selected.has(item.id)}
                       onChange={() => toggle(item.id)}
-                      className="h-5 w-5 shrink-0 rounded border-slate-300"
+                      className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300"
                     />
-                    <span className="min-w-0 flex-1 text-base text-slate-700">
-                      {item.description}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base text-slate-700">{item.description}</span>
+                      {item.detail && (
+                        <span className="mt-0.5 block text-sm text-slate-500">{item.detail}</span>
+                      )}
                     </span>
                     <span className="shrink-0 tabular-nums text-slate-900">
                       {formatMoney(lineTotal(item), currency)}

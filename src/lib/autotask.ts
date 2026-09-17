@@ -1937,7 +1937,11 @@ export async function fetchAutotaskCatalog(
         kind: "service",
         id: s.id,
         name: s.name || `Service ${s.id}`,
-        description: s.description || s.invoiceDescription || null,
+        // invoiceDescription first: it's the wording Autotask itself would
+        // put on this client's invoice, which is exactly the language a
+        // proposal line should carry, over the internal/catalog
+        // description which is often written for staff, not the client.
+        description: s.invoiceDescription || s.description || null,
         unitPrice: Number(s.unitPrice ?? 0),
         billingPeriod: /month/i.test(periodLabel ?? "") ? "monthly" : "one_off",
         periodLabel,

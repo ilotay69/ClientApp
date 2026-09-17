@@ -208,7 +208,8 @@ function LineItemRow({
   const [togglePending, startToggle] = useTransition();
 
   return (
-    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3">
+    <div className="py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
       <div className="min-w-0 flex-1 text-sm text-slate-900">
         <FieldLabel>Description</FieldLabel>
         <InlineTextEdit
@@ -289,6 +290,27 @@ function LineItemRow({
             action={() => deleteAction(item.id)}
             confirmText={`Remove "${item.description}"?`}
             label="Remove"
+          />
+        </div>
+      )}
+      </div>
+
+      {/* The invoice-facing wording for this line — pulled in automatically
+          when the item comes from "Add from Autotask" (Services carry a
+          proper invoiceDescription; billed-quarterly/etc. items get their
+          real period appended here too, since a proposal line only has
+          one-off/monthly). Editable like everything else, and left blank
+          for a hand-typed line unless the rep wants to add one. */}
+      {(item.detail || !disabled) && (
+        <div className="mt-1.5 text-xs text-slate-500">
+          <InlineTextEdit
+            taskId={item.id}
+            field="detail"
+            value={item.detail ?? ""}
+            disabled={disabled}
+            placeholder="Invoice description (optional)"
+            emptyLabel="Add an invoice description"
+            action={updateAction}
           />
         </div>
       )}
