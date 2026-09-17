@@ -174,7 +174,10 @@ export async function acceptProposalByTokenAction(
 
   const h = await headers();
   const userAgent = (h.get("user-agent") ?? "").slice(0, 500);
-  const ipHash = hashIp(await clientIp());
+  // The real address, not a hash, unlike proposal_views below — acceptance
+  // is the record a dispute would actually turn on, and a hash that can't
+  // be read back serves no purpose there. See migration 133.
+  const ip = await clientIp();
 
   // The proposal row is updated FIRST, guarded on accepted_at still being
   // null. Two submits racing each other — a double-click, or a resent POST
@@ -193,7 +196,7 @@ export async function acceptProposalByTokenAction(
       accepted_by_name: name,
       accepted_by_email: email || null,
       accepted_via: "link",
-      accepted_ip_hash: ipHash,
+      accepted_ip: ip,
       accepted_user_agent: userAgent || null,
       accept_authority_confirmed: true,
     })

@@ -230,10 +230,16 @@ export default async function ProposalDetailPage({
                 <p className="text-xs text-slate-400">
                   Accepted online. Authority confirmed:{" "}
                   {proposal.acceptAuthorityConfirmed ? "yes" : "no"}
+                  {proposal.acceptedIp && (
+                    <>
+                      <br />
+                      IP address: {proposal.acceptedIp}
+                    </>
+                  )}
                   {proposal.acceptedUserAgent && (
                     <>
                       <br />
-                      <span title={proposal.acceptedUserAgent}>Browser recorded at acceptance.</span>
+                      Browser: {proposal.acceptedUserAgent}
                     </>
                   )}
                 </p>

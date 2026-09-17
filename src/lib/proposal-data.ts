@@ -85,11 +85,11 @@ export type Proposal = {
   acceptedTotalAmount: number | null;
   acceptedTaxAmount: number | null;
   acceptedTaxRate: number | null;
-  /** Salted hash and raw string, same posture as proposal_views — enough
-   * to answer "did this come from a real browser, and does it match other
-   * activity", never used to identify anyone. Null for a staff-recorded
-   * (accepted_via='staff') acceptance, which has no browser to capture. */
-  acceptedIpHash: string | null;
+  /** The real address, unlike proposal_views' hashed one — acceptance is
+   * the record a dispute would turn on, so it's kept readable (migration
+   * 133). Null for a staff-recorded (accepted_via='staff') acceptance,
+   * which has no browser to capture. */
+  acceptedIp: string | null;
   acceptedUserAgent: string | null;
   acceptAuthorityConfirmed: boolean;
   /** Storage path of the drawn signature captured at acceptance — pass to
@@ -161,7 +161,7 @@ const PROPOSAL_COLUMNS = `
   owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
   last_viewed_at, view_count, accepted_at, accepted_by_name,
   accepted_by_email, accepted_via, accepted_total_amount, accepted_tax_amount,
-  accepted_tax_rate, accepted_ip_hash, accepted_user_agent,
+  accepted_tax_rate, accepted_ip, accepted_user_agent,
   accept_authority_confirmed, accepted_signature_path, declined_at, decline_reason,
   reminder_count, last_reminder_at, created_at, updated_at
 `;
@@ -303,7 +303,7 @@ export async function getProposal(
     acceptedTotalAmount: data.accepted_total_amount !== null && data.accepted_total_amount !== undefined ? Number(data.accepted_total_amount) : null,
     acceptedTaxAmount: data.accepted_tax_amount !== null && data.accepted_tax_amount !== undefined ? Number(data.accepted_tax_amount) : null,
     acceptedTaxRate: data.accepted_tax_rate !== null && data.accepted_tax_rate !== undefined ? Number(data.accepted_tax_rate) : null,
-    acceptedIpHash: data.accepted_ip_hash ?? null,
+    acceptedIp: data.accepted_ip ?? null,
     acceptedUserAgent: data.accepted_user_agent ?? null,
     acceptAuthorityConfirmed: Boolean(data.accept_authority_confirmed),
     acceptedSignaturePath: data.accepted_signature_path ?? null,
