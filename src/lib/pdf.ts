@@ -531,22 +531,36 @@ export class PdfContentBuilder {
         });
         cursorY -= headerHeight;
 
+        // The first column is the one place a table caller reliably puts
+        // free-form text (an item description) rather than a short number —
+        // proposal line items in particular regularly run past
+        // firstColWidth. Previously drawn unwrapped at a fixed 1-line row
+        // height, a long description just ran straight through the numeric
+        // columns to its right instead of stopping at the column boundary.
+        // Wrapping it and growing the row to fit is the fix; every other
+        // column stays single-line (short values only) and top-aligned to
+        // the first column's first line.
+        const lineHeight = 11;
         for (const row of rows) {
-          ensureSpace(rowHeight);
-          colX = MARGIN;
-          const rowBaselineY = cursorY - rowHeight + 5;
-          row.forEach((cell, i) => {
-            const text = String(cell);
-            if (i === 0) {
-              drawText(colX + cellPad, rowBaselineY, text, 9, false);
-            } else {
-              const w = textWidth(text, 9, false);
-              drawText(colX + colWidths[i] - w - cellPad, rowBaselineY, text, 9, false);
-            }
-            colX += colWidths[i];
+          const firstCellLines = wrapText(String(row[0] ?? ""), firstColWidth - cellPad * 2, 9, false);
+          const thisRowHeight = Math.max(rowHeight, firstCellLines.length * lineHeight + 5);
+          ensureSpace(thisRowHeight);
+          const rowTopY = cursorY - lineHeight + 2;
+
+          firstCellLines.forEach((line, li) => {
+            drawText(MARGIN + cellPad, rowTopY - li * lineHeight, line, 9, false);
           });
-          content += `0.90 0.90 0.92 RG\n0.5 w\n${MARGIN.toFixed(2)} ${(cursorY - rowHeight).toFixed(2)} m ${(MARGIN + USABLE_WIDTH).toFixed(2)} ${(cursorY - rowHeight).toFixed(2)} l S\n0 0 0 RG\n`;
-          cursorY -= rowHeight;
+
+          colX = MARGIN + firstColWidth;
+          row.slice(1).forEach((cell, i) => {
+            const text = String(cell);
+            const w = textWidth(text, 9, false);
+            drawText(colX + colWidths[i + 1] - w - cellPad, rowTopY, text, 9, false);
+            colX += colWidths[i + 1];
+          });
+
+          content += `0.90 0.90 0.92 RG\n0.5 w\n${MARGIN.toFixed(2)} ${(cursorY - thisRowHeight).toFixed(2)} m ${(MARGIN + USABLE_WIDTH).toFixed(2)} ${(cursorY - thisRowHeight).toFixed(2)} l S\n0 0 0 RG\n`;
+          cursorY -= thisRowHeight;
         }
         cursorY -= 6;
       } else if (block.type === "icon") {
