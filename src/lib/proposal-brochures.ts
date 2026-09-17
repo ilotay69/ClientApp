@@ -30,8 +30,8 @@ export async function fetchProposalBrochures(
     title: b.title as string,
     storagePath: b.storage_path as string,
     fileName: b.file_name as string,
-    contentType: (b.content_type as string) ?? null,
-    sizeBytes: (b.file_size_bytes as number) ?? null,
+    contentType: (b.content_type as string | null) ?? null,
+    sizeBytes: (b.file_size_bytes as number | null) ?? null,
     createdAt: b.created_at as string,
   }));
 }
@@ -71,8 +71,8 @@ export async function fetchBrochuresForProposal(
         title: b.title as string,
         storagePath: b.storage_path as string,
         fileName: b.file_name as string,
-        contentType: (b.content_type as string) ?? null,
-        sizeBytes: (b.file_size_bytes as number) ?? null,
+        contentType: (b.content_type as string | null) ?? null,
+        sizeBytes: (b.file_size_bytes as number | null) ?? null,
         createdAt: b.created_at as string,
       };
     })
