@@ -8,7 +8,7 @@ import { getProposal, computeProposalBlockers } from "@/lib/proposal-data";
 import { formatProposalHeadline } from "@/lib/proposal-totals";
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { buildProposalEmail } from "@/lib/resend";
-import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
@@ -16,11 +16,7 @@ import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchAutotaskCatalog, type AutotaskCatalogItem } from "@/lib/autotask";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import { generateProposalDraft, type ProposalDraft } from "@/lib/proposal-analysis";
-import {
-  setProposalBrochureLinks,
-  fetchBrochuresForProposal,
-  PROPOSAL_BROCHURES_BUCKET,
-} from "@/lib/proposal-brochures";
+import { setProposalBrochureLinks } from "@/lib/proposal-brochures";
 
 export type ProposalActionState = { ok: boolean; message: string };
 export type CreateProposalState = { error: string } | undefined;
@@ -767,34 +763,16 @@ export async function sendProposalAction(
       isResend ? `Reminder ${proposal.reminderCount + 1}` : null
     );
 
-    // Brochures are marketing collateral, not the proposal's own content —
-    // unlike the PDF, attaching these doesn't undercut the point of driving
-    // the prospect to the tracked link, so they go out with the email as
-    // well as showing as a link on the page.
-    const brochures = await fetchBrochuresForProposal(proposalId, admin);
-    const graphAttachments: SharedMailboxAttachment[] = [];
-    for (const brochure of brochures) {
-      try {
-        const { data: blob, error } = await admin.storage
-          .from(PROPOSAL_BROCHURES_BUCKET)
-          .download(brochure.storagePath);
-        if (error || !blob) continue;
-        graphAttachments.push({
-          filename: brochure.fileName,
-          contentBase64: Buffer.from(await blob.arrayBuffer()).toString("base64"),
-          contentType: brochure.contentType || "application/octet-stream",
-        });
-      } catch (err) {
-        console.error("sendProposalAction: brochure fetch failed", brochure.id, err);
-      }
-    }
-
+    // Brochures show as a link on the prospect's own page (fetched at
+    // render time from fetchBrochuresForProposal there) but deliberately
+    // aren't attached here — the email stays a short nudge toward the
+    // tracked link, not a bundle of files someone can read without ever
+    // clicking through.
     await sendMailAsSharedMailbox(graphToken, mailboxEmail, {
       to: trimmedEmail,
       subject: applyTemplateVars(template.subject, templateVars),
       html,
       text,
-      attachments: graphAttachments,
     });
   } catch (err) {
     console.error("sendProposalAction: send failed", err);
