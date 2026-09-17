@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { fetchLicenseSummaryForTenant, fetchSecureScoreGapsForTenant } from "@/lib/m365-partner";
-import { getM365ClientSettings, getValidM365Token } from "@/lib/m365-client-credentials";
+import {
+  getM365ClientSettings,
+  getValidM365Token,
+  syncM365ConditionalAccessAndIntune,
+} from "@/lib/m365-client-credentials";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Syncs Microsoft 365 license usage and Secure Score gaps for every client
- * with its own credentials saved. Call this on a schedule (e.g. a Railway
- * Cron Job) with header `X-Cron-Secret: <CRON_SECRET>`, same secret as the
- * other sync jobs.
+ * Syncs Microsoft 365 license usage, Secure Score gaps, Conditional Access
+ * policies, and Intune devices/policies for every client with its own
+ * credentials saved. Call this on a schedule (e.g. a Railway Cron Job)
+ * with header `X-Cron-Secret: <CRON_SECRET>`, same secret as the other
+ * sync jobs.
  *
  * Each client has fully independent credentials (its own app registration,
  * its own tenant) — no shared token to rotate, so clients are processed
@@ -55,6 +60,8 @@ export async function GET(request: NextRequest) {
           gaps.map((g) => ({ ...g, client_id: client.id }))
         );
       }
+
+      await syncM365ConditionalAccessAndIntune(admin, client.id, customerToken);
 
       results.push({ clientId: client.id, skus: licenses.length, secureScoreGaps: gaps.length });
     } catch (err) {

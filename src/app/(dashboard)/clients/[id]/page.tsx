@@ -13,6 +13,9 @@ import { SyncNinjaOneButton } from "@/components/sync-ninjaone-button";
 import { ClientHuntressAgents } from "@/components/client-huntress-agents";
 import { ClientM365Licenses } from "@/components/client-m365-licenses";
 import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
+import { ClientM365ConditionalAccess } from "@/components/client-m365-conditional-access";
+import { ClientM365IntuneDevices } from "@/components/client-m365-intune-devices";
+import { ClientM365IntunePolicies } from "@/components/client-m365-intune-policies";
 import { SyncM365Button } from "@/components/sync-m365-button";
 import { ClientInsightParagraph } from "@/components/client-insight-paragraph";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
@@ -89,6 +92,9 @@ export default async function ClientDetailPage({
     { data: m365Licenses },
     { data: m365SecureScore },
     { data: m365SecureScoreGaps },
+    { data: m365ConditionalAccessPolicies },
+    { data: m365IntuneDevices },
+    { data: m365IntunePolicies },
     { data: members },
     allReviews,
   ] = await Promise.all([
@@ -175,6 +181,23 @@ export default async function ClientDetailPage({
       .select("id, control_name, title, category, current_score, max_score, remediation, action_url, implementation_cost")
       .eq("client_id", id)
       .order("current_score", { ascending: true }),
+    supabase
+      .from("m365_conditional_access_policies")
+      .select("id, policy_id, display_name, state, created_date_time, modified_date_time")
+      .eq("client_id", id)
+      .order("display_name"),
+    supabase
+      .from("m365_intune_devices")
+      .select(
+        "id, device_name, operating_system, os_version, compliance_state, user_principal_name, model, manufacturer, last_sync_date_time"
+      )
+      .eq("client_id", id)
+      .order("device_name"),
+    supabase
+      .from("m365_intune_policies")
+      .select("id, policy_kind, display_name, modified_date_time")
+      .eq("client_id", id)
+      .order("display_name"),
     // neq("role", "client"): client-portal logins aren't staff and must
     // never appear as an assignable account owner here.
     supabase.from("profiles").select("id, full_name").neq("role", "client").order("full_name"),
@@ -538,6 +561,33 @@ export default async function ClientDetailPage({
                     tenantId={client.m365_tenant_id}
                     summary={m365SecureScore ?? null}
                     gaps={m365SecureScoreGaps ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Conditional Access",
+                content: (
+                  <ClientM365ConditionalAccess
+                    tenantId={client.m365_tenant_id}
+                    policies={m365ConditionalAccessPolicies ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Intune Devices",
+                content: (
+                  <ClientM365IntuneDevices
+                    tenantId={client.m365_tenant_id}
+                    devices={m365IntuneDevices ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Intune Policies",
+                content: (
+                  <ClientM365IntunePolicies
+                    tenantId={client.m365_tenant_id}
+                    policies={m365IntunePolicies ?? []}
                   />
                 ),
               },

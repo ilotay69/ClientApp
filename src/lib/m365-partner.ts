@@ -63,6 +63,21 @@ async function graphGet(accessToken: string, path: string) {
   return res.json();
 }
 
+/** Same as graphGet, against /beta — only used where Microsoft has no
+ * v1.0 equivalent (Intune device compliance policies, below). Beta
+ * endpoints can change without notice, so nothing here is called against
+ * /beta unless graphGet genuinely has no stable alternative. */
+async function graphGetBeta(accessToken: string, path: string) {
+  const res = await fetch(`https://graph.microsoft.com/beta${path}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Microsoft Graph beta request failed (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
 /** Confirms the credentials actually work via one trivial authenticated
  * call, not just that a token was issued. Uses /subscribedSkus rather than
  * /organization — the latter needs Organization.Read.All, a permission
@@ -410,4 +425,165 @@ function parseMailboxUsageCsv(csv: string): M365MailboxUsageRow[] {
       prohibit_send_receive_quota_bytes: Number(f[quotaCol]) || 0,
     }))
     .filter((r) => r.user_principal_name);
+}
+
+export type M365ConditionalAccessPolicyRow = {
+  policy_id: string;
+  display_name: string;
+  state: string;
+  created_date_time: string | null;
+  modified_date_time: string | null;
+};
+
+/** Verified against Microsoft's own docs — GET
+ * /identity/conditionalAccess/policies, requiring Policy.Read.All
+ * (app-only, and the only permission option — there's no narrower one).
+ * Stable v1.0 endpoint. Not consented in any client's app registration
+ * today, same "isolated per client, degrades to empty until re-consented"
+ * posture as fetchUserRegistrationDetails above.
+ *
+ * Deliberately shallow for now: `conditions`/`grantControls` are deeply
+ * nested (target apps, users, required controls) and the one place that
+ * actually needs to reason about them in full is Entra's own admin
+ * center — this just lists what exists and whether it's live, matching
+ * the level of depth the Licenses tab already shows for SKUs. */
+export async function fetchConditionalAccessPoliciesForTenant(
+  customerAccessToken: string
+): Promise<M365ConditionalAccessPolicyRow[]> {
+  const json = await graphGet(customerAccessToken, "/identity/conditionalAccess/policies");
+  type Raw = {
+    id: string;
+    displayName: string;
+    state: string;
+    createdDateTime?: string;
+    modifiedDateTime?: string;
+  };
+  return ((json.value ?? []) as Raw[]).map((p) => ({
+    policy_id: p.id,
+    display_name: p.displayName,
+    state: p.state,
+    created_date_time: p.createdDateTime ?? null,
+    modified_date_time: p.modifiedDateTime ?? null,
+  }));
+}
+
+export type M365IntuneDeviceRow = {
+  device_id: string;
+  device_name: string;
+  operating_system: string | null;
+  os_version: string | null;
+  compliance_state: string | null;
+  managed_device_owner_type: string | null;
+  user_principal_name: string | null;
+  model: string | null;
+  manufacturer: string | null;
+  serial_number: string | null;
+  is_encrypted: boolean | null;
+  last_sync_date_time: string | null;
+};
+
+/** Verified against Microsoft's own docs — GET
+ * /deviceManagement/managedDevices, requiring
+ * DeviceManagementManagedDevices.Read.All (app-only). Stable v1.0. A
+ * tenant with no active Intune license (Microsoft's own note on this
+ * endpoint) just returns an empty list, not an error. Paginated the same
+ * way fetchUserSignInActivity is — a real fleet can exceed one page. */
+export async function fetchIntuneManagedDevicesForTenant(
+  customerAccessToken: string
+): Promise<M365IntuneDeviceRow[]> {
+  type Raw = {
+    id: string;
+    deviceName: string;
+    operatingSystem?: string;
+    osVersion?: string;
+    complianceState?: string;
+    managedDeviceOwnerType?: string;
+    userPrincipalName?: string;
+    model?: string;
+    manufacturer?: string;
+    serialNumber?: string;
+    isEncrypted?: boolean;
+    lastSyncDateTime?: string;
+  };
+  const rows: M365IntuneDeviceRow[] = [];
+  let path: string | null = "/deviceManagement/managedDevices?$top=500";
+  for (let page = 0; page < 20 && path; page++) {
+    const json: { value?: Raw[]; "@odata.nextLink"?: string } = await graphGet(customerAccessToken, path);
+    for (const d of json.value ?? []) {
+      rows.push({
+        device_id: d.id,
+        device_name: d.deviceName,
+        operating_system: d.operatingSystem ?? null,
+        os_version: d.osVersion ?? null,
+        compliance_state: d.complianceState ?? null,
+        managed_device_owner_type: d.managedDeviceOwnerType ?? null,
+        user_principal_name: d.userPrincipalName ?? null,
+        model: d.model ?? null,
+        manufacturer: d.manufacturer ?? null,
+        serial_number: d.serialNumber ?? null,
+        is_encrypted: d.isEncrypted ?? null,
+        last_sync_date_time: d.lastSyncDateTime ?? null,
+      });
+    }
+    path = json["@odata.nextLink"] ? json["@odata.nextLink"].replace("https://graph.microsoft.com/v1.0", "") : null;
+  }
+  return rows;
+}
+
+export type M365IntunePolicyRow = {
+  policy_id: string;
+  policy_kind: "configuration" | "compliance";
+  display_name: string;
+  version: number | null;
+  created_date_time: string | null;
+  modified_date_time: string | null;
+};
+
+/** Configuration policies (GET /deviceManagement/deviceConfigurations) are
+ * a stable v1.0 endpoint. Compliance policies
+ * (GET /deviceManagement/deviceCompliancePolicies) exist ONLY under
+ * /beta as of Microsoft's own docs — there is no v1.0 equivalent — so
+ * that half is wrapped in its own try/catch: a beta endpoint changing
+ * out from under this app must never take down the stable configuration
+ * list alongside it. Both need DeviceManagementConfiguration.Read.All. */
+export async function fetchIntunePoliciesForTenant(
+  customerAccessToken: string
+): Promise<M365IntunePolicyRow[]> {
+  type Raw = {
+    id: string;
+    displayName: string;
+    version?: number;
+    createdDateTime?: string;
+    lastModifiedDateTime?: string;
+  };
+
+  const configJson = await graphGet(customerAccessToken, "/deviceManagement/deviceConfigurations");
+  const configPolicies: M365IntunePolicyRow[] = ((configJson.value ?? []) as Raw[]).map((p) => ({
+    policy_id: p.id,
+    policy_kind: "configuration",
+    display_name: p.displayName,
+    version: p.version ?? null,
+    created_date_time: p.createdDateTime ?? null,
+    modified_date_time: p.lastModifiedDateTime ?? null,
+  }));
+
+  let compliancePolicies: M365IntunePolicyRow[] = [];
+  try {
+    const complianceJson = await graphGetBeta(
+      customerAccessToken,
+      "/deviceManagement/deviceCompliancePolicies"
+    );
+    compliancePolicies = ((complianceJson.value ?? []) as Raw[]).map((p) => ({
+      policy_id: p.id,
+      policy_kind: "compliance",
+      display_name: p.displayName,
+      version: p.version ?? null,
+      created_date_time: p.createdDateTime ?? null,
+      modified_date_time: p.lastModifiedDateTime ?? null,
+    }));
+  } catch (err) {
+    console.error("fetchIntunePoliciesForTenant: compliance (beta) fetch failed", err);
+  }
+
+  return [...configPolicies, ...compliancePolicies];
 }

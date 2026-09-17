@@ -36,7 +36,11 @@ import {
   testM365ClientConnection,
   type M365ClientCredentials,
 } from "@/lib/m365-partner";
-import { getM365ClientSettings, getValidM365Token } from "@/lib/m365-client-credentials";
+import {
+  getM365ClientSettings,
+  getValidM365Token,
+  syncM365ConditionalAccessAndIntune,
+} from "@/lib/m365-client-credentials";
 import { generateTicketInsights, type TicketInsight } from "@/lib/ticket-insights";
 
 export type FormState = { error: string | null };
@@ -939,6 +943,9 @@ export async function unlinkClientM365Tenant(clientId: string): Promise<void> {
   await supabase.from("m365_license_summary").delete().eq("client_id", clientId);
   await supabase.from("m365_secure_score").delete().eq("client_id", clientId);
   await supabase.from("m365_secure_score_gaps").delete().eq("client_id", clientId);
+  await supabase.from("m365_conditional_access_policies").delete().eq("client_id", clientId);
+  await supabase.from("m365_intune_devices").delete().eq("client_id", clientId);
+  await supabase.from("m365_intune_policies").delete().eq("client_id", clientId);
   revalidatePath(`/clients/${clientId}`);
 }
 
@@ -1005,6 +1012,13 @@ export async function syncClientM365Data(clientId: string): Promise<{ error: str
         .from("m365_secure_score_gaps")
         .insert(gaps.map((g) => ({ ...g, client_id: clientId })));
     }
+
+    // Conditional Access, Intune devices and Intune policies each need a
+    // Graph permission not yet consented on most clients' app
+    // registrations — isolated in their own try/catch so a 403 on one
+    // (or all three, for a client who hasn't re-consented at all yet)
+    // never blocks licenses/Secure Score from syncing above.
+    await syncM365ConditionalAccessAndIntune(admin, clientId, customerToken);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Sync failed." };
   }
@@ -1109,6 +1123,8 @@ export async function autoSyncClientM365IfStale(clientId: string): Promise<void>
         .from("m365_secure_score_gaps")
         .insert(gaps.map((g) => ({ ...g, client_id: clientId })));
     }
+
+    await syncM365ConditionalAccessAndIntune(admin, clientId, customerToken);
   } catch (err) {
     console.error("Background M365 auto-sync failed", err);
   }

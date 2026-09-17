@@ -165,6 +165,22 @@ const COLORS: Record<string, string> = {
   // state instead, with the far more useful "opened 4x" detail.
   expired: NEUTRAL_MUTED,
   withdrawn: NEUTRAL_MUTED,
+
+  // Conditional Access policy state (the raw Graph enum value, shown as-is)
+  enabled: SUCCESS,
+  enabledForReportingButNotEnforced: ATTENTION,
+  // "disabled" reuses task-status's own entry above — same meaning either way.
+
+  // Intune device compliance state
+  compliant: SUCCESS,
+  noncompliant: URGENT,
+  inGracePeriod: ATTENTION,
+  conflict: URGENT,
+  configManager: NEUTRAL_MUTED,
+
+  // Intune policy kind — a category, not a status
+  configuration: CATEGORY_INDIGO,
+  compliance: CATEGORY_PURPLE,
 };
 
 export function Badge({ value, label }: { value: string; label?: string }) {
