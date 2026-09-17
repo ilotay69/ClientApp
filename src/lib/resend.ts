@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import type { ContractUsageRow } from "@/lib/contract-hours";
+import { DEFAULT_PAYMENT_TERMS } from "@/lib/proposal-totals";
 
 let client: Resend | null = null;
 
@@ -444,7 +445,8 @@ export function buildProposalAcceptedClientEmail(
   totals: ProposalAcceptedEmailTotals,
   currency: string,
   intro: string,
-  note: string
+  note: string,
+  paymentTerms: string | null
 ) {
   const greeting = recipientName ? `Hi ${escapeHtml(recipientName)},` : "Hello,";
 
@@ -503,7 +505,7 @@ export function buildProposalAcceptedClientEmail(
           ${escapeHtml(formatMoneyForEmail(totals.firstInvoiceTotal, currency))} due at signing
         </p>
         <p style="margin:2px 0 0;color:#94a3b8;font-size:12px;">
-          Including HST.${totals.monthlySubtotal > 0 ? " Monthly charges continue at that rate plus HST." : ""}
+          ${escapeHtml(paymentTerms || DEFAULT_PAYMENT_TERMS)}
         </p>
       </div>
       <p style="color:#334155;font-size:14px;">${escapeHtml(note)}</p>
@@ -532,6 +534,7 @@ export function buildProposalAcceptedClientEmail(
   if (totals.monthlySubtotal > 0) textLines.push(`Monthly: ${formatMoneyForEmail(totals.monthlySubtotal, currency)}/mo`);
   textLines.push(`HST (${(totals.taxRate * 100).toFixed(0)}%): ${formatMoneyForEmail(totals.taxAmount, currency)}`);
   textLines.push(`Total due at signing (incl. HST): ${formatMoneyForEmail(totals.firstInvoiceTotal, currency)}`);
+  textLines.push(paymentTerms || DEFAULT_PAYMENT_TERMS);
   textLines.push("");
   textLines.push(note);
   textLines.push("");

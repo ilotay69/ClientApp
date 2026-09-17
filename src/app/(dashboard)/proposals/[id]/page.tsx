@@ -324,12 +324,14 @@ export default async function ProposalDetailPage({
                     proposalId={proposal.id}
                     items={proposal.lineItems}
                     currency={proposal.currency}
+                    paymentTerms={proposal.paymentTerms}
                     disabled={!editable}
                     addAction={addProposalLineItemAction}
                     updateAction={updateProposalLineItemAction}
                     deleteAction={deleteProposalLineItemAction}
                     fetchCatalogAction={fetchAutotaskCatalogAction}
                     addFromCatalogAction={addProposalLineItemsFromCatalogAction}
+                    updateFieldAction={updateProposalFieldAction}
                   />
                 </div>
               )}

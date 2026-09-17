@@ -1,12 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { InlineTextEdit, InlineSelectEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
 import {
   computeProposalTotals,
   formatMoney,
   lineTotal,
+  DEFAULT_PAYMENT_TERMS,
   type ProposalLineItemInput,
 } from "@/lib/proposal-totals";
 import type { ProposalLineItem } from "@/lib/proposal-data";
@@ -44,16 +45,20 @@ export function ProposalPricingTable({
   proposalId,
   items,
   currency,
+  paymentTerms,
   disabled,
   addAction,
   updateAction,
   deleteAction,
   fetchCatalogAction,
   addFromCatalogAction,
+  updateFieldAction,
 }: {
   proposalId: string;
   items: ProposalLineItem[];
   currency: string;
+  /** Null means "use DEFAULT_PAYMENT_TERMS" — see migration 143. */
+  paymentTerms: string | null;
   disabled?: boolean;
   addAction: (proposalId: string) => Promise<void>;
   updateAction: (itemId: string, field: string, value: string) => Promise<void>;
@@ -63,8 +68,23 @@ export function ProposalPricingTable({
     proposalId: string,
     selections: CatalogSelection[]
   ) => Promise<ProposalActionState>;
+  updateFieldAction: (proposalId: string, field: string, value: string) => Promise<void>;
 }) {
   const [adding, startAdd] = useTransition();
+  const [termsDraft, setTermsDraft] = useState(paymentTerms ?? "");
+  const [savingTerms, startSaveTerms] = useTransition();
+
+  // Re-syncs if the stored value changes underneath this same component
+  // instance (e.g. Revise resetting the proposal) - useState's initializer
+  // only ever runs once at mount otherwise.
+  useEffect(() => {
+    setTermsDraft(paymentTerms ?? "");
+  }, [paymentTerms]);
+
+  const saveTerms = () => {
+    if (termsDraft === (paymentTerms ?? "")) return;
+    startSaveTerms(() => updateFieldAction(proposalId, "payment_terms", termsDraft));
+  };
 
   const totalsInput: ProposalLineItemInput[] = items.map((i) => ({
     id: i.id,
@@ -152,12 +172,32 @@ export function ProposalPricingTable({
           <p className="text-lg font-semibold text-slate-900">
             {formatMoney(totals.firstInvoiceTotal, currency)}
           </p>
-          <p className="text-xs text-slate-400">
-            Due at signing, incl. HST.
-            {totals.monthlySubtotal > 0 && " Monthly charges continue at that rate plus HST."}
-          </p>
         </div>
       )}
+
+      <div className="mt-3 border-t border-slate-200 pt-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment terms</p>
+        {disabled ? (
+          <p className="mt-1 whitespace-pre-line text-right text-xs text-slate-400">
+            {paymentTerms || DEFAULT_PAYMENT_TERMS}
+          </p>
+        ) : (
+          <>
+            <textarea
+              value={termsDraft}
+              rows={2}
+              disabled={savingTerms}
+              onChange={(e) => setTermsDraft(e.target.value)}
+              onBlur={saveTerms}
+              placeholder={DEFAULT_PAYMENT_TERMS}
+              className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 focus:border-brand focus:outline-none disabled:opacity-60"
+            />
+            <p className="mt-0.5 text-xs text-slate-400">
+              {savingTerms ? "Saving…" : "Leave blank to use the default shown as the placeholder."}
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

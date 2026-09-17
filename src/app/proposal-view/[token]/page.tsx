@@ -140,6 +140,7 @@ export default async function ProposalViewPage({
         detail: i.detail,
         listPrice: i.listPrice,
       }))}
+      paymentTerms={proposal.paymentTerms}
       acceptAction={acceptProposalByTokenAction}
     />
   );

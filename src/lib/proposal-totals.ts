@@ -11,6 +11,13 @@
 
 export type ProposalBillingPeriod = "one_off" | "annual" | "monthly";
 
+/** Shown under Pricing in the staff editor, the public page, the PDF, and
+ * the acceptance email whenever a proposal hasn't set its own
+ * payment_terms (migration 143) — editable per proposal, this is just the
+ * starting text. */
+export const DEFAULT_PAYMENT_TERMS =
+  "Due at signing, including HST. Monthly charges continue at that rate plus HST.";
+
 /** Ontario HST. CG doesn't currently need this configurable per client or
  * per province — flagged here as the one spot to change if that ever stops
  * being true, rather than a value copied into every surface that shows a

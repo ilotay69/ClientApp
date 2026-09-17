@@ -257,6 +257,7 @@ export async function updateProposalFieldAction(
     "intro",
     "closing_note",
     "valid_until",
+    "payment_terms",
     "currency",
     "prospect_company",
     "prospect_contact_name",
@@ -1030,7 +1031,8 @@ export async function markProposalAcceptedByStaffAction(
           proposal.totals,
           proposal.currency,
           applyTemplateVars(template.intro, templateVars),
-          applyTemplateVars(template.note, templateVars)
+          applyTemplateVars(template.note, templateVars),
+          proposal.paymentTerms
         );
 
         // Reloaded fresh: `proposal` above was read before the update just

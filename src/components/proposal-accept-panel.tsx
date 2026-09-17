@@ -5,6 +5,7 @@ import {
   computeProposalTotals,
   formatMoney,
   lineTotal,
+  DEFAULT_PAYMENT_TERMS,
   type ProposalLineItemInput,
 } from "@/lib/proposal-totals";
 import { SignaturePad } from "@/components/signature-pad";
@@ -54,12 +55,14 @@ export function ProposalAcceptPanel({
   companyName,
   currency,
   items,
+  paymentTerms,
   acceptAction,
 }: {
   token: string;
   companyName: string;
   currency: string;
   items: AcceptPanelItem[];
+  paymentTerms: string | null;
   acceptAction: (
     token: string,
     input: {
@@ -249,10 +252,7 @@ export function ProposalAcceptPanel({
           <p className="mt-1 text-3xl font-semibold tabular-nums text-slate-900">
             {formatMoney(totals.firstInvoiceTotal, currency)}
           </p>
-          <p className="text-sm text-slate-400">
-            Due at signing, including HST.
-            {totals.monthlySubtotal > 0 && " Monthly charges continue at that rate plus HST."}
-          </p>
+          <p className="whitespace-pre-line text-sm text-slate-400">{paymentTerms || DEFAULT_PAYMENT_TERMS}</p>
         </div>
 
         <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-400">

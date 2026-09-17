@@ -68,6 +68,9 @@ export type Proposal = {
   intro: string | null;
   closingNote: string | null;
   validUntil: string | null;
+  /** Null means "use DEFAULT_PAYMENT_TERMS" (migration 143) — every render
+   * site (editor, public page, PDF, email) falls back the same way. */
+  paymentTerms: string | null;
   accessToken: string | null;
   ownerId: string | null;
   ownerName: string | null;
@@ -161,6 +164,7 @@ export type ProposalPublicView = {
   intro: string | null;
   closingNote: string | null;
   validUntil: string | null;
+  paymentTerms: string | null;
   acceptedAt: string | null;
   acceptedByName: string | null;
   /** The permanent snapshot from the moment of acceptance, not a live
@@ -175,7 +179,7 @@ export type ProposalPublicView = {
 
 const PROPOSAL_COLUMNS = `
   id, proposal_number, quotation_number, client_id, prospect_company, prospect_contact_name, prospect_email,
-  prospect_address, title, status, currency, intro, closing_note, valid_until, access_token,
+  prospect_address, title, status, currency, intro, closing_note, valid_until, payment_terms, access_token,
   owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
   last_viewed_at, view_count, accepted_at, accepted_by_name,
   accepted_by_email, accepted_via, accepted_total_amount, accepted_tax_amount,
@@ -328,6 +332,7 @@ export async function getProposal(
     intro: data.intro ?? null,
     closingNote: data.closing_note ?? null,
     validUntil: data.valid_until ?? null,
+    paymentTerms: data.payment_terms ?? null,
     accessToken: data.access_token ?? null,
     ownerId: data.owner_id ?? null,
     ownerName: owner?.full_name ?? null,
@@ -473,7 +478,7 @@ export async function getProposalByAccessToken(
     .from("proposals")
     .select(
       `id, proposal_number, quotation_number, title, status, currency, intro, closing_note, valid_until,
-       accepted_at, accepted_by_name, accepted_total_amount, prospect_company,
+       payment_terms, accepted_at, accepted_by_name, accepted_total_amount, prospect_company,
        prospect_contact_name, prospect_address, clients(name)`
     )
     .eq("access_token", token)
@@ -511,6 +516,7 @@ export async function getProposalByAccessToken(
     intro: data.intro ?? null,
     closingNote: data.closing_note ?? null,
     validUntil: data.valid_until ?? null,
+    paymentTerms: data.payment_terms ?? null,
     acceptedAt: data.accepted_at ?? null,
     acceptedByName: data.accepted_by_name ?? null,
     acceptedTotalAmount:

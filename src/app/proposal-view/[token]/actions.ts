@@ -166,7 +166,7 @@ export async function acceptProposalByTokenAction(
   const { data: proposal } = await admin
     .from("proposals")
     .select(
-      "id, status, valid_until, title, owner_id, created_by, currency, prospect_company, prospect_contact_name, clients(name)"
+      "id, status, valid_until, title, owner_id, created_by, currency, prospect_company, prospect_contact_name, payment_terms, clients(name)"
     )
     .eq("access_token", token)
     .maybeSingle();
@@ -363,7 +363,8 @@ export async function acceptProposalByTokenAction(
         totals,
         proposal.currency ?? "CAD",
         applyTemplateVars(template.intro, templateVars),
-        applyTemplateVars(template.note, templateVars)
+        applyTemplateVars(template.note, templateVars),
+        proposal.payment_terms ?? null
       );
 
       // Reloaded fresh rather than reused from above: this needs

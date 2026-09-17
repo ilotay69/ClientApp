@@ -1,10 +1,11 @@
 import { PdfContentBuilder } from "@/lib/pdf";
 import { formatDate } from "@/lib/format";
-import { formatMoney, lineTotal } from "@/lib/proposal-totals";
+import { formatMoney, lineTotal, DEFAULT_PAYMENT_TERMS } from "@/lib/proposal-totals";
 import type { Proposal } from "@/lib/proposal-data";
 import type { CompanyInfo } from "@/lib/company-info";
 
 const NAVY: [number, number, number] = [0.059, 0.09, 0.165];
+const MUTED: [number, number, number] = [0.58, 0.64, 0.72];
 
 const PERIOD_SUFFIX: Record<string, string> = {
   monthly: "/mo",
@@ -81,6 +82,7 @@ export function buildProposalPdf(
         color: NAVY,
         size: 12,
       });
+      doc.paragraph(proposal.paymentTerms || DEFAULT_PAYMENT_TERMS, { color: MUTED, size: 9 });
     }
     doc.spacer(10);
   }
