@@ -148,8 +148,6 @@ export function ProposalAcceptPanel({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 p-5 sm:p-6">
-        <h2 className="text-xl font-semibold text-slate-900">Your investment</h2>
-
         {PERIOD_SECTIONS.map((section) => {
           const periodItems = included.filter((i) => i.billingPeriod === section.value);
           if (periodItems.length === 0) return null;
