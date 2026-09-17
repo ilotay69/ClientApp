@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { buildProposalEmail } from "@/lib/resend";
-import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { computeProposalTotals, formatProposalHeadline } from "@/lib/proposal-totals";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
+import { fetchBrochuresForProposal, PROPOSAL_BROCHURES_BUCKET } from "@/lib/proposal-brochures";
 
 export const dynamic = "force-dynamic";
 
@@ -159,11 +160,33 @@ export async function GET(request: NextRequest) {
         ordinalReminderLabel(reminderNumber)
       );
 
+      // Whatever's checked right now, not a snapshot from the original
+      // send — a rep may have added a brochure since, and a reminder is a
+      // fresh chance for it to reach the prospect.
+      const brochures = await fetchBrochuresForProposal(proposal.id, admin);
+      const attachments: SharedMailboxAttachment[] = [];
+      for (const brochure of brochures) {
+        try {
+          const { data: blob, error: downloadError } = await admin.storage
+            .from(PROPOSAL_BROCHURES_BUCKET)
+            .download(brochure.storagePath);
+          if (downloadError || !blob) continue;
+          attachments.push({
+            filename: brochure.fileName,
+            contentBase64: Buffer.from(await blob.arrayBuffer()).toString("base64"),
+            contentType: brochure.contentType || "application/octet-stream",
+          });
+        } catch (err) {
+          console.error("proposal-reminders: brochure fetch failed", brochure.id, err);
+        }
+      }
+
       await sendMailAsSharedMailbox(accessToken, mailboxEmail, {
         to: proposal.sent_to_email!,
         subject: applyTemplateVars(template.subject, templateVars),
         html,
         text,
+        attachments,
       });
 
       await admin

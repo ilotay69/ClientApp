@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getProposalByAccessToken } from "@/lib/proposal-data";
+import { fetchBrochuresForProposal } from "@/lib/proposal-brochures";
 import { formatDate } from "@/lib/format";
 import { formatMoney, computeProposalTotals } from "@/lib/proposal-totals";
 import { ProposalShell, ProposalMessage, ProposalWordmark } from "@/components/proposal-shell";
@@ -92,6 +93,7 @@ export default async function ProposalViewPage({
     );
   }
 
+  const brochures = await fetchBrochuresForProposal(proposal.id);
   const bodySections = proposal.sections.filter((s) => s.body?.trim() || s.kind === "pricing");
   // The accept panel normally renders inside the pricing section, where the
   // numbers are. If someone deleted that section, it falls to the bottom of
@@ -110,6 +112,7 @@ export default async function ProposalViewPage({
         billingPeriod: i.billingPeriod,
         isOptional: i.isOptional,
         isSelected: i.isSelected,
+        detail: i.detail,
       }))}
       acceptAction={acceptProposalByTokenAction}
     />
@@ -163,6 +166,29 @@ export default async function ProposalViewPage({
 
           {!hasPricingSection && acceptPanel}
         </div>
+
+        {brochures.length > 0 && (
+          <div className="mt-12 border-t border-slate-200 pt-8">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+              More information
+            </p>
+            <ul className="mt-3 space-y-2">
+              {brochures.map((b) => (
+                <li key={b.id}>
+                  <a
+                    href={`/proposal-view/${token}/brochure/${b.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-base font-medium text-brand hover:underline"
+                  >
+                    {b.title}
+                    <span aria-hidden="true" className="text-slate-400">↗</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {proposal.closingNote && (
           <p className="mt-12 whitespace-pre-line text-base leading-relaxed text-slate-600">

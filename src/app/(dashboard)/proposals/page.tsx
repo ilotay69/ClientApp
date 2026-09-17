@@ -57,7 +57,17 @@ export default async function ProposalsPage({
             Build a proposal, send it as a link, and see who&apos;s actually reading it.
           </p>
         </div>
-        {canManage && <NewProposalPanel clients={clients ?? []} action={createProposalAction} />}
+        {canManage && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/proposals/brochures"
+              className="text-xs text-slate-500 underline hover:text-slate-800"
+            >
+              Manage brochures
+            </Link>
+            <NewProposalPanel clients={clients ?? []} action={createProposalAction} />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

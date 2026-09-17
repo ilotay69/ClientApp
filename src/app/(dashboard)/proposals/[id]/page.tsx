@@ -11,6 +11,8 @@ import { InlineTextEdit, InlineDateEdit } from "@/components/task-field-editor";
 import { DeleteButton } from "@/components/delete-button";
 import { ProposalSendPanel } from "@/components/proposal-send-panel";
 import { ProposalAiDraft } from "@/components/proposal-ai-draft";
+import { ProposalBrochurePicker } from "@/components/proposal-brochure-picker";
+import { fetchProposalBrochures, fetchLinkedBrochureIds } from "@/lib/proposal-brochures";
 import { formatDate } from "@/lib/format";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatProposalHeadline } from "@/lib/proposal-totals";
@@ -27,6 +29,7 @@ import {
   addProposalLineItemsFromCatalogAction,
   generateProposalDraftAction,
   applyProposalDraftAction,
+  setProposalBrochuresAction,
   deleteProposalAction,
   sendProposalAction,
   markProposalAcceptedByStaffAction,
@@ -51,6 +54,11 @@ export default async function ProposalDetailPage({
 
   const proposal = await getProposal(id);
   if (!proposal) notFound();
+
+  const [brochureLibrary, linkedBrochureIds] = await Promise.all([
+    fetchProposalBrochures(),
+    fetchLinkedBrochureIds(id),
+  ]);
 
   const blockers = computeProposalBlockers(proposal);
   const isDraft = proposal.status === "draft";
@@ -135,6 +143,16 @@ export default async function ProposalDetailPage({
                 </ul>
               )}
             </div>
+          )}
+
+          {canManage && (
+            <ProposalBrochurePicker
+              proposalId={proposal.id}
+              library={brochureLibrary}
+              initialSelectedIds={linkedBrochureIds}
+              disabled={!editable}
+              setAction={setProposalBrochuresAction}
+            />
           )}
 
           {canManage && (
