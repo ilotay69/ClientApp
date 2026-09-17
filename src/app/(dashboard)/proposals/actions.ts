@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { getProposal, computeProposalBlockers } from "@/lib/proposal-data";
-import { formatProposalHeadline } from "@/lib/proposal-totals";
+import { formatProposalHeadline, computeProposalTotals, type ProposalBillingPeriod } from "@/lib/proposal-totals";
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
 import { buildProposalEmail, buildProposalAcceptedClientEmail } from "@/lib/resend";
 import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
@@ -1154,30 +1154,28 @@ export type ProposalActivityRow = {
   proposalNumber: number;
   title: string;
   companyName: string;
+  ownerName: string | null;
   sentAt: string | null;
+  /** The real lifecycle status - "sent" covers both never-opened and
+   * opened-but-undecided; viewCount is what tells those two apart (the
+   * table shows "Opened Nx" next to a plain "Sent" badge). */
+  status: string;
   viewCount: number;
-  lastViewedAt: string | null;
-  acceptedAt: string | null;
-};
-
-export type ProposalActivityReport = {
-  /** Sent, never opened yet. */
-  sent: ProposalActivityRow[];
-  /** Sent and opened at least once, but no decision yet. */
-  waiting: ProposalActivityRow[];
-  accepted: ProposalActivityRow[];
+  /** Due at signing, including tax: accepted_total_amount (the snapshot
+   * from the moment of acceptance) for an accepted proposal, otherwise
+   * computed fresh from the current line items - same firstInvoiceTotal
+   * figure either way, just a live number instead of a locked-in one. */
+  value: number;
+  currency: string;
 };
 
 /** Every proposal SENT within the last N days (not created - a proposal
  * drafted long ago but only sent recently is exactly what this report is
- * for), bucketed by where it currently stands. A proposal sent in the
- * window that's since been declined/withdrawn/expired shows in none of
- * the three lists - this report is about live pipeline movement (what's
- * unopened, what's waiting on a decision, what's landed), not a full
- * history dump. */
+ * for). Every status a sent proposal can end up in is included - this is
+ * a flat activity table with filters, not a curated subset. */
 export async function fetchProposalActivityReportAction(
   days: number
-): Promise<ProposalActivityReport | { error: string }> {
+): Promise<{ rows: ProposalActivityRow[] } | { error: string }> {
   const user = await requirePermission("view_proposals");
   if (!user) return { error: "You don't have permission to do that." };
 
@@ -1188,7 +1186,8 @@ export async function fetchProposalActivityReportAction(
   const { data, error } = await admin
     .from("proposals")
     .select(
-      "id, proposal_number, title, prospect_company, status, sent_at, view_count, last_viewed_at, accepted_at, clients(name)"
+      `id, proposal_number, title, prospect_company, currency, status, sent_at, view_count,
+       accepted_at, accepted_total_amount, clients(name), owner_profile:owner_id(full_name)`
     )
     .not("sent_at", "is", null)
     .gte("sent_at", cutoff)
@@ -1201,40 +1200,80 @@ export async function fetchProposalActivityReportAction(
     proposal_number: number;
     title: string;
     prospect_company: string | null;
+    currency: string | null;
     status: string;
     sent_at: string | null;
     view_count: number | null;
-    last_viewed_at: string | null;
     accepted_at: string | null;
+    accepted_total_amount: number | string | null;
     clients: { name: string } | { name: string }[] | null;
+    owner_profile: { full_name: string } | { full_name: string }[] | null;
   };
+  const rows = (data ?? []) as Row[];
 
-  const sent: ProposalActivityRow[] = [];
-  const waiting: ProposalActivityRow[] = [];
-  const accepted: ProposalActivityRow[] = [];
+  // One batched line-items query for every proposal in the window, rather
+  // than one per row - same reasoning as listProposals' own line-item
+  // fetch. Only needed for proposals with no accepted_total_amount yet
+  // (that snapshot already IS the number for an accepted one).
+  const needsLiveTotal = rows.filter((r) => r.accepted_total_amount === null).map((r) => r.id);
+  const { data: itemRows } = needsLiveTotal.length
+    ? await admin
+        .from("proposal_line_items")
+        .select("proposal_id, id, quantity, unit_price, billing_period, is_optional, is_selected")
+        .in("proposal_id", needsLiveTotal)
+    : { data: [] };
 
-  for (const r of (data ?? []) as Row[]) {
-    // Declined/withdrawn/expired are deliberately excluded from all three
-    // buckets - this report is "what's actively moving", not every status
-    // a sent proposal could have ended up in.
-    if (r.status !== "sent" && r.status !== "accepted") continue;
+  type ItemRow = {
+    proposal_id: string;
+    id: string;
+    quantity: number | string;
+    unit_price: number | string;
+    billing_period: ProposalBillingPeriod;
+    is_optional: boolean;
+    is_selected: boolean;
+  };
+  const itemsByProposal = new Map<string, ItemRow[]>();
+  for (const item of (itemRows ?? []) as ItemRow[]) {
+    const list = itemsByProposal.get(item.proposal_id) ?? [];
+    list.push(item);
+    itemsByProposal.set(item.proposal_id, list);
+  }
 
+  const result: ProposalActivityRow[] = rows.map((r) => {
     const client = Array.isArray(r.clients) ? r.clients[0] : r.clients;
-    const row: ProposalActivityRow = {
+    const owner = Array.isArray(r.owner_profile) ? r.owner_profile[0] : r.owner_profile;
+
+    let value: number;
+    if (r.accepted_total_amount !== null) {
+      value = Number(r.accepted_total_amount);
+    } else {
+      const items = itemsByProposal.get(r.id) ?? [];
+      value = computeProposalTotals(
+        items.map((i) => ({
+          id: i.id,
+          description: "",
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unit_price),
+          billingPeriod: i.billing_period,
+          isOptional: i.is_optional,
+          isSelected: i.is_selected,
+        }))
+      ).firstInvoiceTotal;
+    }
+
+    return {
       id: r.id,
       proposalNumber: Number(r.proposal_number),
       title: r.title,
       companyName: client?.name ?? r.prospect_company ?? "Unknown",
+      ownerName: owner?.full_name ?? null,
       sentAt: r.sent_at,
+      status: r.status,
       viewCount: r.view_count ?? 0,
-      lastViewedAt: r.last_viewed_at,
-      acceptedAt: r.accepted_at,
+      value,
+      currency: r.currency ?? "CAD",
     };
+  });
 
-    if (r.status === "accepted") accepted.push(row);
-    else if (row.viewCount === 0) sent.push(row);
-    else waiting.push(row);
-  }
-
-  return { sent, waiting, accepted };
+  return { rows: result };
 }
