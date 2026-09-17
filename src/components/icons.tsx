@@ -151,6 +151,20 @@ export function IconClipboardCheck({ className }: IconProps) {
   );
 }
 
+/** A document with a folded corner — Proposals. Deliberately not IconTag,
+ * which Internal Sales already uses: the two are adjacent in the sidebar
+ * and sharing a glyph would make them hard to tell apart at 16px. */
+export function IconFileText({ className }: IconProps) {
+  return (
+    <svg className={className} {...base}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
+    </svg>
+  );
+}
+
 export function IconBell({ className }: IconProps) {
   return (
     <svg className={className} {...base}>

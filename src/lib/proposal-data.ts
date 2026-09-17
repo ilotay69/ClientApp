@@ -187,6 +187,26 @@ export function isProposalExpired(
   return validUntil < today;
 }
 
+/** What still has to be true before a proposal can go to a client.
+ *
+ * A pure function over an already-loaded proposal, so the editor's "Ready
+ * to send" checklist and sendProposalAction's own guard run the exact same
+ * rules — a Send button that's enabled while the server would refuse (or
+ * vice versa) is its own bug. */
+export function computeProposalBlockers(proposal: Proposal): string[] {
+  const blockers: string[] = [];
+  if (!proposal.title.trim()) blockers.push("Give the proposal a title.");
+  if (!proposal.prospectEmail?.trim()) blockers.push("Add the recipient's email address.");
+  if (proposal.lineItems.filter((i) => !i.isOptional).length === 0) {
+    blockers.push("Add at least one non-optional line item.");
+  }
+  if (proposal.sections.every((s) => !s.body?.trim())) {
+    blockers.push("Write at least one section.");
+  }
+  if (!proposal.validUntil) blockers.push("Set a date the proposal is valid until.");
+  return blockers;
+}
+
 export async function getProposal(
   id: string,
   admin: AdminClient = createAdminClient()

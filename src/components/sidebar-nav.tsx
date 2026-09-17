@@ -26,6 +26,7 @@ import {
   IconDatabase,
   IconClipboardCheck,
   IconSliders,
+  IconFileText,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -59,6 +60,7 @@ export function SidebarNav({
   canManageReconciliation,
   canManageBackups,
   canManageQuarterlyReviews,
+  canViewProposals,
   teamOwnerOnly,
   integrationsOwnerOnly,
   touchpointsOwnerOnly,
@@ -67,6 +69,7 @@ export function SidebarNav({
   reconciliationOwnerOnly,
   backupsOwnerOnly,
   quarterlyReviewsOwnerOnly,
+  proposalsOwnerOnly,
   signOutAction,
 }: {
   userLabel: string;
@@ -86,6 +89,7 @@ export function SidebarNav({
   canManageReconciliation: boolean;
   canManageBackups: boolean;
   canManageQuarterlyReviews: boolean;
+  canViewProposals: boolean;
   /** True only while no non-Owner role has been granted the permission —
    * disappears on its own once one is (see isPermissionOwnerOnly). */
   teamOwnerOnly: boolean;
@@ -96,6 +100,7 @@ export function SidebarNav({
   reconciliationOwnerOnly: boolean;
   backupsOwnerOnly: boolean;
   quarterlyReviewsOwnerOnly: boolean;
+  proposalsOwnerOnly: boolean;
   signOutAction: () => Promise<void>;
 }) {
   const pathname = usePathname();
@@ -123,6 +128,19 @@ export function SidebarNav({
       : []),
     ...(canViewSalesRequests
       ? [{ href: "/sales-requests", label: "Internal Sales", icon: IconTag }]
+      : []),
+    // Sits with the sales work rather than under Insights & Reports: a
+    // proposal is something you write and chase, not something you read off
+    // a dashboard.
+    ...(canViewProposals
+      ? [
+          {
+            href: "/proposals",
+            label: "Proposals",
+            icon: IconFileText,
+            ownerOnly: proposalsOwnerOnly,
+          },
+        ]
       : []),
     ...(canManageRecruitment
       ? [

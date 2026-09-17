@@ -156,6 +156,15 @@ const COLORS: Record<string, string> = {
   // set) — distinct from a plain never-submitted draft, same tier as
   // "submitted" since it's also waiting on someone (the creator, this time).
   needs_adjustment: ATTENTION,
+
+  // proposal status. "draft"/"accepted"/"declined" reuse the entries above
+  // exactly. "sent" deliberately does NOT: for a quarterly review, sent is
+  // the terminal good state (emerald), but a sent proposal is merely
+  // in-flight and saying "success" would be a lie. So the proposals list
+  // never renders a bare "sent" badge — ProposalEngagementPill carries that
+  // state instead, with the far more useful "opened 4x" detail.
+  expired: NEUTRAL_MUTED,
+  withdrawn: NEUTRAL_MUTED,
 };
 
 export function Badge({ value, label }: { value: string; label?: string }) {

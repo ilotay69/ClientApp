@@ -47,6 +47,7 @@ export default async function DashboardLayout({
   const canManageReconciliation = me?.permissions.has("manage_reconciliation") ?? false;
   const canManageBackups = me?.permissions.has("manage_backups") ?? false;
   const canManageQuarterlyReviews = me?.permissions.has("manage_quarterly_reviews") ?? false;
+  const canViewProposals = me?.permissions.has("view_proposals") ?? false;
 
   const OWNER_ONLY_KEYS: PermissionKey[] = [
     "manage_team",
@@ -57,6 +58,7 @@ export default async function DashboardLayout({
     "manage_reconciliation",
     "manage_backups",
     "manage_quarterly_reviews",
+    "view_proposals",
   ];
   const ownerOnly = await fetchOwnerOnlyPermissions(supabase, OWNER_ONLY_KEYS);
   const teamOwnerOnly = ownerOnly.manage_team;
@@ -67,6 +69,7 @@ export default async function DashboardLayout({
   const reconciliationOwnerOnly = ownerOnly.manage_reconciliation;
   const backupsOwnerOnly = ownerOnly.manage_backups;
   const quarterlyReviewsOwnerOnly = ownerOnly.manage_quarterly_reviews;
+  const proposalsOwnerOnly = ownerOnly.view_proposals;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -88,6 +91,7 @@ export default async function DashboardLayout({
         canManageReconciliation={canManageReconciliation}
         canManageBackups={canManageBackups}
         canManageQuarterlyReviews={canManageQuarterlyReviews}
+        canViewProposals={canViewProposals}
         teamOwnerOnly={teamOwnerOnly}
         integrationsOwnerOnly={integrationsOwnerOnly}
         touchpointsOwnerOnly={touchpointsOwnerOnly}
@@ -96,6 +100,7 @@ export default async function DashboardLayout({
         reconciliationOwnerOnly={reconciliationOwnerOnly}
         backupsOwnerOnly={backupsOwnerOnly}
         quarterlyReviewsOwnerOnly={quarterlyReviewsOwnerOnly}
+        proposalsOwnerOnly={proposalsOwnerOnly}
         signOutAction={signOut}
       />
       {/* Tighter vertical padding on a phone — 32px top and bottom pushed
