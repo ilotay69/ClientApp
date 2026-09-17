@@ -122,6 +122,7 @@ export type ProposalListItem = {
   currency: string;
   recipientLabel: string;
   clientId: string | null;
+  ownerId: string | null;
   ownerName: string | null;
   validUntil: string | null;
   sentAt: string | null;
@@ -376,7 +377,7 @@ export async function listProposals(
     .select(
       `id, proposal_number, client_id, prospect_company, title, status, currency, valid_until,
        sent_at, first_viewed_at, last_viewed_at, view_count, accepted_at, processing_internally,
-       updated_at, clients(name), owner_profile:owner_id(full_name)`
+       updated_at, owner_id, clients(name), owner_profile:owner_id(full_name)`
     )
     .order("updated_at", { ascending: false });
 
@@ -431,6 +432,7 @@ export async function listProposals(
         (row.prospect_company as string) ??
         "Unknown",
       clientId: (row.client_id as string) ?? null,
+      ownerId: (row.owner_id as string) ?? null,
       ownerName: (owner as { full_name?: string } | null)?.full_name ?? null,
       validUntil: (row.valid_until as string) ?? null,
       sentAt: (row.sent_at as string) ?? null,
