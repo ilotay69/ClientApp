@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { ClientCombobox, type ClientOption } from "@/components/client-combobox";
-import type { CreateProposalState } from "@/app/(dashboard)/proposals/actions";
+import type { ClientPrefillResult, CreateProposalState } from "@/app/(dashboard)/proposals/actions";
 
 /** ClientCombobox itself only ever needs id+name to render/search - these
  * extra fields ride along on the same array purely so picking a client
@@ -24,6 +24,7 @@ export type NewProposalClientOption = ClientOption & {
 export function NewProposalPanel({
   clients,
   action,
+  fetchPrefillAction,
 }: {
   clients: NewProposalClientOption[];
   action: (
@@ -36,6 +37,9 @@ export function NewProposalPanel({
       address: string | null;
     }
   ) => Promise<CreateProposalState>;
+  /** Live Autotask lookup, so picking a client always shows current contact
+   * info/address rather than whatever a past manual sync last stored. */
+  fetchPrefillAction: (clientId: string) => Promise<ClientPrefillResult>;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"client" | "prospect">("prospect");
@@ -46,7 +50,12 @@ export function NewProposalPanel({
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [prefilling, setPrefilling] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Guards against a live Autotask lookup resolving after the user has
+  // already clicked a different client - only the most recent selection's
+  // result is allowed to land in the fields.
+  const selectionRef = useRef(0);
 
   if (!open) {
     return (
@@ -60,18 +69,36 @@ export function NewProposalPanel({
     );
   }
 
-  // Prefills from whatever's already synced from Autotask (see
+  // Prefills instantly from whatever's already synced from Autotask (see
   // syncClientAutotaskData) - unconditionally replaces the three fields
   // rather than only filling blanks, since they only ever mean "this
   // selected client's info" in the Existing-client half of the form; a
   // client with nothing on file clears them back to empty rather than
   // leaving a previous pick's values lingering under a new selection.
+  // Then kicks off a live Autotask lookup to refresh those same fields with
+  // current data, so this never depends on someone having remembered to hit
+  // Sync on the client page first.
   const selectClient = (id: string) => {
     setClientId(id);
     const client = clients.find((c) => c.id === id);
     setContactName(client?.contactName ?? "");
     setEmail(client?.contactEmail ?? "");
     setAddress(client?.address ?? "");
+    if (!id) return;
+
+    const token = ++selectionRef.current;
+    setPrefilling(true);
+    fetchPrefillAction(id)
+      .then((result) => {
+        if (selectionRef.current !== token) return;
+        if (result.contactName) setContactName(result.contactName);
+        if (result.contactEmail) setEmail(result.contactEmail);
+        if (result.address) setAddress(result.address);
+        if (result.error) setError(result.error);
+      })
+      .finally(() => {
+        if (selectionRef.current === token) setPrefilling(false);
+      });
   };
 
   const submit = () => {
@@ -120,6 +147,8 @@ export function NewProposalPanel({
               // pick prefilled - stale client info attached to what's
               // supposed to be a fresh prospect (or vice versa) would be
               // worse than an empty field.
+              selectionRef.current++; // orphans any in-flight lookup from the mode just left
+              setPrefilling(false);
               setClientId("");
               setCompany("");
               setContactName("");
@@ -191,6 +220,7 @@ export function NewProposalPanel({
           className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none"
         />
       </Field>
+      {prefilling && <p className="text-xs text-slate-500">Fetching latest from Autotask…</p>}
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 

@@ -6,7 +6,7 @@ import { listProposals, type ProposalListItem } from "@/lib/proposal-data";
 import { ProposalListRow } from "@/components/proposal-list-row";
 import { NewProposalPanel } from "@/components/new-proposal-panel";
 import { SearchBox } from "@/components/search-box";
-import { createProposalAction } from "./actions";
+import { createProposalAction, fetchClientAutotaskPrefillAction } from "./actions";
 import { FilterLink, filterHref } from "@/components/filter-link";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +93,11 @@ export default async function ProposalsPage({
               >
                 Manage brochures
               </Link>
-              <NewProposalPanel clients={clients ?? []} action={createProposalAction} />
+              <NewProposalPanel
+                clients={clients ?? []}
+                action={createProposalAction}
+                fetchPrefillAction={fetchClientAutotaskPrefillAction}
+              />
             </>
           )}
         </div>

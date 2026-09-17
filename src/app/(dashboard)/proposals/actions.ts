@@ -15,7 +15,12 @@ import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shar
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
-import { fetchAutotaskCatalog, type AutotaskCatalogItem } from "@/lib/autotask";
+import {
+  fetchAutotaskCatalog,
+  fetchPrimaryContactForCompany,
+  fetchCompanyAddress,
+  type AutotaskCatalogItem,
+} from "@/lib/autotask";
 import { getActiveAiSettings } from "@/lib/ai/settings";
 import { generateProposalDraft, type ProposalDraft } from "@/lib/proposal-analysis";
 import { setProposalBrochureLinks } from "@/lib/proposal-brochures";
@@ -111,6 +116,60 @@ function buildQuotationNumber(companyName: string | null): string {
   const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
 
   return `${initials}-${part("year")}${part("month")}${part("day")}-${part("hour")}${part("minute")}`;
+}
+
+export type ClientPrefillResult = {
+  contactName: string | null;
+  contactEmail: string | null;
+  address: string | null;
+  error?: string;
+};
+
+/** Live Autotask lookup for the New Proposal form's Existing-client prefill.
+ * Runs on selection instead of relying on whatever syncClientAutotaskData
+ * last wrote to the clients row, so building a proposal never depends on
+ * someone having remembered to hit Sync on the client page first. Falls
+ * back to the locally-stored values (or nulls) whenever Autotask isn't
+ * linked/reachable — the local sync still runs on its own schedule and stays
+ * the source of truth everywhere else that reads these columns. */
+export async function fetchClientAutotaskPrefillAction(clientId: string): Promise<ClientPrefillResult> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) {
+    return { contactName: null, contactEmail: null, address: null, error: "You don't have permission to do that." };
+  }
+
+  const admin = createAdminClient();
+  const { data: client } = await admin
+    .from("clients")
+    .select("autotask_company_id, primary_contact_name, primary_contact_email, address")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!client) return { contactName: null, contactEmail: null, address: null };
+
+  const fallback: ClientPrefillResult = {
+    contactName: client.primary_contact_name,
+    contactEmail: client.primary_contact_email,
+    address: client.address,
+  };
+  if (!client.autotask_company_id) return fallback;
+
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) return fallback;
+
+  try {
+    const [primaryContact, address] = await Promise.all([
+      fetchPrimaryContactForCompany(settings.credentials, settings.zoneUrl, client.autotask_company_id),
+      fetchCompanyAddress(settings.credentials, settings.zoneUrl, client.autotask_company_id),
+    ]);
+    return {
+      contactName: primaryContact?.name ?? fallback.contactName,
+      contactEmail: primaryContact?.email ?? fallback.contactEmail,
+      address: address ?? fallback.address,
+    };
+  } catch (err) {
+    console.error("fetchClientAutotaskPrefillAction: Autotask lookup failed", err);
+    return { ...fallback, error: "Couldn't reach Autotask - showing last synced info instead." };
+  }
 }
 
 export async function createProposalAction(
