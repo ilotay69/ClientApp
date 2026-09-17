@@ -89,8 +89,7 @@ export default async function IntegrationsSettingsPage({
     { data: salesNotifyRow },
     { data: sharedMailboxRow },
     { data: reviewReminderRow },
-    quarterlyReviewEmailTemplate,
-    contractUsageEmailTemplate,
+    emailTemplates,
     { data: blockHoursSubscriptionRows },
     { data: autotaskClientsForBlockHours },
     { data: blockHoursReportSettingsRow },
@@ -123,8 +122,10 @@ export default async function IntegrationsSettingsPage({
       .select("approver_email, reminder_interval_days")
       .eq("id", true)
       .maybeSingle(),
-    getEmailTemplate(admin, "quarterly_review"),
-    getEmailTemplate(admin, "contract_usage_report"),
+    // Every EMAIL_TEMPLATES entry, in one batch — the Email Templates
+    // group below renders one tab per entry generically, so a new
+    // template later only needs adding to that array, not here too.
+    Promise.all(EMAIL_TEMPLATES.map((t) => getEmailTemplate(admin, t.key))),
     admin
       .from("block_hours_report_subscriptions")
       .select("id, to_email, clients(id, name)")
@@ -146,6 +147,8 @@ export default async function IntegrationsSettingsPage({
   const byProvider = new Map<AiProvider, ProviderRow>(
     (rows ?? []).map((r: ProviderRow) => [r.provider, r] as const)
   );
+
+  const emailTemplateByKey = new Map(EMAIL_TEMPLATES.map((t, i) => [t.key, emailTemplates[i]]));
 
   type BlockHoursSubscriptionRow = {
     id: string;
@@ -372,42 +375,26 @@ export default async function IntegrationsSettingsPage({
           },
           {
             group: "Email Templates",
-            tabs: [
-              {
-                label: EMAIL_TEMPLATES[0].label,
+            tabs: EMAIL_TEMPLATES.map((t) => {
+              const current = emailTemplateByKey.get(t.key)!;
+              return {
+                label: t.label,
                 content: (
                   <EmailTemplateForm
-                    templateKey={EMAIL_TEMPLATES[0].key}
-                    label={EMAIL_TEMPLATES[0].label}
-                    description={EMAIL_TEMPLATES[0].description}
-                    placeholders={EMAIL_TEMPLATES[0].placeholders}
-                    currentSubject={quarterlyReviewEmailTemplate.subject}
-                    currentIntro={quarterlyReviewEmailTemplate.intro}
-                    noteLabel={EMAIL_TEMPLATES[0].noteLabel}
-                    noteDescription={EMAIL_TEMPLATES[0].noteDescription}
-                    currentNote={quarterlyReviewEmailTemplate.note}
+                    templateKey={t.key}
+                    label={t.label}
+                    description={t.description}
+                    placeholders={t.placeholders}
+                    currentSubject={current.subject}
+                    currentIntro={current.intro}
+                    noteLabel={t.noteLabel}
+                    noteDescription={t.noteDescription}
+                    currentNote={current.note}
                     saveAction={saveEmailTemplateAction}
                   />
                 ),
-              },
-              {
-                label: EMAIL_TEMPLATES[1].label,
-                content: (
-                  <EmailTemplateForm
-                    templateKey={EMAIL_TEMPLATES[1].key}
-                    label={EMAIL_TEMPLATES[1].label}
-                    description={EMAIL_TEMPLATES[1].description}
-                    placeholders={EMAIL_TEMPLATES[1].placeholders}
-                    currentSubject={contractUsageEmailTemplate.subject}
-                    currentIntro={contractUsageEmailTemplate.intro}
-                    noteLabel={EMAIL_TEMPLATES[1].noteLabel}
-                    noteDescription={EMAIL_TEMPLATES[1].noteDescription}
-                    currentNote={contractUsageEmailTemplate.note}
-                    saveAction={saveEmailTemplateAction}
-                  />
-                ),
-              },
-            ],
+              };
+            }),
           },
         ]}
       />
