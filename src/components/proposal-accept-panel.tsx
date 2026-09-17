@@ -105,6 +105,10 @@ export function ProposalAcceptPanel({
       setError("Please enter your name.");
       return;
     }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Please enter a valid email address — we'll send your confirmation there.");
+      return;
+    }
     if (!authorityConfirmed) {
       setError("Please confirm you have authority to accept this proposal.");
       return;
@@ -277,13 +281,14 @@ export function ProposalAcceptPanel({
           </label>
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700">
-              Your email <span className="text-slate-400">(optional)</span>
+              Your email <span className="text-slate-400">— we&apos;ll send your confirmation here</span>
             </span>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              required
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-brand focus:outline-none"
             />
           </label>
