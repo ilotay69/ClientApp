@@ -705,7 +705,10 @@ export async function setProposalBrochuresAction(
  * because a corrected review must invalidate the old link — but a prospect
  * forwards a proposal link to their business partner or their accountant,
  * and rotating it would break it under them with no explanation.
- * revokeProposalLinkAction is the deliberate way to kill a link. */
+ * revokeProposalLinkAction is the deliberate way to kill a link.
+ *
+ * toEmail may be a comma/semicolon-separated list — sendMailAsSharedMailbox
+ * splits it into separate recipients, same convention as its cc param. */
 export async function sendProposalAction(
   proposalId: string,
   toEmail: string

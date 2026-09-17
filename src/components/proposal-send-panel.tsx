@@ -76,12 +76,15 @@ export function ProposalSendPanel({
               Send to
             </span>
             <input
-              type="email"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.com"
+              placeholder="name@company.com, another@company.com"
               className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none"
             />
+            <span className="mt-1 block text-xs text-slate-400">
+              Separate multiple addresses with a comma or semicolon.
+            </span>
           </label>
 
           {blockers.length > 0 && (
