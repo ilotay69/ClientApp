@@ -20,15 +20,36 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* No type-scale override here on purpose: text-{size} utilities use
- * Tailwind's stock scale (text-xs 12px, text-sm 14px, text-base 16px).
+/* A step down from Tailwind's default type scale, applied once here so
+ * every text-{size} utility across the whole app shrinks together — this
+ * is a data-dense ops tool, not marketing copy, so more should fit on
+ * screen without every page having to be hand-tuned separately. Floors
+ * out at 10px (text-xs) to stay legible.
  *
- * This file used to shrink that scale app-wide for density, and later
- * briefly overshot the other way. Both were chasing a rendering problem
- * that turned out to be per-origin browser zoom, not CSS — so the scale
- * stays stock, and density is a per-component decision (which text-
- * utility a given row or label picks) rather than something bent
- * globally. */
+ * This scale is only comfortable at 100% browser zoom. If the app ever
+ * looks unreadably small, check per-origin page zoom first (Cmd+0) —
+ * that has already been mistaken for a stylesheet problem once, and
+ * chasing it here instead only overshoots in the other direction. The
+ * tell: browser chrome rendering larger than page text means zoom, since
+ * chrome ignores it; display scaling would shrink both together. */
+@theme {
+  --text-xs: 0.625rem;
+  --text-xs--line-height: 0.9375rem;
+  --text-sm: 0.75rem;
+  --text-sm--line-height: 1.0625rem;
+  --text-base: 0.8125rem;
+  --text-base--line-height: 1.1875rem;
+  --text-lg: 0.9375rem;
+  --text-lg--line-height: 1.3125rem;
+  --text-xl: 1.0625rem;
+  --text-xl--line-height: 1.4375rem;
+  --text-2xl: 1.25rem;
+  --text-2xl--line-height: 1.6875rem;
+  --text-3xl: 1.5625rem;
+  --text-3xl--line-height: 1.9375rem;
+  --text-4xl: 1.8125rem;
+  --text-4xl--line-height: 2.1875rem;
+}
 
 body {
   background: #ffffff;
