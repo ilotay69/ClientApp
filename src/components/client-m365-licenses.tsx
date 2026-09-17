@@ -28,6 +28,16 @@ export function ClientM365Licenses({
 
   const atCapacity = (l: M365LicenseRow) => l.consumed_units >= l.enabled_units;
 
+  // A SKU with 0 enabled units has nothing to be good/under/over about —
+  // no badge for those (this used to show a false "High" for e.g. Windows
+  // Store for Business sitting at 0/0).
+  const usageStatus = (l: M365LicenseRow): "good" | "underused" | "overused" | null => {
+    if (l.enabled_units === 0) return null;
+    if (l.consumed_units > l.enabled_units) return "overused";
+    if (l.consumed_units < l.enabled_units) return "underused";
+    return "good";
+  };
+
   const visible = licenses.filter((l) => {
     if (toggle === "capacity" && !atCapacity(l)) return false;
     if (toggle === "unused" && l.consumed_units > 0) return false;
@@ -67,7 +77,7 @@ export function ClientM365Licenses({
           <p className="px-5 py-4 text-sm text-slate-500">No licenses match this filter.</p>
         ) : (
           visible.map((l) => {
-            const noHeadroom = atCapacity(l);
+            const status = usageStatus(l);
             return (
               <div key={l.id} className="flex items-center justify-between gap-3 px-5 py-2">
                 <p className="text-sm font-medium text-slate-900">
@@ -77,7 +87,7 @@ export function ClientM365Licenses({
                   <span className="text-sm text-slate-600">
                     {l.consumed_units} / {l.enabled_units} used
                   </span>
-                  {noHeadroom && <Badge value="high" />}
+                  {status && <Badge value={status} />}
                 </div>
               </div>
             );

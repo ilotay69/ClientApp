@@ -45,6 +45,13 @@ const COLORS: Record<string, string> = {
   unmapped: NEUTRAL_MUTED,
   license_missing: URGENT,
 
+  // M365 license usage (consumed vs. enabled units) — good = every seat
+  // used, underused = seats sitting idle, overused = consumed exceeds
+  // enabled (shouldn't normally happen, but Graph can report it transiently)
+  good: SUCCESS,
+  underused: ATTENTION,
+  overused: URGENT,
+
   // project status
   planning: NEUTRAL,
   active: INFO,
