@@ -181,6 +181,15 @@ const COLORS: Record<string, string> = {
   // Intune policy kind — a category, not a status
   configuration: CATEGORY_INDIGO,
   compliance: CATEGORY_PURPLE,
+
+  // Identity Protection risk state ("dismissed" reuses task-status's own
+  // entry above — same meaning either way). riskLevel itself
+  // ("low"/"medium"/"high") isn't listed here at all — it already reuses
+  // the priority tier entries above, which mean exactly the same thing.
+  atRisk: URGENT,
+  confirmedCompromised: URGENT,
+  remediated: SUCCESS,
+  confirmedSafe: SUCCESS,
 };
 
 export function Badge({ value, label }: { value: string; label?: string }) {

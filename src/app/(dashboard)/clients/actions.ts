@@ -40,6 +40,7 @@ import {
   getM365ClientSettings,
   getValidM365Token,
   syncM365ConditionalAccessAndIntune,
+  syncM365IdentityAndUsage,
 } from "@/lib/m365-client-credentials";
 import { generateTicketInsights, type TicketInsight } from "@/lib/ticket-insights";
 
@@ -946,6 +947,10 @@ export async function unlinkClientM365Tenant(clientId: string): Promise<void> {
   await supabase.from("m365_conditional_access_policies").delete().eq("client_id", clientId);
   await supabase.from("m365_intune_devices").delete().eq("client_id", clientId);
   await supabase.from("m365_intune_policies").delete().eq("client_id", clientId);
+  await supabase.from("m365_risky_users").delete().eq("client_id", clientId);
+  await supabase.from("m365_risk_detections").delete().eq("client_id", clientId);
+  await supabase.from("m365_user_audit").delete().eq("client_id", clientId);
+  await supabase.from("m365_mailbox_usage").delete().eq("client_id", clientId);
   revalidatePath(`/clients/${clientId}`);
 }
 
@@ -1019,6 +1024,7 @@ export async function syncClientM365Data(clientId: string): Promise<{ error: str
     // (or all three, for a client who hasn't re-consented at all yet)
     // never blocks licenses/Secure Score from syncing above.
     await syncM365ConditionalAccessAndIntune(admin, clientId, customerToken);
+    await syncM365IdentityAndUsage(admin, clientId, customerToken);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Sync failed." };
   }
@@ -1125,6 +1131,7 @@ export async function autoSyncClientM365IfStale(clientId: string): Promise<void>
     }
 
     await syncM365ConditionalAccessAndIntune(admin, clientId, customerToken);
+    await syncM365IdentityAndUsage(admin, clientId, customerToken);
   } catch (err) {
     console.error("Background M365 auto-sync failed", err);
   }

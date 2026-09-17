@@ -5,16 +5,17 @@ import {
   getM365ClientSettings,
   getValidM365Token,
   syncM365ConditionalAccessAndIntune,
+  syncM365IdentityAndUsage,
 } from "@/lib/m365-client-credentials";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Syncs Microsoft 365 license usage, Secure Score gaps, Conditional Access
- * policies, and Intune devices/policies for every client with its own
- * credentials saved. Call this on a schedule (e.g. a Railway Cron Job)
- * with header `X-Cron-Secret: <CRON_SECRET>`, same secret as the other
- * sync jobs.
+ * policies, Intune devices/policies, Identity Protection risk, MFA/sign-in
+ * audit, and mailbox usage for every client with its own credentials
+ * saved. Call this on a schedule (e.g. a Railway Cron Job) with header
+ * `X-Cron-Secret: <CRON_SECRET>`, same secret as the other sync jobs.
  *
  * Each client has fully independent credentials (its own app registration,
  * its own tenant) — no shared token to rotate, so clients are processed
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
       }
 
       await syncM365ConditionalAccessAndIntune(admin, client.id, customerToken);
+      await syncM365IdentityAndUsage(admin, client.id, customerToken);
 
       results.push({ clientId: client.id, skus: licenses.length, secureScoreGaps: gaps.length });
     } catch (err) {

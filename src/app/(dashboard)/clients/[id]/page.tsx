@@ -16,6 +16,10 @@ import { ClientM365SecureScore } from "@/components/client-m365-secure-score";
 import { ClientM365ConditionalAccess } from "@/components/client-m365-conditional-access";
 import { ClientM365IntuneDevices } from "@/components/client-m365-intune-devices";
 import { ClientM365IntunePolicies } from "@/components/client-m365-intune-policies";
+import { ClientM365RiskyUsers } from "@/components/client-m365-risky-users";
+import { ClientM365RiskDetections } from "@/components/client-m365-risk-detections";
+import { ClientM365UserAudit } from "@/components/client-m365-user-audit";
+import { ClientM365MailboxUsage } from "@/components/client-m365-mailbox-usage";
 import { SyncM365Button } from "@/components/sync-m365-button";
 import { ClientInsightParagraph } from "@/components/client-insight-paragraph";
 import { RefreshClientInsightsButton } from "@/components/refresh-client-insights-button";
@@ -95,6 +99,10 @@ export default async function ClientDetailPage({
     { data: m365ConditionalAccessPolicies },
     { data: m365IntuneDevices },
     { data: m365IntunePolicies },
+    { data: m365RiskyUsers },
+    { data: m365RiskDetections },
+    { data: m365UserAudit },
+    { data: m365MailboxUsage },
     { data: members },
     allReviews,
   ] = await Promise.all([
@@ -196,6 +204,30 @@ export default async function ClientDetailPage({
     supabase
       .from("m365_intune_policies")
       .select("id, policy_kind, display_name, modified_date_time")
+      .eq("client_id", id)
+      .order("display_name"),
+    supabase
+      .from("m365_risky_users")
+      .select("id, user_principal_name, display_name, risk_level, risk_state, risk_last_updated_date_time")
+      .eq("client_id", id)
+      .order("display_name"),
+    supabase
+      .from("m365_risk_detections")
+      .select(
+        "id, user_principal_name, display_name, risk_event_type, risk_level, risk_state, ip_address, detected_date_time"
+      )
+      .eq("client_id", id)
+      .order("detected_date_time", { ascending: false }),
+    supabase
+      .from("m365_user_audit")
+      .select(
+        "id, user_principal_name, display_name, is_admin, is_mfa_registered, is_mfa_capable, user_type, account_enabled, last_successful_sign_in"
+      )
+      .eq("client_id", id)
+      .order("display_name"),
+    supabase
+      .from("m365_mailbox_usage")
+      .select("id, user_principal_name, display_name, storage_used_bytes, prohibit_send_receive_quota_bytes")
       .eq("client_id", id)
       .order("display_name"),
     // neq("role", "client"): client-portal logins aren't staff and must
@@ -588,6 +620,42 @@ export default async function ClientDetailPage({
                   <ClientM365IntunePolicies
                     tenantId={client.m365_tenant_id}
                     policies={m365IntunePolicies ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Risky Users",
+                content: (
+                  <ClientM365RiskyUsers
+                    tenantId={client.m365_tenant_id}
+                    users={m365RiskyUsers ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Risk Detections",
+                content: (
+                  <ClientM365RiskDetections
+                    tenantId={client.m365_tenant_id}
+                    detections={m365RiskDetections ?? []}
+                  />
+                ),
+              },
+              {
+                label: "MFA & Sign-in",
+                content: (
+                  <ClientM365UserAudit
+                    tenantId={client.m365_tenant_id}
+                    users={m365UserAudit ?? []}
+                  />
+                ),
+              },
+              {
+                label: "Mailbox Usage",
+                content: (
+                  <ClientM365MailboxUsage
+                    tenantId={client.m365_tenant_id}
+                    mailboxes={m365MailboxUsage ?? []}
                   />
                 ),
               },

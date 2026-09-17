@@ -587,3 +587,87 @@ export async function fetchIntunePoliciesForTenant(
 
   return [...configPolicies, ...compliancePolicies];
 }
+
+export type M365RiskyUserRow = {
+  user_id: string;
+  user_principal_name: string | null;
+  display_name: string | null;
+  risk_level: string | null;
+  risk_state: string | null;
+  risk_detail: string | null;
+  risk_last_updated_date_time: string | null;
+};
+
+/** Verified against Microsoft's own docs — GET /identityProtection/riskyUsers,
+ * requiring IdentityRiskyUser.Read.All (app-only, and the only option —
+ * there's no narrower permission). Stable v1.0. Not consented in any
+ * client's app registration today. */
+export async function fetchRiskyUsersForTenant(
+  customerAccessToken: string
+): Promise<M365RiskyUserRow[]> {
+  const json = await graphGet(customerAccessToken, "/identityProtection/riskyUsers");
+  type Raw = {
+    id: string;
+    userPrincipalName?: string;
+    userDisplayName?: string;
+    riskLevel?: string;
+    riskState?: string;
+    riskDetail?: string;
+    riskLastUpdatedDateTime?: string;
+  };
+  return ((json.value ?? []) as Raw[]).map((u) => ({
+    user_id: u.id,
+    user_principal_name: u.userPrincipalName ?? null,
+    display_name: u.userDisplayName ?? null,
+    risk_level: u.riskLevel ?? null,
+    risk_state: u.riskState ?? null,
+    risk_detail: u.riskDetail ?? null,
+    risk_last_updated_date_time: u.riskLastUpdatedDateTime ?? null,
+  }));
+}
+
+export type M365RiskDetectionRow = {
+  detection_id: string;
+  user_principal_name: string | null;
+  display_name: string | null;
+  risk_event_type: string | null;
+  risk_level: string | null;
+  risk_state: string | null;
+  risk_detail: string | null;
+  ip_address: string | null;
+  detected_date_time: string | null;
+};
+
+/** Verified against Microsoft's own docs — GET
+ * /identityProtection/riskDetections, requiring IdentityRiskEvent.Read.All
+ * (app-only, only option). Stable v1.0, but Microsoft requires an Entra ID
+ * P1 or P2 license on the tenant to use this specific API — a tenant
+ * without one gets a clean empty list here, not an error, same as an
+ * unlicensed Intune tenant on the managedDevices endpoint above. */
+export async function fetchRiskDetectionsForTenant(
+  customerAccessToken: string
+): Promise<M365RiskDetectionRow[]> {
+  const json = await graphGet(customerAccessToken, "/identityProtection/riskDetections");
+  type Raw = {
+    id: string;
+    userPrincipalName?: string;
+    userDisplayName?: string;
+    riskEventType?: string;
+    riskLevel?: string;
+    riskState?: string;
+    riskDetail?: string;
+    ipAddress?: string;
+    detectedDateTime?: string;
+  };
+  return ((json.value ?? []) as Raw[]).map((d) => ({
+    detection_id: d.id,
+    user_principal_name: d.userPrincipalName ?? null,
+    display_name: d.userDisplayName ?? null,
+    risk_event_type: d.riskEventType ?? null,
+    risk_level: d.riskLevel ?? null,
+    risk_state: d.riskState ?? null,
+    risk_detail: d.riskDetail ?? null,
+    ip_address: d.ipAddress ?? null,
+    detected_date_time: d.detectedDateTime ?? null,
+  }));
+}
