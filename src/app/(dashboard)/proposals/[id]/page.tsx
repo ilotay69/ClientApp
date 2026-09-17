@@ -266,7 +266,10 @@ export default async function ProposalDetailPage({
             )}
           </div>
 
-          {canManage && (
+          {/* Once a proposal is accepted it's a real agreement on record —
+              deleting it is off the table; Revise (in the Send panel
+              below) is the only way to send an updated round. */}
+          {canManage && proposal.status !== "accepted" && (
             <DeleteButton
               action={deleteProposalAction.bind(null, proposal.id)}
               confirmText={`Delete "${proposal.title}"? This can't be undone.`}

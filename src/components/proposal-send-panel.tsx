@@ -325,9 +325,15 @@ export function ProposalSendPanel({
       )}
 
       {isClosed && (
-        <div className="border-t border-slate-200 pt-3">
+        <div className="space-y-2 border-t border-slate-200 pt-3">
+          {status === "accepted" && (
+            <p className="text-xs text-slate-500">
+              Sends out a new round from scratch — sending/view history and the acceptance on
+              record are all cleared, back to draft.
+            </p>
+          )}
           <SmallButton pending={pending} onClick={() => run(reviseAction)}>
-            Reopen as draft
+            {status === "accepted" ? "Revise" : "Reopen as draft"}
           </SmallButton>
         </div>
       )}
