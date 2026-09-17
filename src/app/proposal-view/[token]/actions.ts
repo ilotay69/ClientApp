@@ -13,6 +13,10 @@ import {
   parseSignatureDataUrl,
   MAX_SIGNATURE_BYTES,
 } from "@/lib/proposal-signature";
+import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
+import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
+import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
+import { buildProposalAcceptedClientEmail } from "@/lib/resend";
 
 // These actions are reachable by anyone holding a proposal link — there is
 // no login on this route at all. Two rules follow from that, and every
@@ -152,7 +156,9 @@ export async function acceptProposalByTokenAction(
 
   const { data: proposal } = await admin
     .from("proposals")
-    .select("id, status, valid_until, title, owner_id, created_by, currency, prospect_company, clients(name)")
+    .select(
+      "id, status, valid_until, title, owner_id, created_by, currency, prospect_company, prospect_contact_name, prospect_email, sent_to_email, clients(name)"
+    )
     .eq("access_token", token)
     .maybeSingle();
   if (!proposal) {
@@ -255,7 +261,7 @@ export async function acceptProposalByTokenAction(
   // as what was agreed to, so it must come from the rows, not the request.
   const { data: finalItems } = await admin
     .from("proposal_line_items")
-    .select("id, description, quantity, unit_price, billing_period, is_optional, is_selected")
+    .select("id, description, detail, quantity, unit_price, billing_period, is_optional, is_selected")
     .eq("proposal_id", proposal.id);
 
   const totals = computeProposalTotals(
@@ -312,6 +318,56 @@ export async function acceptProposalByTokenAction(
     });
   } catch (err) {
     console.error("acceptProposalByTokenAction: push failed", err);
+  }
+
+  // The client's own copy — an itemized "here's what you signed up for"
+  // confirmation. Best-effort and last in the sequence: a prospect who
+  // just accepted must never see the acceptance itself fail because this
+  // courtesy email had a problem. The typed email is preferred over the
+  // original send address, since the person accepting isn't always the
+  // person the proposal first went to.
+  const recipientEmail = email || proposal.prospect_email || proposal.sent_to_email;
+  if (recipientEmail) {
+    try {
+      const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+      const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
+      if (mailboxEmail && settings) {
+        const graphToken = await getValidSharedMailboxToken(admin, settings);
+        const template = await getEmailTemplate(admin, "proposal_accepted");
+        const templateVars = {
+          recipient_name: name,
+          company_name: company,
+          proposal_title: proposal.title,
+        };
+        const includedItems = (finalItems ?? [])
+          .filter((i: Record<string, unknown>) => !i.is_optional || i.is_selected)
+          .map((i: Record<string, unknown>) => ({
+            description: i.description as string,
+            detail: (i.detail as string) ?? null,
+            quantity: Number(i.quantity ?? 0),
+            unitPrice: Number(i.unit_price ?? 0),
+            billingPeriod: (i.billing_period as "one_off" | "annual" | "monthly") ?? "one_off",
+          }));
+        const { html, text } = buildProposalAcceptedClientEmail(
+          proposal.prospect_contact_name ?? name,
+          company,
+          proposal.title,
+          includedItems,
+          totals,
+          proposal.currency ?? "CAD",
+          applyTemplateVars(template.intro, templateVars),
+          applyTemplateVars(template.note, templateVars)
+        );
+        await sendMailAsSharedMailbox(graphToken, mailboxEmail, {
+          to: recipientEmail,
+          subject: applyTemplateVars(template.subject, templateVars),
+          html,
+          text,
+        });
+      }
+    } catch (err) {
+      console.error("acceptProposalByTokenAction: client confirmation email failed", err);
+    }
   }
 
   revalidatePath("/proposals");

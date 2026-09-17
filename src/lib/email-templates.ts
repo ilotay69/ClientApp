@@ -3,7 +3,11 @@ import { createAdminClient } from "@/lib/supabase/server";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any;
 
-export type EmailTemplateKey = "quarterly_review" | "contract_usage_report" | "proposal";
+export type EmailTemplateKey =
+  | "quarterly_review"
+  | "contract_usage_report"
+  | "proposal"
+  | "proposal_accepted";
 
 export type EmailTemplateDef = {
   key: EmailTemplateKey;
@@ -64,6 +68,20 @@ export const EMAIL_TEMPLATES: EmailTemplateDef[] = [
       "Shown just above the Review & accept button — the only text there, so write it as a complete sentence.",
     defaultNote:
       "Have a read through, and accept online when you're ready. If anything needs changing, just reply and we'll sort it out.",
+  },
+  {
+    key: "proposal_accepted",
+    label: "Proposal Accepted (client confirmation)",
+    description:
+      "Sent to the client immediately after they accept a proposal — confirms what they signed up for and what happens next.",
+    placeholders: ["{recipient_name}", "{company_name}", "{proposal_title}"],
+    defaultSubject: "Confirmed — {proposal_title}",
+    defaultIntro:
+      "Thank you for accepting — we're glad to have you on board. Here's a summary of what you signed up for.",
+    noteLabel: "Next steps note",
+    noteDescription:
+      "Shown after the itemized summary and total — the client's next-steps expectation, so write it as a complete sentence.",
+    defaultNote: "Our Sales Team will be in touch with you shortly to schedule next steps.",
   },
 ];
 

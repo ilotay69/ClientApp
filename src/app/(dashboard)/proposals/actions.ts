@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/permissions";
 import { getProposal, computeProposalBlockers } from "@/lib/proposal-data";
 import { formatProposalHeadline } from "@/lib/proposal-totals";
 import { getEmailTemplate, applyTemplateVars } from "@/lib/email-templates";
-import { buildProposalEmail } from "@/lib/resend";
+import { buildProposalEmail, buildProposalAcceptedClientEmail } from "@/lib/resend";
 import { sendMailAsSharedMailbox } from "@/lib/microsoft-graph";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { resolveAppUrl } from "@/lib/app-url";
@@ -850,6 +850,55 @@ export async function markProposalAcceptedByStaffAction(
     return { ok: false, message: "Could not record that." };
   }
   if (!data) return { ok: false, message: "This proposal has already been accepted." };
+
+  // Same itemized client confirmation as an online acceptance — a phone
+  // acceptance shouldn't be the one path that leaves the client with
+  // nothing in writing. Best-effort: recording the acceptance itself must
+  // succeed regardless of whether this courtesy email does.
+  const recipientEmail = proposal.prospectEmail ?? proposal.sentToEmail;
+  if (recipientEmail) {
+    try {
+      const mailboxEmail = process.env.SHARED_MAILBOX_EMAIL;
+      const settings = mailboxEmail ? await getSharedMailboxSettings(admin) : null;
+      if (mailboxEmail && settings) {
+        const graphToken = await getValidSharedMailboxToken(admin, settings);
+        const template = await getEmailTemplate(admin, "proposal_accepted");
+        const companyName = proposal.clientName ?? proposal.prospectCompany ?? "";
+        const templateVars = {
+          recipient_name: name,
+          company_name: companyName,
+          proposal_title: proposal.title,
+        };
+        const includedItems = proposal.lineItems
+          .filter((i) => !i.isOptional || i.isSelected)
+          .map((i) => ({
+            description: i.description,
+            detail: i.detail,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            billingPeriod: i.billingPeriod,
+          }));
+        const { html, text } = buildProposalAcceptedClientEmail(
+          proposal.prospectContactName ?? name,
+          companyName,
+          proposal.title,
+          includedItems,
+          proposal.totals,
+          proposal.currency,
+          applyTemplateVars(template.intro, templateVars),
+          applyTemplateVars(template.note, templateVars)
+        );
+        await sendMailAsSharedMailbox(graphToken, mailboxEmail, {
+          to: recipientEmail,
+          subject: applyTemplateVars(template.subject, templateVars),
+          html,
+          text,
+        });
+      }
+    } catch (err) {
+      console.error("markProposalAcceptedByStaffAction: client confirmation email failed", err);
+    }
+  }
 
   revalidateProposal(proposalId);
   return { ok: true, message: `Recorded as accepted by ${name}.` };

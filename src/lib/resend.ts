@@ -386,3 +386,156 @@ export function buildProposalEmail(
 
   return { html, text };
 }
+
+/** The itemized "here's what you signed up for" confirmation, sent to the
+ * client immediately after they accept a proposal — the on-page
+ * confirmation and the "Already accepted" re-visit page both say a version
+ * of "thank you, sales will be in touch", but neither is a document the
+ * client can forward to their bookkeeper or file away. This is that
+ * document.
+ *
+ * Deliberately built from the same final item list acceptProposalByTokenAction
+ * already recomputed from the database after writing the accepted optional
+ * selections — never from anything the browser sent — so this email can
+ * never quote a different set of items or a different total than what was
+ * actually recorded as agreed to.
+ */
+export type ProposalAcceptedEmailItem = {
+  description: string;
+  detail: string | null;
+  quantity: number;
+  unitPrice: number;
+  billingPeriod: "one_off" | "annual" | "monthly";
+};
+
+export type ProposalAcceptedEmailTotals = {
+  oneOffSubtotal: number;
+  annualSubtotal: number;
+  monthlySubtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  firstInvoiceTotal: number;
+};
+
+const PROPOSAL_ACCEPTED_PERIOD_SECTIONS: {
+  value: ProposalAcceptedEmailItem["billingPeriod"];
+  label: string;
+  suffix: string;
+}[] = [
+  { value: "one_off", label: "One-time", suffix: "" },
+  { value: "annual", label: "Annually", suffix: "/yr" },
+  { value: "monthly", label: "Monthly", suffix: "/mo" },
+];
+
+function formatMoneyForEmail(value: number, currency: string): string {
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+export function buildProposalAcceptedClientEmail(
+  recipientName: string | null,
+  companyName: string,
+  proposalTitle: string,
+  items: ProposalAcceptedEmailItem[],
+  totals: ProposalAcceptedEmailTotals,
+  currency: string,
+  intro: string,
+  note: string
+) {
+  const greeting = recipientName ? `Hi ${escapeHtml(recipientName)},` : "Hello,";
+
+  const sectionsHtml = PROPOSAL_ACCEPTED_PERIOD_SECTIONS.map((section) => {
+    const sectionItems = items.filter((i) => i.billingPeriod === section.value);
+    if (sectionItems.length === 0) return "";
+    const rows = sectionItems
+      .map((item) => {
+        const lineTotal = item.quantity * item.unitPrice;
+        const qtyLabel = item.quantity !== 1 ? ` &times;${item.quantity}` : "";
+        const detailHtml = item.detail
+          ? `<div style="color:#94a3b8;font-size:12px;margin-top:2px;">${escapeHtml(item.detail)}</div>`
+          : "";
+        return `<tr>
+          <td style="padding:6px 0;color:#334155;font-size:14px;vertical-align:top;">
+            ${escapeHtml(item.description)}${qtyLabel}
+            ${detailHtml}
+          </td>
+          <td style="padding:6px 0;color:#0f172a;font-size:14px;text-align:right;white-space:nowrap;vertical-align:top;">
+            ${escapeHtml(formatMoneyForEmail(lineTotal, currency))}${section.suffix}
+          </td>
+        </tr>`;
+      })
+      .join("");
+    return `
+      <p style="margin:16px 0 4px;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${section.label}</p>
+      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+    `;
+  }).join("");
+
+  const totalsRows = [
+    totals.oneOffSubtotal > 0
+      ? `<tr><td style="padding:2px 0;color:#64748b;font-size:13px;">One-time</td><td style="padding:2px 0;text-align:right;color:#334155;font-size:13px;">${escapeHtml(formatMoneyForEmail(totals.oneOffSubtotal, currency))}</td></tr>`
+      : "",
+    totals.annualSubtotal > 0
+      ? `<tr><td style="padding:2px 0;color:#64748b;font-size:13px;">Annually</td><td style="padding:2px 0;text-align:right;color:#334155;font-size:13px;">${escapeHtml(formatMoneyForEmail(totals.annualSubtotal, currency))}/yr</td></tr>`
+      : "",
+    totals.monthlySubtotal > 0
+      ? `<tr><td style="padding:2px 0;color:#64748b;font-size:13px;">Monthly</td><td style="padding:2px 0;text-align:right;color:#334155;font-size:13px;">${escapeHtml(formatMoneyForEmail(totals.monthlySubtotal, currency))}/mo</td></tr>`
+      : "",
+    `<tr><td style="padding:2px 0;color:#64748b;font-size:13px;">HST (${(totals.taxRate * 100).toFixed(0)}%)</td><td style="padding:2px 0;text-align:right;color:#334155;font-size:13px;">${escapeHtml(formatMoneyForEmail(totals.taxAmount, currency))}</td></tr>`,
+  ].join("");
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;">
+      <h2 style="color:#0f172a;">${escapeHtml(proposalTitle)} — confirmed</h2>
+      <p style="color:#64748b;">${escapeHtml(companyName)}</p>
+      <p style="color:#334155;">${greeting}</p>
+      <p style="color:#334155;">${escapeHtml(intro)}</p>
+      <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:8px;">
+        ${sectionsHtml}
+        <table style="width:100%;border-collapse:collapse;margin-top:12px;border-top:1px solid #e2e8f0;padding-top:8px;">
+          ${totalsRows}
+        </table>
+        <p style="margin:12px 0 0;color:#0f172a;font-size:18px;font-weight:600;">
+          ${escapeHtml(formatMoneyForEmail(totals.firstInvoiceTotal, currency))} due at signing
+        </p>
+        <p style="margin:2px 0 0;color:#94a3b8;font-size:12px;">
+          Including HST.${totals.monthlySubtotal > 0 ? " Monthly charges continue at that rate plus HST." : ""}
+        </p>
+      </div>
+      <p style="color:#334155;font-size:14px;">${escapeHtml(note)}</p>
+      <p style="margin-top:24px;color:#334155;font-size:14px;">
+        Best regards,<br />
+        CG Technologies Team
+      </p>
+    </div>
+  `;
+
+  const textLines: string[] = [`${proposalTitle} — confirmed`, companyName, "", recipientName ? `Hi ${recipientName},` : "Hello,", "", intro, ""];
+  for (const section of PROPOSAL_ACCEPTED_PERIOD_SECTIONS) {
+    const sectionItems = items.filter((i) => i.billingPeriod === section.value);
+    if (sectionItems.length === 0) continue;
+    textLines.push(`${section.label}:`);
+    for (const item of sectionItems) {
+      const lineTotal = item.quantity * item.unitPrice;
+      const qtyLabel = item.quantity !== 1 ? ` x${item.quantity}` : "";
+      textLines.push(`  - ${item.description}${qtyLabel}: ${formatMoneyForEmail(lineTotal, currency)}${section.suffix}`);
+      if (item.detail) textLines.push(`    ${item.detail}`);
+    }
+    textLines.push("");
+  }
+  if (totals.oneOffSubtotal > 0) textLines.push(`One-time: ${formatMoneyForEmail(totals.oneOffSubtotal, currency)}`);
+  if (totals.annualSubtotal > 0) textLines.push(`Annually: ${formatMoneyForEmail(totals.annualSubtotal, currency)}/yr`);
+  if (totals.monthlySubtotal > 0) textLines.push(`Monthly: ${formatMoneyForEmail(totals.monthlySubtotal, currency)}/mo`);
+  textLines.push(`HST (${(totals.taxRate * 100).toFixed(0)}%): ${formatMoneyForEmail(totals.taxAmount, currency)}`);
+  textLines.push(`Total due at signing (incl. HST): ${formatMoneyForEmail(totals.firstInvoiceTotal, currency)}`);
+  textLines.push("");
+  textLines.push(note);
+  textLines.push("");
+  textLines.push("Best regards,\nCG Technologies Team");
+
+  return { html, text: textLines.join("\n") };
+}
