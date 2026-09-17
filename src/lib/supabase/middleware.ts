@@ -8,7 +8,14 @@ const PUBLIC_PATHS = ["/login", "/auth"];
 // acknowledging a quarterly review has no login at all, but a staff
 // member testing the link (or a client who separately holds a portal
 // login) must still be able to open it while already signed in.
-const PUBLIC_PREFIX_PATHS = ["/quarterly-review-ack"];
+//
+// These are matched with startsWith, so an entry here opens every path
+// beneath it. That is why the prospect-facing proposal page lives at
+// "/proposal-view" and not "/proposal": the latter would also match
+// "/proposals/<id>" and silently expose the entire staff Proposals section
+// to anyone, logged in or not. Any future entry needs the same check —
+// pick a prefix that cannot be a prefix of a staff route.
+const PUBLIC_PREFIX_PATHS = ["/quarterly-review-ack", "/proposal-view"];
 
 // PWA install assets — a browser's installability check (and a service
 // worker's own registration) fetches these directly, without necessarily
