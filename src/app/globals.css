@@ -20,30 +20,15 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* A step UP from Tailwind's stock type scale. Most row/label text across
- * the app is written as text-xs/text-sm (by original design, for
- * density), so falling back to Tailwind's own defaults there (12px/14px)
- * still read as too small once so much of the UI's actual content sits
- * at that size — this pushes every text-{size} utility up a notch so
- * text-xs reads like stock text-sm used to, etc. */
-@theme {
-  --text-xs: 0.875rem;
-  --text-xs--line-height: 1.25rem;
-  --text-sm: 1rem;
-  --text-sm--line-height: 1.5rem;
-  --text-base: 1.125rem;
-  --text-base--line-height: 1.75rem;
-  --text-lg: 1.25rem;
-  --text-lg--line-height: 1.75rem;
-  --text-xl: 1.375rem;
-  --text-xl--line-height: 1.75rem;
-  --text-2xl: 1.625rem;
-  --text-2xl--line-height: 2rem;
-  --text-3xl: 2rem;
-  --text-3xl--line-height: 2.25rem;
-  --text-4xl: 2.375rem;
-  --text-4xl--line-height: 2.5rem;
-}
+/* No type-scale override here on purpose: text-{size} utilities use
+ * Tailwind's stock scale (text-xs 12px, text-sm 14px, text-base 16px).
+ *
+ * This file used to shrink that scale app-wide for density, and later
+ * briefly overshot the other way. Both were chasing a rendering problem
+ * that turned out to be per-origin browser zoom, not CSS — so the scale
+ * stays stock, and density is a per-component decision (which text-
+ * utility a given row or label picks) rather than something bent
+ * globally. */
 
 body {
   background: #ffffff;
