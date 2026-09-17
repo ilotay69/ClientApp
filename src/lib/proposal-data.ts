@@ -31,6 +31,11 @@ export type ProposalLineItem = {
   detail: string | null;
   quantity: number;
   unitPrice: number;
+  /** The pre-discount reference price, if the rep set one — never used in
+   * any total, purely so a proposal can show "was $60, now $56.86" the
+   * way the Autotask quote template's Unit Price / Adjusted Unit Price
+   * columns do. Null means there's nothing to compare against. */
+  listPrice: number | null;
   billingPeriod: ProposalBillingPeriod;
   isOptional: boolean;
   isSelected: boolean;
@@ -41,6 +46,11 @@ export type ProposalLineItem = {
  * prospect must never see. */
 export type Proposal = {
   id: string;
+  /** Short, human-friendly reference for phone/email ("Proposal #142") —
+   * an auto-incrementing identity column (migration 132), purely a label.
+   * The access_token in the URL remains the only real credential; this is
+   * never accepted as a lookup key anywhere. */
+  proposalNumber: number;
   clientId: string | null;
   clientName: string | null;
   prospectCompany: string | null;
@@ -82,6 +92,10 @@ export type Proposal = {
   acceptedIpHash: string | null;
   acceptedUserAgent: string | null;
   acceptAuthorityConfirmed: boolean;
+  /** Storage path of the drawn signature captured at acceptance — pass to
+   * getSignedProposalSignatureUrl to actually display it. Null for a
+   * staff-recorded acceptance, or if the image upload failed. */
+  acceptedSignaturePath: string | null;
   declinedAt: string | null;
   declineReason: string | null;
   reminderCount: number;
@@ -95,6 +109,7 @@ export type Proposal = {
 
 export type ProposalListItem = {
   id: string;
+  proposalNumber: number;
   title: string;
   status: ProposalStatus;
   currency: string;
@@ -119,6 +134,7 @@ export type ProposalListItem = {
  * rather than an oversight. */
 export type ProposalPublicView = {
   id: string;
+  proposalNumber: number;
   title: string;
   status: ProposalStatus;
   currency: string;
@@ -140,13 +156,13 @@ export type ProposalPublicView = {
 };
 
 const PROPOSAL_COLUMNS = `
-  id, client_id, prospect_company, prospect_contact_name, prospect_email,
+  id, proposal_number, client_id, prospect_company, prospect_contact_name, prospect_email,
   title, status, currency, intro, closing_note, valid_until, access_token,
   owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
   last_viewed_at, view_count, accepted_at, accepted_by_name,
   accepted_by_email, accepted_via, accepted_total_amount, accepted_tax_amount,
   accepted_tax_rate, accepted_ip_hash, accepted_user_agent,
-  accept_authority_confirmed, declined_at, decline_reason,
+  accept_authority_confirmed, accepted_signature_path, declined_at, decline_reason,
   reminder_count, last_reminder_at, created_at, updated_at
 `;
 
@@ -160,6 +176,7 @@ function toLineItem(row: Record<string, unknown>): ProposalLineItem {
     // only ever sees real numbers.
     quantity: Number(row.quantity ?? 0),
     unitPrice: Number(row.unit_price ?? 0),
+    listPrice: row.list_price !== null && row.list_price !== undefined ? Number(row.list_price) : null,
     billingPeriod: (row.billing_period as ProposalBillingPeriod) ?? "one_off",
     isOptional: Boolean(row.is_optional),
     isSelected: Boolean(row.is_selected),
@@ -245,7 +262,7 @@ export async function getProposal(
     admin
       .from("proposal_line_items")
       .select(
-        "id, description, detail, quantity, unit_price, billing_period, is_optional, is_selected, sort_order"
+        "id, description, detail, quantity, unit_price, list_price, billing_period, is_optional, is_selected, sort_order"
       )
       .eq("proposal_id", id)
       .order("sort_order", { ascending: true }),
@@ -257,6 +274,7 @@ export async function getProposal(
 
   return {
     id: data.id,
+    proposalNumber: Number(data.proposal_number),
     clientId: data.client_id ?? null,
     clientName: client?.name ?? null,
     prospectCompany: data.prospect_company ?? null,
@@ -288,6 +306,7 @@ export async function getProposal(
     acceptedIpHash: data.accepted_ip_hash ?? null,
     acceptedUserAgent: data.accepted_user_agent ?? null,
     acceptAuthorityConfirmed: Boolean(data.accept_authority_confirmed),
+    acceptedSignaturePath: data.accepted_signature_path ?? null,
     declinedAt: data.declined_at ?? null,
     declineReason: data.decline_reason ?? null,
     reminderCount: data.reminder_count ?? 0,
@@ -323,7 +342,7 @@ export async function listProposals(
   let query = admin
     .from("proposals")
     .select(
-      `id, client_id, prospect_company, title, status, currency, valid_until,
+      `id, proposal_number, client_id, prospect_company, title, status, currency, valid_until,
        sent_at, first_viewed_at, last_viewed_at, view_count, accepted_at,
        updated_at, clients(name), owner_profile:owner_id(full_name)`
     )
@@ -354,7 +373,7 @@ export async function listProposals(
   const { data: itemRows } = ids.length
     ? await admin
         .from("proposal_line_items")
-        .select("proposal_id, id, description, quantity, unit_price, billing_period, is_optional, is_selected, sort_order")
+        .select("proposal_id, id, description, quantity, unit_price, list_price, billing_period, is_optional, is_selected, sort_order")
         .in("proposal_id", ids)
     : { data: [] };
 
@@ -371,6 +390,7 @@ export async function listProposals(
     const items = itemsByProposal.get(row.id as string) ?? [];
     return {
       id: row.id as string,
+      proposalNumber: Number(row.proposal_number),
       title: row.title as string,
       status: row.status as ProposalStatus,
       currency: (row.currency as string) ?? "CAD",
@@ -405,7 +425,7 @@ export async function getProposalByAccessToken(
   const { data, error } = await admin
     .from("proposals")
     .select(
-      `id, title, status, currency, intro, closing_note, valid_until,
+      `id, proposal_number, title, status, currency, intro, closing_note, valid_until,
        accepted_at, accepted_by_name, accepted_total_amount, prospect_company,
        prospect_contact_name, clients(name)`
     )
@@ -422,7 +442,7 @@ export async function getProposalByAccessToken(
     admin
       .from("proposal_line_items")
       .select(
-        "id, description, detail, quantity, unit_price, billing_period, is_optional, is_selected, sort_order"
+        "id, description, detail, quantity, unit_price, list_price, billing_period, is_optional, is_selected, sort_order"
       )
       .eq("proposal_id", data.id)
       .order("sort_order", { ascending: true }),
@@ -433,6 +453,7 @@ export async function getProposalByAccessToken(
 
   return {
     id: data.id,
+    proposalNumber: Number(data.proposal_number),
     title: data.title,
     status,
     currency: data.currency ?? "CAD",

@@ -266,6 +266,21 @@ function LineItemRow({
         />
       </div>
 
+      {(item.listPrice !== null || !disabled) && (
+        <div className="w-full sm:w-24">
+          <FieldLabel>List price</FieldLabel>
+          <InlineTextEdit
+            taskId={item.id}
+            field="list_price"
+            value={item.listPrice !== null ? String(item.listPrice) : ""}
+            disabled={disabled}
+            placeholder="Optional"
+            emptyLabel="—"
+            action={updateAction}
+          />
+        </div>
+      )}
+
       <div className="w-full sm:w-28">
         <FieldLabel>Unit price</FieldLabel>
         <InlineTextEdit
@@ -291,6 +306,22 @@ function LineItemRow({
 
       <div className="w-full text-sm font-medium tabular-nums text-slate-900 sm:w-24 sm:text-right">
         <FieldLabel>Total</FieldLabel>
+        {item.listPrice !== null && item.listPrice !== item.unitPrice && (
+          <span className="mr-1 text-xs text-slate-400 line-through">
+            {formatMoney(
+              lineTotal({
+                id: item.id,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.listPrice,
+                billingPeriod: item.billingPeriod,
+                isOptional: item.isOptional,
+                isSelected: item.isSelected,
+              }),
+              currency
+            )}
+          </span>
+        )}
         {formatMoney(
           lineTotal({
             id: item.id,

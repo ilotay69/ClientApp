@@ -417,6 +417,11 @@ export async function addProposalLineItemsFromCatalogAction(
       detail: selection.detail ? selection.detail.slice(0, 1000) : null,
       quantity: 1,
       unit_price: Number.isFinite(price) ? Math.max(0, price) : 0,
+      // The catalog price at the moment it was added, kept as the
+      // reference point even after unit_price is later discounted — so a
+      // rep who negotiates the price down still shows "was $X" without
+      // having to type the original figure back in.
+      list_price: Number.isFinite(price) ? Math.max(0, price) : 0,
       billing_period:
         selection.billingPeriod === "monthly" || selection.billingPeriod === "annual"
           ? selection.billingPeriod
@@ -472,6 +477,19 @@ export async function updateProposalLineItemAction(
       const parsed = Number(value.replace(/[^0-9.\-]/g, ""));
       if (!Number.isFinite(parsed)) return;
       patch = { [field]: Math.max(0, parsed) };
+      break;
+    }
+    case "list_price": {
+      // Clearable, unlike unit_price/quantity: an empty field means "no
+      // reference price to compare against", not zero.
+      const trimmed = value.trim();
+      if (trimmed === "") {
+        patch = { list_price: null };
+        break;
+      }
+      const parsed = Number(trimmed.replace(/[^0-9.\-]/g, ""));
+      if (!Number.isFinite(parsed)) return;
+      patch = { list_price: Math.max(0, parsed) };
       break;
     }
     case "billing_period":

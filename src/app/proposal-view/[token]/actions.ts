@@ -8,6 +8,11 @@ import { createAlert } from "@/lib/alerts";
 import { sendPushToUsers } from "@/lib/push-notifications";
 import { computeProposalTotals, formatProposalHeadline, formatMoney } from "@/lib/proposal-totals";
 import { isProposalExpired, type ProposalStatus } from "@/lib/proposal-data";
+import {
+  PROPOSAL_SIGNATURES_BUCKET,
+  parseSignatureDataUrl,
+  MAX_SIGNATURE_BYTES,
+} from "@/lib/proposal-signature";
 
 // These actions are reachable by anyone holding a proposal link — there is
 // no login on this route at all. Two rules follow from that, and every
@@ -118,6 +123,7 @@ export async function acceptProposalByTokenAction(
     acceptedByEmail: string;
     selectedOptionalItemIds: string[];
     authorityConfirmed: boolean;
+    signatureDataUrl: string;
   }
 ): Promise<AcceptProposalResult> {
   const name = input.acceptedByName?.trim() ?? "";
@@ -131,6 +137,15 @@ export async function acceptProposalByTokenAction(
   // trusted.
   if (!input.authorityConfirmed) {
     return { ok: false, message: "Please confirm you have authority to accept this proposal." };
+  }
+
+  // Parsed and size-checked before any DB write, same reasoning: the
+  // client claims this is a signature PNG, but this route trusts nothing
+  // it wasn't told to trust.
+  const signatureBuffer = parseSignatureDataUrl(input.signatureDataUrl);
+  if (!signatureBuffer) return { ok: false, message: "Please sign above to accept." };
+  if (signatureBuffer.length > MAX_SIGNATURE_BYTES) {
+    return { ok: false, message: "That signature couldn't be saved — please try signing again." };
   }
 
   const admin = createAdminClient();
@@ -189,6 +204,27 @@ export async function acceptProposalByTokenAction(
 
   if (!claimed) {
     return { ok: false, message: "This proposal has already been accepted." };
+  }
+
+  // Uploaded only after the claim succeeds, so a losing race in a
+  // double-submit never leaves an orphaned signature file behind for a
+  // proposal it didn't actually accept.
+  let signaturePath: string | null = null;
+  try {
+    const path = `${proposal.id}/${crypto.randomUUID()}.png`;
+    const { error: uploadError } = await admin.storage
+      .from(PROPOSAL_SIGNATURES_BUCKET)
+      .upload(path, signatureBuffer, { contentType: "image/png" });
+    if (uploadError) console.error("acceptProposalByTokenAction: signature upload failed", uploadError);
+    else signaturePath = path;
+  } catch (err) {
+    console.error("acceptProposalByTokenAction: signature upload threw", err);
+  }
+  // A storage hiccup must not undo an otherwise-valid acceptance — the
+  // typed name, authority checkbox, and IP/UA already recorded above stand
+  // on their own even if the image itself couldn't be saved.
+  if (signaturePath) {
+    await admin.from("proposals").update({ accepted_signature_path: signaturePath }).eq("id", proposal.id);
   }
 
   // Only now write which optional add-ons were taken. Scoped to this

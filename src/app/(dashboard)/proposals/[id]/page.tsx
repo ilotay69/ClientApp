@@ -13,6 +13,7 @@ import { ProposalSendPanel } from "@/components/proposal-send-panel";
 import { ProposalAiDraft } from "@/components/proposal-ai-draft";
 import { ProposalBrochurePicker } from "@/components/proposal-brochure-picker";
 import { fetchProposalBrochures, fetchLinkedBrochureIds } from "@/lib/proposal-brochures";
+import { getSignedProposalSignatureUrl } from "@/lib/proposal-signature";
 import { formatDate } from "@/lib/format";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatProposalHeadline, formatMoney } from "@/lib/proposal-totals";
@@ -55,9 +56,10 @@ export default async function ProposalDetailPage({
   const proposal = await getProposal(id);
   if (!proposal) notFound();
 
-  const [brochureLibrary, linkedBrochureIds] = await Promise.all([
+  const [brochureLibrary, linkedBrochureIds, signatureUrl] = await Promise.all([
     fetchProposalBrochures(),
     fetchLinkedBrochureIds(id),
+    getSignedProposalSignatureUrl(proposal.acceptedSignaturePath),
   ]);
 
   const blockers = computeProposalBlockers(proposal);
@@ -76,6 +78,7 @@ export default async function ProposalDetailPage({
           </Link>
           <h1 className="mt-1 truncate text-2xl font-semibold text-slate-900">{proposal.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
+            Proposal #{proposal.proposalNumber} ·{" "}
             {proposal.clientName ?? proposal.prospectCompany ?? "No recipient yet"}
             {proposal.prospectContactName ? ` · ${proposal.prospectContactName}` : ""}
           </p>
@@ -223,16 +226,34 @@ export default async function ProposalDetailPage({
               )}
             </dl>
             {proposal.acceptedAt && proposal.acceptedVia === "link" && (
-              <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
-                Accepted online. Authority confirmed:{" "}
-                {proposal.acceptAuthorityConfirmed ? "yes" : "no"}
-                {proposal.acceptedUserAgent && (
-                  <>
-                    <br />
-                    <span title={proposal.acceptedUserAgent}>Browser recorded at acceptance.</span>
-                  </>
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <p className="text-xs text-slate-400">
+                  Accepted online. Authority confirmed:{" "}
+                  {proposal.acceptAuthorityConfirmed ? "yes" : "no"}
+                  {proposal.acceptedUserAgent && (
+                    <>
+                      <br />
+                      <span title={proposal.acceptedUserAgent}>Browser recorded at acceptance.</span>
+                    </>
+                  )}
+                </p>
+                {signatureUrl && (
+                  <div className="mt-2">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Signature
+                    </p>
+                    {/* A signed URL from Supabase Storage — next/image can't
+                        optimize an external, expiring URL usefully, so a
+                        plain <img> is the right call here. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={signatureUrl}
+                      alt={`${proposal.acceptedByName ?? "Signature"}`}
+                      className="max-h-24 rounded border border-slate-200 bg-white"
+                    />
+                  </div>
                 )}
-              </p>
+              </div>
             )}
           </div>
 

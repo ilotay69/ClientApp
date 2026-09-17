@@ -16,7 +16,9 @@ export function ProposalListRow({ proposal }: { proposal: ProposalListItem }) {
       className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-100 px-3 py-2.5 text-left last:border-b-0 hover:bg-slate-50 sm:flex-nowrap sm:px-5"
     >
       <span className="order-first w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
-        <span className="block truncate text-sm font-medium text-slate-900">{proposal.title}</span>
+        <span className="block truncate text-sm font-medium text-slate-900">
+          <span className="text-slate-400">#{proposal.proposalNumber}</span> {proposal.title}
+        </span>
         <span className="block truncate text-xs text-slate-500">{proposal.recipientLabel}</span>
       </span>
 
