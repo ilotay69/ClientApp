@@ -28,11 +28,7 @@ import {
   type ContractUsageRow,
 } from "@/lib/contract-hours";
 import { fetchAgingOpenTickets, type AgingTicketRow } from "@/lib/ticket-aging";
-import {
-  searchTicketsForCompany,
-  resolveResourceNames,
-  type AutotaskTicketSearchRow,
-} from "@/lib/autotask";
+import { searchTicketsForCompany, type AutotaskTicketSearchRow } from "@/lib/autotask";
 
 /** Live from Autotask, on demand — not synced/stored anywhere, since "hours
  * worked today" is only ever meaningful as of right now, not as a cached
@@ -63,20 +59,24 @@ export async function fetchResourceHoursAction(): Promise<
   }
 }
 
-/** The Team Hours widget's drill-down — one technician's individual time
- * entries for one day, live from Autotask. Same permission as the widget
- * itself (view_lookups): whoever can see the summary can see what makes it
- * up. */
+/** The Team Hours widget's drill-down — every technician's individual time
+ * entries for one day, live from Autotask (or just one technician's, if
+ * resourceId is passed). Same permission as the widget itself
+ * (view_lookups): whoever can see the summary can see what makes it up. */
 export async function fetchResourceDayEntriesAction(
-  resourceId: string,
-  dateStr: string
-): Promise<{ resourceName: string; entries: ResourceDayEntry[] } | { error: string }> {
+  dateStr: string,
+  resourceId?: string | null
+): Promise<{ entries: ResourceDayEntry[] } | { error: string }> {
   if (!(await requirePermission("view_lookups"))) {
     return { error: "You don't have permission to do that." };
   }
-  const parsedId = Number(resourceId);
-  if (!Number.isFinite(parsedId) || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return { error: "Invalid resource or date." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return { error: "Invalid date." };
+  }
+  let parsedId: number | null = null;
+  if (resourceId) {
+    parsedId = Number(resourceId);
+    if (!Number.isFinite(parsedId)) return { error: "Invalid resource." };
   }
 
   const admin = createAdminClient();
@@ -86,11 +86,8 @@ export async function fetchResourceDayEntriesAction(
   }
 
   try {
-    const [entries, resourceNames] = await Promise.all([
-      fetchResourceDayEntries(admin, settings.credentials, settings.zoneUrl, parsedId, dateStr),
-      resolveResourceNames(settings.credentials, settings.zoneUrl, [parsedId]),
-    ]);
-    return { resourceName: resourceNames.get(parsedId) ?? `Resource ${parsedId}`, entries };
+    const entries = await fetchResourceDayEntries(admin, settings.credentials, settings.zoneUrl, parsedId, dateStr);
+    return { entries };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load time entries." };
   }

@@ -57,17 +57,16 @@ export function TeamHoursWidget({ action }: { action: () => Promise<ActionResult
         ) : rows.length === 0 ? (
           <p className="px-4 py-2 text-sm text-slate-500">No time entries logged yet.</p>
         ) : (
-          <div className="divide-y divide-slate-100">
+          // A single link wrapping every row, not one per row — clicking
+          // any technician here opens the same all-technicians report for
+          // yesterday (see /dashboard/resource-hours), not a view scoped to
+          // just whoever happened to be clicked.
+          <Link
+            href={`/dashboard/resource-hours?date=${state.yesterdayDate}`}
+            className="block divide-y divide-slate-100"
+          >
             {rows.map((r) => (
-              <Link
-                key={r.resourceId ?? r.resourceName}
-                href={
-                  r.resourceId
-                    ? `/dashboard/resource-hours?resourceId=${r.resourceId}&date=${state.yesterdayDate}`
-                    : "#"
-                }
-                className="block px-4 py-1.5 hover:bg-teal-50/60"
-              >
+              <div key={r.resourceId ?? r.resourceName} className="px-4 py-1.5 hover:bg-teal-50/60">
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <span className="min-w-0 truncate font-medium text-slate-900">{r.resourceName}</span>
                   <span className="shrink-0 text-xs text-slate-500">
@@ -87,9 +86,9 @@ export function TeamHoursWidget({ action }: { action: () => Promise<ActionResult
                     {r.thisMonth.toFixed(1)}h this month
                   </span>
                 </div>
-              </Link>
+              </div>
             ))}
-          </div>
+          </Link>
         )}
       </div>
     </div>

@@ -183,6 +183,8 @@ export async function fetchResourceHoursSummary(
 
 export type ResourceDayEntry = {
   id: number;
+  resourceId: string;
+  resourceName: string;
   hoursWorked: number;
   ticketId: number | null;
   ticketNumber: string | null;
@@ -193,22 +195,34 @@ export type ResourceDayEntry = {
   isNonBillable: boolean;
 };
 
-/** One technician's individual time entries for a single day — the
- * drill-down behind the Team Hours dashboard widget's Today/Yesterday
- * figures, which otherwise only ever show a summed number with no way to
- * see what it was made of. Ticket title/number resolved in one batched
- * Autotask pass (resolveTicketSummaries); client name resolved through this
- * app's own clients.autotask_company_id, same posture as
+/** Individual time entries for a single day — the drill-down behind the
+ * Team Hours dashboard widget's Today/Yesterday figures, which otherwise
+ * only ever show a summed number with no way to see what it was made of.
+ * Pass a resourceId to scope to one technician, or null for every
+ * technician that logged time that day (the widget links to the "every
+ * technician" view - a single click surfaces the whole team's day, not
+ * just whoever happened to be clicked). Ticket title/number resolved in one
+ * batched Autotask pass (resolveTicketSummaries); client name resolved
+ * through this app's own clients.autotask_company_id, same posture as
  * fetchClientHoursSummary above rather than a second live Autotask call. */
 export async function fetchResourceDayEntries(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
   creds: AutotaskCredentials,
   zoneUrl: string,
-  resourceId: number,
+  resourceId: number | null,
   dateStr: string
 ): Promise<ResourceDayEntry[]> {
-  const entries = await fetchTimeEntriesForResourceDay(creds, zoneUrl, resourceId, dateStr);
+  const entries =
+    resourceId !== null
+      ? await fetchTimeEntriesForResourceDay(creds, zoneUrl, resourceId, dateStr)
+      : await fetchTimeEntriesInRange(creds, zoneUrl, dateStr, dateStr);
+
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    entries.map((e) => e.resourceID)
+  );
 
   const ticketIds = [...new Set(entries.map((e) => e.ticketID).filter((id): id is number => id != null))];
   const ticketSummaries = await resolveTicketSummaries(creds, zoneUrl, ticketIds);
@@ -236,6 +250,8 @@ export async function fetchResourceDayEntries(
       const client = ticket?.companyId != null ? clientByCompanyId.get(ticket.companyId) : undefined;
       return {
         id: e.id,
+        resourceId: String(e.resourceID),
+        resourceName: resourceNames.get(e.resourceID) ?? `Resource ${e.resourceID}`,
         hoursWorked: e.hoursWorked,
         ticketId: e.ticketID,
         ticketNumber: ticket?.ticketNumber ?? null,
@@ -246,7 +262,7 @@ export async function fetchResourceDayEntries(
         isNonBillable: e.isNonBillable,
       };
     })
-    .sort((a, b) => b.hoursWorked - a.hoursWorked);
+    .sort((a, b) => a.resourceName.localeCompare(b.resourceName) || b.hoursWorked - a.hoursWorked);
 }
 
 export type HoursByGroupRow = { groupId: string | null; groupName: string; hours: number };
