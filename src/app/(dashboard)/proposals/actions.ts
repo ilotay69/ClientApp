@@ -995,49 +995,66 @@ export async function withdrawProposalAction(proposalId: string): Promise<Propos
   return { ok: true, message: "Withdrawn. The link now shows as no longer available." };
 }
 
-/** Back to draft so it can be edited and re-sent — including an already
- * ACCEPTED proposal, which resets its entire sent/viewed/accepted history
- * so the next send starts clean rather than looking like it's still the
- * old, already-agreed-to round. The access token is deliberately kept:
- * the prospect may already have forwarded that link internally, and they
- * should land on the corrected version rather than a dead page. Use
- * revokeProposalLinkAction when the old link genuinely needs to stop
- * working.
+/** Back to draft so it can be edited and re-sent. The access token is
+ * deliberately kept: the prospect may already have forwarded that link
+ * internally, and they should land on the corrected version rather than a
+ * dead page. Use revokeProposalLinkAction when the old link genuinely
+ * needs to stop working.
+ *
+ * Reviving an already-ACCEPTED proposal additionally resets its entire
+ * sent/viewed/accepted history (see the full field list below) so the
+ * next send starts clean instead of still looking like the old,
+ * already-agreed-to round - the UI reconfirms this specific case before
+ * calling in, since it's the one destructive path here. Reopening a
+ * declined/withdrawn/expired proposal (which never had an acceptance to
+ * begin with) just flips status back to draft and leaves its prior
+ * sent/view history alone.
  *
  * prospect_email/company/contact name, title, sections, and line items
- * are untouched — those are the proposal's actual content, not history,
- * and staff shouldn't have to retype them just to send an updated round. */
+ * are never touched either way - those are the proposal's actual
+ * content, not history, and staff shouldn't have to retype them just to
+ * send an updated round. */
 export async function reviseProposalAction(proposalId: string): Promise<ProposalActionState> {
   const user = await requirePermission("manage_proposals");
   if (!user) return DENIED;
 
   const admin = createAdminClient();
+  const { data: current } = await admin
+    .from("proposals")
+    .select("status")
+    .eq("id", proposalId)
+    .maybeSingle();
+  if (!current) return { ok: false, message: "Proposal not found." };
+
+  const wasAccepted = current.status === "accepted";
   const { data } = await admin
     .from("proposals")
-    .update({
-      status: "draft",
-      sent_at: null,
-      sent_to_email: null,
-      first_viewed_at: null,
-      last_viewed_at: null,
-      view_count: 0,
-      reminder_count: 0,
-      last_reminder_at: null,
-      accepted_at: null,
-      accepted_by_name: null,
-      accepted_by_email: null,
-      accepted_via: null,
-      accepted_total_amount: null,
-      accepted_tax_amount: null,
-      accepted_tax_rate: null,
-      accepted_ip: null,
-      accepted_user_agent: null,
-      accept_authority_confirmed: false,
-      accepted_signature_path: null,
-      processing_internally: false,
-      declined_at: null,
-      decline_reason: null,
-    })
+    .update(
+      wasAccepted
+        ? {
+            status: "draft",
+            sent_at: null,
+            sent_to_email: null,
+            first_viewed_at: null,
+            last_viewed_at: null,
+            view_count: 0,
+            reminder_count: 0,
+            last_reminder_at: null,
+            accepted_at: null,
+            accepted_by_name: null,
+            accepted_by_email: null,
+            accepted_via: null,
+            accepted_total_amount: null,
+            accepted_tax_amount: null,
+            accepted_tax_rate: null,
+            accepted_ip: null,
+            accepted_user_agent: null,
+            accept_authority_confirmed: false,
+            accepted_signature_path: null,
+            processing_internally: false,
+          }
+        : { status: "draft" }
+    )
     .eq("id", proposalId)
     .select("id")
     .maybeSingle();
@@ -1046,7 +1063,9 @@ export async function reviseProposalAction(proposalId: string): Promise<Proposal
   revalidateProposal(proposalId);
   return {
     ok: true,
-    message: "Back to draft, with sending and view history reset — ready to send fresh.",
+    message: wasAccepted
+      ? "Back to draft, with sending and view history reset - ready to send fresh."
+      : "Back to draft. The existing link will show the revised version once you send again.",
   };
 }
 

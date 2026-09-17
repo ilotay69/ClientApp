@@ -328,11 +328,28 @@ export function ProposalSendPanel({
         <div className="space-y-2 border-t border-slate-200 pt-3">
           {status === "accepted" && (
             <p className="text-xs text-slate-500">
-              Sends out a new round from scratch — sending/view history and the acceptance on
+              Sends out a new round from scratch - sending/view history and the acceptance on
               record are all cleared, back to draft.
             </p>
           )}
-          <SmallButton pending={pending} onClick={() => run(reviseAction)}>
+          <SmallButton
+            pending={pending}
+            onClick={() => {
+              // Only the accepted case is destructive (it wipes real
+              // acceptance/view history) — reopening a declined/withdrawn/
+              // expired proposal just flips status back with nothing to
+              // lose, so it doesn't need a reconfirm.
+              if (
+                status === "accepted" &&
+                !window.confirm(
+                  "Revise this accepted proposal? This clears its sent date, view count, and the acceptance on record, and puts it back to draft so you can send a fresh round. This can't be undone."
+                )
+              ) {
+                return;
+              }
+              run(reviseAction);
+            }}
+          >
             {status === "accepted" ? "Revise" : "Reopen as draft"}
           </SmallButton>
         </div>
