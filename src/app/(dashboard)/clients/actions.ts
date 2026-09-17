@@ -16,6 +16,7 @@ import {
   fetchTicketTimeEntries,
   fetchContactsForCompany,
   fetchPrimaryContactForCompany,
+  fetchCompanyAddress,
   type AutotaskCompany,
   type AutotaskTicketNote,
   type AutotaskTimeEntry,
@@ -557,11 +558,16 @@ export async function syncClientAutotaskData(clientId: string): Promise<{ error:
       settings.zoneUrl,
       client.autotask_company_id
     );
+    // Company mailing address — kept locally (rather than fetched live
+    // wherever it's needed, e.g. the New Proposal form's prefill) so
+    // reading it never costs a round trip beyond this sync.
+    const address = await fetchCompanyAddress(settings.credentials, settings.zoneUrl, client.autotask_company_id);
     await admin
       .from("clients")
       .update({
         primary_contact_name: primaryContact?.name ?? null,
         primary_contact_email: primaryContact?.email ?? null,
+        address,
       })
       .eq("id", clientId);
   } catch (err) {

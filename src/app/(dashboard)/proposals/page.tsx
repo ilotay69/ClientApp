@@ -42,7 +42,10 @@ export default async function ProposalsPage({
   // either way.
   const [rawAll, { data: clients }] = await Promise.all([
     listProposals({ search: q, clientId: client }),
-    supabase.from("clients").select("id, name").order("name"),
+    supabase
+      .from("clients")
+      .select("id, name, contactName:primary_contact_name, contactEmail:primary_contact_email, address")
+      .order("name"),
   ]);
   const all = mineOnly ? rawAll.filter((p) => p.ownerId === user?.id) : rawAll;
 

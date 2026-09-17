@@ -4,6 +4,16 @@ import { useState, useTransition } from "react";
 import { ClientCombobox, type ClientOption } from "@/components/client-combobox";
 import type { CreateProposalState } from "@/app/(dashboard)/proposals/actions";
 
+/** ClientCombobox itself only ever needs id+name to render/search - these
+ * extra fields ride along on the same array purely so picking a client
+ * here can prefill Contact name/email/Address from what's already synced
+ * from Autotask, instead of retyping it every time. */
+export type NewProposalClientOption = ClientOption & {
+  contactName?: string | null;
+  contactEmail?: string | null;
+  address?: string | null;
+};
+
 /** Start a proposal for either an existing client or a company that isn't
  * one yet.
  *
@@ -15,7 +25,7 @@ export function NewProposalPanel({
   clients,
   action,
 }: {
-  clients: ClientOption[];
+  clients: NewProposalClientOption[];
   action: (
     title: string,
     recipient: {
@@ -49,6 +59,20 @@ export function NewProposalPanel({
       </button>
     );
   }
+
+  // Prefills from whatever's already synced from Autotask (see
+  // syncClientAutotaskData) - unconditionally replaces the three fields
+  // rather than only filling blanks, since they only ever mean "this
+  // selected client's info" in the Existing-client half of the form; a
+  // client with nothing on file clears them back to empty rather than
+  // leaving a previous pick's values lingering under a new selection.
+  const selectClient = (id: string) => {
+    setClientId(id);
+    const client = clients.find((c) => c.id === id);
+    setContactName(client?.contactName ?? "");
+    setEmail(client?.contactEmail ?? "");
+    setAddress(client?.address ?? "");
+  };
 
   const submit = () => {
     setError(null);
@@ -89,7 +113,19 @@ export function NewProposalPanel({
           <button
             key={option.value}
             type="button"
-            onClick={() => setKind(option.value)}
+            onClick={() => {
+              setKind(option.value);
+              // Switching modes clears the shared contact/address fields
+              // rather than carrying over whatever an existing client's
+              // pick prefilled - stale client info attached to what's
+              // supposed to be a fresh prospect (or vice versa) would be
+              // worse than an empty field.
+              setClientId("");
+              setCompany("");
+              setContactName("");
+              setEmail("");
+              setAddress("");
+            }}
             className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
               kind === option.value
                 ? "bg-brand text-white"
@@ -113,7 +149,7 @@ export function NewProposalPanel({
 
       {kind === "client" ? (
         <Field label="Client">
-          <ClientCombobox clients={clients} value={clientId} onChange={setClientId} />
+          <ClientCombobox clients={clients} value={clientId} onChange={selectClient} />
         </Field>
       ) : (
         <Field label="Company">

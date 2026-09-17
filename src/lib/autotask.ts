@@ -265,6 +265,44 @@ export async function fetchPrimaryContactForCompany(
   return { name, email: raw.emailAddress?.trim() || null };
 }
 
+/** One company's own mailing address, combined into a single display
+ * string (matching the free-text convention proposals' own address
+ * fields already use) - address1/address2 on their own line, then
+ * city, state/province  postalCode, then country. Every field is
+ * already present in the raw Companies response other Company calls
+ * already make (autotaskQuery never restricts fields) - nothing before
+ * this read any of them, so this is the first place they're parsed. */
+export async function fetchCompanyAddress(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  companyId: number
+): Promise<string | null> {
+  type RawCompany = {
+    address1?: string;
+    address2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  const items = (await autotaskQuery(creds, zoneUrl, "Companies", {
+    filter: [{ op: "eq", field: "id", value: companyId }],
+    MaxRecords: 1,
+  })) as RawCompany[];
+
+  const c = items[0];
+  if (!c) return null;
+
+  const lines: string[] = [];
+  const streetLine = [c.address1, c.address2].filter(Boolean).join(", ");
+  if (streetLine) lines.push(streetLine);
+  const cityLine = [c.city, [c.state, c.postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  if (cityLine) lines.push(cityLine);
+  if (c.country) lines.push(c.country);
+
+  return lines.length > 0 ? lines.join("\n") : null;
+}
+
 export type PicklistLabelMaps = {
   status: Map<number, string>;
   priority: Map<number, string>;
