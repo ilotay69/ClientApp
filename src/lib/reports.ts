@@ -473,10 +473,21 @@ export async function buildSecureScoreRollupReport(admin: Supabase): Promise<Rep
   };
 }
 
+// Same tiers as the client page's own M365 licenses card
+// (ClientM365Licenses.usageStatus) - a SKU with nothing purchased has
+// nothing to be good/under/over about, consumed < purchased means idle
+// seats worth reclaiming, consumed > purchased means over-provisioned.
+function licenseUsageStatus(purchased: number, consumed: number): string {
+  if (purchased === 0) return "—";
+  if (consumed > purchased) return "Overused";
+  if (consumed < purchased) return "Underused";
+  return "Good";
+}
+
 export async function buildLicenseUtilizationRollupReport(admin: Supabase): Promise<ReportData> {
   const { rows, errors } = await fetchLicenseUtilizationRollup(admin);
   return {
-    headers: ["Client", "SKU", "Purchased", "Consumed", "Available", "% used"],
+    headers: ["Client", "SKU", "Purchased", "Consumed", "Available", "% used", "Status"],
     rows: rows.map((r) => [
       r.clientName,
       r.skuPartNumber,
@@ -484,6 +495,7 @@ export async function buildLicenseUtilizationRollupReport(admin: Supabase): Prom
       r.consumed,
       r.available,
       `${Math.round(r.percentUsed)}%`,
+      licenseUsageStatus(r.purchased, r.consumed),
     ]),
     warnings: clientErrorWarnings(errors),
   };

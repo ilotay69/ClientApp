@@ -79,7 +79,12 @@ export type ReportPreview = {
   warnings?: string[];
 };
 
-const PREVIEW_LIMIT = 50;
+// The CSV download (see src/lib/reports.ts, one function per report) is
+// never capped - this only bounds how many rows the preview dialog renders
+// before someone downloads. Raised from 50: most of this app's reports
+// never come close to it, so the old cap mainly meant "the preview shows
+// less than the CSV" for no real performance reason.
+const PREVIEW_LIMIT = 500;
 
 /** Forces a compile error if a switch over ReportKey ever leaves a key
  * unhandled — `key` can only narrow to `never` here if every other case
