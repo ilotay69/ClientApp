@@ -111,7 +111,7 @@ export async function sendBlockHoursUsageReports(
         settings.zoneUrl,
         client.autotask_company_id
       );
-      const pdf = buildContractUsagePdf(clientName, rows);
+      const pdf = await buildContractUsagePdf(clientName, rows);
       const templateVars = { client_name: clientName };
       const { html, text } = buildContractUsageClientEmail(
         clientName,
