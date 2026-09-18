@@ -2386,6 +2386,10 @@ export async function createAutotaskQuote(
 
 export type AutotaskNewQuoteItemInput = {
   quantity: number;
+  /** Becomes periodType on a Product line, which Autotask requires there.
+   * Service lines take their period from the catalog service itself, so
+   * it is deliberately not sent for those. */
+  billingPeriod: "one_off" | "annual" | "monthly";
   unitPrice: number;
   description: string;
   /** Exactly one of these must be set — Autotask requires every QuoteItem
@@ -2422,6 +2426,16 @@ export async function createAutotaskQuoteItems(
   const serviceType = picklistValueByLabel(fields, "quoteItemType", ["service"]);
   const productType = picklistValueByLabel(fields, "quoteItemType", ["product"]);
 
+  // Autotask insists on a periodType for Product lines ("When
+  // QuoteItem.quoteItemType is set to Product a QuoteItem.periodType must
+  // be included"). Its own labels vary by tenant, hence matching a few
+  // spellings of each rather than one.
+  const periodTypes: Record<AutotaskNewQuoteItemInput["billingPeriod"], number | null> = {
+    one_off: picklistValueByLabel(fields, "periodType", ["one-time", "one time", "onetime"]),
+    monthly: picklistValueByLabel(fields, "periodType", ["monthly", "month"]),
+    annual: picklistValueByLabel(fields, "periodType", ["yearly", "annual", "annually", "year"]),
+  };
+
   for (const item of items) {
     const quoteItemType = item.serviceID ? serviceType : productType;
     if (quoteItemType === null) {
@@ -2430,7 +2444,17 @@ export async function createAutotaskQuoteItems(
       );
     }
 
-    const body = { ...buildQuoteItemBody(quoteID, item), quoteItemType };
+    const body: Record<string, unknown> = { ...buildQuoteItemBody(quoteID, item), quoteItemType };
+
+    if (quoteItemType === productType) {
+      const periodType = periodTypes[item.billingPeriod] ?? periodTypes.one_off;
+      if (periodType === null) {
+        throw new Error(
+          "Autotask has no usable periodType in its own picklist, which a Product quote line requires."
+        );
+      }
+      body.periodType = periodType;
+    }
     try {
       await autotaskCreate(creds, zoneUrl, `Quotes/${quoteID}/Items`, body);
     } catch (err) {

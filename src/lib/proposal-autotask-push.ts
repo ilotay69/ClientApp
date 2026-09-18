@@ -445,7 +445,13 @@ async function addLinesAndFinish(
   proposalId: string,
   quoteId: number,
   resolvedLines: {
-    item: { quantity: number; unitPrice: number; description: string; detail: string | null };
+    item: {
+      quantity: number;
+      unitPrice: number;
+      description: string;
+      detail: string | null;
+      billingPeriod: "one_off" | "annual" | "monthly";
+    };
     reference: { serviceID?: number; productID?: number };
   }[],
   credentials: AutotaskSettings["credentials"],
@@ -458,6 +464,7 @@ async function addLinesAndFinish(
     resolvedLines.map(({ item, reference }) => ({
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      billingPeriod: item.billingPeriod,
       description: item.detail ? `${item.description} — ${item.detail}` : item.description,
       ...reference,
     }))
