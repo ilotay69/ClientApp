@@ -313,31 +313,25 @@ export async function executeAutotaskPush(
       return { error: "No company was chosen for this push." };
     }
 
-    // --- Link that Autotask company back to this app's own data -----------
-    // Whichever way the company was resolved, this app should end up
-    // pointing at it too: a proposal already on a client fills in that
-    // client's missing mapping, and a prospect gets attached to whichever
-    // client already carries that company — or promoted into a new one.
-    if (proposal.clientId) {
-      if (!existingMappedCompanyId) {
-        await admin
-          .from("clients")
-          .update({ autotask_company_id: companyId })
-          .eq("id", proposal.clientId);
-      }
-    } else {
-      // limit(1) because nothing stops two client rows carrying the same
-      // Autotask company — maybeSingle() alone would error on that rather
-      // than just picking one.
-      const { data: alreadyLinked } = await admin
-        .from("clients")
-        .select("id")
-        .eq("autotask_company_id", companyId)
-        .limit(1)
-        .maybeSingle();
-
-      let clientId: string | null = alreadyLinked?.id ?? null;
-      if (!clientId) {
+    // --- Link a company this push CREATED back to CG Ops ------------------
+    // Only ever for a company created here. Choosing an existing Autotask
+    // company must not repoint the proposal at whatever local client
+    // happens to carry it: proposals.client_id is not editable after
+    // creation, so a wrong link is unfixable from the UI, and the proposal
+    // would silently start presenting itself as a different company than
+    // the prospect it was actually written for.
+    if (companyChoice?.type === "create_new" && companyId) {
+      if (proposal.clientId) {
+        // Already knows who it is — this only fills in the mapping it was
+        // missing, and never changes which client it points at.
+        if (!existingMappedCompanyId) {
+          await admin
+            .from("clients")
+            .update({ autotask_company_id: companyId })
+            .eq("id", proposal.clientId);
+        }
+      } else {
+        // Brand new Autotask company, so no existing client can carry it.
         const { data: newClient, error: clientError } = await admin
           .from("clients")
           .insert({
@@ -352,10 +346,9 @@ export async function executeAutotaskPush(
         // Non-fatal: the Autotask Quote is the point of this push, and a
         // missing local client row is fixable by hand afterward.
         if (clientError) console.error("executeAutotaskPush: creating local client failed", clientError);
-        clientId = newClient?.id ?? null;
-      }
-      if (clientId) {
-        await admin.from("proposals").update({ client_id: clientId }).eq("id", proposalId);
+        if (newClient) {
+          await admin.from("proposals").update({ client_id: newClient.id }).eq("id", proposalId);
+        }
       }
     }
 
