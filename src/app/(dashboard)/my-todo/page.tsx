@@ -8,6 +8,15 @@ import {
   LOGGED_HOURS_LABEL_OPTIONS,
   type LoggedHoursEntry,
 } from "@/lib/logged-hours";
+import { fetchTimeOffRequests, type TimeOffRequest } from "@/lib/time-off";
+import { TimeOffRequestForm } from "@/components/time-off-request-form";
+import { TimeOffRequestCard } from "@/components/time-off-request-card";
+import {
+  createTimeOffRequestAction,
+  decideTimeOffRequestAction,
+  addTimeOffNoteAction,
+  withdrawTimeOffRequestAction,
+} from "../time-off/actions";
 import { LoggedHoursForm } from "@/components/logged-hours-form";
 import { DeleteButton } from "@/components/delete-button";
 import { formatDate } from "@/lib/format";
@@ -78,7 +87,7 @@ function sortRows<T>(rows: T[], field: string, dir: SortDir, valueFor: (row: T, 
   return [...rows].sort((a, b) => sign * compareSortValues(valueFor(a, field), valueFor(b, field)));
 }
 
-const TAB_INDEX: Record<string, number> = { mailbox: 0, tasks: 1, tickets: 2, hours: 3 };
+const TAB_INDEX: Record<string, number> = { mailbox: 0, tasks: 1, tickets: 2, hours: 3, timeoff: 4 };
 
 function parseMonthParam(month: string | undefined): { year: number; month: number } {
   if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -204,6 +213,14 @@ export default async function MyToDoPage({
   const isCurrentHoursMonth =
     hoursYear === today.getUTCFullYear() && hoursMonth === today.getUTCMonth() + 1;
   const payrollReminder = isCurrentHoursMonth ? payrollReminderMessage(today.getUTCDate()) : null;
+
+  const [myTimeOffRequests, allTimeOffRequests]: [TimeOffRequest[], TimeOffRequest[]] = me
+    ? await Promise.all([
+        fetchTimeOffRequests({ userId: me.userId }, admin),
+        isOwner ? fetchTimeOffRequests({}, admin) : Promise.resolve([]),
+      ])
+    : [[], []];
+  const teamTimeOffRequests = isOwner ? allTimeOffRequests.filter((r) => r.userId !== me?.userId) : [];
 
   const sortHrefFor = (field: string, dir: SortDir) =>
     filterHref("/my-todo", { tab: "tasks", client: filterClient, priority: filterPriorities, status: filterStatuses, sort: field, dir });
@@ -367,6 +384,68 @@ export default async function MyToDoPage({
     </div>
   );
 
+  const timeOffTab = (
+    <div className="space-y-4">
+      <p className="text-xs text-slate-500">
+        Request time off, then track it here — {isOwner ? "approve or discuss" : "an owner will approve, decline, or discuss"} it, right on the request.
+      </p>
+
+      <TimeOffRequestForm action={createTimeOffRequestAction} defaultDate={todayStr} />
+
+      <div>
+        <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          My requests <span className="normal-case text-slate-400">({myTimeOffRequests.length})</span>
+        </h2>
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="divide-y divide-slate-100">
+            {myTimeOffRequests.map((r) => (
+              <TimeOffRequestCard
+                key={r.id}
+                request={r}
+                isOwner={isOwner}
+                currentUserId={me?.userId ?? ""}
+                showRequester={false}
+                decideAction={decideTimeOffRequestAction}
+                addNoteAction={addTimeOffNoteAction}
+                withdrawAction={withdrawTimeOffRequestAction}
+              />
+            ))}
+            {myTimeOffRequests.length === 0 && (
+              <p className="px-3 py-4 text-center text-xs text-slate-500">Nothing requested yet.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {isOwner && (
+        <div>
+          <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Team requests <span className="normal-case text-slate-400">({teamTimeOffRequests.length})</span>
+          </h2>
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="divide-y divide-slate-100">
+              {teamTimeOffRequests.map((r) => (
+                <TimeOffRequestCard
+                  key={r.id}
+                  request={r}
+                  isOwner={isOwner}
+                  currentUserId={me?.userId ?? ""}
+                  showRequester
+                  decideAction={decideTimeOffRequestAction}
+                  addNoteAction={addTimeOffNoteAction}
+                  withdrawAction={withdrawTimeOffRequestAction}
+                />
+              ))}
+              {teamTimeOffRequests.length === 0 && (
+                <p className="px-3 py-4 text-center text-xs text-slate-500">Nothing from the team yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Tabs
       tabs={[
@@ -374,6 +453,7 @@ export default async function MyToDoPage({
         { label: "My Tasks", content: myTasksTab },
         { label: "My Tickets", content: myTicketsTab },
         { label: "Hours Logged", content: hoursLoggedTab },
+        { label: "Vacations/Sick", content: timeOffTab },
       ]}
       defaultActive={TAB_INDEX[tab ?? ""] ?? 0}
       orientation="vertical"

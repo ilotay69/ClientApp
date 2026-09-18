@@ -13,7 +13,13 @@ export type AlertKind =
   | "quarterly_review_client_acknowledged"
   // A prospect accepted a proposal through their own link — the one alert
   // here triggered by someone outside CG entirely.
-  | "proposal_accepted";
+  | "proposal_accepted"
+  // Vacation/Sick requests (146) — to the owner(s) when someone requests
+  // time off, to the requester once it's approved/declined, and to
+  // whichever side didn't write it when a note is added to discuss it.
+  | "time_off_requested"
+  | "time_off_decided"
+  | "time_off_note";
 
 /** Creates one in-app alert per recipient — shown on the Overview page
  * until acknowledged (acknowledgeAlertAction, dashboard/actions.ts), and

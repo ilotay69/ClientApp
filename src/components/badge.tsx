@@ -173,6 +173,11 @@ const COLORS: Record<string, string> = {
   expired: NEUTRAL_MUTED,
   withdrawn: NEUTRAL_MUTED,
 
+  // Time off request type - a kind, not a status (pending/approved/declined
+  // above already cover status for the same request).
+  vacation: CATEGORY_INDIGO,
+  sick: CATEGORY_PURPLE,
+
   // Conditional Access policy state (the raw Graph enum value, shown as-is)
   enabled: SUCCESS,
   enabledForReportingButNotEnforced: ATTENTION,
