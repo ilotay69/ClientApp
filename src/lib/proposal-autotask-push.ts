@@ -21,7 +21,7 @@ import {
   createAutotaskQuoteLocation,
   createAutotaskOpportunity,
   createAutotaskQuote,
-  createAutotaskQuoteItem,
+  createAutotaskQuoteItems,
   type AutotaskCatalogItem,
 } from "@/lib/autotask";
 import type { AutotaskSettings } from "@/lib/autotask-settings";
@@ -451,15 +451,17 @@ async function addLinesAndFinish(
   credentials: AutotaskSettings["credentials"],
   zoneUrl: string
 ): Promise<{ ok: true; quoteId: number } | { error: string }> {
-  for (const { item, reference } of resolvedLines) {
-    await createAutotaskQuoteItem(credentials, zoneUrl, {
-      quoteID: quoteId,
+  await createAutotaskQuoteItems(
+    credentials,
+    zoneUrl,
+    quoteId,
+    resolvedLines.map(({ item, reference }) => ({
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       description: item.detail ? `${item.description} — ${item.detail}` : item.description,
       ...reference,
-    });
-  }
+    }))
+  );
 
   await admin
     .from("proposals")

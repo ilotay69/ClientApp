@@ -2385,7 +2385,6 @@ export async function createAutotaskQuote(
 }
 
 export type AutotaskNewQuoteItemInput = {
-  quoteID: number;
   quantity: number;
   unitPrice: number;
   description: string;
@@ -2397,7 +2396,12 @@ export type AutotaskNewQuoteItemInput = {
   productID?: number;
 };
 
-/** QuoteItems is a child of Quotes, and unlike every other entity this
+/** Creates every line on one Quote. Plural because each line needs the
+ * tenant's own quoteItemType picklist values, and fetching that field
+ * metadata once per quote beats once per line against an API that rate
+ * limits.
+ *
+ * QuoteItems is a child of Quotes, and unlike every other entity this
  * file creates, POSTing to the root path the entity docs list
  * ("/QuoteItems") answers with an IIS 404 page — the resource genuinely
  * isn't there. Child entities live under their parent instead. The root
@@ -2405,23 +2409,40 @@ export type AutotaskNewQuoteItemInput = {
  * only cost is one round trip if a tenant exposes the root path after
  * all, and the alternative is this breaking on a difference between
  * tenants that nobody would be able to diagnose from the error. */
-export async function createAutotaskQuoteItem(
+export async function createAutotaskQuoteItems(
   creds: AutotaskCredentials,
   zoneUrl: string,
-  input: AutotaskNewQuoteItemInput
-): Promise<number> {
-  const body = buildQuoteItemBody(input);
-  try {
-    return await autotaskCreate(creds, zoneUrl, `Quotes/${input.quoteID}/Items`, body);
-  } catch (err) {
-    if (!(err instanceof AutotaskHttpError) || err.status !== 404) throw err;
-    return autotaskCreate(creds, zoneUrl, "QuoteItems", body);
+  quoteID: number,
+  items: AutotaskNewQuoteItemInput[]
+): Promise<void> {
+  const fields = await fetchEntityFields(creds, zoneUrl, "QuoteItems");
+  // Required, and it has to agree with whichever reference the line
+  // carries — a Service line typed as Product is rejected. Resolved by
+  // label rather than a hardcoded number since it is a tenant picklist.
+  const serviceType = picklistValueByLabel(fields, "quoteItemType", ["service"]);
+  const productType = picklistValueByLabel(fields, "quoteItemType", ["product"]);
+
+  for (const item of items) {
+    const quoteItemType = item.serviceID ? serviceType : productType;
+    if (quoteItemType === null) {
+      throw new Error(
+        `Autotask has no ${item.serviceID ? "Service" : "Product"} entry in its own quoteItemType picklist, so this line cannot be created.`
+      );
+    }
+
+    const body = { ...buildQuoteItemBody(quoteID, item), quoteItemType };
+    try {
+      await autotaskCreate(creds, zoneUrl, `Quotes/${quoteID}/Items`, body);
+    } catch (err) {
+      if (!(err instanceof AutotaskHttpError) || err.status !== 404) throw err;
+      await autotaskCreate(creds, zoneUrl, "QuoteItems", body);
+    }
   }
 }
 
-function buildQuoteItemBody(input: AutotaskNewQuoteItemInput): Record<string, unknown> {
+function buildQuoteItemBody(quoteID: number, input: AutotaskNewQuoteItemInput): Record<string, unknown> {
   return {
-    quoteID: input.quoteID,
+    quoteID,
     quantity: input.quantity,
     unitPrice: input.unitPrice,
     description: input.description.slice(0, 2000),
