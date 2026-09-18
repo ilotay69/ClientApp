@@ -38,6 +38,15 @@ export type AutotaskPushLineMatch = {
 export type AutotaskPushPreview = {
   proposalTitle: string;
   companyName: string;
+  /** Where companyName came from. A proposal can carry a linked client AND
+   * a typed prospect name at once (see createProposalAction), and the
+   * linked client wins — which is surprising enough when the two differ
+   * that the dialog says so out loud rather than silently searching
+   * Autotask for a name nobody typed. */
+  companyNameSource: "client" | "prospect";
+  /** Only set when the proposal carries a prospect company name that the
+   * linked client's name is overriding. */
+  overriddenProspectName: string | null;
   /** Set when this proposal's client is already linked to an Autotask
    * company — nothing to confirm, that company is simply used. */
   existingCompanyId: number | null;
@@ -56,6 +65,16 @@ export type AutotaskPushPreview = {
 
 function normalize(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** A usable Autotask company id, or null. Real ids are positive, but a
+ * clients row can carry 0 from an earlier mapping that never resolved —
+ * and 0 is falsy in one check and non-null in the next, which showed up as
+ * the dialog claiming "already linked to company #0" while the push itself
+ * had no company at all. Every read of autotask_company_id goes through
+ * here so the two can't disagree. */
+function linkedCompanyId(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 }
 
 /** The one company name for this proposal, so the name the confirmation
@@ -123,7 +142,7 @@ export async function previewAutotaskPush(
       .select("autotask_company_id")
       .eq("id", proposal.clientId)
       .maybeSingle();
-    existingCompanyId = client?.autotask_company_id ?? null;
+    existingCompanyId = linkedCompanyId(client?.autotask_company_id);
   }
 
   if (!existingCompanyId) {
@@ -156,9 +175,16 @@ export async function previewAutotaskPush(
     };
   });
 
+  const resolvedName = proposalCompanyName(proposal);
+  const usedClientName = Boolean(proposal.clientName?.trim());
+  const prospectName = proposal.prospectCompany?.trim() || null;
+
   return {
     proposalTitle: proposal.title,
-    companyName: proposalCompanyName(proposal) ?? "Unknown",
+    companyName: resolvedName ?? "Unknown",
+    companyNameSource: usedClientName ? "client" : "prospect",
+    overriddenProspectName:
+      usedClientName && prospectName && prospectName !== resolvedName ? prospectName : null,
     existingCompanyId,
     possibleCompanyMatches,
     lines,
@@ -269,7 +295,7 @@ export async function executeAutotaskPush(
         .select("autotask_company_id")
         .eq("id", proposal.clientId)
         .maybeSingle();
-      existingMappedCompanyId = client?.autotask_company_id ?? null;
+      existingMappedCompanyId = linkedCompanyId(client?.autotask_company_id);
     }
 
     if (existingMappedCompanyId) {

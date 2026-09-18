@@ -133,10 +133,30 @@ export function ProposalAutotaskPushButton({
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Company</p>
                   {preview.existingCompanyId !== null ? (
                     <p className="mt-1 text-sm text-slate-700">
-                      Already linked to Autotask company #{preview.existingCompanyId} — used as-is.
+                      {preview.companyName} is already linked to Autotask company #
+                      {preview.existingCompanyId}, so that one is used as-is.
                     </p>
                   ) : (
                     <div className="mt-1.5 space-y-1.5">
+                      {/* Which name was searched, and why. A proposal can
+                          carry a linked client and a typed prospect name
+                          at once, and the client wins — without saying so,
+                          the list below looks like it matched a name
+                          nobody entered. */}
+                      <p className="text-xs text-slate-500">
+                        Matching on <span className="font-medium text-slate-700">{preview.companyName}</span>
+                        {preview.companyNameSource === "client"
+                          ? ", the client this proposal is linked to"
+                          : ", the prospect company on this proposal"}
+                        .
+                      </p>
+                      {preview.overriddenProspectName && (
+                        <p className="text-xs text-amber-700">
+                          This proposal also has the prospect name &quot;{preview.overriddenProspectName}
+                          &quot;, which the linked client overrides. Unlink the client if you meant to push
+                          under that name instead.
+                        </p>
+                      )}
                       {preview.possibleCompanyMatches.map((c) => (
                         <label key={c.id} className="flex items-center gap-2 text-sm text-slate-700">
                           <input
