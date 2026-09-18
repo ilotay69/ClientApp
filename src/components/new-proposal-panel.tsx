@@ -34,6 +34,7 @@ export function NewProposalPanel({
       company: string | null;
       contactName: string | null;
       email: string | null;
+      phone: string | null;
       address: string | null;
     }
   ) => Promise<CreateProposalState>;
@@ -48,6 +49,7 @@ export function NewProposalPanel({
   const [company, setCompany] = useState("");
   const [contactName, setContactName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [prefilling, setPrefilling] = useState(false);
@@ -83,6 +85,9 @@ export function NewProposalPanel({
     const client = clients.find((c) => c.id === id);
     setContactName(client?.contactName ?? "");
     setEmail(client?.contactEmail ?? "");
+    // Cleared rather than carried over: the list option has no phone on
+    // it, so the only correct value is whatever the prefill below returns.
+    setPhone("");
     setAddress(client?.address ?? "");
     if (!id) return;
 
@@ -93,6 +98,7 @@ export function NewProposalPanel({
         if (selectionRef.current !== token) return;
         if (result.contactName) setContactName(result.contactName);
         if (result.contactEmail) setEmail(result.contactEmail);
+        if (result.contactPhone) setPhone(result.contactPhone);
         if (result.address) setAddress(result.address);
         if (result.error) setError(result.error);
       })
@@ -109,6 +115,7 @@ export function NewProposalPanel({
         company: kind === "prospect" ? company : null,
         contactName,
         email,
+        phone,
         address,
       });
       // On success the action redirects and never returns, so anything
@@ -153,6 +160,7 @@ export function NewProposalPanel({
               setCompany("");
               setContactName("");
               setEmail("");
+              setPhone("");
               setAddress("");
             }}
             className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${
@@ -210,6 +218,19 @@ export function NewProposalPanel({
           />
         </Field>
       </div>
+
+      {/* Autotask will not create a Company without a phone number, so a
+          proposal that might be pushed there needs one recorded up front
+          rather than asked for at push time. */}
+      <Field label="Phone">
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="416-555-0134"
+          className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none"
+        />
+      </Field>
 
       <Field label="Address">
         <textarea

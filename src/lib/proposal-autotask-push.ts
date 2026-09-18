@@ -47,6 +47,9 @@ export type AutotaskPushPreview = {
   /** Only set when the proposal carries a prospect company name that the
    * linked client's name is overriding. */
   overriddenProspectName: string | null;
+  /** The proposal's own phone, if it has one. Creating a Company needs a
+   * phone, so the dialog only has to ask when this is null. */
+  prospectPhone: string | null;
   /** Set when this proposal's client is already linked to an Autotask
    * company — nothing to confirm, that company is simply used. */
   existingCompanyId: number | null;
@@ -185,6 +188,7 @@ export async function previewAutotaskPush(
     companyNameSource: usedClientName ? "client" : "prospect",
     overriddenProspectName:
       usedClientName && prospectName && prospectName !== resolvedName ? prospectName : null,
+    prospectPhone: proposal.prospectPhone?.trim() || null,
     existingCompanyId,
     possibleCompanyMatches,
     lines,
@@ -307,12 +311,15 @@ export async function executeAutotaskPush(
     } else if (companyChoice?.type === "create_new") {
       const companyName = proposalCompanyName(proposal);
       if (!companyName) return { error: "This proposal has no company name to create in Autotask." };
-      if (!companyChoice.phone.trim()) {
-        return { error: "Autotask needs a phone number to create a new company." };
+      // The proposal's own phone is the real source; the dialog only asks
+      // for one when the proposal predates that field or was left blank.
+      const phone = proposal.prospectPhone?.trim() || companyChoice.phone.trim();
+      if (!phone) {
+        return { error: "Autotask needs a phone number to create a new company. Add one to this proposal first." };
       }
       companyId = await createAutotaskCompany(credentials, zoneUrl, {
         companyName,
-        phone: companyChoice.phone.trim(),
+        phone,
         address1: proposal.prospectAddress,
       });
     } else {

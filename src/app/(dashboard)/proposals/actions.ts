@@ -128,6 +128,7 @@ function buildQuotationNumber(companyName: string | null): string {
 export type ClientPrefillResult = {
   contactName: string | null;
   contactEmail: string | null;
+  contactPhone: string | null;
   address: string | null;
   error?: string;
 };
@@ -142,20 +143,27 @@ export type ClientPrefillResult = {
 export async function fetchClientAutotaskPrefillAction(clientId: string): Promise<ClientPrefillResult> {
   const user = await requirePermission("manage_proposals");
   if (!user) {
-    return { contactName: null, contactEmail: null, address: null, error: "You don't have permission to do that." };
+    return {
+      contactName: null,
+      contactEmail: null,
+      contactPhone: null,
+      address: null,
+      error: "You don't have permission to do that.",
+    };
   }
 
   const admin = createAdminClient();
   const { data: client } = await admin
     .from("clients")
-    .select("autotask_company_id, primary_contact_name, primary_contact_email, address")
+    .select("autotask_company_id, primary_contact_name, primary_contact_email, primary_contact_phone, address")
     .eq("id", clientId)
     .maybeSingle();
-  if (!client) return { contactName: null, contactEmail: null, address: null };
+  if (!client) return { contactName: null, contactEmail: null, contactPhone: null, address: null };
 
   const fallback: ClientPrefillResult = {
     contactName: client.primary_contact_name,
     contactEmail: client.primary_contact_email,
+    contactPhone: client.primary_contact_phone,
     address: client.address,
   };
   if (!client.autotask_company_id) return fallback;
@@ -171,6 +179,9 @@ export async function fetchClientAutotaskPrefillAction(clientId: string): Promis
     return {
       contactName: primaryContact?.name ?? fallback.contactName,
       contactEmail: primaryContact?.email ?? fallback.contactEmail,
+      // Autotask's contact lookup returns name and email only, so the
+      // phone always comes from the locally synced clients row.
+      contactPhone: fallback.contactPhone,
       address: address ?? fallback.address,
     };
   } catch (err) {
@@ -186,6 +197,7 @@ export async function createProposalAction(
     company: string | null;
     contactName: string | null;
     email: string | null;
+    phone: string | null;
     address: string | null;
   }
 ): Promise<CreateProposalState> {
@@ -225,6 +237,7 @@ export async function createProposalAction(
       prospect_company: snapshotCompany,
       prospect_contact_name: recipient.contactName?.trim() || null,
       prospect_email: recipient.email?.trim() || null,
+      prospect_phone: recipient.phone?.trim() || null,
       prospect_address: recipient.address?.trim() || null,
       title: trimmedTitle,
       owner_id: user.id,
@@ -269,6 +282,7 @@ export async function updateProposalFieldAction(
     "prospect_company",
     "prospect_contact_name",
     "prospect_email",
+    "prospect_phone",
     "prospect_address",
   ]);
   if (!ALLOWED.has(field)) return;

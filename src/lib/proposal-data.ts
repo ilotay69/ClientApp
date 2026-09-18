@@ -61,6 +61,7 @@ export type Proposal = {
   prospectCompany: string | null;
   prospectContactName: string | null;
   prospectEmail: string | null;
+  prospectPhone: string | null;
   prospectAddress: string | null;
   title: string;
   status: ProposalStatus;
@@ -188,7 +189,7 @@ export type ProposalPublicView = {
 };
 
 const PROPOSAL_COLUMNS = `
-  id, proposal_number, quotation_number, client_id, prospect_company, prospect_contact_name, prospect_email,
+  id, proposal_number, quotation_number, client_id, prospect_company, prospect_contact_name, prospect_email, prospect_phone,
   prospect_address, title, status, currency, intro, closing_note, valid_until, payment_terms, access_token,
   owner_id, created_by, sent_at, sent_to_email, first_viewed_at,
   last_viewed_at, view_count, accepted_at, accepted_by_name,
@@ -336,6 +337,7 @@ export async function getProposal(
     prospectCompany: data.prospect_company ?? null,
     prospectContactName: data.prospect_contact_name ?? null,
     prospectEmail: data.prospect_email ?? null,
+    prospectPhone: data.prospect_phone ?? null,
     prospectAddress: data.prospect_address ?? null,
     title: data.title,
     status: data.status as ProposalStatus,

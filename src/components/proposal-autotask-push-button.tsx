@@ -58,11 +58,14 @@ export function ProposalAutotaskPushButton({
     startLoad(async () => {
       const result = await previewAction(proposalId);
       setPreview(result);
+      // The proposal's own phone is the normal source — the box below is
+      // only a last resort for proposals created before it was collected.
+      if (!("error" in result)) setNewCompanyPhone(result.prospectPhone ?? "");
       // Nothing to choose when there's no existing link and no name match
       // at all — creating a new company is the only option, so pick it
       // automatically rather than making someone click a single radio.
       if (!("error" in result) && result.existingCompanyId === null && result.possibleCompanyMatches.length === 0) {
-        setCompanyChoice({ type: "create_new", phone: "" });
+        setCompanyChoice({ type: "create_new", phone: result.prospectPhone ?? "" });
       }
     });
   };
@@ -191,7 +194,9 @@ export function ProposalAutotaskPushButton({
                             htmlFor="new-company-phone"
                             className="block text-xs font-medium text-slate-600"
                           >
-                            Phone for the new company (Autotask requires one)
+                            {preview.prospectPhone
+                              ? "Phone for the new company (from this proposal)"
+                              : "Phone for the new company (Autotask requires one)"}
                           </label>
                           <input
                             id="new-company-phone"

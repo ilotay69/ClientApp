@@ -221,6 +221,22 @@ export default async function ProposalDetailPage({
                 )}
               </Detail>
               <Detail label="Owner">{proposal.ownerName ?? "—"}</Detail>
+              {/* Autotask cannot create a Company without a phone, so this
+                  stays editable rather than only being captured at
+                  creation — see proposal-autotask-push.ts. */}
+              <Detail label="Phone">
+                {editable ? (
+                  <InlineTextEdit
+                    taskId={proposal.id}
+                    field="prospect_phone"
+                    value={proposal.prospectPhone ?? ""}
+                    emptyLabel="Add a phone number"
+                    action={updateProposalFieldAction}
+                  />
+                ) : (
+                  (proposal.prospectPhone ?? "—")
+                )}
+              </Detail>
               <Detail label="Address">
                 {editable ? (
                   <InlineTextEdit
