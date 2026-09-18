@@ -155,6 +155,7 @@ const LICENSE_UTILIZATION: ReportDefinition = {
   downloadHref: "/api/reports/license-utilization",
   title: "License Utilization",
   description: "Assigned vs. available seats per license SKU across every client, live from Graph.",
+  quickFilterColumn: "Status",
 };
 
 const MFA_GAPS: ReportDefinition = {

@@ -10,6 +10,13 @@ export type ReportDefinition = {
   title: string;
   description: string;
   downloadHref: string;
+  /** Header name of a column worth offering as one-click toggle chips
+   * (e.g. "Status") rather than making someone type the value into the
+   * free-text filter - only meaningful when that column holds a small,
+   * repeated set of values. Chips are built from whatever distinct values
+   * actually show up in the loaded preview, so a report never needs a
+   * fixed list kept in sync by hand. */
+  quickFilterColumn?: string;
 };
 
 function cell(value: ReportCell): string {
@@ -36,19 +43,37 @@ export function ReportPreviewPanel({
   const [preview, setPreview] = useState<ReportPreview | { error: string } | null>(null);
   const [loading, startLoad] = useTransition();
   const [filterText, setFilterText] = useState("");
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [sort, setSort] = useState<SortState>(null);
 
   const load = () => {
     setFilterText("");
+    setQuickFilter(null);
     setSort(null);
     startLoad(async () => {
       setPreview(await previewAction(report.key));
     });
   };
 
+  const quickFilterColumnIndex =
+    preview && !("error" in preview) && report.quickFilterColumn
+      ? preview.headers.indexOf(report.quickFilterColumn)
+      : -1;
+
+  const quickFilterValues = useMemo(() => {
+    if (!preview || "error" in preview || quickFilterColumnIndex < 0) return [];
+    const values = new Set(preview.rows.map((row) => cell(row[quickFilterColumnIndex])));
+    return [...values].sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview, quickFilterColumnIndex]);
+
   const displayedRows = useMemo(() => {
     if (!preview || "error" in preview) return [];
     let rows = preview.rows;
+
+    if (quickFilter !== null && quickFilterColumnIndex >= 0) {
+      rows = rows.filter((row) => cell(row[quickFilterColumnIndex]) === quickFilter);
+    }
 
     const needle = filterText.trim().toLowerCase();
     if (needle) {
@@ -71,7 +96,7 @@ export function ReportPreviewPanel({
     }
 
     return rows;
-  }, [preview, filterText, sort]);
+  }, [preview, filterText, quickFilter, quickFilterColumnIndex, sort]);
 
   const toggleSort = (column: number) => {
     setSort((prev) => {
@@ -92,7 +117,7 @@ export function ReportPreviewPanel({
               {preview.truncated
                 ? `Showing first ${preview.rows.length} of ${preview.totalRows} rows — download for the full export.`
                 : `${preview.totalRows} row${preview.totalRows === 1 ? "" : "s"}.`}
-              {filterText && ` ${displayedRows.length} match filter.`}
+              {(filterText || quickFilter) && ` ${displayedRows.length} match filter.`}
             </p>
           )}
         </div>
@@ -132,13 +157,42 @@ export function ReportPreviewPanel({
 
       {preview && !("error" in preview) && (
         <>
-          <div className="border-b border-slate-100 px-5 py-2">
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-2">
             <input
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               placeholder="Filter rows…"
               className="w-full max-w-xs rounded-md border border-slate-300 px-2.5 py-1 text-xs focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             />
+            {quickFilterColumnIndex >= 0 && quickFilterValues.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setQuickFilter(null)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                    quickFilter === null
+                      ? "border-brand bg-brand text-white"
+                      : "border-slate-300 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  All
+                </button>
+                {quickFilterValues.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setQuickFilter(value)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                      quickFilter === value
+                        ? "border-brand bg-brand text-white"
+                        : "border-slate-300 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-xs">
@@ -162,7 +216,7 @@ export function ReportPreviewPanel({
                 {displayedRows.map((row, i) => (
                   <tr key={i}>
                     {row.map((value, j) => (
-                      <td key={j} className="whitespace-nowrap px-3 py-1.5 text-slate-700">
+                      <td key={j} className="max-w-xs break-words px-3 py-1.5 text-slate-700">
                         {cell(value)}
                       </td>
                     ))}
