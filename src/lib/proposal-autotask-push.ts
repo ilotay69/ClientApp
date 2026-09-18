@@ -416,6 +416,7 @@ export async function executeAutotaskPush(
         : proposal.title
       ).slice(0, 100),
       opportunityID: opportunityId,
+      companyID: companyId,
       effectiveDate: isoDate(today),
       expirationDate: closeDate,
       locationID: locationId,

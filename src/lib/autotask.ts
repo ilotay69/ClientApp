@@ -2358,6 +2358,10 @@ export async function createAutotaskOpportunity(
 export type AutotaskNewQuoteInput = {
   name: string;
   opportunityID: number;
+  /** Not required by the API, but without it the Quote exists only under
+   * its Opportunity: it never appears in the company's Quotes tab or in a
+   * quote search, both of which filter on the company. */
+  companyID: number;
   /** yyyy-mm-dd */
   effectiveDate: string;
   /** yyyy-mm-dd */
@@ -2373,11 +2377,18 @@ export async function createAutotaskQuote(
   const body: Record<string, unknown> = {
     name: input.name,
     opportunityID: input.opportunityID,
+    companyID: input.companyID,
     effectiveDate: input.effectiveDate,
     expirationDate: input.expirationDate,
     billToLocationID: input.locationID,
     shipToLocationID: input.locationID,
     soldToLocationID: input.locationID,
+    // Both default off, and an inactive quote is filtered out of the
+    // quote list the same way a company-less one is. The opportunity is
+    // created fresh per push and holds this one quote, so it is always
+    // that opportunity's primary.
+    isActive: true,
+    primaryQuote: true,
   };
 
   fillRequiredPicklists(await fetchEntityFields(creds, zoneUrl, "Quotes"), body, "Quote");
