@@ -156,6 +156,8 @@ const LICENSE_UTILIZATION: ReportDefinition = {
   title: "License Utilization",
   description: "Assigned vs. available seats per license SKU across every client, live from Graph.",
   quickFilterColumn: "Status",
+  maxValueFilterColumn: "Purchased",
+  maxValueFilterDefault: 10000,
 };
 
 const MFA_GAPS: ReportDefinition = {

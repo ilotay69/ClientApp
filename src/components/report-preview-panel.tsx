@@ -17,6 +17,16 @@ export type ReportDefinition = {
    * actually show up in the loaded preview, so a report never needs a
    * fixed list kept in sync by hand. */
   quickFilterColumn?: string;
+  /** Header name of a numeric column worth capping with a "hide rows of
+   * ___ or more" input (e.g. "Purchased") - built for SKUs like a
+   * free/pooled tier with a purchased count in the thousands that swamps
+   * the report and isn't something anyone reconciles seat-by-seat. Blank
+   * means no cap. */
+  maxValueFilterColumn?: string;
+  /** Starting value for that input, prefilled on load so the noisy rows
+   * are hidden from the first render rather than requiring someone to
+   * know to type a number in. Still fully editable/clearable. */
+  maxValueFilterDefault?: number;
 };
 
 function cell(value: ReportCell): string {
@@ -44,11 +54,15 @@ export function ReportPreviewPanel({
   const [loading, startLoad] = useTransition();
   const [filterText, setFilterText] = useState("");
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [maxValueInput, setMaxValueInput] = useState(
+    report.maxValueFilterDefault != null ? String(report.maxValueFilterDefault) : ""
+  );
   const [sort, setSort] = useState<SortState>(null);
 
   const load = () => {
     setFilterText("");
     setQuickFilter(null);
+    setMaxValueInput(report.maxValueFilterDefault != null ? String(report.maxValueFilterDefault) : "");
     setSort(null);
     startLoad(async () => {
       setPreview(await previewAction(report.key));
@@ -59,6 +73,12 @@ export function ReportPreviewPanel({
     preview && !("error" in preview) && report.quickFilterColumn
       ? preview.headers.indexOf(report.quickFilterColumn)
       : -1;
+
+  const maxValueColumnIndex =
+    preview && !("error" in preview) && report.maxValueFilterColumn
+      ? preview.headers.indexOf(report.maxValueFilterColumn)
+      : -1;
+  const maxValueThreshold = maxValueInput.trim() === "" ? null : Number(maxValueInput);
 
   const quickFilterValues = useMemo(() => {
     if (!preview || "error" in preview || quickFilterColumnIndex < 0) return [];
@@ -73,6 +93,13 @@ export function ReportPreviewPanel({
 
     if (quickFilter !== null && quickFilterColumnIndex >= 0) {
       rows = rows.filter((row) => cell(row[quickFilterColumnIndex]) === quickFilter);
+    }
+
+    if (maxValueThreshold !== null && !Number.isNaN(maxValueThreshold) && maxValueColumnIndex >= 0) {
+      rows = rows.filter((row) => {
+        const value = Number(row[maxValueColumnIndex]);
+        return Number.isNaN(value) || value < maxValueThreshold;
+      });
     }
 
     const needle = filterText.trim().toLowerCase();
@@ -96,7 +123,7 @@ export function ReportPreviewPanel({
     }
 
     return rows;
-  }, [preview, filterText, quickFilter, quickFilterColumnIndex, sort]);
+  }, [preview, filterText, quickFilter, quickFilterColumnIndex, maxValueThreshold, maxValueColumnIndex, sort]);
 
   const toggleSort = (column: number) => {
     setSort((prev) => {
@@ -117,7 +144,8 @@ export function ReportPreviewPanel({
               {preview.truncated
                 ? `Showing first ${preview.rows.length} of ${preview.totalRows} rows — download for the full export.`
                 : `${preview.totalRows} row${preview.totalRows === 1 ? "" : "s"}.`}
-              {(filterText || quickFilter) && ` ${displayedRows.length} match filter.`}
+              {(filterText || quickFilter || maxValueThreshold !== null) &&
+                ` ${displayedRows.length} match filter.`}
             </p>
           )}
         </div>
@@ -192,6 +220,20 @@ export function ReportPreviewPanel({
                   </button>
                 ))}
               </div>
+            )}
+            {maxValueColumnIndex >= 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                Hide {report.maxValueFilterColumn} of
+                <input
+                  type="number"
+                  min={0}
+                  value={maxValueInput}
+                  onChange={(e) => setMaxValueInput(e.target.value)}
+                  placeholder="No limit"
+                  className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                />
+                or more
+              </label>
             )}
           </div>
           <div className="overflow-x-auto">
