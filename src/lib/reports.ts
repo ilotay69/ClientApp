@@ -1,4 +1,5 @@
 import { formatDate, humanizeLabel } from "@/lib/format";
+import { friendlyM365SkuName } from "@/lib/m365-sku-names";
 import { fetchClientHoursSummary, fetchResourceHoursSummary, lastBusinessDayBefore, ymd } from "@/lib/resource-hours";
 import { fetchTimeEntriesForAnalysis } from "@/lib/time-entry-insights";
 import { fetchContractBlockHours } from "@/lib/contract-hours";
@@ -493,7 +494,7 @@ export async function buildLicenseUtilizationRollupReport(admin: Supabase): Prom
       const roundedPercentUsed = Math.round(r.percentUsed);
       return [
         r.clientName,
-        r.skuPartNumber,
+        friendlyM365SkuName(r.skuPartNumber),
         r.purchased,
         r.consumed,
         r.available,
