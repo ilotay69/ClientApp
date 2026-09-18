@@ -4,6 +4,7 @@ import { hasPermission } from "@/lib/permissions";
 import { AI_PROVIDER_LABELS, AI_PROVIDER_DEFAULT_MODELS, type AiProvider } from "@/lib/ai";
 import { AiProviderSettingsForm } from "@/components/ai-provider-settings-form";
 import { AutotaskSettingsForm } from "@/components/autotask-settings-form";
+import { AutotaskDefaultQuoteServiceForm } from "@/components/autotask-default-quote-service-form";
 import { NinjaOneSettingsForm } from "@/components/ninjaone-settings-form";
 import { HuduSettingsForm } from "@/components/hudu-settings-form";
 import { HuntressSettingsForm } from "@/components/huntress-settings-form";
@@ -25,6 +26,8 @@ import {
   setActiveAiProvider,
   saveAutotaskSettings,
   testAutotaskConnectionAction,
+  fetchAutotaskCatalogForSettingsAction,
+  saveAutotaskDefaultQuoteServiceAction,
   saveNinjaOneSettings,
   testNinjaOneConnectionAction,
   saveHuduSettings,
@@ -100,7 +103,7 @@ export default async function IntegrationsSettingsPage({
     admin.from("ai_provider_settings").select("provider, model, is_active, api_key"),
     admin
       .from("autotask_settings")
-      .select("username, secret, integration_code, zone_url")
+      .select("username, secret, integration_code, zone_url, default_quote_service_id, default_quote_service_name")
       .eq("id", true)
       .maybeSingle(),
     admin
@@ -222,14 +225,21 @@ export default async function IntegrationsSettingsPage({
               {
                 label: "Autotask",
                 content: (
-                  <AutotaskSettingsForm
-                    hasCredentials={Boolean(autotaskRow?.username && autotaskRow?.secret)}
-                    zoneUrl={autotaskRow?.zone_url ?? null}
-                    currentUsername={autotaskRow?.username ?? null}
-                    currentIntegrationCode={autotaskRow?.integration_code ?? null}
-                    saveAction={saveAutotaskSettings}
-                    testAction={testAutotaskConnectionAction}
-                  />
+                  <>
+                    <AutotaskSettingsForm
+                      hasCredentials={Boolean(autotaskRow?.username && autotaskRow?.secret)}
+                      zoneUrl={autotaskRow?.zone_url ?? null}
+                      currentUsername={autotaskRow?.username ?? null}
+                      currentIntegrationCode={autotaskRow?.integration_code ?? null}
+                      saveAction={saveAutotaskSettings}
+                      testAction={testAutotaskConnectionAction}
+                    />
+                    <AutotaskDefaultQuoteServiceForm
+                      currentName={autotaskRow?.default_quote_service_name ?? null}
+                      fetchAction={fetchAutotaskCatalogForSettingsAction}
+                      saveAction={saveAutotaskDefaultQuoteServiceAction}
+                    />
+                  </>
                 ),
               },
               {

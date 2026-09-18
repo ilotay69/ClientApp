@@ -2086,3 +2086,236 @@ export async function fetchAutotaskCatalog(
 
   return items.sort((a, b) => a.name.localeCompare(b.name));
 }
+
+// ============================================================================
+// WRITE OPERATIONS — everything above this line only ever reads from
+// Autotask. Everything below creates real records in a live, production
+// Autotask instance (Companies, Opportunities, Quotes, QuoteItems) — used
+// by the proposal "Push to Autotask" feature
+// (src/lib/proposal-autotask-push.ts). Treat any change here with the same
+// care as a billing/CRM write anywhere else, because that's exactly what
+// it is — there's no test mode, this hits the real tenant.
+// ============================================================================
+
+/** POST create — Autotask's REST API has no PUT/insert distinction beyond
+ * this: the URL is just the bare entity name (no /query), the body is the
+ * flat field object, and a success response is {"itemId": <id>}. Every
+ * other function in this file only ever reads (autotaskQuery); this is the
+ * one primitive every write function below shares. */
+async function autotaskCreate(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  entity: string,
+  body: Record<string, unknown>,
+  attempt = 0
+): Promise<number> {
+  const res = await fetch(`${zoneUrl}/${entity}`, {
+    method: "POST",
+    headers: autotaskHeaders(creds),
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 429 && attempt < MAX_THREAD_LIMIT_RETRIES) {
+    await sleep(1000 * (attempt + 1));
+    return autotaskCreate(creds, zoneUrl, entity, body, attempt + 1);
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Autotask ${entity} create failed (${res.status}): ${text}`);
+  }
+  const json = await res.json();
+  if (typeof json.itemId !== "number") {
+    throw new Error(`Autotask ${entity} create didn't return an itemId: ${JSON.stringify(json)}`);
+  }
+  return json.itemId;
+}
+
+/** The first active picklist value for one field on one entity — used for
+ * Opportunities' required stage/status, where this app has no way to know
+ * which of a tenant's own custom picklist labels means "just started".
+ * Prefers whichever entry Autotask itself flags as the default, if any;
+ * otherwise just the first active one. Staff can change it by hand in
+ * Autotask afterward — this only has to be a valid starting value, since
+ * the Opportunity is scaffolding for the Quote, not something anyone
+ * manages day to day. */
+async function firstActivePicklistValue(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  entity: string,
+  fieldName: string
+): Promise<number | null> {
+  const fields = await fetchEntityFields(creds, zoneUrl, entity);
+  const field = fields.find((f) => f.name === fieldName);
+  const values = (field?.picklistValues ?? []) as unknown as {
+    value: string;
+    isActive?: boolean;
+    isDefaultValue?: boolean;
+  }[];
+  const active = values.filter((v) => v.isActive !== false);
+  const preferred = active.find((v) => v.isDefaultValue) ?? active[0];
+  return preferred ? Number(preferred.value) : null;
+}
+
+export type AutotaskNewCompanyInput = {
+  companyName: string;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+};
+
+/** Creates a real Company in Autotask for a prospect that doesn't have one
+ * yet — companyType resolved to this tenant's own "Customer" picklist
+ * value the same way fetchActiveAutotaskCompanies already does when
+ * reading, rather than a hardcoded numeric id that would break the moment
+ * the tenant reorders its own picklist. */
+export async function createAutotaskCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  input: AutotaskNewCompanyInput
+): Promise<number> {
+  const fields = await fetchEntityFields(creds, zoneUrl, "Companies");
+  const companyTypeMap = picklistMap(fields, "companyType");
+  const customerValue = [...companyTypeMap.entries()].find(
+    ([, label]) => label.trim().toLowerCase() === "customer"
+  )?.[0];
+  if (customerValue === undefined) {
+    throw new Error('Could not find a "Customer" company type in Autotask\'s own picklist.');
+  }
+
+  return autotaskCreate(creds, zoneUrl, "Companies", {
+    companyName: input.companyName,
+    companyType: customerValue,
+    ...(input.address1 ? { address1: input.address1 } : {}),
+    ...(input.address2 ? { address2: input.address2 } : {}),
+    ...(input.city ? { city: input.city } : {}),
+    ...(input.state ? { state: input.state } : {}),
+    ...(input.postalCode ? { postalCode: input.postalCode } : {}),
+    ...(input.country ? { country: input.country } : {}),
+  });
+}
+
+/** A standalone address record for a Quote's billTo/shipTo/soldTo —
+ * QuoteLocationsEntity carries no link back to a Company at all, just an
+ * address, so one row covers all three references on the same Quote. */
+export async function createAutotaskQuoteLocation(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  address: {
+    address1?: string | null;
+    address2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+  } = {}
+): Promise<number> {
+  return autotaskCreate(creds, zoneUrl, "QuoteLocations", {
+    ...(address.address1 ? { address1: address.address1 } : {}),
+    ...(address.address2 ? { address2: address.address2 } : {}),
+    ...(address.city ? { city: address.city } : {}),
+    ...(address.state ? { state: address.state } : {}),
+    ...(address.postalCode ? { postalCode: address.postalCode } : {}),
+  });
+}
+
+export type AutotaskNewOpportunityInput = {
+  companyID: number;
+  title: string;
+  amount: number;
+  ownerResourceID: number;
+  /** yyyy-mm-dd */
+  projectedCloseDate: string;
+};
+
+/** Bare scaffolding to hang a Quote off of — a Quote structurally requires
+ * an opportunityID (see QuotesEntity), and this app doesn't otherwise
+ * track Opportunities at all. useQuoteTotals: true keeps the Opportunity's
+ * amount in sync with the Quote's own line items rather than needing to
+ * be recomputed here by hand. */
+export async function createAutotaskOpportunity(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  input: AutotaskNewOpportunityInput
+): Promise<number> {
+  const [stage, status] = await Promise.all([
+    firstActivePicklistValue(creds, zoneUrl, "Opportunities", "stage"),
+    firstActivePicklistValue(creds, zoneUrl, "Opportunities", "status"),
+  ]);
+  if (stage === null || status === null) {
+    throw new Error("Could not resolve a default stage/status from Autotask's own Opportunities picklists.");
+  }
+
+  return autotaskCreate(creds, zoneUrl, "Opportunities", {
+    companyID: input.companyID,
+    title: input.title,
+    amount: input.amount,
+    cost: 0,
+    probability: 0,
+    projectedCloseDate: input.projectedCloseDate,
+    ownerResourceID: input.ownerResourceID,
+    stage,
+    status,
+    useQuoteTotals: true,
+  });
+}
+
+export type AutotaskNewQuoteInput = {
+  name: string;
+  opportunityID: number;
+  /** yyyy-mm-dd */
+  effectiveDate: string;
+  /** yyyy-mm-dd */
+  expirationDate: string;
+  locationID: number;
+};
+
+export async function createAutotaskQuote(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  input: AutotaskNewQuoteInput
+): Promise<number> {
+  return autotaskCreate(creds, zoneUrl, "Quotes", {
+    name: input.name,
+    opportunityID: input.opportunityID,
+    effectiveDate: input.effectiveDate,
+    expirationDate: input.expirationDate,
+    billToLocationID: input.locationID,
+    shipToLocationID: input.locationID,
+    soldToLocationID: input.locationID,
+  });
+}
+
+export type AutotaskNewQuoteItemInput = {
+  quoteID: number;
+  quantity: number;
+  unitPrice: number;
+  description: string;
+  /** Exactly one of these must be set — Autotask requires every QuoteItem
+   * to reference a real catalog item (see QuoteItemsEntity: "only one of
+   * ... is allowed for each QuoteItem entity that you create"). There is
+   * no way to send a plain free-text line through this API. */
+  serviceID?: number;
+  productID?: number;
+};
+
+export async function createAutotaskQuoteItem(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  input: AutotaskNewQuoteItemInput
+): Promise<number> {
+  return autotaskCreate(creds, zoneUrl, "QuoteItems", {
+    quoteID: input.quoteID,
+    quantity: input.quantity,
+    unitPrice: input.unitPrice,
+    description: input.description.slice(0, 2000),
+    isOptional: false,
+    lineDiscount: 0,
+    percentageDiscount: 0,
+    unitDiscount: 0,
+    ...(input.serviceID ? { serviceID: input.serviceID } : {}),
+    ...(input.productID ? { productID: input.productID } : {}),
+  });
+}

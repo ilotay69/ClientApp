@@ -17,6 +17,12 @@ import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import {
+  previewAutotaskPush,
+  executeAutotaskPush,
+  type AutotaskPushPreview,
+  type AutotaskPushCompanyChoice,
+} from "@/lib/proposal-autotask-push";
+import {
   fetchAutotaskCatalog,
   fetchPrimaryContactForCompany,
   fetchCompanyAddress,
@@ -1220,6 +1226,44 @@ export async function setProposalProcessingInternallyAction(
   if (!data) return { ok: false, message: "Only an accepted proposal can be marked as processing." };
   revalidateProposal(proposalId);
   return { ok: true, message: checked ? "Marked as processing internally." : "Unmarked." };
+}
+
+/** Read-only — resolves the company/line-item matches a confirmation
+ * dialog needs before anything gets written to Autotask. See
+ * src/lib/proposal-autotask-push.ts for why this exists: Autotask's API
+ * can't create an Invoice at all, and every Quote line must reference a
+ * real catalog item, so both of those need a human's OK before proceeding. */
+export async function previewAutotaskPushAction(
+  proposalId: string
+): Promise<AutotaskPushPreview | { error: string }> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return { error: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+
+  return previewAutotaskPush(admin, proposalId, settings);
+}
+
+/** The actual writes — see executeAutotaskPush. companyChoice is only
+ * meaningful (and required) when the proposal has no client linked yet;
+ * ignored otherwise, since an existing client's own Autotask company is
+ * never ambiguous. */
+export async function pushProposalToAutotaskAction(
+  proposalId: string,
+  companyChoice: AutotaskPushCompanyChoice | null
+): Promise<{ ok: true; quoteId: number } | { error: string }> {
+  const user = await requirePermission("manage_proposals");
+  if (!user) return { error: "You don't have permission to do that." };
+
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings) return { error: "Autotask isn't connected yet — set it up under Settings → Integrations." };
+
+  const result = await executeAutotaskPush(admin, proposalId, settings, companyChoice, user.id);
+  if ("ok" in result) revalidateProposal(proposalId);
+  return result;
 }
 
 /** The raw open log behind the "opened 4 times" pill — loaded on demand

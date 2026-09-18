@@ -116,6 +116,12 @@ export type Proposal = {
   declineReason: string | null;
   reminderCount: number;
   lastReminderAt: string | null;
+  /** Set once "Push to Autotask" (147) actually creates a Quote — null
+   * means this proposal has never been pushed. Guards against creating a
+   * duplicate Quote if the button is clicked twice. */
+  autotaskQuoteId: number | null;
+  autotaskQuoteNumber: string | null;
+  autotaskPushedAt: string | null;
   createdAt: string;
   updatedAt: string;
   sections: ProposalSection[];
@@ -190,7 +196,8 @@ const PROPOSAL_COLUMNS = `
   accepted_tax_rate, accepted_ip, accepted_user_agent,
   accept_authority_confirmed, accepted_signature_path, processing_internally,
   declined_at, decline_reason,
-  reminder_count, last_reminder_at, created_at, updated_at
+  reminder_count, last_reminder_at, autotask_quote_id, autotask_quote_number, autotask_pushed_at,
+  created_at, updated_at
 `;
 
 function toLineItem(row: Record<string, unknown>): ProposalLineItem {
@@ -364,6 +371,9 @@ export async function getProposal(
     declineReason: data.decline_reason ?? null,
     reminderCount: data.reminder_count ?? 0,
     lastReminderAt: data.last_reminder_at ?? null,
+    autotaskQuoteId: data.autotask_quote_id ?? null,
+    autotaskQuoteNumber: data.autotask_quote_number ?? null,
+    autotaskPushedAt: data.autotask_pushed_at ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     sections: (sectionRows ?? []).map(toSection),

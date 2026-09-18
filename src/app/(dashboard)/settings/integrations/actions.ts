@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import type { AiProvider } from "@/lib/ai";
-import { resolveZoneUrl, testAutotaskConnection, type AutotaskCredentials } from "@/lib/autotask";
+import {
+  resolveZoneUrl,
+  testAutotaskConnection,
+  fetchAutotaskCatalog,
+  type AutotaskCredentials,
+  type AutotaskCatalogItem,
+} from "@/lib/autotask";
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { testNinjaOneConnection, type NinjaOneCredentials } from "@/lib/ninjaone";
 import { getNinjaOneSettings } from "@/lib/ninjaone-settings";
@@ -183,6 +189,52 @@ export async function testAutotaskConnectionAction(): Promise<{ ok: boolean; mes
   }
 
   return { ok: true, message: "Connected — credentials are working." };
+}
+
+/** For the "Push to Autotask" fallback-service picker — same catalog the
+ * proposal editor's own "Add from Autotask" uses, just gated on
+ * manage_integrations instead of manage_proposals since this is a global
+ * setting, not a per-proposal action. */
+export async function fetchAutotaskCatalogForSettingsAction(): Promise<
+  { items: AutotaskCatalogItem[] } | { error: string }
+> {
+  if (!(await requirePermission("manage_integrations"))) {
+    return { error: "You don't have permission to do that." };
+  }
+  const admin = createAdminClient();
+  const settings = await getAutotaskSettings(admin);
+  if (!settings?.zoneUrl) {
+    return { error: "Autotask isn't connected yet — save your credentials above first." };
+  }
+  try {
+    const items = await fetchAutotaskCatalog(settings.credentials, settings.zoneUrl);
+    return { items };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to load the Autotask catalog." };
+  }
+}
+
+/** Every "Push to Autotask" QuoteItem must reference a real Autotask
+ * Service/Product — there's no way to send a plain free-text line through
+ * that API. This is the one every proposal line falls back to when its
+ * own description doesn't match an existing Service by name (see
+ * src/lib/proposal-autotask-push.ts). */
+export async function saveAutotaskDefaultQuoteServiceAction(
+  serviceId: number,
+  serviceName: string
+): Promise<FormState> {
+  const user = await requirePermission("manage_integrations");
+  if (!user) return { error: "You don't have permission to do that.", success: null };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("autotask_settings")
+    .update({ default_quote_service_id: serviceId, default_quote_service_name: serviceName })
+    .eq("id", true);
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath("/settings/integrations");
+  return { error: null, success: `Set to "${serviceName}".` };
 }
 
 /** Upserts the singleton NinjaOne credentials row. Secret is write-only,

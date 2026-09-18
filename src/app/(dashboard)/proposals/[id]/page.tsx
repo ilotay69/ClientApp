@@ -13,6 +13,7 @@ import { ProposalSendPanel } from "@/components/proposal-send-panel";
 import { ProposalProcessingCheckbox } from "@/components/proposal-processing-checkbox";
 import { ProposalAiDraft } from "@/components/proposal-ai-draft";
 import { ProposalBrochurePicker } from "@/components/proposal-brochure-picker";
+import { ProposalAutotaskPushButton } from "@/components/proposal-autotask-push-button";
 import { fetchProposalBrochures, fetchLinkedBrochureIds } from "@/lib/proposal-brochures";
 import { getSignedProposalSignatureUrl } from "@/lib/proposal-signature";
 import { formatDate } from "@/lib/format";
@@ -41,6 +42,8 @@ import {
   reviseProposalAction,
   revokeProposalLinkAction,
   setProposalProcessingInternallyAction,
+  previewAutotaskPushAction,
+  pushProposalToAutotaskAction,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -186,6 +189,16 @@ export default async function ProposalDetailPage({
               withdrawAction={withdrawProposalAction.bind(null, proposal.id)}
               reviseAction={reviseProposalAction.bind(null, proposal.id)}
               revokeLinkAction={revokeProposalLinkAction.bind(null, proposal.id)}
+            />
+          )}
+
+          {canManage && !isDraft && (
+            <ProposalAutotaskPushButton
+              proposalId={proposal.id}
+              currency={proposal.currency}
+              alreadyPushedQuoteId={proposal.autotaskQuoteId}
+              previewAction={previewAutotaskPushAction}
+              pushAction={pushProposalToAutotaskAction}
             />
           )}
 
