@@ -6,7 +6,12 @@ import { formatMoney } from "@/lib/proposal-totals";
 import { ProposalShell, ProposalMessage, ProposalHeader } from "@/components/proposal-shell";
 import { ProposalAcceptPanel } from "@/components/proposal-accept-panel";
 import { ProposalViewBeacon } from "@/components/proposal-view-beacon";
-import { ProposalSectionNav } from "@/components/proposal-section-nav";
+import {
+  ProposalSectionsProvider,
+  ProposalSectionNav,
+  ProposalSectionPicker,
+  ProposalActiveSection,
+} from "@/components/proposal-sections";
 import { acceptProposalByTokenAction, recordProposalViewAction } from "./actions";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
@@ -120,11 +125,14 @@ export default async function ProposalViewPage({
     getCompanyInfo(),
   ]);
   const bodySections = proposal.sections.filter((s) => s.body?.trim() || s.kind === "pricing");
-  // The accept panel normally renders inside the pricing section, where the
-  // numbers are. If someone deleted that section, it falls to the bottom of
-  // the page rather than disappearing — a proposal with no way to accept it
-  // would defeat the entire feature.
-  const hasPricingSection = bodySections.some((s) => s.kind === "pricing");
+  // Pricing is pulled out of the switchable sections and pinned under all
+  // of them, so a prospect who reads one section and stops still has the
+  // numbers and the Accept button in front of them. Its heading/body still
+  // render, just always rather than only when selected — and if someone
+  // deleted the section entirely, the accept panel stands on its own; a
+  // proposal with no way to accept it would defeat the whole feature.
+  const pricingSection = bodySections.find((s) => s.kind === "pricing") ?? null;
+  const narrativeSections = bodySections.filter((s) => s.kind !== "pricing");
   const acceptPanel = (
     <ProposalAcceptPanel
       token={token}
@@ -164,8 +172,11 @@ export default async function ProposalViewPage({
       <ProposalHeader validUntilLabel={proposal.validUntil ? formatDate(proposal.validUntil) : null} />
 
       <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-16">
-        <div className="lg:grid lg:grid-cols-[220px_1fr] lg:items-start lg:gap-12">
-          <ProposalSectionNav sections={bodySections.map((s) => ({ id: s.id, heading: s.heading }))} />
+        <ProposalSectionsProvider
+          sections={narrativeSections.map((s) => ({ id: s.id, heading: s.heading, body: s.body }))}
+          className="lg:grid lg:grid-cols-[220px_1fr] lg:items-start lg:gap-12"
+        >
+          <ProposalSectionNav />
 
           <div className="max-w-3xl">
             <p className="inline-flex items-center rounded-full bg-brand-soft px-3 py-1 text-xs font-bold uppercase tracking-[0.15em] text-brand-dark">
@@ -217,29 +228,27 @@ export default async function ProposalViewPage({
               </div>
             </div>
 
-            <div className="mt-12 space-y-6">
-              {bodySections.map((section, index) => (
-                <section
-                  key={section.id}
-                  id={`sec-${section.id}`}
-                  className="scroll-mt-6 rounded-2xl border border-slate-200 p-6 sm:p-8"
-                >
-                  <div className="flex items-center gap-3.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-extrabold tabular-nums text-brand-dark">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">{section.heading}</h2>
-                  </div>
-                  {section.body?.trim() && (
+            <ProposalSectionPicker />
+            <ProposalActiveSection />
+
+            {/* Pinned below whichever section is selected, never one of the
+                switchable sections itself — a prospect who reads one
+                section and stops should still have the numbers and the
+                Accept button in front of them. */}
+            <div className="mt-6 rounded-2xl border border-slate-200 p-6 sm:p-8">
+              {pricingSection && (
+                <>
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                    {pricingSection.heading}
+                  </h2>
+                  {pricingSection.body?.trim() && (
                     <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-slate-700">
-                      {section.body}
+                      {pricingSection.body}
                     </p>
                   )}
-                  {section.kind === "pricing" && <div className="mt-6">{acceptPanel}</div>}
-                </section>
-              ))}
-
-              {!hasPricingSection && acceptPanel}
+                </>
+              )}
+              <div className={pricingSection ? "mt-6" : undefined}>{acceptPanel}</div>
             </div>
 
             {brochures.length > 0 && (
@@ -291,7 +300,7 @@ export default async function ProposalViewPage({
               </p>
             </div>
           </div>
-        </div>
+        </ProposalSectionsProvider>
       </main>
     </ProposalShell>
   );
