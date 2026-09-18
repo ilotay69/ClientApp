@@ -304,6 +304,10 @@ export async function getProposal(
     )
     .eq("id", id)
     .maybeSingle();
+  // Logged rather than swallowed: a missing column (a migration that never
+  // ran) fails here exactly like a proposal that does not exist, and the
+  // page it feeds then renders nothing with no clue why.
+  if (error) console.error("getProposal: select failed", error);
   if (error || !data) return null;
 
   const [{ data: sectionRows }, { data: itemRows }] = await Promise.all([
@@ -499,6 +503,7 @@ export async function getProposalByAccessToken(
     )
     .eq("access_token", token)
     .maybeSingle();
+  if (error) console.error("getProposalByAccessToken: select failed", error);
   if (error || !data) return null;
 
   const [{ data: sectionRows }, { data: itemRows }] = await Promise.all([
