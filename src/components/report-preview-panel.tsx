@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { IconDownload } from "@/components/icons";
 import type { ReportKey, ReportPreview } from "@/app/(dashboard)/reports/actions";
 import type { ReportCell } from "@/lib/reports";
@@ -76,6 +76,15 @@ export function ReportPreviewPanel({
       setPreview(await previewAction(report.key));
     });
   };
+
+  // GroupedTabs only ever mounts the active tab's content (see
+  // src/components/grouped-tabs.tsx), so this fires exactly once per tab
+  // switch - not all reports at once - the moment someone actually opens
+  // this report, instead of making them click Load preview first.
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const quickFilterColumnIndex =
     preview && !("error" in preview) && report.quickFilterColumn
