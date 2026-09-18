@@ -22,7 +22,6 @@ import {
   createAutotaskOpportunity,
   createAutotaskQuote,
   createAutotaskQuoteItem,
-  type AutotaskCredentials,
   type AutotaskCatalogItem,
 } from "@/lib/autotask";
 import type { AutotaskSettings } from "@/lib/autotask-settings";
@@ -57,6 +56,34 @@ export type AutotaskPushPreview = {
 
 function normalize(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** The one company name for this proposal, so the name the confirmation
+ * dialog promises to create is always the name actually created. A
+ * proposal is either against a real client or a free-text prospect; when
+ * somehow both are set, the linked client's own name wins. */
+function proposalCompanyName(proposal: Proposal): string | null {
+  return proposal.clientName?.trim() || proposal.prospectCompany?.trim() || null;
+}
+
+/** yyyy-mm-dd in local time. toISOString() would be UTC, which after
+ * ~8pm Eastern rolls a quote's effective date forward to tomorrow. */
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Autotask requires every QuoteItem to point at a real catalog record —
+ * a matched Service/Product, or the configured fallback Service. Returns
+ * null when a line can't be resolved at all, which has to be caught
+ * before anything is written. */
+function resolveLineReference(
+  match: AutotaskCatalogItem | null,
+  fallbackServiceId: number | null
+): { serviceID?: number; productID?: number } | null {
+  if (match?.kind === "service") return { serviceID: match.id };
+  if (match?.kind === "product") return { productID: match.id };
+  if (fallbackServiceId) return { serviceID: fallbackServiceId };
+  return null;
 }
 
 function matchCatalogItem(catalog: AutotaskCatalogItem[], description: string): AutotaskCatalogItem | null {
@@ -100,10 +127,10 @@ export async function previewAutotaskPush(
   }
 
   if (!existingCompanyId) {
-    const companyName = proposal.clientName ?? proposal.prospectCompany ?? "";
-    if (companyName.trim()) {
+    const companyName = proposalCompanyName(proposal);
+    if (companyName) {
       try {
-        possibleCompanyMatches = await searchAutotaskCompanies(credentials, zoneUrl, companyName.trim());
+        possibleCompanyMatches = await searchAutotaskCompanies(credentials, zoneUrl, companyName);
       } catch (err) {
         console.error("previewAutotaskPush: company search failed", err);
       }
@@ -131,7 +158,7 @@ export async function previewAutotaskPush(
 
   return {
     proposalTitle: proposal.title,
-    companyName: proposal.clientName ?? proposal.prospectCompany ?? "Unknown",
+    companyName: proposalCompanyName(proposal) ?? "Unknown",
     existingCompanyId,
     possibleCompanyMatches,
     lines,
@@ -170,65 +197,37 @@ export async function executeAutotaskPush(
   const { credentials, zoneUrl } = autotaskSettings;
 
   try {
-    // --- Resolve the Company ---------------------------------------------
-    let companyId: number | null = null;
-    // A linked client with an already-mapped Autotask company needs no
-    // choice at all — that mapping is simply used. Anything else (a
-    // prospect, or a linked client that was never mapped to Autotask)
-    // falls through to whatever was confirmed in the preview dialog,
-    // exactly like previewAutotaskPush's own resolution logic.
-    let existingMappedCompanyId: number | null = null;
-    if (proposal.clientId) {
-      const { data: client } = await admin
-        .from("clients")
-        .select("autotask_company_id")
-        .eq("id", proposal.clientId)
-        .maybeSingle();
-      existingMappedCompanyId = client?.autotask_company_id ?? null;
+    // --- Everything that can fail, BEFORE anything is written -------------
+    // Autotask has no transaction or rollback: a failure halfway through
+    // leaves a real Company/Opportunity/Quote behind, and a retry would
+    // then create a second set. So every check that can reject this push
+    // runs first, against reads only.
+
+    const includedItems = proposal.lineItems.filter((i) => !i.isOptional || i.isSelected);
+    if (includedItems.length === 0) {
+      return { error: "This proposal has no line items to push." };
     }
 
-    if (existingMappedCompanyId) {
-      companyId = existingMappedCompanyId;
-    } else if (companyChoice?.type === "use_existing") {
-      companyId = companyChoice.companyId;
-    } else if (companyChoice?.type === "create_new") {
-      const companyName = proposal.prospectCompany ?? proposal.clientName;
-      if (!companyName) return { error: "This proposal has no company name to create in Autotask." };
-      companyId = await createAutotaskCompany(credentials, zoneUrl, {
-        companyName,
-        address1: proposal.prospectAddress,
-      });
-    } else {
-      return { error: "No company was chosen for this push." };
-    }
+    // Deliberately not caught — if the catalog can't be read, every line
+    // would silently fall back to the default service and the Quote in
+    // Autotask would not be the one the preview showed.
+    const catalog = await fetchAutotaskCatalog(credentials, zoneUrl);
 
-    // --- Link the new Autotask company back to this app's own data --------
-    // A proposal already pointing at a client just gets that client's
-    // mapping filled in; a prospect gets promoted into a brand new client
-    // row, linked via client_id from here on.
-    let clientId = proposal.clientId;
-    if (companyChoice?.type === "create_new" && companyId) {
-      if (clientId) {
-        await admin.from("clients").update({ autotask_company_id: companyId }).eq("id", clientId);
-      } else {
-        const { data: newClient, error: clientError } = await admin
-          .from("clients")
-          .insert({
-            name: proposal.prospectCompany ?? proposal.clientName ?? "New client",
-            autotask_company_id: companyId,
-            primary_contact_name: proposal.prospectContactName,
-            primary_contact_email: proposal.prospectEmail,
-            address: proposal.prospectAddress,
-          })
-          .select("id")
-          .single();
-        if (clientError) {
-          console.error("executeAutotaskPush: creating local client failed", clientError);
-        } else if (newClient) {
-          clientId = newClient.id;
-          await admin.from("proposals").update({ client_id: clientId }).eq("id", proposalId);
-        }
+    const resolvedLines: {
+      item: (typeof includedItems)[number];
+      reference: { serviceID?: number; productID?: number };
+    }[] = [];
+    for (const item of includedItems) {
+      const reference = resolveLineReference(
+        matchCatalogItem(catalog, item.description),
+        autotaskSettings.defaultQuoteServiceId
+      );
+      if (!reference) {
+        return {
+          error: `"${item.description}" doesn't match an Autotask service and no fallback service is configured (Settings → Integrations → Autotask).`,
+        };
       }
+      resolvedLines.push({ item, reference });
     }
 
     // --- Resource to own the scaffolding Opportunity -----------------------
@@ -256,6 +255,84 @@ export async function executeAutotaskPush(
       };
     }
 
+    // --- Resolve the Company ---------------------------------------------
+    let companyId: number | null = null;
+    // A linked client with an already-mapped Autotask company needs no
+    // choice at all — that mapping is simply used. Anything else (a
+    // prospect, or a linked client that was never mapped to Autotask)
+    // falls through to whatever was confirmed in the preview dialog,
+    // exactly like previewAutotaskPush's own resolution logic.
+    let existingMappedCompanyId: number | null = null;
+    if (proposal.clientId) {
+      const { data: client } = await admin
+        .from("clients")
+        .select("autotask_company_id")
+        .eq("id", proposal.clientId)
+        .maybeSingle();
+      existingMappedCompanyId = client?.autotask_company_id ?? null;
+    }
+
+    if (existingMappedCompanyId) {
+      companyId = existingMappedCompanyId;
+    } else if (companyChoice?.type === "use_existing") {
+      companyId = companyChoice.companyId;
+    } else if (companyChoice?.type === "create_new") {
+      const companyName = proposalCompanyName(proposal);
+      if (!companyName) return { error: "This proposal has no company name to create in Autotask." };
+      companyId = await createAutotaskCompany(credentials, zoneUrl, {
+        companyName,
+        address1: proposal.prospectAddress,
+      });
+    } else {
+      return { error: "No company was chosen for this push." };
+    }
+
+    // --- Link that Autotask company back to this app's own data -----------
+    // Whichever way the company was resolved, this app should end up
+    // pointing at it too: a proposal already on a client fills in that
+    // client's missing mapping, and a prospect gets attached to whichever
+    // client already carries that company — or promoted into a new one.
+    if (proposal.clientId) {
+      if (!existingMappedCompanyId) {
+        await admin
+          .from("clients")
+          .update({ autotask_company_id: companyId })
+          .eq("id", proposal.clientId);
+      }
+    } else {
+      // limit(1) because nothing stops two client rows carrying the same
+      // Autotask company — maybeSingle() alone would error on that rather
+      // than just picking one.
+      const { data: alreadyLinked } = await admin
+        .from("clients")
+        .select("id")
+        .eq("autotask_company_id", companyId)
+        .limit(1)
+        .maybeSingle();
+
+      let clientId: string | null = alreadyLinked?.id ?? null;
+      if (!clientId) {
+        const { data: newClient, error: clientError } = await admin
+          .from("clients")
+          .insert({
+            name: proposalCompanyName(proposal) ?? "New client",
+            autotask_company_id: companyId,
+            primary_contact_name: proposal.prospectContactName,
+            primary_contact_email: proposal.prospectEmail,
+            address: proposal.prospectAddress,
+          })
+          .select("id")
+          .single();
+        // Non-fatal: the Autotask Quote is the point of this push, and a
+        // missing local client row is fixable by hand afterward.
+        if (clientError) console.error("executeAutotaskPush: creating local client failed", clientError);
+        clientId = newClient?.id ?? null;
+      }
+      if (clientId) {
+        await admin.from("proposals").update({ client_id: clientId }).eq("id", proposalId);
+      }
+    }
+
     // --- QuoteLocation, Opportunity, Quote ----------------------------------
     const locationId = await createAutotaskQuoteLocation(credentials, zoneUrl, {
       address1: proposal.prospectAddress,
@@ -263,56 +340,45 @@ export async function executeAutotaskPush(
 
     const today = new Date();
     const in30Days = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+    const closeDate = isoDate(proposal.validUntil ? new Date(`${proposal.validUntil}T00:00:00`) : in30Days);
 
     const opportunityId = await createAutotaskOpportunity(credentials, zoneUrl, {
       companyID: companyId,
       title: proposal.title,
       amount: proposal.totals.firstInvoiceTotal,
       ownerResourceID,
-      projectedCloseDate: isoDate(proposal.validUntil ? new Date(proposal.validUntil) : in30Days),
+      projectedCloseDate: closeDate,
     });
 
     const quoteId = await createAutotaskQuote(credentials, zoneUrl, {
-      name: `${proposal.quotationNumber ?? proposal.title} — ${proposal.title}`.slice(0, 100),
+      name: (proposal.quotationNumber
+        ? `${proposal.quotationNumber} — ${proposal.title}`
+        : proposal.title
+      ).slice(0, 100),
       opportunityID: opportunityId,
       effectiveDate: isoDate(today),
-      expirationDate: isoDate(proposal.validUntil ? new Date(proposal.validUntil) : in30Days),
+      expirationDate: closeDate,
       locationID: locationId,
     });
 
-    // --- Line items ----------------------------------------------------------
-    let catalog: AutotaskCatalogItem[] = [];
-    try {
-      catalog = await fetchAutotaskCatalog(credentials, zoneUrl);
-    } catch (err) {
-      console.error("executeAutotaskPush: catalog fetch failed", err);
-    }
+    // The Quote exists in Autotask from here on, so record it before the
+    // line items go in. If one of those fails, a retry short-circuits on
+    // this id instead of building a second Company/Opportunity/Quote.
+    await admin
+      .from("proposals")
+      .update({ autotask_quote_id: quoteId, autotask_pushed_at: new Date().toISOString() })
+      .eq("id", proposalId);
 
-    const includedItems = proposal.lineItems.filter((i) => !i.isOptional || i.isSelected);
-    for (const item of includedItems) {
-      const match = matchCatalogItem(catalog, item.description);
-      const serviceID = match?.kind === "service" ? match.id : match ? undefined : autotaskSettings.defaultQuoteServiceId ?? undefined;
-      const productID = match?.kind === "product" ? match.id : undefined;
-      if (!serviceID && !productID) {
-        return {
-          error: `"${item.description}" doesn't match an Autotask service and no fallback service is configured (Settings → Integrations).`,
-        };
-      }
+    // --- Line items ----------------------------------------------------------
+    for (const { item, reference } of resolvedLines) {
       await createAutotaskQuoteItem(credentials, zoneUrl, {
         quoteID: quoteId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         description: item.detail ? `${item.description} — ${item.detail}` : item.description,
-        serviceID,
-        productID,
+        ...reference,
       });
     }
-
-    await admin
-      .from("proposals")
-      .update({ autotask_quote_id: quoteId, autotask_pushed_at: new Date().toISOString() })
-      .eq("id", proposalId);
 
     return { ok: true, quoteId };
   } catch (err) {

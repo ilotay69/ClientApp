@@ -1246,10 +1246,10 @@ export async function previewAutotaskPushAction(
   return previewAutotaskPush(admin, proposalId, settings);
 }
 
-/** The actual writes — see executeAutotaskPush. companyChoice is only
- * meaningful (and required) when the proposal has no client linked yet;
- * ignored otherwise, since an existing client's own Autotask company is
- * never ambiguous. */
+/** The actual writes — see executeAutotaskPush. companyChoice is required
+ * whenever the preview couldn't resolve a company on its own (a prospect,
+ * or a client that was never mapped to Autotask), and ignored when it
+ * could, since an already-mapped client's company is never ambiguous. */
 export async function pushProposalToAutotaskAction(
   proposalId: string,
   companyChoice: AutotaskPushCompanyChoice | null
