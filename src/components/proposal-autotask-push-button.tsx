@@ -173,17 +173,25 @@ export function ProposalAutotaskPushButton({
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Line items</p>
                   <div className="mt-1.5 divide-y divide-slate-100 rounded-md border border-slate-200">
                     {preview.lines.map((line) => (
-                      <div key={line.lineItemId} className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
-                        <span className="min-w-0 truncate text-slate-700">{line.description}</span>
-                        <span className="shrink-0 text-right">
-                          <span className="tabular-nums text-slate-900">
-                            {formatMoney(line.unitPrice * line.quantity, currency)}
-                          </span>{" "}
+                      <div key={line.lineItemId} className="flex items-start justify-between gap-2 px-3 py-1.5 text-sm">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-slate-700">{line.description}</span>
+                          {/* The catalog item by name, not just "matched" —
+                              an unmatched line falls back to a loose
+                              contains-match, so this is the only place a
+                              wrong one is catchable before it's written. */}
                           {line.matchedCatalog ? (
-                            <span className="text-xs text-emerald-700">matched</span>
+                            <span className="block truncate text-xs text-emerald-700">
+                              → {line.matchedCatalog.name}
+                            </span>
                           ) : (
-                            <span className="text-xs text-amber-700">fallback service</span>
+                            <span className="block truncate text-xs text-amber-700">
+                              → no match, uses the fallback service
+                            </span>
                           )}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-slate-900">
+                          {formatMoney(line.unitPrice * line.quantity, currency)}
                         </span>
                       </div>
                     ))}
