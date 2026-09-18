@@ -473,14 +473,15 @@ export async function buildSecureScoreRollupReport(admin: Supabase): Promise<Rep
   };
 }
 
-// Same tiers as the client page's own M365 licenses card
-// (ClientM365Licenses.usageStatus) - a SKU with nothing purchased has
-// nothing to be good/under/over about, consumed < purchased means idle
-// seats worth reclaiming, consumed > purchased means over-provisioned.
-function licenseUsageStatus(purchased: number, consumed: number): string {
+// Based on the same rounded percentage the "% used" column itself shows
+// (not a raw purchased/consumed comparison) so the two columns can never
+// visibly disagree - e.g. 199/200 rounds to "100%" and must read Good, not
+// Underused just because 199 < 200. A SKU with nothing purchased has
+// nothing to be good/under/over about.
+function licenseUsageStatus(purchased: number, roundedPercentUsed: number): string {
   if (purchased === 0) return "—";
-  if (consumed > purchased) return "Overused";
-  if (consumed < purchased) return "Underused";
+  if (roundedPercentUsed > 100) return "Overused";
+  if (roundedPercentUsed < 100) return "Underused";
   return "Good";
 }
 
@@ -488,15 +489,18 @@ export async function buildLicenseUtilizationRollupReport(admin: Supabase): Prom
   const { rows, errors } = await fetchLicenseUtilizationRollup(admin);
   return {
     headers: ["Client", "SKU", "Purchased", "Consumed", "Available", "% used", "Status"],
-    rows: rows.map((r) => [
-      r.clientName,
-      r.skuPartNumber,
-      r.purchased,
-      r.consumed,
-      r.available,
-      `${Math.round(r.percentUsed)}%`,
-      licenseUsageStatus(r.purchased, r.consumed),
-    ]),
+    rows: rows.map((r) => {
+      const roundedPercentUsed = Math.round(r.percentUsed);
+      return [
+        r.clientName,
+        r.skuPartNumber,
+        r.purchased,
+        r.consumed,
+        r.available,
+        `${roundedPercentUsed}%`,
+        licenseUsageStatus(r.purchased, roundedPercentUsed),
+      ];
+    }),
     warnings: clientErrorWarnings(errors),
   };
 }
