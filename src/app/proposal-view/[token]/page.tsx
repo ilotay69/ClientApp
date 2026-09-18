@@ -3,7 +3,7 @@ import { getProposalByAccessToken } from "@/lib/proposal-data";
 import { fetchBrochuresForProposal } from "@/lib/proposal-brochures";
 import { formatDate } from "@/lib/format";
 import { formatMoney } from "@/lib/proposal-totals";
-import { ProposalShell, ProposalMessage, ProposalWordmark } from "@/components/proposal-shell";
+import { ProposalShell, ProposalMessage, ProposalHeader } from "@/components/proposal-shell";
 import { ProposalAcceptPanel } from "@/components/proposal-accept-panel";
 import { ProposalViewBeacon } from "@/components/proposal-view-beacon";
 import { acceptProposalByTokenAction, recordProposalViewAction } from "./actions";
@@ -160,57 +160,69 @@ export default async function ProposalViewPage({
         </div>
       )}
 
-      <header className="border-b border-slate-200 px-5 py-4 sm:px-8">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
-          <ProposalWordmark />
-          {proposal.validUntil && (
-            <span className="text-sm text-slate-400">
-              Valid until {formatDate(proposal.validUntil)}
-            </span>
-          )}
-        </div>
-      </header>
+      <ProposalHeader validUntilLabel={proposal.validUntil ? formatDate(proposal.validUntil) : null} />
 
       <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-16">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-          Proposal {proposal.quotationNumber ?? `#${proposal.proposalNumber}`} for {proposal.companyName}
+        <p className="inline-flex items-center rounded-full bg-brand-soft px-3 py-1 text-xs font-bold uppercase tracking-[0.15em] text-brand-dark">
+          Proposal {proposal.quotationNumber ?? `#${proposal.proposalNumber}`}
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+        <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
           {proposal.title}
         </h1>
+        <p className="mt-2 text-lg text-slate-500">
+          Prepared for <span className="font-semibold text-slate-700">{proposal.companyName}</span>
+        </p>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 text-sm text-slate-500 sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">From</p>
-            <p className="mt-1 font-medium text-slate-700">{companyInfo.companyName}</p>
-            {proposal.ownerName && <p>{proposal.ownerName}</p>}
-            {companyInfo.address && <p className="whitespace-pre-line">{companyInfo.address}</p>}
+        <div className="mt-8 grid grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 sm:grid-cols-2">
+          <div className="p-5 sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-wider text-brand">From</p>
+            <p className="mt-1.5 text-base font-semibold text-slate-900">{companyInfo.companyName}</p>
+            {proposal.ownerName && <p className="text-sm text-slate-600">{proposal.ownerName}</p>}
+            {companyInfo.address && (
+              <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{companyInfo.address}</p>
+            )}
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">To</p>
-            <p className="mt-1 font-medium text-slate-700">{proposal.companyName}</p>
-            {proposal.contactName && <p>{proposal.contactName}</p>}
-            {proposal.address && <p className="whitespace-pre-line">{proposal.address}</p>}
+          <div className="border-t border-slate-200 bg-slate-50 p-5 sm:border-t-0 sm:border-l sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">To</p>
+            <p className="mt-1.5 text-base font-semibold text-slate-900">{proposal.companyName}</p>
+            {proposal.contactName && <p className="text-sm text-slate-600">{proposal.contactName}</p>}
+            {proposal.address && (
+              <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{proposal.address}</p>
+            )}
           </div>
         </div>
 
         {proposal.intro && (
-          <p className="mt-4 whitespace-pre-line text-lg leading-relaxed text-slate-600">
+          <p className="mt-8 whitespace-pre-line text-lg leading-relaxed text-slate-600">
             {proposal.intro}
           </p>
         )}
 
+        {/* The same credibility signals CG's own site leads with
+            (cgtechnologies.com's "by the numbers" strip) — reinforcing trust
+            right before a prospect reads pricing, not just on the marketing
+            site they may never have visited. */}
+        <div className="mt-10 overflow-hidden rounded-2xl bg-charcoal px-6 py-6 text-white sm:px-10">
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-center">
+            <TrustStat value="1996" label="Serving the GTA since" />
+            <TrustDivider />
+            <TrustStat value="95%" label="Client retention rate" />
+            <TrustDivider />
+            <TrustStat value="30 min" label="Average response time" />
+          </div>
+        </div>
+
         <div className="mt-12 space-y-12">
           {bodySections.map((section, index) => (
             <section key={section.id} id={`sec-${section.id}`} className="scroll-mt-6">
-              <p className="text-sm font-semibold tabular-nums tracking-[0.2em] text-slate-400">
-                {String(index + 1).padStart(2, "0")}
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
-                {section.heading}
-              </h2>
+              <div className="flex items-center gap-3.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-extrabold tabular-nums text-brand-dark">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">{section.heading}</h2>
+              </div>
               {section.body?.trim() && (
-                <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-slate-700">
+                <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-slate-700">
                   {section.body}
                 </p>
               )}
@@ -250,25 +262,39 @@ export default async function ProposalViewPage({
           </p>
         )}
 
-        <p className="mt-12 border-t border-slate-200 pt-6 text-sm text-slate-400">
-          For details of our full Master Service Agreement, and our terms and conditions, please
-          visit{" "}
-          <a
-            href="https://cgtechnologies.com/master-service-agreement/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-brand hover:underline"
-          >
-            cgtechnologies.com/master-service-agreement
-          </a>
-          .
-        </p>
-
-        <p className="mt-3 text-sm text-slate-400">
-          Prepared by CG Technologies for {proposal.companyName}
-          {proposal.contactName ? ` · ${proposal.contactName}` : ""}.
-        </p>
+        <div className="mt-12 space-y-3 rounded-2xl bg-slate-50 p-6 text-sm text-slate-500 sm:p-8">
+          <p>
+            For details of our full Master Service Agreement, and our terms and conditions, please
+            visit{" "}
+            <a
+              href="https://cgtechnologies.com/master-service-agreement/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-brand hover:underline"
+            >
+              cgtechnologies.com/master-service-agreement
+            </a>
+            .
+          </p>
+          <p>
+            Prepared by CG Technologies for {proposal.companyName}
+            {proposal.contactName ? ` · ${proposal.contactName}` : ""}.
+          </p>
+        </div>
       </main>
     </ProposalShell>
   );
+}
+
+function TrustStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <p className="text-2xl font-extrabold tabular-nums text-white sm:text-3xl">{value}</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-white/60">{label}</p>
+    </div>
+  );
+}
+
+function TrustDivider() {
+  return <div aria-hidden="true" className="hidden h-9 w-px bg-white/15 sm:block" />;
 }

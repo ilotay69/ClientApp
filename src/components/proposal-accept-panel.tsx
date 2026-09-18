@@ -249,10 +249,14 @@ export function ProposalAcceptPanel({
             <TotalLine label="Monthly" value={`${formatMoney(totals.monthlySubtotal, currency)}/mo`} />
           )}
           <TotalLine label={`HST (${(totals.taxRate * 100).toFixed(0)}%)`} value={formatMoney(totals.taxAmount, currency)} />
-          <p className="mt-1 text-3xl font-semibold tabular-nums text-slate-900">
+        </div>
+
+        <div className="mt-4 rounded-xl bg-brand-soft px-4 py-4 text-right sm:px-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-brand-dark">Due at signing</p>
+          <p className="mt-0.5 text-3xl font-extrabold tabular-nums text-slate-900 sm:text-4xl">
             {formatMoney(totals.firstInvoiceTotal, currency)}
           </p>
-          <p className="whitespace-pre-line text-sm text-slate-400">{paymentTerms || DEFAULT_PAYMENT_TERMS}</p>
+          <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{paymentTerms || DEFAULT_PAYMENT_TERMS}</p>
         </div>
 
         <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-400">
@@ -260,8 +264,10 @@ export function ProposalAcceptPanel({
         </p>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 p-5 sm:p-6">
-        <h2 className="text-xl font-semibold text-slate-900">Accept this proposal</h2>
+      <div className="overflow-hidden rounded-2xl border border-slate-200">
+        <div aria-hidden="true" className="h-1.5 bg-brand" />
+        <div className="p-5 sm:p-6">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">Accept this proposal</h2>
         <p className="mt-2 text-base text-slate-600">
           Confirming here tells us to go ahead. We&apos;ll follow up to schedule the work.
         </p>
@@ -320,6 +326,7 @@ export function ProposalAcceptPanel({
         >
           {pending ? "Recording…" : `Accept — ${formatMoney(totals.firstInvoiceTotal, currency)}`}
         </button>
+        </div>
       </div>
     </div>
   );
