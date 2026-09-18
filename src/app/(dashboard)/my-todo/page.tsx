@@ -314,38 +314,38 @@ export default async function MyToDoPage({
   );
 
   const hoursLoggedTab = (
-    <div className="space-y-6">
-      <p className="text-sm text-slate-500">
+    <div className="space-y-4">
+      <p className="text-xs text-slate-500">
         Log the hours you worked each day — split into the 1st–15th and 16th–end of month.
       </p>
 
       {payrollReminder && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
           {payrollReminder}
         </div>
       )}
 
       <LoggedHoursForm action={upsertLoggedHoursAction} defaultDate={todayStr} />
 
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex items-center justify-center gap-2">
         <Link
           href={filterHref("/my-todo", { tab: "hours", month: monthParam(hoursPrev.year, hoursPrev.month) })}
-          className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
         >
           ← Prev
         </Link>
-        <p className="text-sm font-semibold text-slate-900">{hoursMonthLabel}</p>
+        <p className="text-xs font-semibold text-slate-900">{hoursMonthLabel}</p>
         <Link
           href={filterHref("/my-todo", { tab: "hours", month: monthParam(hoursNext.year, hoursNext.month) })}
-          className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
         >
           Next →
         </Link>
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">My hours</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">My hours</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <HoursHalfCard title="1st – 15th" entries={myHoursHalves.first} deleteAction={deleteLoggedHoursAction} />
           <HoursHalfCard
             title="16th – End of month"
@@ -357,8 +357,8 @@ export default async function MyToDoPage({
 
       {isOwner && teamHoursHalves && (
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">Team hours</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Team hours</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TeamHoursHalfCard title="1st – 15th" entries={teamHoursHalves.first} />
             <TeamHoursHalfCard title="16th – End of month" entries={teamHoursHalves.second} />
           </div>
@@ -385,6 +385,12 @@ function labelText(label: LoggedHoursEntry["label"]): string {
   return LOGGED_HOURS_LABEL_OPTIONS.find((o) => o.value === label)?.label ?? label;
 }
 
+const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("en-CA", { weekday: "short", timeZone: "UTC" });
+
+function weekdayText(workDate: string): string {
+  return WEEKDAY_FORMATTER.format(new Date(`${workDate}T00:00:00Z`));
+}
+
 function HoursHalfCard({
   title,
   entries,
@@ -396,21 +402,22 @@ function HoursHalfCard({
 }) {
   const total = entries.reduce((sum, e) => sum + signedHours(e), 0);
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-        <p className="text-sm font-semibold text-slate-900">{title}</p>
-        <p className="text-sm font-semibold text-teal-700">{total.toFixed(2)}h</p>
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-200 px-3 py-1.5">
+        <p className="text-xs font-semibold text-slate-900">{title}</p>
+        <p className="text-xs font-semibold text-teal-700">{total.toFixed(2)}h</p>
       </div>
       <div className="divide-y divide-slate-100">
         {entries.map((e) => (
-          <div key={e.id} className="flex items-center justify-between gap-2 px-4 py-2">
+          <div key={e.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
             <div>
+              <span className="text-xs text-slate-400">{weekdayText(e.workDate)}</span>{" "}
               <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
               {e.label !== "regular" && (
                 <span className="ml-1.5 text-xs text-slate-400">{labelText(e.label)}</span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span
                 className={`text-sm font-medium tabular-nums ${
                   e.label === "taken_off" ? "text-red-600" : "text-slate-900"
@@ -427,7 +434,7 @@ function HoursHalfCard({
           </div>
         ))}
         {entries.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-slate-500">Nothing logged yet.</p>
+          <p className="px-3 py-4 text-center text-xs text-slate-500">Nothing logged yet.</p>
         )}
       </div>
     </div>
@@ -448,24 +455,25 @@ function TeamHoursHalfCard({ title, entries }: { title: string; entries: LoggedH
   const total = entries.reduce((sum, e) => sum + signedHours(e), 0);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-        <p className="text-sm font-semibold text-slate-900">{title}</p>
-        <p className="text-sm font-semibold text-teal-700">{total.toFixed(2)}h</p>
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-200 px-3 py-1.5">
+        <p className="text-xs font-semibold text-slate-900">{title}</p>
+        <p className="text-xs font-semibold text-teal-700">{total.toFixed(2)}h</p>
       </div>
       <div className="divide-y divide-slate-200">
         {groups.map((g) => {
           const groupTotal = g.entries.reduce((sum, e) => sum + signedHours(e), 0);
           return (
             <div key={g.userId}>
-              <div className="flex items-center justify-between bg-slate-50 px-4 py-1.5">
+              <div className="flex items-center justify-between bg-slate-50 px-3 py-1">
                 <p className="text-xs font-semibold text-slate-700">{g.userName}</p>
                 <p className="text-xs font-semibold text-slate-500">{groupTotal.toFixed(2)}h</p>
               </div>
               <div className="divide-y divide-slate-100">
                 {g.entries.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between px-4 py-1.5">
+                  <div key={e.id} className="flex items-center justify-between px-3 py-1">
                     <div>
+                      <span className="text-xs text-slate-400">{weekdayText(e.workDate)}</span>{" "}
                       <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
                       {e.label !== "regular" && (
                         <span className="ml-1.5 text-xs text-slate-400">{labelText(e.label)}</span>
@@ -485,7 +493,7 @@ function TeamHoursHalfCard({ title, entries }: { title: string; entries: LoggedH
           );
         })}
         {groups.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-slate-500">Nothing logged yet.</p>
+          <p className="px-3 py-4 text-center text-xs text-slate-500">Nothing logged yet.</p>
         )}
       </div>
     </div>

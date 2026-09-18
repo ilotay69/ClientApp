@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { LoggedHoursActionState } from "@/app/(dashboard)/hours-logged/actions";
-import { LOGGED_HOURS_LABEL_OPTIONS } from "@/lib/logged-hours-labels";
+import { LOGGED_HOURS_LABEL_OPTIONS, type LoggedHoursLabel } from "@/lib/logged-hours-labels";
 
 const initialState: LoggedHoursActionState = { error: null };
 
@@ -19,12 +19,14 @@ export function LoggedHoursForm({
   defaultDate: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [label, setLabel] = useState<LoggedHoursLabel>("regular");
 
   return (
     <form
       action={formAction}
-      className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
     >
+      <input type="hidden" name="label" value={label} />
       <div>
         <label className="block text-xs font-medium text-slate-700">Date</label>
         <input
@@ -32,7 +34,7 @@ export function LoggedHoursForm({
           name="work_date"
           defaultValue={defaultDate}
           required
-          className="mt-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+          className="mt-1 rounded-md border border-slate-300 px-2 py-1 text-sm"
         />
       </div>
       <div>
@@ -45,27 +47,32 @@ export function LoggedHoursForm({
           max="24"
           required
           placeholder="8"
-          className="mt-1 w-24 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+          className="mt-1 w-20 rounded-md border border-slate-300 px-2 py-1 text-sm"
         />
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-700">Label</label>
-        <select
-          name="label"
-          defaultValue="regular"
-          className="mt-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
-        >
+        <div className="mt-1 flex gap-1">
           {LOGGED_HOURS_LABEL_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setLabel(o.value)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                label === o.value
+                  ? "bg-brand text-white"
+                  : "border border-slate-300 text-slate-600 hover:bg-slate-100"
+              }`}
+            >
               {o.label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
       </div>
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+        className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Saving…" : "Log hours"}
       </button>
