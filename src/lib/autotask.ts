@@ -2099,6 +2099,18 @@ export async function fetchAutotaskCatalog(
 // it is — there's no test mode, this hits the real tenant.
 // ============================================================================
 
+/** Carries the HTTP status so callers can tell "this endpoint does not
+ * exist" apart from "Autotask rejected the record", which matters for
+ * child entities whose documented root path isn't the one that works. */
+class AutotaskHttpError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AutotaskHttpError";
+    this.status = status;
+  }
+}
+
 /** POST create — Autotask's REST API has no PUT/insert distinction beyond
  * this: the URL is just the bare entity name (no /query), the body is the
  * flat field object, and a success response is {"itemId": <id>}. Every
@@ -2124,7 +2136,13 @@ async function autotaskCreate(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Autotask ${entity} create failed (${res.status}): ${text}`);
+    // A wrong endpoint answers with an IIS HTML error page rather than the
+    // API's own JSON, and dumping a full page of markup into an error
+    // someone has to read helps nobody.
+    const detail = text.trimStart().startsWith("<")
+      ? `no such endpoint (server returned an HTML error page, not an API response)`
+      : text.slice(0, 500);
+    throw new AutotaskHttpError(`Autotask ${entity} create failed (${res.status}): ${detail}`, res.status);
   }
   const json = await res.json();
   if (typeof json.itemId !== "number") {
@@ -2379,12 +2397,30 @@ export type AutotaskNewQuoteItemInput = {
   productID?: number;
 };
 
+/** QuoteItems is a child of Quotes, and unlike every other entity this
+ * file creates, POSTing to the root path the entity docs list
+ * ("/QuoteItems") answers with an IIS 404 page — the resource genuinely
+ * isn't there. Child entities live under their parent instead. The root
+ * path is still tried as a fallback: a 404 POST creates nothing, so the
+ * only cost is one round trip if a tenant exposes the root path after
+ * all, and the alternative is this breaking on a difference between
+ * tenants that nobody would be able to diagnose from the error. */
 export async function createAutotaskQuoteItem(
   creds: AutotaskCredentials,
   zoneUrl: string,
   input: AutotaskNewQuoteItemInput
 ): Promise<number> {
-  return autotaskCreate(creds, zoneUrl, "QuoteItems", {
+  const body = buildQuoteItemBody(input);
+  try {
+    return await autotaskCreate(creds, zoneUrl, `Quotes/${input.quoteID}/Items`, body);
+  } catch (err) {
+    if (!(err instanceof AutotaskHttpError) || err.status !== 404) throw err;
+    return autotaskCreate(creds, zoneUrl, "QuoteItems", body);
+  }
+}
+
+function buildQuoteItemBody(input: AutotaskNewQuoteItemInput): Record<string, unknown> {
+  return {
     quoteID: input.quoteID,
     quantity: input.quantity,
     unitPrice: input.unitPrice,
@@ -2395,5 +2431,5 @@ export async function createAutotaskQuoteItem(
     unitDiscount: 0,
     ...(input.serviceID ? { serviceID: input.serviceID } : {}),
     ...(input.productID ? { productID: input.productID } : {}),
-  });
+  };
 }
