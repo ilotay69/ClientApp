@@ -53,7 +53,16 @@ export function GroupedTabs({ groups }: { groups: TabGroup[] }) {
           </div>
         ))}
       </nav>
-      <div className="min-w-0 flex-1 space-y-6">{activeContent}</div>
+      {/* key={active} forces a full remount on every tab switch - without
+          it, React sees the same element type/position across switches (a
+          ReportPreviewPanel replaced by another ReportPreviewPanel, say)
+          and reuses the existing instance with its old state instead of
+          mounting fresh, which is why a tab's own mount-time effects (e.g.
+          auto-loading its preview) only ever fired once, on the very first
+          tab ever opened. */}
+      <div key={active} className="min-w-0 flex-1 space-y-6">
+        {activeContent}
+      </div>
     </div>
   );
 }
