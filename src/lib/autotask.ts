@@ -2186,6 +2186,11 @@ export type AutotaskNewCompanyInput = {
    * default for it — a placeholder would just be wrong data sitting in the
    * CRM — so it is collected from whoever is pushing. */
   phone: string;
+  /** Account manager on the new company. Also required, and must be an
+   * active standard resource with CRM access — an API-only user is
+   * rejected. The push passes the same resource it puts on the
+   * Opportunity, i.e. the proposal's owner. */
+  ownerResourceID: number;
   address1?: string | null;
   address2?: string | null;
   city?: string | null;
@@ -2217,6 +2222,7 @@ export async function createAutotaskCompany(
     companyName: input.companyName,
     companyType: customerValue,
     phone: input.phone,
+    ownerResourceID: input.ownerResourceID,
     ...(input.address1 ? { address1: input.address1 } : {}),
     ...(input.address2 ? { address2: input.address2 } : {}),
     ...(input.city ? { city: input.city } : {}),

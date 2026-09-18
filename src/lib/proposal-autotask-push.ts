@@ -262,7 +262,10 @@ export async function executeAutotaskPush(
       resolvedLines.push({ item, reference });
     }
 
-    // --- Resource to own the scaffolding Opportunity -----------------------
+    // --- Resource to own what gets created --------------------------------
+    // Account manager on a newly created Company and owner of the
+    // Opportunity, both of which Autotask requires. Must be a real
+    // resource with CRM access, so an API-only user won't do.
     const ownerCandidateIds = [proposal.ownerId, requestedByUserId].filter(
       (id): id is string => Boolean(id)
     );
@@ -320,6 +323,7 @@ export async function executeAutotaskPush(
       companyId = await createAutotaskCompany(credentials, zoneUrl, {
         companyName,
         phone,
+        ownerResourceID,
         address1: proposal.prospectAddress,
       });
     } else {
