@@ -32,12 +32,17 @@ export function ProposalAutotaskPushButton({
   proposalId,
   currency,
   alreadyPushedQuoteId,
+  pushFinished,
   previewAction,
   pushAction,
 }: {
   proposalId: string;
   currency: string;
   alreadyPushedQuoteId: number | null;
+  /** False when a Quote was created but its lines never landed — that push
+   * is resumable, so the card offers to finish it rather than presenting
+   * an empty quote as a completed job. */
+  pushFinished: boolean;
   previewAction: (proposalId: string) => Promise<PreviewResult>;
   pushAction: (proposalId: string, companyChoice: AutotaskPushCompanyChoice | null) => Promise<PushResult>;
 }) {
@@ -48,7 +53,9 @@ export function ProposalAutotaskPushButton({
   const [loading, startLoad] = useTransition();
   const [pushing, startPush] = useTransition();
   const [pushResult, setPushResult] = useState<PushResult | null>(null);
-  const [pushedQuoteId, setPushedQuoteId] = useState<number | null>(alreadyPushedQuoteId);
+  const [pushedQuoteId, setPushedQuoteId] = useState<number | null>(
+    pushFinished ? alreadyPushedQuoteId : null
+  );
 
   const openDialog = () => {
     setOpen(true);
@@ -95,15 +102,22 @@ export function ProposalAutotaskPushButton({
   return (
     <>
       <AutotaskCard>
-        <p className="mt-2 text-xs text-slate-500">
-          Create the matching Quote in Autotask from this proposal&apos;s line items.
-        </p>
+        {alreadyPushedQuoteId && !pushFinished ? (
+          <p className="mt-2 text-xs text-amber-700">
+            Quote #{alreadyPushedQuoteId} was created in Autotask but its lines never made it.
+            Pushing again adds them to that same quote.
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-slate-500">
+            Create the matching Quote in Autotask from this proposal&apos;s line items.
+          </p>
+        )}
         <button
           type="button"
           onClick={openDialog}
           className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
         >
-          Push to Autotask
+          {alreadyPushedQuoteId && !pushFinished ? "Finish pushing" : "Push to Autotask"}
         </button>
       </AutotaskCard>
 

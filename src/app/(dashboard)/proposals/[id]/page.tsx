@@ -197,6 +197,7 @@ export default async function ProposalDetailPage({
               proposalId={proposal.id}
               currency={proposal.currency}
               alreadyPushedQuoteId={proposal.autotaskQuoteId}
+              pushFinished={Boolean(proposal.autotaskPushedAt)}
               previewAction={previewAutotaskPushAction}
               pushAction={pushProposalToAutotaskAction}
             />

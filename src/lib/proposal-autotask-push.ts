@@ -220,7 +220,9 @@ export async function executeAutotaskPush(
 ): Promise<{ ok: true; quoteId: number } | { error: string }> {
   const proposal = await getProposal(proposalId, admin);
   if (!proposal) return { error: "Proposal not found." };
-  if (proposal.autotaskQuoteId) {
+  // A finished push is done; an unfinished one (quote created, lines never
+  // made it) resumes below on that same quote instead of creating a second.
+  if (proposal.autotaskQuoteId && proposal.autotaskPushedAt) {
     return { ok: true, quoteId: proposal.autotaskQuoteId };
   }
   if (!autotaskSettings.zoneUrl) {
@@ -260,6 +262,20 @@ export async function executeAutotaskPush(
         };
       }
       resolvedLines.push({ item, reference });
+    }
+
+    // Resume: the Quote already exists from an attempt whose line items
+    // never landed, so it just needs finishing. Everything below this
+    // point creates records that would be duplicates.
+    if (proposal.autotaskQuoteId) {
+      return addLinesAndFinish(
+        admin,
+        proposalId,
+        proposal.autotaskQuoteId,
+        resolvedLines,
+        credentials,
+        zoneUrl
+      );
     }
 
     // --- Resource to own what gets created --------------------------------
@@ -402,29 +418,50 @@ export async function executeAutotaskPush(
     });
 
     // The Quote exists in Autotask from here on, so record it before the
-    // line items go in. If one of those fails, a retry short-circuits on
-    // this id instead of building a second Company/Opportunity/Quote.
-    await admin
-      .from("proposals")
-      .update({ autotask_quote_id: quoteId, autotask_pushed_at: new Date().toISOString() })
-      .eq("id", proposalId);
+    // line items go in — a retry then resumes on this quote rather than
+    // building a second Company/Opportunity/Quote. autotask_pushed_at is
+    // deliberately NOT set yet: it is what marks the push finished, and a
+    // quote with no lines on it is not finished.
+    await admin.from("proposals").update({ autotask_quote_id: quoteId }).eq("id", proposalId);
 
-    // --- Line items ----------------------------------------------------------
-    for (const { item, reference } of resolvedLines) {
-      await createAutotaskQuoteItem(credentials, zoneUrl, {
-        quoteID: quoteId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        description: item.detail ? `${item.description} — ${item.detail}` : item.description,
-        ...reference,
-      });
-    }
-
-    return { ok: true, quoteId };
+    return addLinesAndFinish(admin, proposalId, quoteId, resolvedLines, credentials, zoneUrl);
   } catch (err) {
     console.error("executeAutotaskPush failed", err);
     return { error: err instanceof Error ? err.message : "Failed to push this proposal to Autotask." };
   }
+}
+
+/** The last leg of a push: put the lines on the Quote, then mark the
+ * proposal finished. Shared by a first attempt and by a resumed one, so
+ * both agree on what "finished" means — autotask_pushed_at is written
+ * only once every line is actually on the quote. */
+async function addLinesAndFinish(
+  admin: Admin,
+  proposalId: string,
+  quoteId: number,
+  resolvedLines: {
+    item: { quantity: number; unitPrice: number; description: string; detail: string | null };
+    reference: { serviceID?: number; productID?: number };
+  }[],
+  credentials: AutotaskSettings["credentials"],
+  zoneUrl: string
+): Promise<{ ok: true; quoteId: number } | { error: string }> {
+  for (const { item, reference } of resolvedLines) {
+    await createAutotaskQuoteItem(credentials, zoneUrl, {
+      quoteID: quoteId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      description: item.detail ? `${item.description} — ${item.detail}` : item.description,
+      ...reference,
+    });
+  }
+
+  await admin
+    .from("proposals")
+    .update({ autotask_pushed_at: new Date().toISOString() })
+    .eq("id", proposalId);
+
+  return { ok: true, quoteId };
 }
 
 // Re-exported so callers only ever need this one module for the feature.
