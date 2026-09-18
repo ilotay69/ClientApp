@@ -6,6 +6,7 @@ import { formatMoney } from "@/lib/proposal-totals";
 import { ProposalShell, ProposalMessage, ProposalHeader } from "@/components/proposal-shell";
 import { ProposalAcceptPanel } from "@/components/proposal-accept-panel";
 import { ProposalViewBeacon } from "@/components/proposal-view-beacon";
+import { ProposalSectionNav } from "@/components/proposal-section-nav";
 import { acceptProposalByTokenAction, recordProposalViewAction } from "./actions";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
@@ -162,124 +163,134 @@ export default async function ProposalViewPage({
 
       <ProposalHeader validUntilLabel={proposal.validUntil ? formatDate(proposal.validUntil) : null} />
 
-      <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-16">
-        <p className="inline-flex items-center rounded-full bg-brand-soft px-3 py-1 text-xs font-bold uppercase tracking-[0.15em] text-brand-dark">
-          Proposal {proposal.quotationNumber ?? `#${proposal.proposalNumber}`}
-        </p>
-        <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-          {proposal.title}
-        </h1>
-        <p className="mt-2 text-lg text-slate-500">
-          Prepared for <span className="font-semibold text-slate-700">{proposal.companyName}</span>
-        </p>
+      <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-16">
+        <div className="lg:grid lg:grid-cols-[220px_1fr] lg:items-start lg:gap-12">
+          <ProposalSectionNav sections={bodySections.map((s) => ({ id: s.id, heading: s.heading }))} />
 
-        <div className="mt-8 grid grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 sm:grid-cols-2">
-          <div className="p-5 sm:p-6">
-            <p className="text-xs font-bold uppercase tracking-wider text-brand">From</p>
-            <p className="mt-1.5 text-base font-semibold text-slate-900">{companyInfo.companyName}</p>
-            {proposal.ownerName && <p className="text-sm text-slate-600">{proposal.ownerName}</p>}
-            {companyInfo.address && (
-              <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{companyInfo.address}</p>
-            )}
-          </div>
-          <div className="border-t border-slate-200 bg-slate-50 p-5 sm:border-t-0 sm:border-l sm:p-6">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">To</p>
-            <p className="mt-1.5 text-base font-semibold text-slate-900">{proposal.companyName}</p>
-            {proposal.contactName && <p className="text-sm text-slate-600">{proposal.contactName}</p>}
-            {proposal.address && (
-              <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{proposal.address}</p>
-            )}
-          </div>
-        </div>
-
-        {proposal.intro && (
-          <p className="mt-8 whitespace-pre-line text-lg leading-relaxed text-slate-600">
-            {proposal.intro}
-          </p>
-        )}
-
-        {/* The same credibility signals CG's own site leads with
-            (cgtechnologies.com's "by the numbers" strip) — reinforcing trust
-            right before a prospect reads pricing, not just on the marketing
-            site they may never have visited. */}
-        <div className="mt-10 overflow-hidden rounded-2xl bg-charcoal px-6 py-6 text-white sm:px-10">
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-center">
-            <TrustStat value="1996" label="Serving the GTA since" />
-            <TrustDivider />
-            <TrustStat value="95%" label="Client retention rate" />
-            <TrustDivider />
-            <TrustStat value="30 min" label="Average response time" />
-          </div>
-        </div>
-
-        <div className="mt-12 space-y-12">
-          {bodySections.map((section, index) => (
-            <section key={section.id} id={`sec-${section.id}`} className="scroll-mt-6">
-              <div className="flex items-center gap-3.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-extrabold tabular-nums text-brand-dark">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <h2 className="text-2xl font-bold tracking-tight text-slate-900">{section.heading}</h2>
-              </div>
-              {section.body?.trim() && (
-                <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-slate-700">
-                  {section.body}
-                </p>
-              )}
-              {section.kind === "pricing" && <div className="mt-6">{acceptPanel}</div>}
-            </section>
-          ))}
-
-          {!hasPricingSection && acceptPanel}
-        </div>
-
-        {brochures.length > 0 && (
-          <div className="mt-12 border-t border-slate-200 pt-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-              More information
+          <div className="max-w-3xl">
+            <p className="inline-flex items-center rounded-full bg-brand-soft px-3 py-1 text-xs font-bold uppercase tracking-[0.15em] text-brand-dark">
+              Proposal {proposal.quotationNumber ?? `#${proposal.proposalNumber}`}
             </p>
-            <ul className="mt-3 space-y-2">
-              {brochures.map((b) => (
-                <li key={b.id}>
-                  <a
-                    href={`/proposal-view/${token}/brochure/${b.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-base font-medium text-brand hover:underline"
-                  >
-                    {b.title}
-                    <span aria-hidden="true" className="text-slate-400">↗</span>
-                  </a>
-                </li>
+            <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+              {proposal.title}
+            </h1>
+            <p className="mt-2 text-lg text-slate-500">
+              Prepared for <span className="font-semibold text-slate-700">{proposal.companyName}</span>
+            </p>
+
+            <div className="mt-8 grid grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 sm:grid-cols-2">
+              <div className="p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-wider text-brand">From</p>
+                <p className="mt-1.5 text-base font-semibold text-slate-900">{companyInfo.companyName}</p>
+                {proposal.ownerName && <p className="text-sm text-slate-600">{proposal.ownerName}</p>}
+                {companyInfo.address && (
+                  <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{companyInfo.address}</p>
+                )}
+              </div>
+              <div className="border-t border-slate-200 bg-slate-50 p-5 sm:border-t-0 sm:border-l sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">To</p>
+                <p className="mt-1.5 text-base font-semibold text-slate-900">{proposal.companyName}</p>
+                {proposal.contactName && <p className="text-sm text-slate-600">{proposal.contactName}</p>}
+                {proposal.address && (
+                  <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{proposal.address}</p>
+                )}
+              </div>
+            </div>
+
+            {proposal.intro && (
+              <p className="mt-8 whitespace-pre-line text-lg leading-relaxed text-slate-600">
+                {proposal.intro}
+              </p>
+            )}
+
+            {/* The same credibility signals CG's own site leads with
+                (cgtechnologies.com's "by the numbers" strip) — reinforcing
+                trust right before a prospect reads pricing, not just on the
+                marketing site they may never have visited. */}
+            <div className="mt-10 overflow-hidden rounded-2xl bg-charcoal px-6 py-6 text-white sm:px-10">
+              <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-center">
+                <TrustStat value="1996" label="Serving the GTA since" />
+                <TrustDivider />
+                <TrustStat value="95%" label="Client retention rate" />
+                <TrustDivider />
+                <TrustStat value="30 min" label="Average response time" />
+              </div>
+            </div>
+
+            <div className="mt-12 space-y-6">
+              {bodySections.map((section, index) => (
+                <section
+                  key={section.id}
+                  id={`sec-${section.id}`}
+                  className="scroll-mt-6 rounded-2xl border border-slate-200 p-6 sm:p-8"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-extrabold tabular-nums text-brand-dark">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">{section.heading}</h2>
+                  </div>
+                  {section.body?.trim() && (
+                    <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-slate-700">
+                      {section.body}
+                    </p>
+                  )}
+                  {section.kind === "pricing" && <div className="mt-6">{acceptPanel}</div>}
+                </section>
               ))}
-            </ul>
+
+              {!hasPricingSection && acceptPanel}
+            </div>
+
+            {brochures.length > 0 && (
+              <div className="mt-12 border-t border-slate-200 pt-8">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  More information
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {brochures.map((b) => (
+                    <li key={b.id}>
+                      <a
+                        href={`/proposal-view/${token}/brochure/${b.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-base font-medium text-brand hover:underline"
+                      >
+                        {b.title}
+                        <span aria-hidden="true" className="text-slate-400">↗</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {proposal.closingNote && (
+              <p className="mt-12 whitespace-pre-line text-base leading-relaxed text-slate-600">
+                {proposal.closingNote}
+              </p>
+            )}
+
+            <div className="mt-12 space-y-3 rounded-2xl bg-slate-50 p-6 text-sm text-slate-500 sm:p-8">
+              <p>
+                For details of our full Master Service Agreement, and our terms and conditions,
+                please visit{" "}
+                <a
+                  href="https://cgtechnologies.com/master-service-agreement/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-brand hover:underline"
+                >
+                  cgtechnologies.com/master-service-agreement
+                </a>
+                .
+              </p>
+              <p>
+                Prepared by CG Technologies for {proposal.companyName}
+                {proposal.contactName ? ` · ${proposal.contactName}` : ""}.
+              </p>
+            </div>
           </div>
-        )}
-
-        {proposal.closingNote && (
-          <p className="mt-12 whitespace-pre-line text-base leading-relaxed text-slate-600">
-            {proposal.closingNote}
-          </p>
-        )}
-
-        <div className="mt-12 space-y-3 rounded-2xl bg-slate-50 p-6 text-sm text-slate-500 sm:p-8">
-          <p>
-            For details of our full Master Service Agreement, and our terms and conditions, please
-            visit{" "}
-            <a
-              href="https://cgtechnologies.com/master-service-agreement/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-brand hover:underline"
-            >
-              cgtechnologies.com/master-service-agreement
-            </a>
-            .
-          </p>
-          <p>
-            Prepared by CG Technologies for {proposal.companyName}
-            {proposal.contactName ? ` · ${proposal.contactName}` : ""}.
-          </p>
         </div>
       </main>
     </ProposalShell>
