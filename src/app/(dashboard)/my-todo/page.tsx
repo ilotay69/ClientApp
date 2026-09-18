@@ -98,6 +98,21 @@ function monthParam(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+/** Payroll cutoff nudges - the 1st-15th half closes on the 15th, so from
+ * the 10th it's worth a reminder to finish that half; the 16th-end half
+ * closes at month end, so from the 25th it's worth reminding people to log
+ * the rest of the month in advance. Only meaningful for the real current
+ * month, never a past/future one someone navigated to with Prev/Next. */
+function payrollReminderMessage(todayDayOfMonth: number): string | null {
+  if (todayDayOfMonth >= 10 && todayDayOfMonth <= 15) {
+    return "Please complete your hours up to the 15th so they can be submitted to payroll.";
+  }
+  if (todayDayOfMonth >= 25) {
+    return "Please complete your hours in advance up to the end of the month so they can be submitted to payroll.";
+  }
+  return null;
+}
+
 const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   month: "long",
   year: "numeric",
@@ -183,8 +198,12 @@ export default async function MyToDoPage({
   });
   const myHoursHalves = splitHalves(myHoursEntries);
   const teamHoursHalves = isOwner ? splitHalves(allHoursEntries) : null;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
   const hoursMonthLabel = MONTH_LABEL_FORMATTER.format(new Date(Date.UTC(hoursYear, hoursMonth - 1, 1)));
+  const isCurrentHoursMonth =
+    hoursYear === today.getUTCFullYear() && hoursMonth === today.getUTCMonth() + 1;
+  const payrollReminder = isCurrentHoursMonth ? payrollReminderMessage(today.getUTCDate()) : null;
 
   const sortHrefFor = (field: string, dir: SortDir) =>
     filterHref("/my-todo", { tab: "tasks", client: filterClient, priority: filterPriorities, status: filterStatuses, sort: field, dir });
@@ -299,6 +318,12 @@ export default async function MyToDoPage({
       <p className="text-sm text-slate-500">
         Log the hours you worked each day — split into the 1st–15th and 16th–end of month.
       </p>
+
+      {payrollReminder && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
+          {payrollReminder}
+        </div>
+      )}
 
       <LoggedHoursForm action={upsertLoggedHoursAction} defaultDate={todayStr} />
 
