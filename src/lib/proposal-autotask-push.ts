@@ -268,7 +268,11 @@ export async function executeAutotaskPush(
     // never landed, so it just needs finishing. Everything below this
     // point creates records that would be duplicates.
     if (proposal.autotaskQuoteId) {
-      return addLinesAndFinish(
+      // awaited, not just returned: inside an async function a returned
+      // promise settles AFTER the try block is left, so a rejection would
+      // sail straight past the catch below and surface as a raw server
+      // error instead of a message naming what Autotask refused.
+      return await addLinesAndFinish(
         admin,
         proposalId,
         proposal.autotaskQuoteId,
@@ -424,7 +428,8 @@ export async function executeAutotaskPush(
     // quote with no lines on it is not finished.
     await admin.from("proposals").update({ autotask_quote_id: quoteId }).eq("id", proposalId);
 
-    return addLinesAndFinish(admin, proposalId, quoteId, resolvedLines, credentials, zoneUrl);
+    // awaited for the same reason as the resume path above.
+    return await addLinesAndFinish(admin, proposalId, quoteId, resolvedLines, credentials, zoneUrl);
   } catch (err) {
     console.error("executeAutotaskPush failed", err);
     return { error: err instanceof Error ? err.message : "Failed to push this proposal to Autotask." };
