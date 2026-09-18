@@ -1,4 +1,11 @@
-import { createClient, getCurrentUser } from "@/lib/supabase/server";
+import Link from "next/link";
+import { createClient, createAdminClient, getCurrentUser } from "@/lib/supabase/server";
+import { getMyPermissions } from "@/lib/permissions";
+import { fetchLoggedHoursForMonth, dayOfMonth, type LoggedHoursEntry } from "@/lib/logged-hours";
+import { LoggedHoursForm } from "@/components/logged-hours-form";
+import { DeleteButton } from "@/components/delete-button";
+import { formatDate } from "@/lib/format";
+import { upsertLoggedHoursAction, deleteLoggedHoursAction } from "../hours-logged/actions";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { TaskRow, type TaskRowData } from "@/components/task-row";
 import { TaskFilterBar } from "@/components/task-filter-bar";
@@ -65,7 +72,31 @@ function sortRows<T>(rows: T[], field: string, dir: SortDir, valueFor: (row: T, 
   return [...rows].sort((a, b) => sign * compareSortValues(valueFor(a, field), valueFor(b, field)));
 }
 
-const TAB_INDEX: Record<string, number> = { mailbox: 0, tasks: 1, tickets: 2 };
+const TAB_INDEX: Record<string, number> = { mailbox: 0, tasks: 1, tickets: 2, hours: 3 };
+
+function parseMonthParam(month: string | undefined): { year: number; month: number } {
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const [y, m] = month.split("-").map(Number);
+    return { year: y, month: m };
+  }
+  const now = new Date();
+  return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+}
+
+function shiftMonth(year: number, month: number, delta: number) {
+  const d = new Date(Date.UTC(year, month - 1 + delta, 1));
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+}
+
+function monthParam(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
 export default async function MyToDoPage({
   searchParams,
@@ -77,10 +108,18 @@ export default async function MyToDoPage({
     status?: string | string[];
     sort?: string;
     dir?: string;
+    month?: string;
   }>;
 }) {
-  const { tab, client: filterClient, priority: filterPriorityRaw, status: filterStatusRaw, sort: rawSort, dir: rawDir } =
-    await searchParams;
+  const {
+    tab,
+    client: filterClient,
+    priority: filterPriorityRaw,
+    status: filterStatusRaw,
+    sort: rawSort,
+    dir: rawDir,
+    month: monthParamValue,
+  } = await searchParams;
   const filterPriorities = Array.isArray(filterPriorityRaw) ? filterPriorityRaw : filterPriorityRaw ? [filterPriorityRaw] : [];
   const filterStatuses = Array.isArray(filterStatusRaw) ? filterStatusRaw : filterStatusRaw ? [filterStatusRaw] : [];
   const sortField = rawSort || "due_date";
@@ -119,6 +158,27 @@ export default async function MyToDoPage({
   if (filterPriorities.length > 0) personalQuery = personalQuery.in("priority", filterPriorities);
 
   const { data: personalTasks } = await personalQuery;
+
+  const me = await getMyPermissions(supabase);
+  const isOwner = me?.role === "owner";
+  const { year: hoursYear, month: hoursMonth } = parseMonthParam(monthParamValue);
+  const hoursPrev = shiftMonth(hoursYear, hoursMonth, -1);
+  const hoursNext = shiftMonth(hoursYear, hoursMonth, 1);
+  const admin = createAdminClient();
+  const [myHoursEntries, allHoursEntries]: [LoggedHoursEntry[], LoggedHoursEntry[]] = me
+    ? await Promise.all([
+        fetchLoggedHoursForMonth(hoursYear, hoursMonth, { userId: me.userId }, admin),
+        isOwner ? fetchLoggedHoursForMonth(hoursYear, hoursMonth, {}, admin) : Promise.resolve([]),
+      ])
+    : [[], []];
+  const splitHalves = (entries: LoggedHoursEntry[]) => ({
+    first: entries.filter((e) => dayOfMonth(e.workDate) <= 15),
+    second: entries.filter((e) => dayOfMonth(e.workDate) > 15),
+  });
+  const myHoursHalves = splitHalves(myHoursEntries);
+  const teamHoursHalves = isOwner ? splitHalves(allHoursEntries) : null;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const hoursMonthLabel = MONTH_LABEL_FORMATTER.format(new Date(Date.UTC(hoursYear, hoursMonth - 1, 1)));
 
   const sortHrefFor = (field: string, dir: SortDir) =>
     filterHref("/my-todo", { tab: "tasks", client: filterClient, priority: filterPriorities, status: filterStatuses, sort: field, dir });
@@ -228,14 +288,148 @@ export default async function MyToDoPage({
     />
   );
 
+  const hoursLoggedTab = (
+    <div className="space-y-6">
+      <p className="text-sm text-slate-500">
+        Log the hours you worked each day — split into the 1st–15th and 16th–end of month.
+      </p>
+
+      <LoggedHoursForm action={upsertLoggedHoursAction} defaultDate={todayStr} />
+
+      <div className="flex items-center justify-center gap-3">
+        <Link
+          href={filterHref("/my-todo", { tab: "hours", month: monthParam(hoursPrev.year, hoursPrev.month) })}
+          className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+        >
+          ← Prev
+        </Link>
+        <p className="text-sm font-semibold text-slate-900">{hoursMonthLabel}</p>
+        <Link
+          href={filterHref("/my-todo", { tab: "hours", month: monthParam(hoursNext.year, hoursNext.month) })}
+          className="rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+        >
+          Next →
+        </Link>
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">My hours</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <HoursHalfCard title="1st – 15th" entries={myHoursHalves.first} deleteAction={deleteLoggedHoursAction} />
+          <HoursHalfCard
+            title="16th – End of month"
+            entries={myHoursHalves.second}
+            deleteAction={deleteLoggedHoursAction}
+          />
+        </div>
+      </div>
+
+      {isOwner && teamHoursHalves && (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-500">Team hours</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TeamHoursHalfCard title="1st – 15th" entries={teamHoursHalves.first} />
+            <TeamHoursHalfCard title="16th – End of month" entries={teamHoursHalves.second} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Tabs
       tabs={[
         { label: "Mailbox Analysis", content: mailboxTab },
         { label: "My Tasks", content: myTasksTab },
         { label: "My Tickets", content: myTicketsTab },
+        { label: "Hours Logged", content: hoursLoggedTab },
       ]}
       defaultActive={TAB_INDEX[tab ?? ""] ?? 0}
     />
+  );
+}
+
+function HoursHalfCard({
+  title,
+  entries,
+  deleteAction,
+}: {
+  title: string;
+  entries: LoggedHoursEntry[];
+  deleteAction: (id: string) => Promise<void>;
+}) {
+  const total = entries.reduce((sum, e) => sum + e.hours, 0);
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="text-sm font-semibold text-teal-700">{total.toFixed(2)}h</p>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {entries.map((e) => (
+          <div key={e.id} className="flex items-center justify-between gap-2 px-4 py-2">
+            <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium tabular-nums text-slate-900">{e.hours.toFixed(2)}h</span>
+              <DeleteButton
+                action={deleteAction.bind(null, e.id)}
+                confirmText={`Remove the ${e.hours}h entry for ${formatDate(e.workDate)}?`}
+                label="Remove"
+              />
+            </div>
+          </div>
+        ))}
+        {entries.length === 0 && (
+          <p className="px-4 py-6 text-center text-sm text-slate-500">Nothing logged yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Grouped by staff member within the half - same "section header with a
+ * subtotal, then its rows" pattern as the Team Hours dashboard widget's own
+ * drill-down (/dashboard/resource-hours). */
+function TeamHoursHalfCard({ title, entries }: { title: string; entries: LoggedHoursEntry[] }) {
+  const byUser = new Map<string, { userId: string; userName: string; entries: LoggedHoursEntry[] }>();
+  for (const e of entries) {
+    const g = byUser.get(e.userId) ?? { userId: e.userId, userName: e.userName, entries: [] };
+    g.entries.push(e);
+    byUser.set(e.userId, g);
+  }
+  const groups = [...byUser.values()].sort((a, b) => a.userName.localeCompare(b.userName));
+  const total = entries.reduce((sum, e) => sum + e.hours, 0);
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="text-sm font-semibold text-teal-700">{total.toFixed(2)}h</p>
+      </div>
+      <div className="divide-y divide-slate-200">
+        {groups.map((g) => {
+          const groupTotal = g.entries.reduce((sum, e) => sum + e.hours, 0);
+          return (
+            <div key={g.userId}>
+              <div className="flex items-center justify-between bg-slate-50 px-4 py-1.5">
+                <p className="text-xs font-semibold text-slate-700">{g.userName}</p>
+                <p className="text-xs font-semibold text-slate-500">{groupTotal.toFixed(2)}h</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {g.entries.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
+                    <span className="text-sm font-medium tabular-nums text-slate-900">{e.hours.toFixed(2)}h</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {groups.length === 0 && (
+          <p className="px-4 py-6 text-center text-sm text-slate-500">Nothing logged yet.</p>
+        )}
+      </div>
+    </div>
   );
 }
