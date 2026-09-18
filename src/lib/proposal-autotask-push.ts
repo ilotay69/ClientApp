@@ -340,13 +340,17 @@ export async function executeAutotaskPush(
 
     const today = new Date();
     const in30Days = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const closeDate = isoDate(proposal.validUntil ? new Date(`${proposal.validUntil}T00:00:00`) : in30Days);
+    // An expired proposal would otherwise give the Opportunity a close
+    // date before its own start date, which Autotask rejects.
+    const validUntilDate = proposal.validUntil ? new Date(`${proposal.validUntil}T00:00:00`) : null;
+    const closeDate = isoDate(validUntilDate && validUntilDate > today ? validUntilDate : in30Days);
 
     const opportunityId = await createAutotaskOpportunity(credentials, zoneUrl, {
       companyID: companyId,
       title: proposal.title,
       amount: proposal.totals.firstInvoiceTotal,
       ownerResourceID,
+      startDate: isoDate(today),
       projectedCloseDate: closeDate,
     });
 

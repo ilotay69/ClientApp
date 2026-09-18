@@ -318,6 +318,8 @@ export type PicklistLabelMaps = {
 type FieldInfo = {
   name: string;
   isPickList?: boolean;
+  isRequired?: boolean;
+  isReadOnly?: boolean;
   picklistValues?: { value: string; label: string; isActive?: boolean }[];
 };
 
@@ -2131,21 +2133,16 @@ async function autotaskCreate(
   return json.itemId;
 }
 
-/** The first active picklist value for one field on one entity — used for
- * Opportunities' required stage/status, where this app has no way to know
- * which of a tenant's own custom picklist labels means "just started".
- * Prefers whichever entry Autotask itself flags as the default, if any;
- * otherwise just the first active one. Staff can change it by hand in
- * Autotask afterward — this only has to be a valid starting value, since
- * the Opportunity is scaffolding for the Quote, not something anyone
- * manages day to day. */
-async function firstActivePicklistValue(
-  creds: AutotaskCredentials,
-  zoneUrl: string,
-  entity: string,
-  fieldName: string
-): Promise<number | null> {
-  const fields = await fetchEntityFields(creds, zoneUrl, entity);
+/** The first active picklist value for one field — used for Opportunities'
+ * required stage/status, where this app has no way to know which of a
+ * tenant's own custom picklist labels means "just started". Prefers
+ * whichever entry Autotask itself flags as the default, if any; otherwise
+ * just the first active one. Staff can change it by hand in Autotask
+ * afterward — this only has to be a valid starting value, since the
+ * Opportunity is scaffolding for the Quote, not something anyone manages
+ * day to day. Takes already-fetched fields so one entityInformation call
+ * can resolve several picklists. */
+function firstActivePicklistValue(fields: FieldInfo[], fieldName: string): number | null {
   const field = fields.find((f) => f.name === fieldName);
   const values = (field?.picklistValues ?? []) as unknown as {
     value: string;
@@ -2226,6 +2223,10 @@ export type AutotaskNewOpportunityInput = {
   title: string;
   amount: number;
   ownerResourceID: number;
+  /** yyyy-mm-dd. Required by the API even though Autotask's own
+   * OpportunitiesEntity docs don't list it among the required fields —
+   * creating without it fails with "Missing Required Field: startDate". */
+  startDate: string;
   /** yyyy-mm-dd */
   projectedCloseDate: string;
 };
@@ -2240,26 +2241,39 @@ export async function createAutotaskOpportunity(
   zoneUrl: string,
   input: AutotaskNewOpportunityInput
 ): Promise<number> {
-  const [stage, status] = await Promise.all([
-    firstActivePicklistValue(creds, zoneUrl, "Opportunities", "stage"),
-    firstActivePicklistValue(creds, zoneUrl, "Opportunities", "status"),
-  ]);
+  const fields = await fetchEntityFields(creds, zoneUrl, "Opportunities");
+  const stage = firstActivePicklistValue(fields, "stage");
+  const status = firstActivePicklistValue(fields, "status");
   if (stage === null || status === null) {
     throw new Error("Could not resolve a default stage/status from Autotask's own Opportunities picklists.");
   }
 
-  return autotaskCreate(creds, zoneUrl, "Opportunities", {
+  const body: Record<string, unknown> = {
     companyID: input.companyID,
     title: input.title,
     amount: input.amount,
     cost: 0,
     probability: 0,
+    startDate: input.startDate,
     projectedCloseDate: input.projectedCloseDate,
     ownerResourceID: input.ownerResourceID,
     stage,
     status,
     useQuoteTotals: true,
-  });
+  };
+
+  // Autotask's published required-field list for this entity turned out to
+  // be incomplete (startDate was missing from it), so surface anything
+  // else the tenant considers required before it comes back as a 500 that
+  // costs someone a failed push to diagnose.
+  const unsupplied = fields
+    .filter((f) => f.isRequired && !f.isReadOnly && !(f.name in body))
+    .map((f) => f.name);
+  if (unsupplied.length > 0) {
+    console.warn(`Autotask Opportunities: required fields not being sent: ${unsupplied.join(", ")}`);
+  }
+
+  return autotaskCreate(creds, zoneUrl, "Opportunities", body);
 }
 
 export type AutotaskNewQuoteInput = {
