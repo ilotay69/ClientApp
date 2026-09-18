@@ -33,6 +33,12 @@ function cell(value: ReportCell): string {
   return value == null ? "—" : String(value);
 }
 
+// Every rollup report that spans multiple clients names that column
+// "Client" (see src/lib/reports.ts) - detected by name here rather than a
+// per-report flag, so "all clients vs. one client" shows up automatically
+// on every report that has one, with no per-report wiring to keep in sync.
+const CLIENT_COLUMN_NAME = "Client";
+
 type SortState = { column: number; direction: "asc" | "desc" } | null;
 
 /** One report's own preview panel — load-a-preview-then-table, same
@@ -54,6 +60,7 @@ export function ReportPreviewPanel({
   const [loading, startLoad] = useTransition();
   const [filterText, setFilterText] = useState("");
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState<string | null>(null);
   const [maxValueInput, setMaxValueInput] = useState(
     report.maxValueFilterDefault != null ? String(report.maxValueFilterDefault) : ""
   );
@@ -62,6 +69,7 @@ export function ReportPreviewPanel({
   const load = () => {
     setFilterText("");
     setQuickFilter(null);
+    setClientFilter(null);
     setMaxValueInput(report.maxValueFilterDefault != null ? String(report.maxValueFilterDefault) : "");
     setSort(null);
     startLoad(async () => {
@@ -73,6 +81,9 @@ export function ReportPreviewPanel({
     preview && !("error" in preview) && report.quickFilterColumn
       ? preview.headers.indexOf(report.quickFilterColumn)
       : -1;
+
+  const clientColumnIndex =
+    preview && !("error" in preview) ? preview.headers.indexOf(CLIENT_COLUMN_NAME) : -1;
 
   const maxValueColumnIndex =
     preview && !("error" in preview) && report.maxValueFilterColumn
@@ -87,12 +98,23 @@ export function ReportPreviewPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview, quickFilterColumnIndex]);
 
+  const clientFilterValues = useMemo(() => {
+    if (!preview || "error" in preview || clientColumnIndex < 0) return [];
+    const values = new Set(preview.rows.map((row) => cell(row[clientColumnIndex])));
+    return [...values].sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview, clientColumnIndex]);
+
   const displayedRows = useMemo(() => {
     if (!preview || "error" in preview) return [];
     let rows = preview.rows;
 
     if (quickFilter !== null && quickFilterColumnIndex >= 0) {
       rows = rows.filter((row) => cell(row[quickFilterColumnIndex]) === quickFilter);
+    }
+
+    if (clientFilter !== null && clientColumnIndex >= 0) {
+      rows = rows.filter((row) => cell(row[clientColumnIndex]) === clientFilter);
     }
 
     if (maxValueThreshold !== null && !Number.isNaN(maxValueThreshold) && maxValueColumnIndex >= 0) {
@@ -123,7 +145,17 @@ export function ReportPreviewPanel({
     }
 
     return rows;
-  }, [preview, filterText, quickFilter, quickFilterColumnIndex, maxValueThreshold, maxValueColumnIndex, sort]);
+  }, [
+    preview,
+    filterText,
+    quickFilter,
+    quickFilterColumnIndex,
+    clientFilter,
+    clientColumnIndex,
+    maxValueThreshold,
+    maxValueColumnIndex,
+    sort,
+  ]);
 
   const toggleSort = (column: number) => {
     setSort((prev) => {
@@ -144,7 +176,7 @@ export function ReportPreviewPanel({
               {preview.truncated
                 ? `Showing first ${preview.rows.length} of ${preview.totalRows} rows — download for the full export.`
                 : `${preview.totalRows} row${preview.totalRows === 1 ? "" : "s"}.`}
-              {(filterText || quickFilter || maxValueThreshold !== null) &&
+              {(filterText || quickFilter || clientFilter || maxValueThreshold !== null) &&
                 ` ${displayedRows.length} match filter.`}
             </p>
           )}
@@ -164,6 +196,13 @@ export function ReportPreviewPanel({
           >
             <IconDownload className="h-4 w-4" />
             Download CSV
+          </a>
+          <a
+            href={`/api/reports/pdf?key=${report.key}&title=${encodeURIComponent(report.title)}`}
+            className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            <IconDownload className="h-4 w-4" />
+            Download PDF
           </a>
         </div>
       </div>
@@ -192,6 +231,20 @@ export function ReportPreviewPanel({
               placeholder="Filter rows…"
               className="w-full max-w-xs rounded-md border border-slate-300 px-2.5 py-1 text-xs focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             />
+            {clientColumnIndex >= 0 && clientFilterValues.length > 0 && (
+              <select
+                value={clientFilter ?? ""}
+                onChange={(e) => setClientFilter(e.target.value || null)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              >
+                <option value="">All clients</option>
+                {clientFilterValues.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            )}
             {quickFilterColumnIndex >= 0 && quickFilterValues.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
@@ -267,7 +320,9 @@ export function ReportPreviewPanel({
                 {displayedRows.length === 0 && (
                   <tr>
                     <td colSpan={preview.headers.length} className="px-3 py-3 text-center text-slate-500">
-                      {filterText ? "No rows match that filter." : "Nothing to show."}
+                      {filterText || quickFilter || clientFilter || maxValueThreshold !== null
+                        ? "No rows match that filter."
+                        : "Nothing to show."}
                     </td>
                   </tr>
                 )}

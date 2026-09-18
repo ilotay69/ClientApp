@@ -118,14 +118,16 @@ async function requireAutotaskSettings(admin: ReturnType<typeof createAdminClien
  * being added over several stages), a chain ending in a bare `else` would
  * silently misroute the moment a key was added without an explicit branch.
  * Each case is required to return or fall through to the shared handling
- * below; TypeScript flags an unhandled ReportKey as a type error here. */
-export async function getReportPreviewAction(key: ReportKey): Promise<ReportPreview | { error: string }> {
-  const supabase = await createClient();
-  if (!(await hasPermission(supabase, "view_team_wide"))) {
-    return { error: "You don't have permission to do that." };
-  }
-
+ * below; TypeScript flags an unhandled ReportKey as a type error here.
+ *
+ * Permission-free on purpose — every caller (the preview action below, and
+ * the PDF download route) does its own hasPermission check first, since a
+ * Route Handler and a Server Action each need their own Supabase client
+ * anyway. This is just "which report is this and how do I build its
+ * headers/rows", not an entry point of its own. */
+export async function resolveReportData(key: ReportKey): Promise<ReportData | { error: string }> {
   try {
+    const supabase = await createClient();
     let data: ReportData;
     switch (key) {
       case "clients":
@@ -274,14 +276,26 @@ export async function getReportPreviewAction(key: ReportKey): Promise<ReportPrev
         return assertUnreachable(key);
     }
 
-    return {
-      headers: data.headers,
-      rows: data.rows.slice(0, PREVIEW_LIMIT),
-      totalRows: data.rows.length,
-      truncated: data.rows.length > PREVIEW_LIMIT,
-      warnings: data.warnings,
-    };
+    return data;
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to load report." };
   }
+}
+
+export async function getReportPreviewAction(key: ReportKey): Promise<ReportPreview | { error: string }> {
+  const supabase = await createClient();
+  if (!(await hasPermission(supabase, "view_team_wide"))) {
+    return { error: "You don't have permission to do that." };
+  }
+
+  const data = await resolveReportData(key);
+  if ("error" in data) return data;
+
+  return {
+    headers: data.headers,
+    rows: data.rows.slice(0, PREVIEW_LIMIT),
+    totalRows: data.rows.length,
+    truncated: data.rows.length > PREVIEW_LIMIT,
+    warnings: data.warnings,
+  };
 }
