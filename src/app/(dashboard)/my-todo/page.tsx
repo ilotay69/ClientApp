@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { createClient, createAdminClient, getCurrentUser } from "@/lib/supabase/server";
 import { getMyPermissions } from "@/lib/permissions";
-import { fetchLoggedHoursForMonth, dayOfMonth, type LoggedHoursEntry } from "@/lib/logged-hours";
+import {
+  fetchLoggedHoursForMonth,
+  dayOfMonth,
+  signedHours,
+  LOGGED_HOURS_LABEL_OPTIONS,
+  type LoggedHoursEntry,
+} from "@/lib/logged-hours";
 import { LoggedHoursForm } from "@/components/logged-hours-form";
 import { DeleteButton } from "@/components/delete-button";
 import { formatDate } from "@/lib/format";
@@ -345,8 +351,13 @@ export default async function MyToDoPage({
         { label: "Hours Logged", content: hoursLoggedTab },
       ]}
       defaultActive={TAB_INDEX[tab ?? ""] ?? 0}
+      orientation="vertical"
     />
   );
+}
+
+function labelText(label: LoggedHoursEntry["label"]): string {
+  return LOGGED_HOURS_LABEL_OPTIONS.find((o) => o.value === label)?.label ?? label;
 }
 
 function HoursHalfCard({
@@ -358,7 +369,7 @@ function HoursHalfCard({
   entries: LoggedHoursEntry[];
   deleteAction: (id: string) => Promise<void>;
 }) {
-  const total = entries.reduce((sum, e) => sum + e.hours, 0);
+  const total = entries.reduce((sum, e) => sum + signedHours(e), 0);
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
@@ -368,12 +379,23 @@ function HoursHalfCard({
       <div className="divide-y divide-slate-100">
         {entries.map((e) => (
           <div key={e.id} className="flex items-center justify-between gap-2 px-4 py-2">
-            <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
+            <div>
+              <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
+              {e.label !== "regular" && (
+                <span className="ml-1.5 text-xs text-slate-400">{labelText(e.label)}</span>
+              )}
+            </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium tabular-nums text-slate-900">{e.hours.toFixed(2)}h</span>
+              <span
+                className={`text-sm font-medium tabular-nums ${
+                  e.label === "taken_off" ? "text-red-600" : "text-slate-900"
+                }`}
+              >
+                {signedHours(e).toFixed(2)}h
+              </span>
               <DeleteButton
                 action={deleteAction.bind(null, e.id)}
-                confirmText={`Remove the ${e.hours}h entry for ${formatDate(e.workDate)}?`}
+                confirmText={`Remove the ${e.hours}h ${labelText(e.label)} entry for ${formatDate(e.workDate)}?`}
                 label="Remove"
               />
             </div>
@@ -398,7 +420,7 @@ function TeamHoursHalfCard({ title, entries }: { title: string; entries: LoggedH
     byUser.set(e.userId, g);
   }
   const groups = [...byUser.values()].sort((a, b) => a.userName.localeCompare(b.userName));
-  const total = entries.reduce((sum, e) => sum + e.hours, 0);
+  const total = entries.reduce((sum, e) => sum + signedHours(e), 0);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -408,7 +430,7 @@ function TeamHoursHalfCard({ title, entries }: { title: string; entries: LoggedH
       </div>
       <div className="divide-y divide-slate-200">
         {groups.map((g) => {
-          const groupTotal = g.entries.reduce((sum, e) => sum + e.hours, 0);
+          const groupTotal = g.entries.reduce((sum, e) => sum + signedHours(e), 0);
           return (
             <div key={g.userId}>
               <div className="flex items-center justify-between bg-slate-50 px-4 py-1.5">
@@ -418,8 +440,19 @@ function TeamHoursHalfCard({ title, entries }: { title: string; entries: LoggedH
               <div className="divide-y divide-slate-100">
                 {g.entries.map((e) => (
                   <div key={e.id} className="flex items-center justify-between px-4 py-1.5">
-                    <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
-                    <span className="text-sm font-medium tabular-nums text-slate-900">{e.hours.toFixed(2)}h</span>
+                    <div>
+                      <span className="text-sm text-slate-700">{formatDate(e.workDate)}</span>
+                      {e.label !== "regular" && (
+                        <span className="ml-1.5 text-xs text-slate-400">{labelText(e.label)}</span>
+                      )}
+                    </div>
+                    <span
+                      className={`text-sm font-medium tabular-nums ${
+                        e.label === "taken_off" ? "text-red-600" : "text-slate-900"
+                      }`}
+                    >
+                      {signedHours(e).toFixed(2)}h
+                    </span>
                   </div>
                 ))}
               </div>

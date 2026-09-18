@@ -2,12 +2,15 @@
 
 import { useActionState } from "react";
 import type { LoggedHoursActionState } from "@/app/(dashboard)/hours-logged/actions";
+import { LOGGED_HOURS_LABEL_OPTIONS } from "@/lib/logged-hours";
 
 const initialState: LoggedHoursActionState = { error: null };
 
-/** Re-submitting the same date corrects that day's total in place (see
- * upsertLoggedHoursAction) rather than adding a second entry, so this is
- * the one form for both "log today's hours" and "fix a day I got wrong". */
+/** Re-submitting the same date and label corrects that entry in place (see
+ * upsertLoggedHoursAction) rather than adding a duplicate, so this is the
+ * one form for both "log today's hours" and "fix a day I got wrong". Taken
+ * Off subtracts from the running total shown below instead of adding to
+ * it - the number typed here always stays positive either way. */
 export function LoggedHoursForm({
   action,
   defaultDate,
@@ -44,6 +47,20 @@ export function LoggedHoursForm({
           placeholder="8"
           className="mt-1 w-24 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
         />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-slate-700">Label</label>
+        <select
+          name="label"
+          defaultValue="regular"
+          className="mt-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm"
+        >
+          {LOGGED_HOURS_LABEL_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
       <button
         type="submit"

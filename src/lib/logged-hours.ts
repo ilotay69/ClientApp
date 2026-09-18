@@ -3,6 +3,14 @@ import { createAdminClient } from "@/lib/supabase/server";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
 
+export type LoggedHoursLabel = "regular" | "after_hours" | "taken_off";
+
+export const LOGGED_HOURS_LABEL_OPTIONS: { value: LoggedHoursLabel; label: string }[] = [
+  { value: "regular", label: "Regular" },
+  { value: "after_hours", label: "After Hours" },
+  { value: "taken_off", label: "Taken Off" },
+];
+
 export type LoggedHoursEntry = {
   id: string;
   userId: string;
@@ -10,8 +18,20 @@ export type LoggedHoursEntry = {
   /** yyyy-mm-dd, matching the plain `date` column - compared and displayed
    * as calendar dates throughout, never parsed as a timestamp. */
   workDate: string;
+  /** Always stored positive (migration 145's check constraint) - what
+   * someone actually typed. Use signedHours() below for anything that
+   * sums or displays a running total. */
   hours: number;
+  label: LoggedHoursLabel;
 };
+
+/** Taken Off reduces the total instead of adding to it - the sign is
+ * applied here, at read time, rather than stored negative, so the raw
+ * `hours` column always matches what was typed and a check constraint can
+ * still enforce hours > 0. */
+export function signedHours(entry: Pick<LoggedHoursEntry, "hours" | "label">): number {
+  return entry.label === "taken_off" ? -entry.hours : entry.hours;
+}
 
 export type MonthHalf = "first" | "second";
 
@@ -48,7 +68,7 @@ export async function fetchLoggedHoursForMonth(
 
   let query = admin
     .from("logged_hours")
-    .select("id, user_id, work_date, hours, profiles:user_id(full_name)")
+    .select("id, user_id, work_date, hours, label, profiles:user_id(full_name)")
     .gte("work_date", monthStart)
     .lte("work_date", monthEnd)
     .order("work_date", { ascending: true });
@@ -65,6 +85,7 @@ export async function fetchLoggedHoursForMonth(
       userName: (profile as { full_name?: string } | null)?.full_name ?? "Unknown",
       workDate: row.work_date as string,
       hours: Number(row.hours),
+      label: (row.label as LoggedHoursLabel) ?? "regular",
     };
   });
 }
