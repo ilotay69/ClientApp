@@ -277,7 +277,9 @@ export function SidebarNav({
     // or the Sign out button under the home indicator.
     <div className="safe-top safe-bottom flex h-full flex-col bg-charcoal text-white">
       <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-base font-semibold tracking-tight text-white">
+        <span className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/cg-mark.svg" alt="" className="h-6 w-6 shrink-0" />
           <span className="text-brand">CG</span> Ops
         </span>
         <button
@@ -351,7 +353,9 @@ export function SidebarNav({
           the title flush against the edge. max() keeps the normal padding
           as the floor. */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white pb-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
-        <span className="text-sm font-semibold text-charcoal">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-charcoal">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/cg-mark.svg" alt="" className="h-5 w-5 shrink-0" />
           <span className="text-brand">CG</span> Ops
         </span>
         <button

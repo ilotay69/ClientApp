@@ -20,30 +20,13 @@ export function ProposalShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** A simplified, faithful-in-spirit stand-in for CG's own circular mark
- * (cgtechnologies.com's header) — a solid badge rather than a traced
- * vector copy of their logo file, so it renders crisply at any size
- * without depending on an external asset. */
-export function ProposalMark({ size = 36 }: { size?: number }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-brand text-white ring-2 ring-brand-soft"
-      style={{ width: size, height: size, fontSize: size * 0.4 }}
-    >
-      <span className="font-extrabold tracking-tighter">CG</span>
-    </span>
-  );
-}
-
+/** CG Technologies' own real logo (pulled from cgtechnologies.com, not a
+ * text-only stand-in) — public/cg-logo.svg is the full mark+wordmark
+ * lockup. */
 export function ProposalWordmark({ className = "" }: { className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <ProposalMark />
-      <span className="text-lg font-bold tracking-tight text-charcoal">
-        <span className="text-brand">CG</span> Technologies
-      </span>
-    </span>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/cg-logo.svg" alt="CG Technologies" className={`h-8 w-auto ${className}`} />
   );
 }
 

@@ -1,11 +1,13 @@
 import { ImageResponse } from "next/og";
+import { getCgMarkDataUrl } from "@/lib/brand-assets";
 
 // Also doubles as the browser-tab favicon reference — one 512x512 source
 // covers both, browsers downscale for the tab automatically.
 export const size = { width: 512, height: 512 };
 export const contentType = "image/png";
 
-export default function Icon() {
+export default async function Icon() {
+  const markUrl = await getCgMarkDataUrl();
   return new ImageResponse(
     (
       <div
@@ -15,19 +17,11 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#333333",
+          background: "#ffffff",
         }}
       >
-        <span
-          style={{
-            fontSize: 260,
-            fontWeight: 700,
-            color: "#e93e3f",
-            fontFamily: "sans-serif",
-          }}
-        >
-          CG
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={markUrl} width={size.width * 0.82} height={size.height * 0.82} alt="" />
       </div>
     ),
     { ...size }

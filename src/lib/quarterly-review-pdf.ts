@@ -8,6 +8,7 @@ import {
   type QuarterlyReviewSection,
 } from "@/lib/quarterly-review-sections";
 import { buildDeviceInsights, buildDeviceAgeBreakdown, deviceAgeDays, type DeviceInsightInput } from "@/lib/device-insights";
+import { getCgLogoBuffer } from "@/lib/brand-assets";
 
 export type QuarterlyReviewPdfItem = { itemKey: string; status: QuarterlyReviewItemStatus; comments: string | null };
 export type QuarterlyReviewPdfImage = { id: string; buffer: Buffer; label: string | null; fileName: string };
@@ -197,9 +198,14 @@ function appendM365LicensesSection(doc: PdfContentBuilder, licenses: QuarterlyRe
  * matched icon, "Prepared by CG Technologies") so it doesn't read as a
  * bare, unattributed report on its own once it's out of context in an
  * email attachment. */
-export function buildDeviceHealthPdf(clientName: string, devices: QuarterlyReviewPdfDevice[]): Buffer {
+export async function buildDeviceHealthPdf(clientName: string, devices: QuarterlyReviewPdfDevice[]): Promise<Buffer> {
   const doc = new PdfContentBuilder();
-  doc.spacer(60);
+  const logoBuffer = await getCgLogoBuffer().catch(() => null);
+  doc.spacer(logoBuffer ? 30 : 60);
+  if (logoBuffer) {
+    doc.image(logoBuffer, null, "cg-logo", { maxWidth: 140, center: true });
+    doc.spacer(16);
+  }
   doc.heading(clientName, 1, { center: true, color: NAVY, size: 26 });
   doc.paragraph("Device Health", { center: true, color: NAVY, size: 15 });
   doc.spacer(24);
@@ -211,9 +217,14 @@ export function buildDeviceHealthPdf(clientName: string, devices: QuarterlyRevie
   return doc.build().pdf;
 }
 
-export function buildM365LicensesPdf(clientName: string, licenses: QuarterlyReviewPdfLicense[]): Buffer {
+export async function buildM365LicensesPdf(clientName: string, licenses: QuarterlyReviewPdfLicense[]): Promise<Buffer> {
   const doc = new PdfContentBuilder();
-  doc.spacer(60);
+  const logoBuffer = await getCgLogoBuffer().catch(() => null);
+  doc.spacer(logoBuffer ? 30 : 60);
+  if (logoBuffer) {
+    doc.image(logoBuffer, null, "cg-logo", { maxWidth: 140, center: true });
+    doc.spacer(16);
+  }
   doc.heading(clientName, 1, { center: true, color: NAVY, size: 26 });
   doc.paragraph("365 Licenses", { center: true, color: NAVY, size: 15 });
   doc.spacer(24);
@@ -231,7 +242,7 @@ export function buildM365LicensesPdf(clientName: string, licenses: QuarterlyRevi
  * since these come from clipboard-pasted screenshots) are simply left out
  * of embeddedImageIds so the caller can attach those originals to the
  * email directly instead of silently dropping them. */
-export function buildQuarterlyReviewPdf(params: {
+export async function buildQuarterlyReviewPdf(params: {
   clientName: string;
   reviewPeriod: string;
   /** Which checklist this review was built from — picks the right section
@@ -252,7 +263,7 @@ export function buildQuarterlyReviewPdf(params: {
    * sticks. Falls back to computing from items/previousItems otherwise. */
   actionItemsText?: string | null;
   changesSinceLastReviewText?: string | null;
-}): { pdf: Buffer; embeddedImageIds: Set<string> } {
+}): Promise<{ pdf: Buffer; embeddedImageIds: Set<string> }> {
   const {
     clientName,
     reviewPeriod,
@@ -268,11 +279,16 @@ export function buildQuarterlyReviewPdf(params: {
   const itemByKey = new Map(items.map((i) => [i.itemKey, i]));
 
   const doc = new PdfContentBuilder();
+  const logoBuffer = await getCgLogoBuffer().catch(() => null);
 
   // Title page — bigger, colorful type plus a small vector "systems check"
-  // graphic in place of the original template's own image, since this
-  // hand-built PDF writer has no source image to embed one from.
-  doc.spacer(60);
+  // graphic, and now CG's own logo (previously this hand-built PDF writer
+  // had no source image to embed one from).
+  doc.spacer(logoBuffer ? 30 : 60);
+  if (logoBuffer) {
+    doc.image(logoBuffer, null, "cg-logo", { maxWidth: 140, center: true });
+    doc.spacer(16);
+  }
   doc.heading(clientName, 1, { center: true, color: NAVY, size: 26 });
   doc.paragraph("Quarterly Systems Review", { center: true, color: NAVY, size: 15 });
   doc.paragraph(reviewPeriod, { center: true, color: STATUS_COLORS.recommended, size: 13 });

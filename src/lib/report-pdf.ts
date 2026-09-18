@@ -1,5 +1,6 @@
 import { PdfContentBuilder } from "@/lib/pdf";
 import type { ReportData, ReportCell } from "@/lib/reports";
+import { getCgLogoBuffer } from "@/lib/brand-assets";
 
 function cellText(value: ReportCell): string {
   if (value === null || value === undefined) return "-";
@@ -16,8 +17,13 @@ function cellText(value: ReportCell): string {
  *
  * Mirrors the CSV download for the same key: the same full ReportData, no
  * truncation - this is not the capped preview shown on screen. */
-export function buildGenericReportPdf(title: string, data: ReportData): Buffer {
+export async function buildGenericReportPdf(title: string, data: ReportData): Promise<Buffer> {
   const doc = new PdfContentBuilder();
+  const logoBuffer = await getCgLogoBuffer().catch(() => null);
+  if (logoBuffer) {
+    doc.image(logoBuffer, null, "cg-logo", { maxWidth: 120 });
+    doc.spacer(10);
+  }
   doc.heading(title, 1, { size: 18 });
   doc.paragraph(
     `${data.rows.length} row${data.rows.length === 1 ? "" : "s"} — generated ${new Date().toLocaleDateString("en-CA")}`,

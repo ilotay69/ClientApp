@@ -45,7 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       settings.zoneUrl,
       client.autotask_company_id
     );
-    const pdf = buildContractUsagePdf(client.name, rows);
+    const pdf = await buildContractUsagePdf(client.name, rows);
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {

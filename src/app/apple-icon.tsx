@@ -1,11 +1,13 @@
 import { ImageResponse } from "next/og";
+import { getCgMarkDataUrl } from "@/lib/brand-assets";
 
 // iOS ignores the manifest's icons array for "Add to Home Screen" and
 // looks for this file specifically.
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-export default function AppleIcon() {
+export default async function AppleIcon() {
+  const markUrl = await getCgMarkDataUrl();
   return new ImageResponse(
     (
       <div
@@ -15,19 +17,11 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#333333",
+          background: "#ffffff",
         }}
       >
-        <span
-          style={{
-            fontSize: 92,
-            fontWeight: 700,
-            color: "#e93e3f",
-            fontFamily: "sans-serif",
-          }}
-        >
-          CG
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={markUrl} width={size.width * 0.78} height={size.height * 0.78} alt="" />
       </div>
     ),
     { ...size }

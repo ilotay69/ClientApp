@@ -1,5 +1,6 @@
 import { PdfContentBuilder } from "@/lib/pdf";
 import type { ContractUsageRow } from "@/lib/contract-hours";
+import { getCgLogoBuffer } from "@/lib/brand-assets";
 
 const NAVY: [number, number, number] = [0.059, 0.09, 0.165];
 const RED: [number, number, number] = [0.863, 0.149, 0.149];
@@ -21,10 +22,15 @@ function hrs(n: number): string {
  * straight from Autotask's own block fields, entries for detail), laid
  * out as a standalone document instead of an internal lookup table, for
  * emailing to the client directly. */
-export function buildContractUsagePdf(clientName: string, rows: ContractUsageRow[]): Buffer {
+export async function buildContractUsagePdf(clientName: string, rows: ContractUsageRow[]): Promise<Buffer> {
   const doc = new PdfContentBuilder();
+  const logoBuffer = await getCgLogoBuffer().catch(() => null);
 
-  doc.spacer(40);
+  doc.spacer(logoBuffer ? 20 : 40);
+  if (logoBuffer) {
+    doc.image(logoBuffer, null, "cg-logo", { maxWidth: 130, center: true });
+    doc.spacer(14);
+  }
   doc.heading(clientName, 1, { center: true, color: NAVY, size: 24 });
   doc.paragraph("Contract Usage Report", { center: true, color: NAVY, size: 14 });
   doc.paragraph(

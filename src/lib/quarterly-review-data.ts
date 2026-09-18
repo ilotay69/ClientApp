@@ -600,7 +600,7 @@ export async function generateQuarterlyReviewSectionPdf(
       .eq("client_id", review.client_id)
       .order("system_name");
     if (!deviceRows || deviceRows.length === 0) return;
-    pdf = buildDeviceHealthPdf(clientName, deviceRows);
+    pdf = await buildDeviceHealthPdf(clientName, deviceRows);
   } else if (sectionKey === "m365_licenses") {
     const { data: licenseRows } = await admin
       .from("m365_license_summary")
@@ -608,7 +608,7 @@ export async function generateQuarterlyReviewSectionPdf(
       .eq("client_id", review.client_id)
       .order("sku_part_number");
     if (!licenseRows || licenseRows.length === 0) return;
-    pdf = buildM365LicensesPdf(
+    pdf = await buildM365LicensesPdf(
       clientName,
       (licenseRows as { sku_part_number: string; consumed_units: number; enabled_units: number }[]).map((l) => ({
         skuPartNumber: l.sku_part_number,
@@ -735,7 +735,7 @@ export async function assembleQuarterlyReviewPdf(
     ? new Map([...previousReview.itemsByKey.entries()].map(([key, row]) => [key, row.status]))
     : null;
 
-  const { pdf, embeddedImageIds } = buildQuarterlyReviewPdf({
+  const { pdf, embeddedImageIds } = await buildQuarterlyReviewPdf({
     clientName: review.clientName,
     reviewPeriod: review.reviewPeriod,
     template: review.template,

@@ -11,6 +11,7 @@ import { buildProposalEmail, buildProposalAcceptedClientEmail } from "@/lib/rese
 import { sendMailAsSharedMailbox, type SharedMailboxAttachment } from "@/lib/microsoft-graph";
 import { buildProposalPdf } from "@/lib/proposal-pdf";
 import { getCompanyInfo } from "@/lib/company-info";
+import { getCgLogoBuffer } from "@/lib/brand-assets";
 import { getSharedMailboxSettings, getValidSharedMailboxToken } from "@/lib/shared-mailbox";
 import { resolveAppUrl } from "@/lib/app-url";
 import { formatDate } from "@/lib/format";
@@ -1042,7 +1043,8 @@ export async function markProposalAcceptedByStaffAction(
         const attachments: SharedMailboxAttachment[] = [];
         const acceptedProposal = await getProposal(proposalId, admin);
         if (acceptedProposal) {
-          const { pdf } = buildProposalPdf(acceptedProposal, null, await getCompanyInfo(admin));
+          const logoBuffer = await getCgLogoBuffer().catch(() => null);
+          const { pdf } = buildProposalPdf(acceptedProposal, null, await getCompanyInfo(admin), logoBuffer);
           attachments.push({
             filename: `${proposal.title} - Signed.pdf`,
             contentBase64: pdf.toString("base64"),

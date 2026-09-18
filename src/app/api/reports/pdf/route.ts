@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   const data = await resolveReportData(key);
   if ("error" in data) return new Response(data.error, { status: 400 });
 
-  const pdf = buildGenericReportPdf(title, data);
+  const pdf = await buildGenericReportPdf(title, data);
   const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
   return reportPdfResponse(filename, pdf);
 }

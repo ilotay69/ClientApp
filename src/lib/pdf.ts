@@ -294,7 +294,7 @@ type Block =
   | { type: "heading"; text: string; level: 1 | 2; center?: boolean; color?: Color; size?: number }
   | { type: "paragraph"; text: string; center?: boolean; color?: Color; size?: number }
   | { type: "item"; label: string; status: string; comments: string | null; statusColor?: Color }
-  | { type: "image"; buffer: Buffer; label: string | null; id: string }
+  | { type: "image"; buffer: Buffer; label: string | null; id: string; maxWidth?: number; center?: boolean }
   | { type: "spacer"; amount: number }
   | { type: "pagebreak" }
   | { type: "icon"; variant: IconVariant }
@@ -317,8 +317,13 @@ export class PdfContentBuilder {
     this.blocks.push({ type: "item", label, status, comments, statusColor });
     return this;
   }
-  image(buffer: Buffer, label: string | null, id: string) {
-    this.blocks.push({ type: "image", buffer, label, id });
+  /** opts.maxWidth caps how wide this renders (still capped by the page's
+   * usable width either way) — without it every image scales up to fill
+   * the full page width, which is right for a screenshot but far too big
+   * for a header logo. opts.center matches heading/paragraph's own
+   * center option, for a logo sitting above centered title-page text. */
+  image(buffer: Buffer, label: string | null, id: string, opts?: { maxWidth?: number; center?: boolean }) {
+    this.blocks.push({ type: "image", buffer, label, id, maxWidth: opts?.maxWidth, center: opts?.center });
     return this;
   }
   spacer(amount = 10) {
@@ -668,7 +673,7 @@ export class PdfContentBuilder {
           cursorY -= 4;
           continue;
         }
-        const maxW = USABLE_WIDTH;
+        const maxW = block.maxWidth ? Math.min(block.maxWidth, USABLE_WIDTH) : USABLE_WIDTH;
         const maxH = 380;
         const scale = Math.min(maxW / decoded.widthPx, maxH / decoded.heightPx);
         const w = decoded.widthPx * scale;
@@ -699,7 +704,8 @@ export class PdfContentBuilder {
           const name = `Im${++imageObjSeq}`;
           pageImageRefs.push({ name, objId });
           cursorY -= h;
-          content += `q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${MARGIN.toFixed(2)} ${cursorY.toFixed(2)} cm /${name} Do Q\n`;
+          const imgX = block.center ? MARGIN + (USABLE_WIDTH - w) / 2 : MARGIN;
+          content += `q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${imgX.toFixed(2)} ${cursorY.toFixed(2)} cm /${name} Do Q\n`;
           cursorY -= 10;
           embeddedImageIds.add(block.id);
         } catch (err) {

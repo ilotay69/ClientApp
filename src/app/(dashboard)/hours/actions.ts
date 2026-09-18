@@ -302,7 +302,7 @@ export async function sendContractUsageReportAction(
       settings.zoneUrl,
       client.autotask_company_id
     );
-    const pdf = buildContractUsagePdf(client.name, rows);
+    const pdf = await buildContractUsagePdf(client.name, rows);
     const template = await getEmailTemplate(admin, "contract_usage_report");
     const templateVars = { client_name: client.name };
     const { html, text } = buildContractUsageClientEmail(

@@ -24,12 +24,17 @@ const PERIOD_SUFFIX: Record<string, string> = {
 export function buildProposalPdf(
   proposal: Proposal,
   signatureBuffer: Buffer | null,
-  companyInfo: CompanyInfo
+  companyInfo: CompanyInfo,
+  logoBuffer: Buffer | null = null
 ): { pdf: Buffer; embeddedImageIds: Set<string> } {
   const doc = new PdfContentBuilder();
   const companyName = proposal.clientName ?? proposal.prospectCompany ?? "Client";
 
-  doc.spacer(30);
+  doc.spacer(20);
+  if (logoBuffer) {
+    doc.image(logoBuffer, null, "cg-logo", { maxWidth: 130 });
+    doc.spacer(14);
+  }
   doc.heading(companyName, 1, { center: true, color: NAVY, size: 22 });
   doc.paragraph(`Proposal ${proposal.quotationNumber ?? `#${proposal.proposalNumber}`}: ${proposal.title}`, {
     center: true,
