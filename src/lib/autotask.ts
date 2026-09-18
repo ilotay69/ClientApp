@@ -2386,6 +2386,10 @@ export async function createAutotaskQuote(
 
 export type AutotaskNewQuoteItemInput = {
   quantity: number;
+  /** The line's own short label. Sent only on Product lines, which
+   * Autotask refuses to create without one; on a Service line the field
+   * is read-only and shows the catalog service's own name. */
+  name: string;
   /** Becomes periodType on a Product line, which Autotask requires there.
    * Service lines take their period from the catalog service itself, so
    * it is deliberately not sent for those. */
@@ -2454,6 +2458,9 @@ export async function createAutotaskQuoteItems(
         );
       }
       body.periodType = periodType;
+      // "Only QuoteItems with a serviceID or serviceBundleID may be
+      // created without providing a QuoteItem.name."
+      body.name = item.name.slice(0, 100);
     }
     try {
       await autotaskCreate(creds, zoneUrl, `Quotes/${quoteID}/Items`, body);

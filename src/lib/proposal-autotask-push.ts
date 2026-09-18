@@ -465,6 +465,7 @@ async function addLinesAndFinish(
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       billingPeriod: item.billingPeriod,
+      name: item.description,
       description: item.detail ? `${item.description} — ${item.detail}` : item.description,
       ...reference,
     }))
