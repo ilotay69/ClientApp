@@ -96,6 +96,18 @@ export async function createTimeOffRequestAction(
       `${typeLabel(type)} — ${startDate} to ${endDate}`,
       "/my-todo?tab=timeoff"
     );
+    // Confirms the submission actually went through, same as Sick's
+    // immediate auto-reply - without this, the requester's only
+    // notification was the eventual approve/decline, with nothing telling
+    // them the request itself was received.
+    await createAlert(
+      admin,
+      [me.userId],
+      "time_off_requested",
+      "Your time off request was submitted",
+      `${typeLabel(type)} — ${startDate} to ${endDate} · waiting on approval`,
+      "/my-todo?tab=timeoff"
+    );
   }
 
   revalidatePath("/my-todo");
