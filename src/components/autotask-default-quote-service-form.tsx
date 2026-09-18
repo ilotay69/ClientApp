@@ -69,8 +69,8 @@ export function AutotaskDefaultQuoteServiceForm({
     <div className="mt-4 border-t border-slate-100 pt-4">
       <p className="text-sm font-medium text-slate-700">Default service for pushed proposal lines</p>
       <p className="mt-0.5 text-xs text-slate-500">
-        Every "Push to Autotask" line needs a real Autotask Service/Product to reference — this is
-        the one used when a proposal line's wording doesn't match an existing service by name.
+        Every &quot;Push to Autotask&quot; line needs a real Autotask Service/Product to reference — this is
+        the one used when a proposal line&apos;s wording doesn&apos;t match an existing service by name.
       </p>
       <p className="mt-2 text-sm text-slate-900">
         Currently: <span className="font-medium">{currentName ?? "Not set"}</span>

@@ -1,11 +1,23 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { formatMoney } from "@/lib/proposal-totals";
 import type { AutotaskPushPreview, AutotaskPushCompanyChoice } from "@/lib/proposal-autotask-push";
 
 type PreviewResult = AutotaskPushPreview | { error: string };
 type PushResult = { ok: true; quoteId: number } | { error: string };
+
+/** Card shell matching the rest of the proposal page's left rail — this
+ * sits among the readiness/brochure/send cards, and a bare button or a
+ * loose line of grey text reads as stray content next to them. */
+function AutotaskCard({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Autotask</p>
+      {children}
+    </div>
+  );
+}
 
 /** "Push to Autotask" — turns this proposal into a real Autotask Quote.
  * Not an invoice: Autotask's API can't create those at all (see
@@ -66,18 +78,30 @@ export function ProposalAutotaskPushButton({
   };
 
   if (pushedQuoteId) {
-    return <p className="text-xs text-slate-500">Already pushed to Autotask — Quote #{pushedQuoteId}.</p>;
+    return (
+      <AutotaskCard>
+        <p className="mt-2 text-xs text-emerald-700">Pushed as Quote #{pushedQuoteId}.</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Mark it Won in Autotask to turn it into an invoice.
+        </p>
+      </AutotaskCard>
+    );
   }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openDialog}
-        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-      >
-        Push to Autotask
-      </button>
+      <AutotaskCard>
+        <p className="mt-2 text-xs text-slate-500">
+          Create the matching Quote in Autotask from this proposal&apos;s line items.
+        </p>
+        <button
+          type="button"
+          onClick={openDialog}
+          className="mt-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+        >
+          Push to Autotask
+        </button>
+      </AutotaskCard>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -93,7 +117,7 @@ export function ProposalAutotaskPushButton({
               </button>
             </div>
             <p className="mt-1 text-sm text-slate-500">
-              Creates a Quote in Autotask with this proposal's line items. Someone still needs to
+              Creates a Quote in Autotask with this proposal&apos;s line items. Someone still needs to
               open it in Autotask and mark it Won to actually generate an invoice there.
             </p>
 
@@ -134,7 +158,7 @@ export function ProposalAutotaskPushButton({
                           onChange={() => setCompanyChoice({ type: "create_new" })}
                           className="h-4 w-4"
                         />
-                        Create a new company "{preview.companyName}" in Autotask
+                        Create a new company &quot;{preview.companyName}&quot; in Autotask
                       </label>
                       {preview.possibleCompanyMatches.length === 0 && (
                         <p className="text-xs text-slate-400">
@@ -166,7 +190,7 @@ export function ProposalAutotaskPushButton({
                   </div>
                   {preview.unmatchedLineCount > 0 && !preview.fallbackServiceConfigured && (
                     <p className="mt-1.5 text-xs text-red-600">
-                      {preview.unmatchedLineCount} line{preview.unmatchedLineCount === 1 ? "" : "s"} didn't
+                      {preview.unmatchedLineCount} line{preview.unmatchedLineCount === 1 ? "" : "s"} didn&apos;t
                       match a real Autotask service, and no fallback is configured yet (Settings →
                       Integrations → Autotask). Pushing will fail until one is set.
                     </p>
