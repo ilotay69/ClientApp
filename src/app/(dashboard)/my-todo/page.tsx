@@ -9,6 +9,7 @@ import {
   type LoggedHoursEntry,
 } from "@/lib/logged-hours";
 import { fetchTimeOffRequests, type TimeOffRequest } from "@/lib/time-off";
+import { Badge } from "@/components/badge";
 import { TimeOffRequestForm } from "@/components/time-off-request-form";
 import { TimeOffRequestCard } from "@/components/time-off-request-card";
 import {
@@ -221,6 +222,14 @@ export default async function MyToDoPage({
       ])
     : [[], []];
   const teamTimeOffRequests = isOwner ? allTimeOffRequests.filter((r) => r.userId !== me?.userId) : [];
+  // Visible to everyone, not just owners - "who's off when" is ordinary
+  // team-calendar information, unlike the pending/declined requests above
+  // (which can carry a personal reason) that stay owner-only.
+  const approvedTimeOff = me
+    ? (await fetchTimeOffRequests({ status: "approved", fromDate: todayStr }, admin)).sort((a, b) =>
+        a.startDate.localeCompare(b.startDate)
+      )
+    : [];
 
   const sortHrefFor = (field: string, dir: SortDir) =>
     filterHref("/my-todo", { tab: "tasks", client: filterClient, priority: filterPriorities, status: filterStatuses, sort: field, dir });
@@ -443,6 +452,31 @@ export default async function MyToDoPage({
           </div>
         </div>
       )}
+
+      <div>
+        <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Approved time off <span className="normal-case text-slate-400">({approvedTimeOff.length})</span>
+        </h2>
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="divide-y divide-slate-100">
+            {approvedTimeOff.map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5">
+                <span className="text-sm font-medium text-slate-900">{r.userName}</span>
+                <div className="flex items-center gap-1.5">
+                  <Badge value={r.type} />
+                  <span className="text-sm text-slate-700">
+                    {formatDate(r.startDate)}
+                    {r.endDate !== r.startDate && <> – {formatDate(r.endDate)}</>}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {approvedTimeOff.length === 0 && (
+              <p className="px-3 py-4 text-center text-xs text-slate-500">No upcoming approved time off.</p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 

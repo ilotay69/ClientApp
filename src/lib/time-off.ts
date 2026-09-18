@@ -36,7 +36,7 @@ export type TimeOffRequest = {
  * small enough that eager-loading every note up front (rather than a
  * click-to-expand fetch, like task notes) keeps this simple. */
 export async function fetchTimeOffRequests(
-  opts: { userId?: string } = {},
+  opts: { userId?: string; status?: TimeOffStatus; fromDate?: string } = {},
   admin: AdminClient = createAdminClient()
 ): Promise<TimeOffRequest[]> {
   let query = admin
@@ -48,6 +48,11 @@ export async function fetchTimeOffRequests(
     .order("start_date", { ascending: false });
 
   if (opts.userId) query = query.eq("user_id", opts.userId);
+  if (opts.status) query = query.eq("status", opts.status);
+  // "hasn't fully ended yet" rather than "starts in the future" - a
+  // multi-day vacation that started yesterday still belongs on an
+  // upcoming/current list today.
+  if (opts.fromDate) query = query.gte("end_date", opts.fromDate);
 
   const { data } = await query;
   const requests = data ?? [];
