@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getMyPermissions, isStaffRole } from "@/lib/permissions";
-import { createAlert } from "@/lib/alerts";
+import { createAlert, type AlertKind } from "@/lib/alerts";
+import { sendPushToUsers } from "@/lib/push-notifications";
 
 export type TimeOffActionState = { error: string | null };
 
@@ -17,6 +18,26 @@ async function fetchOwnerIds(admin: any): Promise<string[]> {
 async function fetchFullName(admin: any, userId: string): Promise<string> {
   const { data } = await admin.from("profiles").select("full_name").eq("id", userId).maybeSingle();
   return data?.full_name ?? "Someone";
+}
+
+/** In-app alert + push together - task_assigned (tasks/actions.ts) sends
+ * both, and this feature was missing the push half entirely, which is
+ * exactly why it never reached anyone's phone even though the in-app
+ * alert itself was being created correctly. Push is best-effort and never
+ * blocks the alert (matches sendPushToUser's own doc comment). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function notify(
+  admin: any,
+  recipientIds: string[],
+  kind: AlertKind,
+  title: string,
+  detail: string,
+  href: string
+): Promise<void> {
+  sendPushToUsers(admin, recipientIds, { title, body: detail, url: href }).catch((err) =>
+    console.error("time-off: push failed", err)
+  );
+  await createAlert(admin, recipientIds, kind, title, detail, href);
 }
 
 function typeLabel(type: string): string {
@@ -78,8 +99,8 @@ export async function createTimeOffRequestAction(
 
   if (isSick) {
     await admin.from("time_off_request_notes").insert({ request_id: data.id, author_id: null, body: SICK_AUTO_REPLY });
-    await createAlert(admin, [me.userId], "time_off_decided", SICK_AUTO_REPLY, `Sick — ${startDate} to ${endDate}`, "/my-todo?tab=timeoff");
-    await createAlert(
+    await notify(admin, [me.userId], "time_off_decided", SICK_AUTO_REPLY, `Sick — ${startDate} to ${endDate}`, "/my-todo?tab=timeoff");
+    await notify(
       admin,
       ownerIds,
       "time_off_requested",
@@ -88,7 +109,7 @@ export async function createTimeOffRequestAction(
       "/my-todo?tab=timeoff"
     );
   } else {
-    await createAlert(
+    await notify(
       admin,
       ownerIds,
       "time_off_requested",
@@ -100,7 +121,7 @@ export async function createTimeOffRequestAction(
     // immediate auto-reply - without this, the requester's only
     // notification was the eventual approve/decline, with nothing telling
     // them the request itself was received.
-    await createAlert(
+    await notify(
       admin,
       [me.userId],
       "time_off_requested",
@@ -137,8 +158,8 @@ export async function decideTimeOffRequestAction(id: string, decision: "approved
   const period = `${typeLabel(request.type)} — ${request.start_date} to ${request.end_date}`;
   const requesterName = await fetchFullName(admin, request.user_id);
 
-  await createAlert(admin, [request.user_id], "time_off_decided", `Your time off request was ${decision}`, period, "/my-todo?tab=timeoff");
-  await createAlert(admin, [me.userId], "time_off_decided", `You ${decision} ${requesterName}'s time off request`, period, "/my-todo?tab=timeoff");
+  await notify(admin, [request.user_id], "time_off_decided", `Your time off request was ${decision}`, period, "/my-todo?tab=timeoff");
+  await notify(admin, [me.userId], "time_off_decided", `You ${decision} ${requesterName}'s time off request`, period, "/my-todo?tab=timeoff");
 
   revalidatePath("/my-todo");
 }
@@ -185,7 +206,7 @@ export async function addTimeOffNoteAction(
   }
   recipientIds = recipientIds.filter((rid) => rid !== me.userId);
 
-  await createAlert(
+  await notify(
     admin,
     recipientIds,
     "time_off_note",
