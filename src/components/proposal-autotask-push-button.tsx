@@ -44,6 +44,7 @@ export function ProposalAutotaskPushButton({
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [companyChoice, setCompanyChoice] = useState<AutotaskPushCompanyChoice | null>(null);
+  const [newCompanyPhone, setNewCompanyPhone] = useState("");
   const [loading, startLoad] = useTransition();
   const [pushing, startPush] = useTransition();
   const [pushResult, setPushResult] = useState<PushResult | null>(null);
@@ -61,7 +62,7 @@ export function ProposalAutotaskPushButton({
       // at all — creating a new company is the only option, so pick it
       // automatically rather than making someone click a single radio.
       if (!("error" in result) && result.existingCompanyId === null && result.possibleCompanyMatches.length === 0) {
-        setCompanyChoice({ type: "create_new" });
+        setCompanyChoice({ type: "create_new", phone: "" });
       }
     });
   };
@@ -175,11 +176,36 @@ export function ProposalAutotaskPushButton({
                           type="radio"
                           name="company-choice"
                           checked={companyChoice?.type === "create_new"}
-                          onChange={() => setCompanyChoice({ type: "create_new" })}
+                          onChange={() => setCompanyChoice({ type: "create_new", phone: newCompanyPhone })}
                           className="h-4 w-4"
                         />
                         Create a new company &quot;{preview.companyName}&quot; in Autotask
                       </label>
+
+                      {/* Autotask will not create a Company without a phone
+                          number, and a proposal carries none — so it is
+                          asked for here rather than invented. */}
+                      {companyChoice?.type === "create_new" && (
+                        <div className="pl-6">
+                          <label
+                            htmlFor="new-company-phone"
+                            className="block text-xs font-medium text-slate-600"
+                          >
+                            Phone for the new company (Autotask requires one)
+                          </label>
+                          <input
+                            id="new-company-phone"
+                            type="tel"
+                            value={newCompanyPhone}
+                            onChange={(e) => {
+                              setNewCompanyPhone(e.target.value);
+                              setCompanyChoice({ type: "create_new", phone: e.target.value });
+                            }}
+                            placeholder="416-555-0134"
+                            className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand focus:outline-none"
+                          />
+                        </div>
+                      )}
                       {preview.possibleCompanyMatches.length === 0 && (
                         <p className="text-xs text-slate-400">
                           No existing Autotask company matched this name.
@@ -249,6 +275,7 @@ export function ProposalAutotaskPushButton({
                     disabled={
                       pushing ||
                       (preview.existingCompanyId === null && !companyChoice) ||
+                      (companyChoice?.type === "create_new" && !companyChoice.phone.trim()) ||
                       (preview.unmatchedLineCount > 0 && !preview.fallbackServiceConfigured)
                     }
                     onClick={confirm}

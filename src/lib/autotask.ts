@@ -2154,8 +2154,38 @@ function firstActivePicklistValue(fields: FieldInfo[], fieldName: string): numbe
   return preferred ? Number(preferred.value) : null;
 }
 
+/** Autotask's published required-field lists have twice turned out to be
+ * incomplete (Opportunities' startDate, Companies' phone and
+ * companyCategoryID), and each gap costs someone a failed push to find. So
+ * rather than trust the docs, ask the tenant itself what it requires: any
+ * required picklist field we aren't already sending gets a sensible
+ * default filled in, and anything required that ISN'T a picklist (so has
+ * no defensible default) is named in the error up front, before the POST.
+ *
+ * Mutates body in place. */
+function fillRequiredPicklists(fields: FieldInfo[], body: Record<string, unknown>, entity: string): void {
+  const stillMissing: string[] = [];
+
+  for (const field of fields) {
+    if (!field.isRequired || field.isReadOnly || field.name in body) continue;
+    const value = field.isPickList ? firstActivePicklistValue(fields, field.name) : null;
+    if (value !== null) body[field.name] = value;
+    else stillMissing.push(field.name);
+  }
+
+  if (stillMissing.length > 0) {
+    throw new Error(
+      `Autotask requires ${stillMissing.join(", ")} to create a ${entity} record, and this app has no value to put there. Set a default on the field in Autotask, or create this one by hand.`
+    );
+  }
+}
+
 export type AutotaskNewCompanyInput = {
   companyName: string;
+  /** Required by Autotask to create a Company. There is no sensible
+   * default for it — a placeholder would just be wrong data sitting in the
+   * CRM — so it is collected from whoever is pushing. */
+  phone: string;
   address1?: string | null;
   address2?: string | null;
   city?: string | null;
@@ -2183,16 +2213,20 @@ export async function createAutotaskCompany(
     throw new Error('Could not find a "Customer" company type in Autotask\'s own picklist.');
   }
 
-  return autotaskCreate(creds, zoneUrl, "Companies", {
+  const body: Record<string, unknown> = {
     companyName: input.companyName,
     companyType: customerValue,
+    phone: input.phone,
     ...(input.address1 ? { address1: input.address1 } : {}),
     ...(input.address2 ? { address2: input.address2 } : {}),
     ...(input.city ? { city: input.city } : {}),
     ...(input.state ? { state: input.state } : {}),
     ...(input.postalCode ? { postalCode: input.postalCode } : {}),
     ...(input.country ? { country: input.country } : {}),
-  });
+  };
+
+  fillRequiredPicklists(fields, body, "Companies");
+  return autotaskCreate(creds, zoneUrl, "Companies", body);
 }
 
 /** A standalone address record for a Quote's billTo/shipTo/soldTo —
@@ -2262,17 +2296,7 @@ export async function createAutotaskOpportunity(
     useQuoteTotals: true,
   };
 
-  // Autotask's published required-field list for this entity turned out to
-  // be incomplete (startDate was missing from it), so surface anything
-  // else the tenant considers required before it comes back as a 500 that
-  // costs someone a failed push to diagnose.
-  const unsupplied = fields
-    .filter((f) => f.isRequired && !f.isReadOnly && !(f.name in body))
-    .map((f) => f.name);
-  if (unsupplied.length > 0) {
-    console.warn(`Autotask Opportunities: required fields not being sent: ${unsupplied.join(", ")}`);
-  }
-
+  fillRequiredPicklists(fields, body, "Opportunity");
   return autotaskCreate(creds, zoneUrl, "Opportunities", body);
 }
 
@@ -2291,7 +2315,7 @@ export async function createAutotaskQuote(
   zoneUrl: string,
   input: AutotaskNewQuoteInput
 ): Promise<number> {
-  return autotaskCreate(creds, zoneUrl, "Quotes", {
+  const body: Record<string, unknown> = {
     name: input.name,
     opportunityID: input.opportunityID,
     effectiveDate: input.effectiveDate,
@@ -2299,7 +2323,10 @@ export async function createAutotaskQuote(
     billToLocationID: input.locationID,
     shipToLocationID: input.locationID,
     soldToLocationID: input.locationID,
-  });
+  };
+
+  fillRequiredPicklists(await fetchEntityFields(creds, zoneUrl, "Quotes"), body, "Quote");
+  return autotaskCreate(creds, zoneUrl, "Quotes", body);
 }
 
 export type AutotaskNewQuoteItemInput = {

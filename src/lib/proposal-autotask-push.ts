@@ -198,7 +198,9 @@ export async function previewAutotaskPush(
 
 export type AutotaskPushCompanyChoice =
   | { type: "use_existing"; companyId: number }
-  | { type: "create_new" };
+  /** phone because Autotask refuses to create a Company without one, and
+   * a proposal carries no phone number of its own to fall back on. */
+  | { type: "create_new"; phone: string };
 
 /** The actual writes, in dependency order: Company (if needed) -> a
  * QuoteLocation for the address -> a scaffolding Opportunity -> the Quote
@@ -305,8 +307,12 @@ export async function executeAutotaskPush(
     } else if (companyChoice?.type === "create_new") {
       const companyName = proposalCompanyName(proposal);
       if (!companyName) return { error: "This proposal has no company name to create in Autotask." };
+      if (!companyChoice.phone.trim()) {
+        return { error: "Autotask needs a phone number to create a new company." };
+      }
       companyId = await createAutotaskCompany(credentials, zoneUrl, {
         companyName,
+        phone: companyChoice.phone.trim(),
         address1: proposal.prospectAddress,
       });
     } else {
