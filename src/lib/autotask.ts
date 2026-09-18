@@ -2142,6 +2142,32 @@ async function autotaskCreate(
  * Opportunity is scaffolding for the Quote, not something anyone manages
  * day to day. Takes already-fetched fields so one entityInformation call
  * can resolve several picklists. */
+/** The picklist value whose label matches one of `preferred`, in order, or
+ * null. Used where a specific meaning is required rather than just any
+ * valid value — an Opportunity has to be *Active* before Autotask will let
+ * a Quote reference it, and "the first active entry" is as likely to land
+ * on Lost or On Hold as on Active. Matches whole labels first, then labels
+ * containing the word, since tenants rename these ("Active - In Progress").
+ */
+function picklistValueByLabel(
+  fields: FieldInfo[],
+  fieldName: string,
+  preferred: string[]
+): number | null {
+  const field = fields.find((f) => f.name === fieldName);
+  const values = (field?.picklistValues ?? []).filter((v) => v.isActive !== false);
+
+  for (const want of preferred) {
+    const exact = values.find((v) => v.label.trim().toLowerCase() === want);
+    if (exact) return Number(exact.value);
+  }
+  for (const want of preferred) {
+    const partial = values.find((v) => v.label.toLowerCase().includes(want));
+    if (partial) return Number(partial.value);
+  }
+  return null;
+}
+
 function firstActivePicklistValue(fields: FieldInfo[], fieldName: string): number | null {
   const field = fields.find((f) => f.name === fieldName);
   const values = (field?.picklistValues ?? []) as unknown as {
@@ -2283,7 +2309,12 @@ export async function createAutotaskOpportunity(
 ): Promise<number> {
   const fields = await fetchEntityFields(creds, zoneUrl, "Opportunities");
   const stage = firstActivePicklistValue(fields, "stage");
-  const status = firstActivePicklistValue(fields, "status");
+  // Not just any valid status: Autotask refuses to attach a Quote to an
+  // Opportunity that isn't Active ("this Opportunity is not Active"), and
+  // the whole point of creating it is to hang a Quote off it.
+  const status =
+    picklistValueByLabel(fields, "status", ["active", "open", "in progress"]) ??
+    firstActivePicklistValue(fields, "status");
   if (stage === null || status === null) {
     throw new Error("Could not resolve a default stage/status from Autotask's own Opportunities picklists.");
   }
