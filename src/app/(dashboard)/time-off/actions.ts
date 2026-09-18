@@ -23,9 +23,20 @@ function typeLabel(type: string): string {
   return type === "sick" ? "Sick" : "Vacation";
 }
 
+const SICK_AUTO_REPLY = "Thank you for letting us know. Hope you feel better soon!";
+
 /** Alerts only, no email (see src/lib/alerts.ts) - same "task_assigned"
  * convention every other staff-to-staff notification in this app already
- * uses, not a dedicated email flow. */
+ * uses, not a dedicated email flow.
+ *
+ * Sick doesn't go through Approve/Decline at all - it's information, not a
+ * request that needs a yes/no. It's auto-resolved to 'approved' the moment
+ * it's submitted (which is also why it never shows Approve/Decline
+ * buttons - those only render for status = 'pending'), with a canned
+ * thank-you note attached and sent to the requester as their own
+ * notification. Owners still get notified either way, just worded as an
+ * FYI for Sick instead of something waiting on them. Vacation is
+ * unchanged: stays 'pending' until an owner decides it. */
 export async function createTimeOffRequestAction(
   _prevState: TimeOffActionState,
   formData: FormData
@@ -48,22 +59,44 @@ export async function createTimeOffRequestAction(
   if (endDate < startDate) return { error: "End date can't be before the start date." };
 
   const admin = createAdminClient();
+  const isSick = type === "sick";
   const { data, error } = await admin
     .from("time_off_requests")
-    .insert({ user_id: me.userId, type, start_date: startDate, end_date: endDate, reason })
+    .insert({
+      user_id: me.userId,
+      type,
+      start_date: startDate,
+      end_date: endDate,
+      reason,
+      ...(isSick ? { status: "approved", decided_at: new Date().toISOString() } : {}),
+    })
     .select("id")
     .single();
   if (error || !data) return { error: error?.message ?? "Could not submit the request." };
 
   const [ownerIds, requesterName] = await Promise.all([fetchOwnerIds(admin), fetchFullName(admin, me.userId)]);
-  await createAlert(
-    admin,
-    ownerIds,
-    "time_off_requested",
-    `${requesterName} requested time off`,
-    `${typeLabel(type)} — ${startDate} to ${endDate}`,
-    "/my-todo?tab=timeoff"
-  );
+
+  if (isSick) {
+    await admin.from("time_off_request_notes").insert({ request_id: data.id, author_id: null, body: SICK_AUTO_REPLY });
+    await createAlert(admin, [me.userId], "time_off_decided", SICK_AUTO_REPLY, `Sick — ${startDate} to ${endDate}`, "/my-todo?tab=timeoff");
+    await createAlert(
+      admin,
+      ownerIds,
+      "time_off_requested",
+      `${requesterName} reported being sick`,
+      `Sick — ${startDate} to ${endDate} (no action needed)`,
+      "/my-todo?tab=timeoff"
+    );
+  } else {
+    await createAlert(
+      admin,
+      ownerIds,
+      "time_off_requested",
+      `${requesterName} requested time off`,
+      `${typeLabel(type)} — ${startDate} to ${endDate}`,
+      "/my-todo?tab=timeoff"
+    );
+  }
 
   revalidatePath("/my-todo");
   return { error: null };
@@ -71,7 +104,9 @@ export async function createTimeOffRequestAction(
 
 /** Owner-only. Guarded on status = 'pending' so re-submitting a stale
  * Approve/Decline click on an already-decided request no-ops instead of
- * silently flipping a decision back and forth. */
+ * silently flipping a decision back and forth. Notifies both sides of the
+ * decision - the requester (what they'd expect) and the deciding owner
+ * themselves (a confirmation the click actually went through). */
 export async function decideTimeOffRequestAction(id: string, decision: "approved" | "declined"): Promise<void> {
   const supabase = await createClient();
   const me = await getMyPermissions(supabase);
@@ -87,14 +122,11 @@ export async function decideTimeOffRequestAction(id: string, decision: "approved
     .maybeSingle();
   if (!request) return;
 
-  await createAlert(
-    admin,
-    [request.user_id],
-    "time_off_decided",
-    `Your time off request was ${decision}`,
-    `${typeLabel(request.type)} — ${request.start_date} to ${request.end_date}`,
-    "/my-todo?tab=timeoff"
-  );
+  const period = `${typeLabel(request.type)} — ${request.start_date} to ${request.end_date}`;
+  const requesterName = await fetchFullName(admin, request.user_id);
+
+  await createAlert(admin, [request.user_id], "time_off_decided", `Your time off request was ${decision}`, period, "/my-todo?tab=timeoff");
+  await createAlert(admin, [me.userId], "time_off_decided", `You ${decision} ${requesterName}'s time off request`, period, "/my-todo?tab=timeoff");
 
   revalidatePath("/my-todo");
 }

@@ -116,7 +116,12 @@ export function TimeOffRequestCard({
         <div className="mt-1.5 space-y-1.5 rounded-md bg-slate-50 p-2">
           {request.notes.map((n) => (
             <div key={n.id} className="text-xs">
-              <span className="font-medium text-slate-700">{n.authorName ?? "Unknown"}</span>{" "}
+              {/* authorId null means this note was posted automatically
+                  (the Sick auto-reply, see createTimeOffRequestAction) -
+                  no human wrote it, so "Unknown" would be misleading. */}
+              <span className="font-medium text-slate-700">
+                {n.authorId === null ? "CG Ops" : (n.authorName ?? "Unknown")}
+              </span>{" "}
               <span className="text-slate-400">{formatDate(n.createdAt)}</span>
               <p className="text-slate-600">{n.body}</p>
             </div>
