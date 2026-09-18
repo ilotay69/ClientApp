@@ -27,6 +27,7 @@ import {
   IconSliders,
   IconFileText,
   IconNetwork,
+  IconClock,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -117,6 +118,11 @@ export function SidebarNav({
     ...(canViewClients ? [{ href: "/clients", label: "Clients", icon: IconBriefcase }] : []),
     ...(canViewProjects ? [{ href: "/projects", label: "Projects", icon: IconFolder }] : []),
     { href: "/my-todo", label: "My To-Do", icon: IconCheckSquare },
+    // Same unconditional posture as My To-Do - every staff member logs
+    // their own hours here; owners additionally see everyone else's inside
+    // the page itself (checked directly off profiles.role, not a
+    // permission), so there's nothing to gate the nav link on.
+    { href: "/hours-logged", label: "Hours Logged", icon: IconClock },
     ...(canViewTeamTasks ? [{ href: "/tasks", label: "Tasks", icon: IconList }] : []),
     ...(canManageTouchpoints
       ? [
