@@ -96,47 +96,49 @@ export function TimeOffRequestCard({
               Withdraw
             </button>
           )}
+          {canDiscuss && (
+            <button
+              type="button"
+              onClick={() => setShowNotes((v) => !v)}
+              className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                showNotes
+                  ? "border-brand bg-brand text-white"
+                  : "border-slate-300 text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Discuss{request.notes.length > 0 ? ` (${request.notes.length})` : ""}
+            </button>
+          )}
         </div>
       </div>
 
-      {canDiscuss && (
-        <div className="mt-1.5">
-          <button
-            type="button"
-            onClick={() => setShowNotes((v) => !v)}
-            className="text-xs text-slate-500 underline hover:text-slate-800"
-          >
-            {showNotes ? "Hide notes" : request.notes.length > 0 ? `Notes (${request.notes.length})` : "Add a note"}
-          </button>
-          {showNotes && (
-            <div className="mt-1.5 space-y-1.5 rounded-md bg-slate-50 p-2">
-              {request.notes.map((n) => (
-                <div key={n.id} className="text-xs">
-                  <span className="font-medium text-slate-700">{n.authorName ?? "Unknown"}</span>{" "}
-                  <span className="text-slate-400">{formatDate(n.createdAt)}</span>
-                  <p className="text-slate-600">{n.body}</p>
-                </div>
-              ))}
-              <form action={noteFormAction} className="flex items-center gap-1.5">
-                <input type="hidden" name="request_id" value={request.id} />
-                <input
-                  type="text"
-                  name="body"
-                  placeholder="Write a note…"
-                  required
-                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={notePending}
-                  className="shrink-0 rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-60"
-                >
-                  {notePending ? "…" : "Send"}
-                </button>
-              </form>
-              {noteState.error && <p className="text-xs text-red-600">{noteState.error}</p>}
+      {canDiscuss && showNotes && (
+        <div className="mt-1.5 space-y-1.5 rounded-md bg-slate-50 p-2">
+          {request.notes.map((n) => (
+            <div key={n.id} className="text-xs">
+              <span className="font-medium text-slate-700">{n.authorName ?? "Unknown"}</span>{" "}
+              <span className="text-slate-400">{formatDate(n.createdAt)}</span>
+              <p className="text-slate-600">{n.body}</p>
             </div>
-          )}
+          ))}
+          <form action={noteFormAction} className="flex items-center gap-1.5">
+            <input type="hidden" name="request_id" value={request.id} />
+            <input
+              type="text"
+              name="body"
+              placeholder="Write a note…"
+              required
+              className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={notePending}
+              className="shrink-0 rounded-md bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-dark disabled:opacity-60"
+            >
+              {notePending ? "…" : "Send"}
+            </button>
+          </form>
+          {noteState.error && <p className="text-xs text-red-600">{noteState.error}</p>}
         </div>
       )}
     </div>
