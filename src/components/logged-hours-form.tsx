@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { LoggedHoursActionState } from "@/app/(dashboard)/hours-logged/actions";
-import { LOGGED_HOURS_LABEL_OPTIONS } from "@/lib/logged-hours";
+import { LOGGED_HOURS_LABEL_OPTIONS } from "@/lib/logged-hours-labels";
 
 const initialState: LoggedHoursActionState = { error: null };
 

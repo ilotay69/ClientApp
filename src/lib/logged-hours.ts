@@ -1,15 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import type { LoggedHoursLabel } from "@/lib/logged-hours-labels";
+
+export type { LoggedHoursLabel } from "@/lib/logged-hours-labels";
+export { LOGGED_HOURS_LABEL_OPTIONS } from "@/lib/logged-hours-labels";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = any;
-
-export type LoggedHoursLabel = "regular" | "after_hours" | "taken_off";
-
-export const LOGGED_HOURS_LABEL_OPTIONS: { value: LoggedHoursLabel; label: string }[] = [
-  { value: "regular", label: "Regular" },
-  { value: "after_hours", label: "After Hours" },
-  { value: "taken_off", label: "Taken Off" },
-];
 
 export type LoggedHoursEntry = {
   id: string;
