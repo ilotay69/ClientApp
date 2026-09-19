@@ -43,33 +43,58 @@ type NavItem = {
   ownerOnly?: boolean;
 };
 
+type NavSection = {
+  id: string;
+  label: string;
+  icon: NavItem["icon"];
+  links: NavItem[];
+};
+
 function CollapsibleNavSection({
   label,
+  icon: Icon,
   links,
+  isOpen,
+  onToggle,
+  activeLabel,
   renderLink,
 }: {
   label: string;
+  icon: NavItem["icon"];
   links: NavItem[];
+  isOpen: boolean;
+  onToggle: () => void;
+  activeLabel?: string;
   renderLink: (item: NavItem) => React.ReactNode;
 }) {
   const contentId = useId();
-  const [isOpen, setIsOpen] = useState(true);
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={onToggle}
         aria-expanded={isOpen}
         aria-controls={contentId}
-        className="group flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-left text-xs font-semibold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+        className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-sm font-medium transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 md:py-2.5 ${
+          activeLabel ? "bg-white/10 text-white" : "text-white/70"
+        }`}
       >
-        <span>{label}</span>
-        <IconChevronDown
-          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${
-            isOpen ? "rotate-0" : "-rotate-90"
-          }`}
-        />
+        <span aria-hidden="true"><Icon className="h-4 w-4 shrink-0" /></span>
+        <span className="flex-1">{label}</span>
+        {activeLabel && (
+          <>
+            <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+            <span className="sr-only">Current page: {activeLabel}</span>
+          </>
+        )}
+        <span aria-hidden="true">
+          <IconChevronDown
+            className={`h-3.5 w-3.5 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+              isOpen ? "rotate-0" : "-rotate-90"
+            }`}
+          />
+        </span>
       </button>
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
@@ -80,10 +105,10 @@ function CollapsibleNavSection({
           id={contentId}
           aria-hidden={!isOpen}
           inert={!isOpen}
-          className="overflow-hidden"
+          className="min-h-0 overflow-hidden"
         >
           <div
-            className={`space-y-0.5 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+            className={`ml-5 space-y-0.5 border-l border-white/15 pl-2 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
               isOpen ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
             }`}
           >
@@ -160,17 +185,21 @@ export function SidebarNav({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // One shared accordion for desktop and mobile. A new authenticated layout
+  // starts closed; client-side navigation keeps the user's current section.
+  const [openSection, setOpenSection] = useState<string | null>(null);
 
   // My To-Do is the one link always shown regardless of permission — it's
   // a signed-in user's own list (tasks, mailbox analysis, tickets), never
   // gated. Tasks (the team-wide list) requires view_team_tasks like every
   // other link here.
-  const MAIN_LINKS: NavItem[] = [
+  const quickLinks: NavItem[] = [
     ...(canViewDashboard ? [{ href: "/dashboard", label: "Dashboard", icon: IconGrid }] : []),
-    ...(canViewClients ? [{ href: "/clients", label: "Clients", icon: IconBriefcase }] : []),
-    ...(canViewProjects ? [{ href: "/projects", label: "Projects", icon: IconFolder }] : []),
     { href: "/my-todo", label: "My To-Do", icon: IconCheckSquare },
-    ...(canViewTeamTasks ? [{ href: "/tasks", label: "Tasks", icon: IconList }] : []),
+  ];
+
+  const clientLinks: NavItem[] = [
+    ...(canViewClients ? [{ href: "/clients", label: "Clients", icon: IconBriefcase }] : []),
     ...(canManageTouchpoints
       ? [
           {
@@ -181,12 +210,29 @@ export function SidebarNav({
           },
         ]
       : []),
+    ...(canManageQuarterlyReviews
+      ? [{ href: "/quarterly-reviews", label: "Quarterly Reviews", icon: IconClipboardCheck, ownerOnly: quarterlyReviewsOwnerOnly }]
+      : []),
+  ];
+
+  const serviceLinks: NavItem[] = [
+    ...(canViewTeamTasks ? [{ href: "/tasks", label: "Tasks", icon: IconList }] : []),
+    ...(canViewProjects ? [{ href: "/projects", label: "Projects", icon: IconFolder }] : []),
+  ];
+
+  const operationsLinks: NavItem[] = [
+    ...(canManageBackups
+      ? [{ href: "/backups", label: "Daily Backup Reports", icon: IconDatabase, ownerOnly: backupsOwnerOnly }]
+      : []),
+    ...(canViewDomainHealth
+      ? [{ href: "/domain-health", label: "Network Tools", icon: IconGlobe, ownerOnly: domainHealthOwnerOnly }]
+      : []),
+  ];
+
+  const salesLinks: NavItem[] = [
     ...(canViewSalesRequests
       ? [{ href: "/sales-requests", label: "Internal Sales", icon: IconTag }]
       : []),
-    // Sits with the sales work rather than under Insights & Reports: a
-    // proposal is something you write and chase, not something you read off
-    // a dashboard.
     ...(canViewProposals
       ? [
           {
@@ -196,6 +242,20 @@ export function SidebarNav({
             ownerOnly: proposalsOwnerOnly,
           },
         ]
+      : []),
+    ...(canManageReconciliation
+      ? [{ href: "/reconciliation", label: "Reconciliation", icon: IconRefresh, ownerOnly: reconciliationOwnerOnly }]
+      : []),
+  ];
+
+  const insightsLinks: NavItem[] = [
+    ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
+    ...(canViewAnalysis ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }] : []),
+  ];
+
+  const peopleLinks: NavItem[] = [
+    ...(canManageTeam
+      ? [{ href: "/team", label: "Team", icon: IconUsers, ownerOnly: teamOwnerOnly }]
       : []),
     ...(canManageRecruitment
       ? [
@@ -210,9 +270,8 @@ export function SidebarNav({
   ];
 
   const settingsLinks: NavItem[] = [
-    ...(canManageTeam
-      ? [{ href: "/team", label: "Team", icon: IconUsers, ownerOnly: teamOwnerOnly }]
-      : []),
+    { href: "/settings/profile", label: "My Profile", icon: IconUser },
+    { href: "/settings/mail", label: "Mailbox", icon: IconMail },
     ...(canManageIntegrations
       ? [
           {
@@ -237,62 +296,18 @@ export function SidebarNav({
           },
         ]
       : []),
-    // Sits under Integrations since it's the same kind of setting, but stays
-    // its own link — the mailbox connection is per-user and ungated, unlike
-    // the Integrations page, which requires manage_integrations.
-    { href: "/settings/mail", label: "Mailbox", icon: IconMail },
-    // Per-user Autotask resource mapping (My Tickets/Team Hours matching)
-    // — same ungated, personal-setting posture as Mailbox above it.
-    { href: "/settings/profile", label: "My Profile", icon: IconUser },
-    // Domain Health + CG Watcher, behind one tabbed page — standalone
-    // utilities, not tied to a client/project workflow.
-    ...(canViewDomainHealth
-      ? [
-          {
-            href: "/domain-health",
-            label: "Tools",
-            icon: IconGlobe,
-            ownerOnly: domainHealthOwnerOnly,
-          },
-        ]
-      : []),
   ];
 
-  const insightsLinks: NavItem[] = [
-    ...(canViewReports ? [{ href: "/reports", label: "Reports", icon: IconDownload }] : []),
-    ...(canViewAnalysis
-      ? [{ href: "/settings/catalog", label: "Analysis", icon: IconList }]
-      : []),
-    ...(canManageReconciliation
-      ? [
-          {
-            href: "/reconciliation",
-            label: "Reconciliation",
-            icon: IconRefresh,
-            ownerOnly: reconciliationOwnerOnly,
-          },
-        ]
-      : []),
-    ...(canManageBackups
-      ? [
-          {
-            href: "/backups",
-            label: "Backups",
-            icon: IconDatabase,
-            ownerOnly: backupsOwnerOnly,
-          },
-        ]
-      : []),
-    ...(canManageQuarterlyReviews
-      ? [
-          {
-            href: "/quarterly-reviews",
-            label: "Quarterly Reviews",
-            icon: IconClipboardCheck,
-            ownerOnly: quarterlyReviewsOwnerOnly,
-          },
-        ]
-      : []),
+  // Group by workflow rather than vendor. Planned destinations and placement
+  // rules live in docs/sidebar-navigation.md; only working routes appear here.
+  const sections: NavSection[] = [
+    { id: "clients", label: "Clients & Knowledge", icon: IconBriefcase, links: clientLinks },
+    { id: "service", label: "Service Delivery", icon: IconFolder, links: serviceLinks },
+    { id: "operations", label: "IT Operations", icon: IconGlobe, links: operationsLinks },
+    { id: "sales", label: "Sales & Finance", icon: IconTag, links: salesLinks },
+    { id: "insights", label: "Reports & Analysis", icon: IconDownload, links: insightsLinks },
+    { id: "people", label: "People & Team", icon: IconUsers, links: peopleLinks },
+    { id: "settings", label: "Settings", icon: IconSliders, links: settingsLinks },
   ];
 
   const isActive = (href: string) =>
@@ -328,7 +343,7 @@ export function SidebarNav({
     // safe-top/-bottom: shared by the mobile drawer and the desktop rail,
     // so an installed PWA doesn't put the CG Ops mark under the status bar
     // or the Sign out button under the home indicator.
-    <div className="safe-top safe-bottom flex h-full flex-col bg-charcoal text-white">
+    <div className="safe-top safe-bottom flex h-full min-h-0 w-full flex-col bg-charcoal text-white">
       <div className="flex items-center justify-between px-4 py-3">
         <span className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -345,27 +360,25 @@ export function SidebarNav({
         </button>
       </div>
 
-      <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
-        <div className="space-y-0.5">{MAIN_LINKS.map(renderLink)}</div>
-
-        {insightsLinks.length > 0 && (
-          <CollapsibleNavSection
-            label="Insights & Reports"
-            links={insightsLinks}
-            renderLink={renderLink}
-          />
-        )}
-
-        {settingsLinks.length > 0 && (
-          <CollapsibleNavSection
-            label="Settings & Tools"
-            links={settingsLinks}
-            renderLink={renderLink}
-          />
-        )}
+      <nav aria-label="Main navigation" className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-3">
+        <div className="space-y-0.5">{quickLinks.map(renderLink)}</div>
+        <div className="space-y-1 border-t border-white/15 pt-3">
+          {sections.filter((section) => section.links.length > 0).map((section) => (
+            <CollapsibleNavSection
+              key={section.id}
+              label={section.label}
+              icon={section.icon}
+              links={section.links}
+              isOpen={openSection === section.id}
+              onToggle={() => setOpenSection((current) => current === section.id ? null : section.id)}
+              activeLabel={section.links.find((link) => isActive(link.href))?.label}
+              renderLink={renderLink}
+            />
+          ))}
+        </div>
       </nav>
 
-      <div className="border-t border-white/15 px-4 py-3">
+      <div className="shrink-0 border-t border-white/15 px-4 py-3">
         <Link
           href="/settings/dashboard"
           onClick={() => setMobileOpen(false)}
