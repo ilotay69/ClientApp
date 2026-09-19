@@ -4,7 +4,7 @@
 }
 .sizing {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
 }
 .heading {
@@ -28,10 +28,10 @@
   background: #f1f3ee;
   border: 1px solid #dfe4db;
   border-radius: 12px;
-  padding: 16px;
+  padding: 12px;
 }
 .previewCanvas {
-  height: 110px;
+  height: 56px;
   border-radius: 6px;
   background: #e3e8de;
   overflow: hidden;
@@ -42,9 +42,9 @@
   justify-content: center;
   gap: 5px;
   padding: 10px;
-  min-height: 30px;
+  min-height: 18px;
   border-radius: 6px;
-  background: #e93e3f;
+  background: var(--widget-accent, #e93e3f);
   transition:
     width 180ms ease,
     height 180ms ease;
@@ -65,7 +65,25 @@
 .summary {
   display: grid;
   gap: 3px;
-  margin: 12px 0 0;
+  margin: 8px 0 0;
+}
+.selectors {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.selectors > div {
+  min-width: 0;
+}
+.selectField {
+  display: grid;
+  gap: 6px;
+  color: #66716a;
+  font-size: 11px;
+}
+.selectors button {
+  width: 100%;
+  max-width: 100%;
 }
 .summary strong {
   font-size: 12px;
@@ -76,76 +94,6 @@
   font-size: 11px;
   line-height: 1.5;
   color: #66716a;
-}
-.choices {
-  padding: 0;
-  margin: 0;
-  border: 0;
-  min-width: 0;
-}
-.choices legend {
-  font-size: 12px;
-  color: #66716a;
-  margin-bottom: 8px;
-}
-.widthOptions,
-.heightOptions {
-  display: grid;
-  gap: 8px;
-}
-.widthOptions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.heightOptions {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.choices button {
-  min-width: 0;
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  padding: 11px 10px;
-  border: 1px solid #dce2d7;
-  border-radius: 8px;
-  color: #465047;
-  background: #fff;
-  text-align: left;
-}
-.choices button:hover {
-  border-color: #aeb8a6;
-}
-.choices button[aria-pressed="true"] {
-  background: #fff3f0;
-  border-color: #d93638;
-  box-shadow: inset 0 0 0 1px #d93638;
-  color: #b82d31;
-}
-.choices button strong {
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-.choices button small {
-  font-size: 11px;
-  line-height: 1.4;
-}
-.widthTrack {
-  display: block;
-  width: 100%;
-  height: 12px;
-  margin-bottom: 5px;
-  border-radius: 3px;
-  background: #e9ede5;
-  overflow: hidden;
-}
-.widthTrack > span {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  background: #86957a;
-}
-.choices button[aria-pressed="true"] .widthTrack > span {
-  background: #e93e3f;
 }
 .hint {
   margin: 0;
@@ -165,12 +113,6 @@
 .precision > div {
   margin-top: 14px;
   margin-bottom: 10px;
-}
-@media (max-width: 380px) {
-  .widthOptions,
-  .heightOptions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .previewWidget {

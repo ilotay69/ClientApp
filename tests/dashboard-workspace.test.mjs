@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   defaultWorkspace,
   normalizeWorkspace,
@@ -12,9 +13,50 @@ import {
   widgetHeightPixels,
   widgetWidthLabel,
   resizeWorkspaceWidget,
+  ACCENT_COLORS,
 } from "../src/lib/dashboard-workspace.ts";
 
 const eligible = WIDGET_CATALOG.map((item) => item.key);
+test("all widget accents survive serialization independently of display and layout", () => {
+  for (const accent of Object.keys(ACCENT_COLORS)) {
+    for (const display of ["list", "bars", "donut", "metric"]) {
+      const config = defaultWorkspace(eligible);
+      config.widgets[0] = { ...config.widgets[0], accent, display };
+      const saved = normalizeWorkspace(
+        JSON.parse(JSON.stringify(config)),
+        eligible,
+      );
+      assert.equal(saved.widgets[0].accent, accent);
+      assert.equal(saved.widgets[0].display, display);
+      assert.deepEqual(saved.layouts, config.layouts);
+      assert.deepEqual(saved.widgets.slice(1), config.widgets.slice(1));
+    }
+  }
+});
+test("editor preview is read-only and its size guide inherits the selected accent", () => {
+  const content = readFileSync(
+    new URL("../src/components/dashboard-widget-content.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(content, /data.key === "alerts" && !preview/);
+  assert.match(content, /const rowHref = preview \? undefined/);
+  const size = readFileSync(
+    new URL(
+      "../src/components/dashboard-widget-size.module.css",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(size, /background: var\(--widget-accent, #e93e3f\)/);
+  const editor = readFileSync(
+    new URL("../src/components/dashboard-widget-editor.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    editor,
+    /LiveWidgetContent|fetchLiveDashboardWidget|acknowledgeDashboardAlert/,
+  );
+});
 test("recommended layout fits every breakpoint and is stable after normalization", () => {
   const config = defaultWorkspace(eligible);
   assert.equal(config.widgets.length, 5);

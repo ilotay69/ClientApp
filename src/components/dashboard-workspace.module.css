@@ -369,6 +369,7 @@
   flex-direction: column;
   height: 100%;
   border: 1px solid #e4e7e1;
+  border-top: 3px solid var(--widget-accent, #e93e3f);
   border-radius: 18px;
   background: #fff;
   box-shadow:
@@ -381,6 +382,7 @@
 }
 .widget:hover {
   border-color: #d0d7cc;
+  border-top-color: var(--widget-accent, #e93e3f);
   box-shadow: 0 6px 22px #20302506;
 }
 .widgetHeader {
@@ -434,6 +436,12 @@
   align-items: baseline;
   gap: 9px;
   margin-bottom: 22px;
+}
+.previewValue {
+  margin-bottom: 8px;
+}
+.previewRows .row {
+  padding: 7px 0;
 }
 .widgetValue > strong {
   color: var(--ink);
@@ -493,7 +501,7 @@ a.row:hover .rowText strong {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #7e8978;
+  color: var(--widget-accent, #7e8978);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
@@ -841,6 +849,8 @@ a.row:hover .rowText strong {
 .gridWrap[data-editing="true"] .widget {
   border-style: dashed;
   border-color: #c1cbb7;
+  border-top-style: solid;
+  border-top-color: var(--widget-accent, #e93e3f);
 }
 .gridWrap :global(.react-grid-placeholder) {
   background: #e93e3f !important;
@@ -908,12 +918,12 @@ a.row:hover .rowText strong {
   margin-top: 14px;
   font-size: 12px;
 }
-.dialog {
+.dialog.dialog {
   position: fixed;
-  inset: 0 0 0 auto;
+  inset: var(--env-banner-height, 0px) 0 0 auto;
   margin: 0;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: calc(100dvh - var(--env-banner-height, 0px));
+  max-height: calc(100dvh - var(--env-banner-height, 0px));
   width: 470px;
   max-width: 100vw;
   padding: 0;
@@ -929,6 +939,11 @@ a.row:hover .rowText strong {
 }
 .dialogInner {
   padding: 32px;
+}
+.editorBody.editorBody {
+  padding: 0;
+  overflow: hidden;
+  flex: 1;
 }
 .dialogHeader {
   display: flex;

@@ -9,6 +9,14 @@
   font-size: 14px;
   min-width: 0;
 }
+/* The app shell clears the fixed sidebar but supplies no desktop left gutter.
+   Keep this on page roots, not .workspace (also used inside cards/dialogs).
+   Mobile already has the shell's safe-area-aware 16px padding. */
+@media (min-width: 768px) {
+  .pageGutter {
+    padding-inline-start: 28px;
+  }
+}
 .workspace :where(button, a, input, textarea, select):focus-visible,
 .branchNav :where(a, button):focus-visible {
   outline: 2px solid #b73132;

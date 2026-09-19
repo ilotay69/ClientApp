@@ -94,7 +94,7 @@ export function ClientDirectory({
   const pages = Math.max(1, Math.ceil(visible.length / 40));
   const current = Math.min(page, pages);
   return (
-    <div className={s.workspace}>
+    <div className={`${s.workspace} ${s.pageGutter}`}>
       <header className={s.header}>
         <div>
           <h1>

@@ -35,8 +35,6 @@ import {
   type Widget,
   type WidgetData,
   type SourceKey,
-  type Display,
-  type Accent,
 } from "@/lib/dashboard-workspace";
 import {
   WidgetContent,
@@ -44,7 +42,7 @@ import {
   DashboardOrb,
 } from "./dashboard-widget-content";
 import styles from "./dashboard-workspace.module.css";
-import { DashboardWidgetSize } from "./dashboard-widget-size";
+import { DashboardWidgetEditor } from "./dashboard-widget-editor";
 import { AnimatedDialog } from "./ui/animated-dialog";
 import { AnimatedTabs } from "./ui/animated-tabs";
 import { HoverGroup, HoverButton } from "./ui/hover-surface";
@@ -588,6 +586,9 @@ export function DashboardWorkspace({
       <>
         <WorkspaceDialog
           open={!!dialog}
+          editingWidget={
+            !!selection && dialog !== "library" && dialog !== "reset"
+          }
           title={
             dialog === "library"
               ? "Add widgets"
@@ -665,135 +666,23 @@ export function DashboardWorkspace({
               </button>
             </>
           ) : selection ? (
-            <div className={styles.editor}>
-              <p className={styles.dialogIntro}>
-                {
-                  WIDGET_CATALOG.find((w) => w.key === selection.source)
-                    ?.description
-                }
-              </p>
-              <label>
-                Widget title
-                <input
-                  value={selection.title}
-                  maxLength={60}
-                  onChange={(e) =>
-                    updateWidget(selection.id, { title: e.target.value })
-                  }
-                />
-              </label>
-              <fieldset>
-                <legend>Display as</legend>
-                <div className={styles.displayOptions}>
-                  {Object.entries(DISPLAY_LABELS).map(([key, label]) => (
-                    <button
-                      key={key}
-                      aria-pressed={selection.display === key}
-                      onClick={() =>
-                        updateWidget(selection.id, { display: key as Display })
-                      }
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Accent</legend>
-                <div className={styles.swatches}>
-                  {Object.entries(ACCENT_COLORS).map(([key, color]) => (
-                    <button
-                      aria-label={`${key} accent`}
-                      aria-pressed={selection.accent === key}
-                      key={key}
-                      style={{ background: color }}
-                      onClick={() =>
-                        updateWidget(selection.id, { accent: key as Accent })
-                      }
-                    >
-                      {selection.accent === key && "✓"}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <DashboardWidgetSize
-                key={selection.id}
-                width={
-                  draft.layouts.lg.find((p) => p.i === selection.id)?.w ?? 4
-                }
-                height={
-                  draft.layouts.lg.find((p) => p.i === selection.id)?.h ?? 9
-                }
-                density={draft.density}
-                onChange={(span, height) =>
-                  sizeWidget(selection.id, span, height)
-                }
-              />
-              {selection.display !== "metric" && (
-                <label>
-                  {selection.display === "list"
-                    ? "Items to show"
-                    : "Categories to show"}
-                  <CGSelect
-                    label={
-                      selection.display === "list"
-                        ? "Items to show"
-                        : "Categories to show"
-                    }
-                    value={String(selection.limit)}
-                    onChange={(value) =>
-                      updateWidget(selection.id, {
-                        limit: Number(value),
-                      })
-                    }
-                    options={Array.from({ length: 18 }, (_, i) => ({
-                      value: String(i + 3),
-                      label: `Up to ${i + 3} ${selection.display === "list" ? "items" : "categories"}`,
-                    }))}
-                  />
-                  <span className={styles.fieldHint}>
-                    Controls the amount of content, not the widget’s size.
-                  </span>
-                </label>
-              )}
-              <fieldset>
-                <legend>Position</legend>
-                <div className={styles.fieldPair}>
-                  <button
-                    className={styles.button}
-                    disabled={draft.widgets[0]?.id === selection.id}
-                    onClick={() => moveWidget(selection.id, -1)}
-                  >
-                    ← Move earlier
-                  </button>
-                  <button
-                    className={styles.button}
-                    disabled={draft.widgets.at(-1)?.id === selection.id}
-                    onClick={() => moveWidget(selection.id, 1)}
-                  >
-                    Move later →
-                  </button>
-                </div>
-              </fieldset>
-              <div className={styles.editorFooter}>
-                <button
-                  className={styles.dangerButton}
-                  onClick={() => removeWidget(selection.id)}
-                >
-                  Remove widget
-                </button>
-                <button
-                  className={styles.primaryButton}
-                  onClick={() => setDialog(null)}
-                >
-                  Done
-                </button>
-              </div>
-              <p className={styles.fieldHint}>
-                Changes are a preview. Choose Save layout on the dashboard to
-                keep them.
-              </p>
-            </div>
+            <DashboardWidgetEditor
+              key={selection.id}
+              widget={selection}
+              data={dataByKey.get(selection.source)}
+              width={draft.layouts.lg.find((p) => p.i === selection.id)?.w ?? 4}
+              height={
+                draft.layouts.lg.find((p) => p.i === selection.id)?.h ?? 9
+              }
+              density={draft.density}
+              canMoveEarlier={draft.widgets[0]?.id !== selection.id}
+              canMoveLater={draft.widgets.at(-1)?.id !== selection.id}
+              onChange={(patch) => updateWidget(selection.id, patch)}
+              onSize={(span, height) => sizeWidget(selection.id, span, height)}
+              onMove={(direction) => moveWidget(selection.id, direction)}
+              onRemove={() => removeWidget(selection.id)}
+              onDone={() => setDialog(null)}
+            />
           ) : null}
         </WorkspaceDialog>
       </>
@@ -806,11 +695,13 @@ function WorkspaceDialog({
   title,
   onClose,
   children,
+  editingWidget,
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  editingWidget?: boolean;
 }) {
   return (
     <AnimatedDialog
@@ -821,7 +712,7 @@ function WorkspaceDialog({
       title={title}
       variant="drawer"
       className={styles.dialog}
-      bodyClassName={styles.dialogInner}
+      bodyClassName={editingWidget ? styles.editorBody : styles.dialogInner}
     >
       {children}
     </AnimatedDialog>

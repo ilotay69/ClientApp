@@ -77,7 +77,7 @@ export function ClientWorkspace({
     ? sub
     : subtabs[0]?.value;
   return (
-    <div className={s.workspace}>
+    <div className={`${s.workspace} ${s.pageGutter}`}>
       <header className={s.header}>
         <div>
           <Link className={s.backLink} href="/clients?view=new">

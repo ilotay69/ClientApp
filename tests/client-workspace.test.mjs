@@ -20,6 +20,28 @@ test("client view preference accepts only supported views", () => {
   assert.equal(resolveClientView("new", "old"), "new");
   assert.equal(resolveClientView("invalid", "old"), "old");
 });
+test("client page gutter is desktop-only and does not indent nested dialog surfaces", () => {
+  const css = readFileSync(
+    new URL("../src/components/ui/client-surfaces.module.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    css,
+    /@media \(min-width: 768px\)\s*\{\s*\.pageGutter\s*\{\s*padding-inline-start: 28px;/,
+  );
+  for (const file of ["clients/directory.tsx", "clients/workspace.tsx"]) {
+    const source = readFileSync(
+      new URL(`../src/components/${file}`, import.meta.url),
+      "utf8",
+    );
+    assert.match(source, /s\.workspace\} \$\{s\.pageGutter/);
+  }
+  const dialogs = readFileSync(
+    new URL("../src/components/clients/activity.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(dialogs, /s\.pageGutter/);
+});
 test("curved branches align with every row and the active path reaches its branch", () => {
   const geometry = branchGeometry(3);
   assert.equal(geometry.height, 128);

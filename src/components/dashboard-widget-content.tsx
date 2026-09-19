@@ -93,9 +93,12 @@ function compactSeries(series: SeriesPoint[], limit: number) {
 export function WidgetContent({
   widget,
   data,
+  preview = false,
 }: {
   widget: Widget;
   data: WidgetData;
+  /** Read-only editor rendering; never loads data or offers record actions. */
+  preview?: boolean;
 }) {
   const [acknowledged, setAcknowledged] = useState<string[]>([]);
   const [ackError, setAckError] = useState("");
@@ -124,10 +127,12 @@ export function WidgetContent({
     "#7d94a2",
     "#dcdedb",
   ];
-  const href = safeHref(data.href);
+  const href = preview ? undefined : safeHref(data.href);
   return (
     <>
-      <div className={styles.widgetValue}>
+      <div
+        className={`${styles.widgetValue} ${preview ? styles.previewValue : ""}`}
+      >
         <strong>
           {canAnimateWorkspaceMetric(data.key) ? (
             <AnimatedNumber value={total} maximumFractionDigits={1} />
@@ -136,7 +141,7 @@ export function WidgetContent({
           )}
         </strong>
         <span>{data.unit}</span>
-        {(data.rows.length > 0 || data.series.length > 0) && (
+        {!preview && (data.rows.length > 0 || data.series.length > 0) && (
           <ExpandableCard
             title={widget.title}
             description="Current snapshot · this preview does not change your widget or saved layout."
@@ -186,7 +191,7 @@ export function WidgetContent({
           )}
         </div>
       ) : widget.display === "list" ? (
-        <div className={styles.rows}>
+        <div className={`${styles.rows} ${preview ? styles.previewRows : ""}`}>
           {visibleRows.slice(0, widget.limit).map((row, index) => {
             const content = (
               <>
@@ -208,7 +213,7 @@ export function WidgetContent({
                 )}
               </>
             );
-            const rowHref = safeHref(row.href);
+            const rowHref = preview ? undefined : safeHref(row.href);
             return (
               <div key={row.id} className={styles.rowWrap}>
                 {rowHref ? (
@@ -218,7 +223,7 @@ export function WidgetContent({
                 ) : (
                   <div className={styles.row}>{content}</div>
                 )}
-                {data.key === "alerts" && (
+                {data.key === "alerts" && !preview && (
                   <AnimatedTooltip content="Acknowledge this notification">
                     <button
                       disabled={pendingId !== null}
