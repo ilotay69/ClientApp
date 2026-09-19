@@ -15,6 +15,8 @@ import {
 } from "@/lib/my-todo-workspace";
 import { useRemote, Drawer, Empty, ErrorNotice, Loading, TodoIcon } from "./ui";
 import s from "./workspace.module.css";
+import { AnimatedTabs } from "../ui/animated-tabs";
+import { StatefulButton } from "../ui/stateful-button";
 export function TodoTime({
   actions,
   today,
@@ -43,20 +45,16 @@ export function TodoTime({
             entries.
           </p>
         </div>
-        <div className={s.segmented}>
-          <button
-            aria-pressed={tab === "hours"}
-            onClick={() => setTab("hours")}
-          >
-            Hours
-          </button>
-          <button
-            aria-pressed={tab === "leave"}
-            onClick={() => setTab("leave")}
-          >
-            Leave
-          </button>
-        </div>
+        <AnimatedTabs
+          className={s.segmented}
+          label="Time and leave view"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: "hours", label: "Hours" },
+            { value: "leave", label: "Leave" },
+          ]}
+        />
       </div>
       <TimeContent
         key={anchor}
@@ -514,9 +512,16 @@ function TimeContent({
               : "Vacation requests remain pending until an owner approves or declines them."}
           </p>
           {error && <ErrorNotice>{error}</ErrorNotice>}
-          <button className={s.primary} disabled={busy}>
-            {busy ? "Submitting…" : "Submit request"}
-          </button>
+          <StatefulButton
+            type="submit"
+            className={s.primary}
+            status={busy ? "pending" : error ? "error" : "idle"}
+            pendingLabel="Submitting…"
+            successLabel="Submitted"
+            errorLabel="Retry request"
+          >
+            Submit request
+          </StatefulButton>
         </form>
       </Drawer>
     </>

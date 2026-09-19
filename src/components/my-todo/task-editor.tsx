@@ -10,6 +10,8 @@ import {
 } from "@/lib/my-todo-workspace";
 import { Drawer, ErrorNotice, TodoIcon, Loading, useRemote } from "./ui";
 import s from "./workspace.module.css";
+import { StatefulButton, useActionFeedback } from "../ui/stateful-button";
+import { AnimatedTooltip } from "../ui/context-preview";
 
 export function TaskEditor({
   task,
@@ -48,6 +50,7 @@ export function TaskEditor({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [noteDirty, setNoteDirty] = useState(false);
+  const feedback = useActionFeedback();
   const dirty =
     JSON.stringify(initial) !== JSON.stringify(draft) ||
     (task && status !== task.status);
@@ -69,19 +72,29 @@ export function TaskEditor({
       )
     )
       return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = task
-        ? await actions.update(task.id, { ...draft, status }, task.updated_at)
-        : await actions.create(draft, source);
-      if (result.error !== undefined) setError(result.error);
-      else onSaved(result.data);
-    } catch {
-      setError("Couldn't save. Your draft is still here; please try again.");
-    } finally {
-      setBusy(false);
-    }
+    await feedback.run(async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = task
+          ? await actions.update(task.id, { ...draft, status }, task.updated_at)
+          : await actions.create(draft, source);
+        if (result.error !== undefined) {
+          setError(result.error);
+          return { ok: false, error: result.error };
+        }
+        onSaved(result.data);
+        return { ok: true };
+      } catch {
+        setError("Couldn't save. Your draft is still here; please try again.");
+        return {
+          ok: false,
+          error: "Couldn't save. Your draft is still here; please try again.",
+        };
+      } finally {
+        setBusy(false);
+      }
+    });
   }
   return (
     <Drawer
@@ -220,9 +233,14 @@ export function TaskEditor({
           >
             Cancel
           </button>
-          <button type="submit" className={s.primary} disabled={busy}>
-            {busy ? "Saving…" : task ? "Save changes" : "Create private task"}
-          </button>
+          <StatefulButton
+            type="submit"
+            className={s.primary}
+            status={feedback.status}
+            errorLabel="Retry save"
+          >
+            {task ? "Save changes" : "Create private task"}
+          </StatefulButton>
         </div>
       </form>
       {task && (
@@ -255,8 +273,10 @@ function TaskPlan({
         />
         <small>Separate from the deadline. Only visible to you.</small>
       </label>
-      <button
+      <StatefulButton
         className={s.button}
+        status={busy ? "pending" : error ? "error" : "idle"}
+        errorLabel="Retry plan"
         disabled={busy || date === (value ?? "")}
         onClick={async () => {
           setBusy(true);
@@ -266,8 +286,8 @@ function TaskPlan({
           if (!ok) setError(true);
         }}
       >
-        {busy ? "Saving…" : "Save plan"}
-      </button>
+        Save plan
+      </StatefulButton>
       {value && (
         <button
           className={s.textButton}
@@ -303,6 +323,7 @@ function TaskDiscussion({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const feedback = useActionFeedback();
   return (
     <section className={s.discussion}>
       <h3>Discussion</h3>
@@ -316,7 +337,24 @@ function TaskDiscussion({
         remote.data.data.map((note) => (
           <article key={note.id}>
             <header>
-              <strong>{note.authorName ?? "Staff member"}</strong>
+              <strong>
+                <AnimatedTooltip
+                  content={`${note.authorName ?? "Staff member"} · Note author`}
+                >
+                  <span
+                    tabIndex={0}
+                    className={s.authorAvatar}
+                    aria-label={`Note author: ${note.authorName ?? "Staff member"}`}
+                  >
+                    {(note.authorName ?? "Staff member")
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join("")}
+                  </span>
+                </AnimatedTooltip>
+                {note.authorName ?? "Staff member"}
+              </strong>
               <time>{new Date(note.created_at).toLocaleString()}</time>
             </header>
             <p className={s.prewrap}>{note.body}</p>
@@ -328,21 +366,30 @@ function TaskDiscussion({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          setBusy(true);
-          setError(null);
-          try {
-            const result = await actions.addNote(id, body);
-            if (result.error) setError(result.error);
-            else {
-              setBody("");
-              onDirty(false);
-              await remote.refresh();
+          await feedback.run(async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              const result = await actions.addNote(id, body);
+              if (result.error !== undefined) {
+                setError(result.error);
+                return { ok: false, error: result.error };
+              } else {
+                setBody("");
+                onDirty(false);
+                await remote.refresh();
+                return { ok: true };
+              }
+            } catch {
+              setError("Couldn't save your note. Your draft is still here.");
+              return {
+                ok: false,
+                error: "Couldn't save your note. Your draft is still here.",
+              };
+            } finally {
+              setBusy(false);
             }
-          } catch {
-            setError("Couldn't save your note. Your draft is still here.");
-          } finally {
-            setBusy(false);
-          }
+          });
         }}
       >
         <label className={s.field}>
@@ -358,9 +405,16 @@ function TaskDiscussion({
             required
           />
         </label>
-        <button className={s.button} disabled={busy || !body.trim()}>
-          {busy ? "Saving…" : "Add note"}
-        </button>
+        <StatefulButton
+          type="submit"
+          className={s.button}
+          status={feedback.status}
+          successLabel="Note added"
+          errorLabel="Retry note"
+          disabled={busy || !body.trim()}
+        >
+          Add note
+        </StatefulButton>
         {error && <ErrorNotice>{error}</ErrorNotice>}
       </form>
     </section>

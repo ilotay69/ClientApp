@@ -1,9 +1,7 @@
 "use client";
 
 import {
-  useEffect,
   useMemo,
-  useRef,
   useState,
   useTransition,
   type CSSProperties,
@@ -21,7 +19,6 @@ import {
   IconRefresh,
   IconSliders,
   IconGrid,
-  IconX,
   IconSearch,
 } from "@/components/icons";
 import {
@@ -48,6 +45,12 @@ import {
 } from "./dashboard-widget-content";
 import styles from "./dashboard-workspace.module.css";
 import { DashboardWidgetSize } from "./dashboard-widget-size";
+import { AnimatedDialog } from "./ui/animated-dialog";
+import { AnimatedTabs } from "./ui/animated-tabs";
+import { HoverGroup, HoverButton } from "./ui/hover-surface";
+import { BentoCard, BentoGrid } from "./ui/bento-card";
+import { StatefulButton } from "./ui/stateful-button";
+import { AnimatedTooltip } from "./ui/context-preview";
 
 type Props = {
   initialWorkspace: Workspace;
@@ -279,27 +282,25 @@ export function DashboardWorkspace({
         <span className={styles.breadcrumb}>
           Workspace <span>/</span> <strong>Overview</strong>
         </span>
-        <div
+        <AnimatedTabs
           className={styles.viewSwitch}
-          role="group"
-          aria-label="Dashboard view"
-        >
-          <button
-            aria-pressed={saved.view === "old"}
-            disabled={editing || saving}
-            onClick={() => changeView("old")}
-          >
-            Old view
-          </button>
-          <button
-            aria-pressed={saved.view === "new"}
-            disabled={editing || saving}
-            onClick={() => changeView("new")}
-          >
-            <IconGrid className={styles.icon} />
-            New view
-          </button>
-        </div>
+          label="Dashboard view"
+          value={saved.view}
+          disabled={editing || saving}
+          onChange={changeView}
+          items={[
+            { value: "old", label: "Old view" },
+            {
+              value: "new",
+              label: (
+                <>
+                  <IconGrid className={styles.icon} />
+                  New view
+                </>
+              ),
+            },
+          ]}
+        />
       </div>
       {(error || loadError) && (
         <div className={styles.error} role="alert">
@@ -312,27 +313,26 @@ export function DashboardWorkspace({
         <div className={styles.modern}>
           <header className={styles.header}>
             <div>
-              <p className={styles.eyebrow}>YOUR OPERATIONS, AT A GLANCE</p>
+              <p className={styles.eyebrow}>DASHBOARD</p>
               <h1>
                 {greeting}
                 <span>.</span>
               </h1>
-              <p className={styles.subtitle}>
-                {date} <span>·</span> A clear view of what matters today.
-              </p>
+              <p className={styles.subtitle}>{date}</p>
             </div>
             <div className={styles.headerActions}>
-              <button
-                className={styles.iconButton}
-                aria-label="Refresh dashboard data"
-                title="Refresh data"
-                disabled={refreshing || saving || editing}
-                onClick={() => refresh(() => router.refresh())}
-              >
-                <IconRefresh
-                  className={`${styles.icon} ${refreshing ? styles.spinning : ""}`}
-                />
-              </button>
+              <AnimatedTooltip content="Reload the dashboard and live integrations">
+                <StatefulButton
+                  className={styles.button}
+                  status={refreshing ? "pending" : "idle"}
+                  pendingLabel="Refreshing…"
+                  icon={<IconRefresh className={styles.icon} />}
+                  disabled={saving || editing}
+                  onClick={() => refresh(() => router.refresh())}
+                >
+                  Refresh
+                </StatefulButton>
+              </AnimatedTooltip>
               {editing ? (
                 <>
                   <button
@@ -347,13 +347,14 @@ export function DashboardWorkspace({
                   >
                     Cancel
                   </button>
-                  <button
+                  <StatefulButton
                     className={styles.primaryButton}
-                    disabled={saving}
+                    status={saving ? "pending" : error ? "error" : "idle"}
+                    errorLabel="Retry save"
                     onClick={() => save(draft)}
                   >
-                    {saving ? "Saving…" : "Save layout"}
-                  </button>
+                    Save layout
+                  </StatefulButton>
                 </>
               ) : (
                 <>
@@ -376,7 +377,7 @@ export function DashboardWorkspace({
               )}
             </div>
           </header>
-          <section className={styles.summary} aria-label="Today’s priorities">
+          <BentoGrid className={styles.summary} aria-label="Today’s priorities">
             {stats.map((stat, i) => (
               <Link href={stat.href} key={stat.label} className={styles.stat}>
                 <span className={styles.statLabel}>
@@ -402,14 +403,14 @@ export function DashboardWorkspace({
                 </span>
               </Link>
             ))}
-          </section>
+          </BentoGrid>
           <div className={styles.boardHeading}>
             <div>
-              <h2>Your workspace</h2>
+              <h2>Dashboard widgets</h2>
               <span>
                 {config.widgets.length} widgets{" "}
-                <span className={styles.divider}>/</span> Make room for your way
-                of working.
+                <span className={styles.divider}>/</span> Customize to move,
+                resize or configure.
               </span>
             </div>
             <span className={styles.updated} role="status">
@@ -421,7 +422,7 @@ export function DashboardWorkspace({
           {editing && (
             <div className={styles.editBar}>
               <span>
-                <strong>Make it yours.</strong> Drag a card by its handle; pull
+                <strong>Editing layout.</strong> Drag a card by its handle; pull
                 a corner to resize. Changes save when you’re ready.
               </span>
               <div>
@@ -460,8 +461,8 @@ export function DashboardWorkspace({
             {!config.widgets.length ? (
               <div className={styles.emptyBoard}>
                 <IconGrid className={styles.emptyBoardIcon} />
-                <h3>A little space for a fresh perspective.</h3>
-                <p>Add the widgets that help you do your best work.</p>
+                <h3>No widgets added</h3>
+                <p>Choose the information to show on your dashboard.</p>
                 <button
                   className={styles.primaryButton}
                   disabled={!!loadError}
@@ -501,7 +502,7 @@ export function DashboardWorkspace({
                       } as CSSProperties
                     }
                   >
-                    <article
+                    <BentoCard
                       className={`${styles.widget} ${widget.display === "metric" ? styles.metricWidget : ""}`}
                       aria-label={widget.title}
                     >
@@ -546,7 +547,7 @@ export function DashboardWorkspace({
                           <LiveWidgetContent widget={widget} />
                         )}
                       </div>
-                    </article>
+                    </BentoCard>
                   </div>
                 ))}
               </ResponsiveGridLayout>
@@ -554,8 +555,7 @@ export function DashboardWorkspace({
           </div>
           <footer className={styles.footer}>
             <span>
-              <span className={styles.footerMark}>CG</span> Designed around your
-              day.
+              <span className={styles.footerMark}>CG</span> Operations
             </span>
             <span>
               CG Technologies <span>·</span> Operations workspace
@@ -563,22 +563,23 @@ export function DashboardWorkspace({
           </footer>
         </div>
       )}
-      {dialog && (
+      <>
         <WorkspaceDialog
+          open={!!dialog}
           title={
             dialog === "library"
-              ? "Build your workspace"
+              ? "Add widgets"
               : dialog === "reset"
-                ? "Start fresh?"
-                : "Make this widget yours"
+                ? "Reset layout?"
+                : "Widget settings"
           }
           onClose={() => setDialog(null)}
         >
           {dialog === "library" ? (
             <>
               <p className={styles.dialogIntro}>
-                Choose a perspective. Add a second copy to see the same data in
-                a different way.
+                Choose a widget. Add a second copy to see the same data in a
+                different way.
               </p>
               <label className={styles.search}>
                 <IconSearch className={styles.icon} />
@@ -589,7 +590,7 @@ export function DashboardWorkspace({
                   aria-label="Search widgets"
                 />
               </label>
-              <div className={styles.catalog}>
+              <HoverGroup className={styles.catalog}>
                 {catalog
                   .filter((item) =>
                     `${item.title} ${item.description} ${item.group}`
@@ -597,7 +598,7 @@ export function DashboardWorkspace({
                       .includes(search.toLowerCase()),
                   )
                   .map((item) => (
-                    <button
+                    <HoverButton
                       className={styles.catalogItem}
                       key={item.key}
                       disabled={draft.widgets.length >= MAX_WIDGETS}
@@ -612,14 +613,14 @@ export function DashboardWorkspace({
                         <p>{item.description}</p>
                       </span>
                       <span className={styles.plus}>+</span>
-                    </button>
+                    </HoverButton>
                   ))}
                 {!catalog.some((item) =>
                   `${item.title} ${item.description} ${item.group}`
                     .toLowerCase()
                     .includes(search.toLowerCase()),
                 ) && <p>No widgets match that search.</p>}
-              </div>
+              </HoverGroup>
               <p className={styles.dialogNote}>
                 {draft.widgets.length} of {MAX_WIDGETS} widgets · Only widgets
                 you have permission to use are listed.
@@ -771,55 +772,34 @@ export function DashboardWorkspace({
             </div>
           ) : null}
         </WorkspaceDialog>
-      )}
+      </>
     </div>
   );
 }
 
 function WorkspaceDialog({
+  open,
   title,
   onClose,
   children,
 }: {
+  open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current!;
-    dialog.showModal();
-    return () => dialog.close();
-  }, []);
   return (
-    <dialog
-      ref={ref}
+    <AnimatedDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title={title}
+      variant="drawer"
       className={styles.dialog}
-      aria-labelledby="workspace-dialog-title"
-      onCancel={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      bodyClassName={styles.dialogInner}
     >
-      <div className={styles.dialogInner}>
-        <div className={styles.dialogHeader}>
-          <div>
-            <p className={styles.eyebrow}>YOUR WORKSPACE</p>
-            <h2 id="workspace-dialog-title">{title}</h2>
-          </div>
-          <button
-            className={styles.iconButton}
-            aria-label="Close widget panel"
-            onClick={onClose}
-          >
-            <IconX className={styles.icon} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </dialog>
+      {children}
+    </AnimatedDialog>
   );
 }

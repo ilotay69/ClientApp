@@ -16,6 +16,7 @@ import type { MailboxReviewResult } from "@/lib/mailbox-review";
 import { TaskEditor } from "./task-editor";
 import { useRemote, Drawer, Empty, ErrorNotice, Loading, TodoIcon } from "./ui";
 import s from "./workspace.module.css";
+import { StatefulButton, useActionFeedback } from "../ui/stateful-button";
 type InboxFilter = "received" | "sent" | "tasks" | "snoozed" | "dismissed";
 export function TodoInbox({
   actions,
@@ -52,18 +53,30 @@ export function TodoInbox({
   const [source, setSource] = useState<MailThread | null>(null);
   const [review, setReview] = useState<MailboxReviewResult | null>(null);
   const reduced = useReducedMotion();
+  const syncFeedback = useActionFeedback();
   async function sync() {
-    setBusy(true);
-    setError(null);
-    try {
-      const r = await actions.sync();
-      if ("error" in r) setError(r.error);
-      else await remote.refresh();
-    } catch {
-      setError("Couldn't sync your mailbox. Please try again.");
-    } finally {
-      setBusy(false);
-    }
+    return syncFeedback.run(async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const r = await actions.sync();
+        if ("error" in r || !r.ok) {
+          const message = "error" in r ? r.error : r.message;
+          setError(message);
+          return { ok: false, error: message };
+        }
+        await remote.refresh();
+        return { ok: true };
+      } catch {
+        setError("Couldn't sync your mailbox. Please try again.");
+        return {
+          ok: false,
+          error: "Couldn't sync your mailbox. Please try again.",
+        };
+      } finally {
+        setBusy(false);
+      }
+    });
   }
   async function analyze(form?: FormData) {
     if (!data) return;
@@ -136,14 +149,18 @@ export function TodoInbox({
           </p>
         </div>
         <div className={s.actions}>
-          <button
+          <StatefulButton
             className={s.button}
+            status={syncFeedback.status}
+            pendingLabel="Syncing…"
+            successLabel="Synced"
+            errorLabel="Retry sync"
+            icon={<TodoIcon name="refresh" />}
             disabled={busy || analyzing || !data?.connected}
             onClick={sync}
           >
-            <TodoIcon name="refresh" />
-            {busy ? "Updating…" : "Sync mailbox"}
-          </button>
+            Sync mailbox
+          </StatefulButton>
           <button
             className={s.button}
             disabled={!data?.connected || analyzing}

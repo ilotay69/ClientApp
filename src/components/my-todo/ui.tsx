@@ -1,5 +1,5 @@
 "use client";
-import { Dialog } from "@base-ui/react/dialog";
+import { AnimatedDialog } from "../ui/animated-dialog";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import s from "./workspace.module.css";
 
@@ -178,87 +178,70 @@ export function Drawer({
   const start = useRef<{ x: number; width: number } | null>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   return (
-    <Dialog.Root
+    <AnimatedDialog
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
+      title={title}
+      description={description}
+      variant="drawer"
+      className={s.drawer}
+      bodyClassName={s.drawerBody}
+      style={{ width: dragWidth ?? width }}
+      beforeHeader={
+        onWidth && (
+          <div
+            role="separator"
+            aria-label="Resize detail panel"
+            aria-orientation="vertical"
+            aria-valuemin={360}
+            aria-valuemax={760}
+            aria-valuenow={Math.round(dragWidth ?? width)}
+            tabIndex={0}
+            className={s.resizeHandle}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+                e.preventDefault();
+                onWidth(
+                  Math.max(
+                    360,
+                    Math.min(760, width + (e.key === "ArrowLeft" ? 20 : -20)),
+                  ),
+                );
+              }
+            }}
+            onPointerDown={(e) => {
+              start.current = { x: e.clientX, width };
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (start.current)
+                setDragWidth(
+                  Math.max(
+                    360,
+                    Math.min(
+                      760,
+                      start.current.width + start.current.x - e.clientX,
+                    ),
+                  ),
+                );
+            }}
+            onPointerUp={() => {
+              if (dragWidth !== null) onWidth(dragWidth);
+              start.current = null;
+              setDragWidth(null);
+            }}
+            onPointerCancel={() => {
+              start.current = null;
+              setDragWidth(null);
+            }}
+          />
+        )
+      }
     >
-      <Dialog.Portal>
-        <Dialog.Backdrop className={s.backdrop} />
-        <Dialog.Popup
-          className={s.drawer}
-          style={{ width: dragWidth ?? width }}
-        >
-          {onWidth && (
-            <div
-              role="separator"
-              aria-label="Resize detail panel"
-              aria-orientation="vertical"
-              aria-valuemin={360}
-              aria-valuemax={760}
-              aria-valuenow={Math.round(dragWidth ?? width)}
-              tabIndex={0}
-              className={s.resizeHandle}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-                  e.preventDefault();
-                  onWidth(
-                    Math.max(
-                      360,
-                      Math.min(760, width + (e.key === "ArrowLeft" ? 20 : -20)),
-                    ),
-                  );
-                }
-              }}
-              onPointerDown={(e) => {
-                start.current = { x: e.clientX, width };
-                e.currentTarget.setPointerCapture(e.pointerId);
-              }}
-              onPointerMove={(e) => {
-                if (start.current)
-                  setDragWidth(
-                    Math.max(
-                      360,
-                      Math.min(
-                        760,
-                        start.current.width + start.current.x - e.clientX,
-                      ),
-                    ),
-                  );
-              }}
-              onPointerUp={() => {
-                if (dragWidth !== null) onWidth(dragWidth);
-                start.current = null;
-                setDragWidth(null);
-              }}
-              onPointerCancel={() => {
-                start.current = null;
-                setDragWidth(null);
-              }}
-            />
-          )}
-          <div className={s.drawerHeader}>
-            <div>
-              <Dialog.Title className={s.drawerTitle}>{title}</Dialog.Title>
-              {description && (
-                <Dialog.Description className={s.muted}>
-                  {description}
-                </Dialog.Description>
-              )}
-            </div>
-            <button
-              className={s.iconButton}
-              aria-label="Close panel"
-              onClick={onClose}
-            >
-              <TodoIcon name="close" />
-            </button>
-          </div>
-          <div className={s.drawerBody}>{children}</div>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+      {children}
+    </AnimatedDialog>
   );
 }
 export function useRemote<T>(load: () => Promise<T>) {

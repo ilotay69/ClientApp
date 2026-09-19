@@ -1,3 +1,32 @@
+.clientPreview {
+  max-width: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #5f685b;
+  font-size: 11px;
+  text-align: left;
+  padding: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clientPreview:hover {
+  background: #eef0e9;
+}
+.authorAvatar {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #f5e8e5;
+  color: #a04740;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  margin-right: 7px;
+}
 .workspace,
 .drawer {
   --ink: #282d29;
@@ -111,7 +140,7 @@
 }
 .viewSwitch button[aria-pressed="true"],
 .segmented button[aria-pressed="true"] {
-  background: white;
+  background: transparent;
   color: #30372f;
   box-shadow: 0 1px 4px #2331240d;
 }
@@ -208,7 +237,7 @@
 }
 .tabs {
   display: flex;
-  gap: 26px;
+  gap: 6px;
   align-items: center;
   border-bottom: 1px solid var(--line);
   margin-bottom: 26px;
@@ -218,7 +247,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 2px 15px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 9px;
   border: 0;
   border-bottom: 2px solid transparent;
   background: none;
@@ -237,7 +268,7 @@
 }
 .tabs > button[aria-current="page"] {
   color: #d5353b;
-  border-color: #e33c41;
+  --ui-tab-surface: #fceeee;
 }
 .count {
   font-size: 10px;
@@ -452,6 +483,14 @@
   flex-direction: column;
   gap: 4px;
   color: var(--ink);
+}
+.taskIdentity {
+  flex: 1;
+  min-width: 0;
+}
+.taskRow .taskIdentity .taskTitle {
+  width: 100%;
+  min-width: 0 !important;
 }
 .taskTitle strong {
   font-size: 13px;
@@ -1097,7 +1136,8 @@
 .boardColumn .taskRow:last-child {
   margin-bottom: 0;
 }
-.boardColumn .taskRow .taskTitle {
+.boardColumn .taskRow > .taskTitle,
+.boardColumn .taskRow .taskIdentity {
   flex: 1 1 calc(100% - 32px);
   min-width: 0 !important;
 }
@@ -1132,7 +1172,7 @@
 }
 .drawer[data-starting-style],
 .drawer[data-ending-style] {
-  transform: translateX(100%);
+  transform: translateX(24px);
 }
 .drawerHeader {
   display: flex;
@@ -1853,7 +1893,8 @@
     gap: 8px;
     padding: 14px 12px;
   }
-  .taskTitle {
+  .taskRow > .taskTitle,
+  .taskIdentity {
     min-width: calc(100% - 80px) !important;
     flex-basis: calc(100% - 80px);
   }

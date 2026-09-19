@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Reorder, useDragControls, useReducedMotion } from "motion/react";
 import {
   DEFAULT_FILTERS,
@@ -34,6 +35,10 @@ import { TodoTickets } from "./tickets";
 import { TodoTime } from "./time";
 import { TodoIcon, Drawer, Empty, ErrorNotice, Loading, useRemote } from "./ui";
 import s from "./workspace.module.css";
+import { AnimatedTabs } from "../ui/animated-tabs";
+import { HoverGroup, HoverButton } from "../ui/hover-surface";
+import { StatefulButton, useActionFeedback } from "../ui/stateful-button";
+import { AnimatedTooltip, TooltipCard } from "../ui/context-preview";
 
 const LABELS: Record<TodoSection, string> = {
   today: "Today",
@@ -76,6 +81,7 @@ export function TodoWorkspace({
   const [saveName, setSaveName] = useState("");
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
+  const refreshFeedback = useActionFeedback();
   const [undo, setUndo] = useState<{
     task: TodoTask;
     previous: TodoTask["status"];
@@ -165,22 +171,33 @@ export function TodoWorkspace({
     }
   }
   async function refresh() {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await actions.refresh();
-      if (result.error !== undefined) setError(result.error);
-      else {
-        setTasks(result.data.tasks);
-        setItems(result.data.items);
-        setError(result.data.warning);
-        setNotice("Tasks refreshed");
+    return refreshFeedback.run(async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await actions.refresh();
+        if (result.error !== undefined) {
+          setError(result.error);
+          return { ok: false, error: result.error };
+        } else {
+          setTasks(result.data.tasks);
+          setItems(result.data.items);
+          setError(result.data.warning);
+          setNotice(result.data.warning ? "" : "Tasks refreshed");
+          return result.data.warning
+            ? { ok: false, error: result.data.warning }
+            : { ok: true };
+        }
+      } catch {
+        setError("Couldn't refresh tasks. Please try again.");
+        return {
+          ok: false,
+          error: "Couldn't refresh tasks. Please try again.",
+        };
+      } finally {
+        setBusy(false);
       }
-    } catch {
-      setError("Couldn't refresh tasks. Please try again.");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
   async function complete(task: TodoTask) {
     if (busy) return;
@@ -425,42 +442,56 @@ export function TodoWorkspace({
           </p>
         </div>
         <div className={s.actions}>
-          <button
-            className={s.iconButton}
-            title="Display settings"
-            aria-label="Display settings"
-            onClick={() => setSettings(true)}
+          <AnimatedTooltip content="Change spacing, visible columns, and panel width">
+            <button
+              className={s.iconButton}
+              title="Display settings"
+              aria-label="Display settings"
+              onClick={() => setSettings(true)}
+            >
+              <TodoIcon name="settings" />
+            </button>
+          </AnimatedTooltip>
+          <StatefulButton
+            className={s.button}
+            onClick={refresh}
+            status={refreshFeedback.status}
+            disabled={busy}
+            pendingLabel="Refreshing…"
+            successLabel="Updated"
+            errorLabel="Retry refresh"
+            icon={<TodoIcon name="refresh" />}
           >
-            <TodoIcon name="settings" />
-          </button>
-          <button className={s.button} onClick={refresh} disabled={busy}>
-            <TodoIcon name="refresh" />
             Refresh
-          </button>
+          </StatefulButton>
           <button className={s.primary} onClick={() => setNewTask(true)}>
             <TodoIcon name="plus" />
             New task
           </button>
         </div>
       </header>
-      <nav className={s.tabs} aria-label="My To-Do sections">
-        {TODO_SECTIONS.map((tab) => (
-          <button
-            key={tab}
-            aria-current={section === tab ? "page" : undefined}
-            onClick={() => navigate(tab)}
-          >
-            <TodoIcon name={tab} />
-            {LABELS[tab]}
-            {tab === "tasks" && (
-              <span className={s.count}>{openTasks.length}</span>
-            )}
-            {tab === "today" && planned.length > 0 && (
-              <span className={s.count}>{planned.length}</span>
-            )}
-          </button>
-        ))}
-      </nav>
+      <AnimatedTabs
+        className={s.tabs}
+        label="My To-Do sections"
+        value={section}
+        onChange={navigate}
+        navigation
+        items={TODO_SECTIONS.map((tab) => ({
+          value: tab,
+          label: (
+            <>
+              <TodoIcon name={tab} />
+              {LABELS[tab]}
+              {tab === "tasks" && (
+                <span className={s.count}>{openTasks.length}</span>
+              )}
+              {tab === "today" && planned.length > 0 && (
+                <span className={s.count}>{planned.length}</span>
+              )}
+            </>
+          ),
+        }))}
+      />
       {error && <ErrorNotice>{error}</ErrorNotice>}
       {initial.truncated && (
         <p className={s.warning}>
@@ -793,28 +824,32 @@ export function TodoWorkspace({
             >
               Reset filters
             </button>
-            <div className={s.segmented}>
-              <button
-                aria-label="List layout"
-                aria-pressed={filters.layout === "list"}
-                onClick={() => filter({ layout: "list" })}
-              >
-                <TodoIcon name="list" />
-              </button>
-              <button
-                aria-label="Board layout"
-                aria-pressed={filters.layout === "board"}
-                onClick={() => filter({ layout: "board" })}
-              >
-                <TodoIcon name="board" />
-              </button>
-            </div>
+            <AnimatedTabs
+              className={s.segmented}
+              label="Task layout"
+              value={filters.layout}
+              onChange={(layout) => filter({ layout })}
+              items={[
+                {
+                  value: "list",
+                  label: <TodoIcon name="list" />,
+                  accessibleLabel: "List layout",
+                },
+                {
+                  value: "board",
+                  label: <TodoIcon name="board" />,
+                  accessibleLabel: "Board layout",
+                },
+              ]}
+            />
           </div>
-          <div className={s.savedViews}>
+          <HoverGroup className={s.savedViews}>
             <span>Saved views</span>
             {preferences.savedViews.map((v) => (
               <span className={s.savedChip} key={v.id}>
-                <button onClick={() => filter(v.filters)}>{v.name}</button>
+                <HoverButton onClick={() => filter(v.filters)}>
+                  {v.name}
+                </HoverButton>
                 <button
                   aria-label={`Delete saved view ${v.name}`}
                   disabled={savingPrefs}
@@ -860,7 +895,7 @@ export function TodoWorkspace({
                 Save view
               </button>
             </form>
-          </div>
+          </HoverGroup>
           {selected.length > 0 && (
             <div className={s.bulkBar}>
               <strong>{selected.length} selected</strong>
@@ -1072,22 +1107,47 @@ function TaskLine({
       >
         {task.status === "done" && <TodoIcon name="check" />}
       </button>
-      <button className={s.taskTitle} onClick={onOpen}>
-        <strong>{task.title}</strong>
-        <span>
-          {task.is_personal ? (
-            <>
-              <TodoIcon name="lock" />
-              Private
-            </>
-          ) : (
-            "Assigned"
-          )}
-          {preferences.showClient && task.clientName && (
-            <> · {task.clientName}</>
-          )}
-        </span>
-      </button>
+      <div className={s.taskIdentity}>
+        <button className={s.taskTitle} onClick={onOpen}>
+          <strong>{task.title}</strong>
+          <span>
+            {task.is_personal ? (
+              <>
+                <TodoIcon name="lock" />
+                Private
+              </>
+            ) : (
+              "Assigned"
+            )}
+          </span>
+        </button>
+        {preferences.showClient && task.clientName && (
+          <TooltipCard
+            title={task.clientName}
+            description="Client reference"
+            trigger={
+              <button
+                className={s.clientPreview}
+                aria-label={`Preview client ${task.clientName}`}
+              >
+                {task.clientName}
+              </button>
+            }
+          >
+            <p>
+              <strong>{task.title}</strong>
+            </p>
+            <p>
+              {TASK_STATUSES[task.status]} · {dateLabel(task.due_date, today)}
+            </p>
+            {task.client_id && (
+              <Link href={`/clients/${encodeURIComponent(task.client_id)}`}>
+                Open client ↗
+              </Link>
+            )}
+          </TooltipCard>
+        )}
+      </div>
       <span className={s.statusBadge} data-status={task.status}>
         {TASK_STATUSES[task.status] ?? task.status}
       </span>
@@ -1107,20 +1167,23 @@ function TaskLine({
       >
         {dateLabel(task.due_date, today)}
       </span>
-      <button
-        className={`${s.planButton} ${planned ? s.isPlanned : ""}`}
-        disabled={busy || task.status === "done"}
-        aria-label={`${planned ? "Remove from today" : "Plan for today"}: ${task.title}`}
-        title={
+      <AnimatedTooltip
+        content={
           planned
-            ? "Remove from today’s plan"
-            : "Plan for today · deadline unchanged"
+            ? "Remove from today’s plan; the deadline stays unchanged"
+            : "Add to today’s plan without changing the deadline"
         }
-        aria-pressed={planned}
-        onClick={onPlan}
       >
-        <TodoIcon name="calendar" />
-      </button>
+        <button
+          className={`${s.planButton} ${planned ? s.isPlanned : ""}`}
+          disabled={busy || task.status === "done"}
+          aria-label={`${planned ? "Remove from today" : "Plan for today"}: ${task.title}`}
+          aria-pressed={planned}
+          onClick={onPlan}
+        >
+          <TodoIcon name="calendar" />
+        </button>
+      </AnimatedTooltip>
       {extra}
     </div>
   );

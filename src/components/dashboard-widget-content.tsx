@@ -11,6 +11,8 @@ import type {
   SeriesPoint,
 } from "@/lib/dashboard-workspace";
 import styles from "./dashboard-workspace.module.css";
+import { ExpandableCard } from "./ui/bento-card";
+import { AnimatedTooltip } from "./ui/context-preview";
 
 function subscribeMotion(callback: () => void) {
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -144,6 +146,26 @@ export function WidgetContent({
       <div className={styles.widgetValue}>
         <strong>{number(total)}</strong>
         <span>{data.unit}</span>
+        {(data.rows.length > 0 || data.series.length > 0) && (
+          <ExpandableCard
+            title={widget.title}
+            description="Current snapshot · this preview does not change your widget or saved layout."
+            trigger={
+              <button
+                className={styles.detailsButton}
+                aria-label={`Expand ${widget.title}`}
+              >
+                Details
+              </button>
+            }
+          >
+            <WidgetSnapshotDetails
+              data={data}
+              rows={visibleRows}
+              total={total}
+            />
+          </ExpandableCard>
+        )}
         {href && (
           <Link
             href={href}
@@ -207,29 +229,33 @@ export function WidgetContent({
                   <div className={styles.row}>{content}</div>
                 )}
                 {data.key === "alerts" && (
-                  <button
-                    disabled={pendingId !== null}
-                    className={styles.acknowledge}
-                    title="Acknowledge alert"
-                    aria-label={`Acknowledge ${row.title}`}
-                    onClick={async () => {
-                      setPendingId(row.id);
-                      setAckError("");
-                      try {
-                        const result = await acknowledgeDashboardAlert(row.id);
-                        if (result.error) setAckError(result.error);
-                        else setAcknowledged((current) => [...current, row.id]);
-                      } catch {
-                        setAckError(
-                          "Couldn’t acknowledge this alert. Please retry.",
-                        );
-                      } finally {
-                        setPendingId(null);
-                      }
-                    }}
-                  >
-                    ✓
-                  </button>
+                  <AnimatedTooltip content="Acknowledge this notification">
+                    <button
+                      disabled={pendingId !== null}
+                      className={styles.acknowledge}
+                      aria-label={`Acknowledge ${row.title}`}
+                      onClick={async () => {
+                        setPendingId(row.id);
+                        setAckError("");
+                        try {
+                          const result = await acknowledgeDashboardAlert(
+                            row.id,
+                          );
+                          if (result.error) setAckError(result.error);
+                          else
+                            setAcknowledged((current) => [...current, row.id]);
+                        } catch {
+                          setAckError(
+                            "Couldn’t acknowledge this alert. Please retry.",
+                          );
+                        } finally {
+                          setPendingId(null);
+                        }
+                      }}
+                    >
+                      ✓
+                    </button>
+                  </AnimatedTooltip>
                 )}
               </div>
             );
@@ -350,5 +376,71 @@ export function WidgetContent({
         </div>
       )}
     </>
+  );
+}
+
+function WidgetSnapshotDetails({
+  data,
+  rows,
+  total,
+}: {
+  data: WidgetData;
+  rows: WidgetData["rows"];
+  total: number;
+}) {
+  const href = safeHref(data.href);
+  return (
+    <div className={styles.snapshot}>
+      <div className={styles.snapshotHeading}>
+        <p>
+          <strong>{number(total)}</strong> {data.unit}
+        </p>
+        {href && <Link href={href}>Open source ↗</Link>}
+      </div>
+      {data.series.length > 0 && (
+        <dl className={styles.snapshotSeries}>
+          {data.series.map((point, index) => (
+            <div key={`${point.label}-${index}`}>
+              <dt>{point.label}</dt>
+              <dd>{number(point.value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {rows.length > 0 ? (
+        <>
+          <p className={styles.snapshotNote}>
+            {rows.length} records in this snapshot
+            {href ? ". Open the source for the full list and actions." : "."}
+          </p>
+          <ul className={styles.snapshotRows}>
+            {rows.map((row) => {
+              const link = safeHref(row.href);
+              return (
+                <li key={row.id}>
+                  <div>
+                    {link ? (
+                      <Link href={link}>{row.title}</Link>
+                    ) : (
+                      <strong>{row.title}</strong>
+                    )}
+                    {row.detail && <p>{row.detail}</p>}
+                  </div>
+                  {row.badge && (
+                    <span data-urgent={row.urgent}>{row.badge}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : (
+        <p className={styles.snapshotNote}>
+          {total === 0
+            ? data.empty
+            : "This source provides summary totals. Individual records are not included in this snapshot."}
+        </p>
+      )}
+    </div>
   );
 }

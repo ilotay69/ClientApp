@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { TodoPreferences, Result } from "@/lib/my-todo-workspace";
 import s from "./workspace.module.css";
+import { AnimatedTabs } from "../ui/animated-tabs";
 export function TodoViewSwitch({
   view,
   preferences,
@@ -43,22 +44,17 @@ export function TodoViewSwitch({
   }
   return (
     <div>
-      <div className={s.viewSwitch} aria-label="My To-Do appearance">
-        <button
-          disabled={pending}
-          aria-pressed={view === "old"}
-          onClick={() => change("old")}
-        >
-          Old view
-        </button>
-        <button
-          disabled={pending}
-          aria-pressed={view === "new"}
-          onClick={() => change("new")}
-        >
-          New view
-        </button>
-      </div>
+      <AnimatedTabs
+        className={s.viewSwitch}
+        label="My To-Do appearance"
+        value={view}
+        onChange={change}
+        disabled={pending}
+        items={[
+          { value: "old", label: "Old view" },
+          { value: "new", label: "New view" },
+        ]}
+      />
       {error && (
         <p role="alert" className={s.error}>
           {error}
