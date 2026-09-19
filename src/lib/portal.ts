@@ -7,7 +7,7 @@ import type { UserRole } from "@/lib/types";
 // from "@/lib/portal-roles" directly instead (see that file's own comment
 // for why: this module transitively depends on next/headers).
 import { PORTAL_PAGE_KEYS, type PortalPageKey, type ClientPortalRole } from "@/lib/portal-roles";
-export { PORTAL_PAGE_KEYS, CLIENT_PORTAL_ROLE_LABELS } from "@/lib/portal-roles";
+export { PORTAL_PAGE_KEYS, PORTAL_PAGE_LABELS, CLIENT_PORTAL_ROLE_LABELS } from "@/lib/portal-roles";
 export type { PortalPageKey, ClientPortalRole } from "@/lib/portal-roles";
 
 /** Which of PORTAL_PAGE_KEYS a given client-portal sub-role can see —
@@ -55,6 +55,13 @@ export type PortalClient = {
   ninjaoneOrganizationId: number | null;
   m365TenantId: string | null;
   huntressOrganizationId: number | null;
+  forticloudAccountId: string | null;
+  /** The client's OWN contact address, not ours — used only to derive the
+   * domain the Domain Health section checks. It is deliberately the single
+   * source for that: letting a portal user name the domain would turn this
+   * app into an open DNS/WHOIS/certificate-transparency lookup service
+   * driven by whatever a signed-in customer types. */
+  primaryContactEmail: string | null;
 };
 
 /** A resolved, MFA-satisfied portal session. Every data helper takes THIS,
@@ -94,7 +101,7 @@ export type PortalContext =
   | PortalSession;
 
 const PORTAL_CLIENT_COLUMNS =
-  "id, name, autotask_company_id, ninjaone_organization_id, m365_tenant_id, huntress_organization_id";
+  "id, name, autotask_company_id, ninjaone_organization_id, m365_tenant_id, huntress_organization_id, forticloud_account_id, primary_contact_email";
 
 async function loadPortalClient(clientId: string): Promise<PortalClient | null> {
   // Service role: after 065 a role='client' login has no read access to
@@ -120,6 +127,8 @@ async function loadPortalClient(clientId: string): Promise<PortalClient | null> 
     ninjaoneOrganizationId: data.ninjaone_organization_id ?? null,
     m365TenantId: data.m365_tenant_id ?? null,
     huntressOrganizationId: data.huntress_organization_id ?? null,
+    forticloudAccountId: data.forticloud_account_id ?? null,
+    primaryContactEmail: data.primary_contact_email ?? null,
   };
 }
 

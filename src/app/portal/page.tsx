@@ -5,19 +5,18 @@ import { requireStaff } from "@/lib/permissions";
 import {
   fetchPortalActiveContractUsage,
   fetchPortalDevices,
-  fetchPortalSecureScore,
   fetchPortalLicences,
   fetchPortalTickets,
+  fetchPortalHuntress,
 } from "@/lib/portal-data";
 import {
   PortalPageHeader,
   StatCard,
   PortalCard,
   EmptyRow,
-  RingGauge,
 } from "@/components/portal-ui";
 import { TrendChart } from "@/components/charts/trend-chart";
-import { formatDate } from "@/lib/format";
+import { huntressAgentIsStale } from "@/lib/portal-sections";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +29,12 @@ export default async function PortalOverviewPage({
   const session = await requirePortalSession(preview);
   if (!session) return <StaffClientPicker />;
 
-  const [contracts, devices, secureScore, licences, tickets] = await Promise.all([
+  const [contracts, devices, licences, tickets, huntress] = await Promise.all([
     fetchPortalActiveContractUsage(session),
     fetchPortalDevices(session),
-    fetchPortalSecureScore(session),
     fetchPortalLicences(session),
     fetchPortalTickets(session),
+    fetchPortalHuntress(session),
   ]);
 
   const onlineDevices = devices.devices.filter((d) => d.isOffline === false).length;
@@ -43,6 +42,10 @@ export default async function PortalOverviewPage({
   const hoursPurchased = contracts.blocks.reduce((sum, b) => sum + b.purchased, 0);
   const licencesAssigned = licences.licences.reduce((s, l) => s + l.consumedUnits, 0);
   const licencesTotal = licences.licences.reduce((s, l) => s + l.enabledUnits, 0);
+  // Via the shared helper rather than an inline Date.now(): the one-week
+  // threshold then lives in exactly one place, and reading the clock is a
+  // side effect that does not belong in a component body.
+  const staleAgents = huntress.agents.filter(huntressAgentIsStale).length;
 
   return (
     <div className="space-y-6">
@@ -98,31 +101,33 @@ export default async function PortalOverviewPage({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <PortalCard
-          title="Security posture"
+          title="Endpoint protection"
           action={
             <Link
-              href={session.isPreview ? `/portal/security?preview=${preview}` : "/portal/security"}
+              href={session.isPreview ? `/portal/huntress?preview=${preview}` : "/portal/huntress"}
               className="text-xs font-medium text-brand underline"
             >
               Details
             </Link>
           }
         >
-          {secureScore ? (
-            <div className="px-5 py-6">
-              <RingGauge
-                percent={secureScore.percent}
-                label="Microsoft Secure Score"
-                sublabel={`${secureScore.currentScore} of ${secureScore.maxScore} points`}
-              />
-              {secureScore.lastSyncedAt && (
-                <p className="mt-3 text-center text-xs text-slate-400">
-                  Last measured {formatDate(secureScore.lastSyncedAt)}
+          {!huntress.linked || huntress.error ? (
+            <EmptyRow>
+              {huntress.error ?? "Managed endpoint protection isn't set up for your account yet."}
+            </EmptyRow>
+          ) : (
+            <div className="px-5 py-6 text-center">
+              <p className="text-3xl font-semibold text-slate-900">{huntress.agents.length}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                endpoint{huntress.agents.length === 1 ? "" : "s"} running managed detection and
+                response
+              </p>
+              {staleAgents > 0 && (
+                <p className="mt-3 text-xs text-amber-600">
+                  {staleAgents} not seen in over a week
                 </p>
               )}
             </div>
-          ) : (
-            <EmptyRow>Security scoring isn&apos;t set up for your tenant yet.</EmptyRow>
           )}
         </PortalCard>
 

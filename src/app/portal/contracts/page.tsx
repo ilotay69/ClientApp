@@ -1,74 +1,76 @@
 import { redirect } from "next/navigation";
 import { requirePortalSession } from "@/lib/portal";
-import { fetchPortalActiveContractUsage, fetchPortalContractServices } from "@/lib/portal-data";
+import { readPortalFilters } from "@/lib/portal-filters";
+import { fetchContractSection } from "@/lib/portal-sections";
+import { fetchPortalContractServices } from "@/lib/portal-data";
 import { PortalPageHeader, PortalCard, StatCard, ProportionBar, EmptyRow } from "@/components/portal-ui";
+import { PortalFilterBar } from "@/components/portal-filter-bar";
+import { PortalUnavailable } from "@/components/portal-unavailable";
+import { PortalDateRange } from "@/components/portal-date-range";
 import { Badge } from "@/components/badge";
+import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalContractsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ preview?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { preview } = await searchParams;
+  const params = await searchParams;
+  const preview = typeof params.preview === "string" ? params.preview : undefined;
   const session = await requirePortalSession(preview, "contracts");
   if (!session) redirect("/portal");
 
-  const [data, contractServices] = await Promise.all([
-    fetchPortalActiveContractUsage(session),
+  const filters = readPortalFilters("contracts", params);
+  const [usage, contractServices] = await Promise.all([
+    fetchContractSection(session, filters),
     fetchPortalContractServices(session),
   ]);
 
-  const totalPurchased = data.blocks.reduce((s, b) => s + b.purchased, 0);
-  const totalUsed = data.blocks.reduce((s, b) => s + b.used, 0);
+  const shownEntries = usage.rows.reduce((s, b) => s + b.entries.length, 0);
+  const totalPurchased = usage.rows.reduce((s, b) => s + b.purchased, 0);
+  const totalUsed = usage.rows.reduce((s, b) => s + b.used, 0);
   const totalRemaining = totalPurchased - totalUsed;
 
   return (
     <div className="space-y-6">
       <PortalPageHeader
         companyName={session.client.clientName}
-        title="Contracts"
-        subtitle="What's contracted, plus your active prepaid hour block and how much of it is used."
+        title="Contract & Time"
+        subtitle="Your active prepaid hour block, and every hour logged against it."
         isPreview={session.isPreview}
       />
 
-      {contractServices.linked && (
+      {contractServices.linked && contractServices.services.length > 0 && (
         <PortalCard title={`Contracted services (${contractServices.services.length})`}>
-          {contractServices.services.length === 0 ? (
-            <EmptyRow>No contracted services found.</EmptyRow>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {contractServices.services.map((s) => (
-                <div key={s.id} className="flex items-start justify-between gap-3 px-5 py-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">
-                      {s.serviceName}
-                      {s.quantity !== null ? ` × ${s.quantity}` : ""}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {s.contractName}
-                      {s.description ? ` · ${s.description}` : ""}
-                    </p>
-                  </div>
-                  {s.contractStatus && <Badge value={s.contractStatus} />}
+          <div className="divide-y divide-slate-100">
+            {contractServices.services.map((s) => (
+              <div key={s.id} className="flex items-start justify-between gap-3 px-5 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">
+                    {s.serviceName}
+                    {s.quantity !== null ? ` × ${s.quantity}` : ""}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {s.contractName}
+                    {s.description ? ` · ${s.description}` : ""}
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
+                {s.contractStatus && <Badge value={s.contractStatus} />}
+              </div>
+            ))}
+          </div>
         </PortalCard>
       )}
 
-      {data.unavailableReason ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm text-slate-500">{data.unavailableReason}</p>
-        </div>
-      ) : data.blocks.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm text-slate-500">No active prepaid hour block right now.</p>
-        </div>
+      {usage.unavailableReason ? (
+        <PortalUnavailable>{usage.unavailableReason}</PortalUnavailable>
       ) : (
         <>
+          {/* Block totals sit ABOVE the filter bar deliberately. They describe
+              the contract, not the filtered view, and a date filter must not
+              be able to make a client think they bought fewer hours. */}
           <div className="grid gap-4 sm:grid-cols-3">
             <StatCard label="Purchased" value={totalPurchased.toFixed(1)} hint="hours in the current block" />
             <StatCard label="Used" value={totalUsed.toFixed(1)} hint="billable hours drawn down" />
@@ -86,19 +88,87 @@ export default async function PortalContractsPage({
             />
           </div>
 
-          <PortalCard title="Current block usage">
-            <div className="space-y-5 px-5 py-4">
-              {data.blocks.map((b) => (
+          <PortalFilterBar
+            section="contracts"
+            searchPlaceholder="Search time entries…"
+            downloads={{ csv: true, pdf: true }}
+            resultLabel={`${shownEntries} of ${usage.totalBeforeFilter} entries`}
+            selects={[{ key: "resource", label: "Engineer", options: usage.facets.resource ?? [] }]}
+          >
+            <PortalDateRange />
+          </PortalFilterBar>
+
+          {usage.rows.map((block) => (
+            <PortalCard
+              key={`${block.contractId}-${block.startDate}`}
+              title={block.contractName}
+              action={
+                <span className="text-xs text-slate-400">
+                  {formatDate(block.startDate)} – {formatDate(block.endDate)}
+                </span>
+              }
+            >
+              <div className="px-5 py-4">
                 <ProportionBar
-                  key={`${b.contractId}-${b.startDate}`}
-                  label={b.contractName}
-                  used={b.used}
-                  total={b.purchased}
-                  valueLabel={`${b.used.toFixed(1)} / ${b.purchased.toFixed(1)} hrs · ${Math.round(b.percentUsed)}%`}
+                  label="Block usage"
+                  used={block.used}
+                  total={block.purchased}
+                  valueLabel={`${block.used.toFixed(1)} / ${block.purchased.toFixed(1)} hrs · ${Math.round(block.percentUsed)}%`}
                 />
-              ))}
-            </div>
-          </PortalCard>
+              </div>
+
+              <details className="group border-t border-slate-100">
+                <summary className="cursor-pointer list-none px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  <span className="group-open:hidden">Show time entries ({block.entries.length})</span>
+                  <span className="hidden group-open:inline">Hide time entries ({block.entries.length})</span>
+                </summary>
+
+                {block.entries.length === 0 ? (
+                  <EmptyRow>No time entries match these filters.</EmptyRow>
+                ) : (
+                  <div className="overflow-x-auto border-t border-slate-100">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-5 py-2 text-left font-medium text-slate-500">Date</th>
+                          <th className="px-5 py-2 text-left font-medium text-slate-500">Engineer</th>
+                          <th className="px-5 py-2 text-left font-medium text-slate-500">Ticket</th>
+                          <th className="px-5 py-2 text-left font-medium text-slate-500">Work done</th>
+                          <th className="px-5 py-2 text-right font-medium text-slate-500">Hours</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {block.entries.map((e) => (
+                          <tr key={e.id}>
+                            <td className="whitespace-nowrap px-5 py-2 text-slate-600">
+                              {formatDate(e.dateWorked)}
+                            </td>
+                            <td className="whitespace-nowrap px-5 py-2 text-slate-600">
+                              {e.resourceName ?? "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-5 py-2 text-slate-600">
+                              {e.ticketId ?? "—"}
+                            </td>
+                            <td className="px-5 py-2 text-slate-700">
+                              {e.summaryNotes || "—"}
+                              {e.isNonBillable && (
+                                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                  Not billable
+                                </span>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap px-5 py-2 text-right text-slate-600">
+                              {e.hoursToBill.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </details>
+            </PortalCard>
+          ))}
         </>
       )}
     </div>

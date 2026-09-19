@@ -9,12 +9,17 @@ import {
   IconList,
   IconLock,
   IconTag,
+  IconGlobe,
+  IconMail,
+  IconNetwork,
+  IconUsers,
   IconCheckSquare,
   IconClipboardCheck,
   IconLogOut,
   IconMenu,
   IconX,
 } from "@/components/icons";
+import { PORTAL_PAGE_LABELS } from "@/lib/portal-roles";
 
 /** portalPage is null for Overview — always shown, no sub-role can hide it
  * (see PORTAL_PAGE_KEYS in lib/portal.ts). Every other link's key must
@@ -26,14 +31,17 @@ const LINKS: {
   portalPage: string | null;
 }[] = [
   { href: "/portal", label: "Overview", icon: IconGrid, portalPage: null },
-  { href: "/portal/tickets", label: "Tickets", icon: IconCheckSquare, portalPage: "tickets" },
-  { href: "/portal/contracts", label: "Contracts", icon: IconClock, portalPage: "contracts" },
-  { href: "/portal/devices", label: "Devices", icon: IconList, portalPage: "devices" },
-  { href: "/portal/security", label: "Security", icon: IconLock, portalPage: "security" },
-  { href: "/portal/licences", label: "Microsoft 365", icon: IconTag, portalPage: "licences" },
-  { href: "/portal/reviews", label: "Quarterly Reviews", icon: IconClipboardCheck, portalPage: "reviews" },
+  { href: "/portal/tickets", label: PORTAL_PAGE_LABELS.tickets, icon: IconCheckSquare, portalPage: "tickets" },
+  { href: "/portal/licences", label: PORTAL_PAGE_LABELS.licences, icon: IconTag, portalPage: "licences" },
+  { href: "/portal/contracts", label: PORTAL_PAGE_LABELS.contracts, icon: IconClock, portalPage: "contracts" },
+  { href: "/portal/devices", label: PORTAL_PAGE_LABELS.devices, icon: IconList, portalPage: "devices" },
+  { href: "/portal/huntress", label: PORTAL_PAGE_LABELS.huntress, icon: IconLock, portalPage: "huntress" },
+  { href: "/portal/fortigate", label: PORTAL_PAGE_LABELS.fortigate, icon: IconNetwork, portalPage: "fortigate" },
+  { href: "/portal/mailbox", label: PORTAL_PAGE_LABELS.mailbox, icon: IconMail, portalPage: "mailbox" },
+  { href: "/portal/domain", label: PORTAL_PAGE_LABELS.domain, icon: IconGlobe, portalPage: "domain" },
+  { href: "/portal/reviews", label: PORTAL_PAGE_LABELS.reviews, icon: IconClipboardCheck, portalPage: "reviews" },
+  { href: "/portal/onboarding", label: PORTAL_PAGE_LABELS.onboarding, icon: IconUsers, portalPage: "onboarding" },
 ];
-
 export function PortalNav({
   companyName,
   allowedPages,
