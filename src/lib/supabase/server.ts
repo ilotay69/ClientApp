@@ -41,6 +41,46 @@ export const createClient = cache(async () => {
   );
 });
 
+/**
+ * Same as createClient(), except its cookie writer reports failures instead
+ * of swallowing them.
+ *
+ * Use this from a Server Action or Route Handler that deliberately CHANGES
+ * the session — signing in, or stepping up to AAL2 via MFA. Those are the
+ * cases where the cookie write is the entire point of the call, so a silent
+ * failure is the worst possible outcome: supabase.auth.mfa.verify() would
+ * resolve successfully, the caller would navigate to the portal, the portal
+ * would still see an AAL1 session, and the client would be bounced back to
+ * /portal/mfa forever with no error shown anywhere.
+ *
+ * createClient()'s silent catch stays as it is, on purpose. Server
+ * Components legitimately hit it on every render (cookies() is read-only
+ * there), which is exactly the case its comment describes.
+ */
+export const createMutableClient = cache(async () => {
+  const cookieStore = await cookies();
+
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          // No try/catch. If this throws here it is a real bug — a Server
+          // Action's cookie store IS writable — and it must surface rather
+          // than become an unexplained redirect loop.
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        },
+      },
+    }
+  );
+});
+
 /** The signed-in auth user, memoized per request.
  *
  * supabase.auth.getUser() is a network round trip to Supabase Auth every
