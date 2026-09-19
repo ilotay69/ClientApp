@@ -1,77 +1,77 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePortalSession } from "@/lib/portal";
-import {
-  fetchPortalTicketList,
-  DEFAULT_LOOKBACK_DAYS,
-  MAX_LOOKBACK_DAYS,
-} from "@/lib/portal-data";
+import { readPortalFilters } from "@/lib/portal-filters";
+import { fetchTicketsSection, normalizeLookbackDays } from "@/lib/portal-sections";
+import { MAX_LOOKBACK_DAYS } from "@/lib/portal-data";
 import { PortalPageHeader, PortalCard } from "@/components/portal-ui";
+import { PortalFilterBar } from "@/components/portal-filter-bar";
 import { PortalTicketsTable } from "@/components/portal-tickets-table";
+import { PortalUnavailable } from "@/components/portal-unavailable";
 
 export const dynamic = "force-dynamic";
 
 const DAY_OPTIONS = [30, 60, 90] as const; // 90 === MAX_LOOKBACK_DAYS
 
-function normalizeDays(raw: string | undefined): number {
-  const n = Number(raw);
-  if (!Number.isInteger(n)) return DEFAULT_LOOKBACK_DAYS;
-  return Math.min(Math.max(n, 1), MAX_LOOKBACK_DAYS);
-}
-
 export default async function PortalTicketsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ preview?: string; days?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { preview, days: rawDays } = await searchParams;
+  const params = await searchParams;
+  const preview = typeof params.preview === "string" ? params.preview : undefined;
   const session = await requirePortalSession(preview, "tickets");
   if (!session) redirect("/portal");
 
-  const days = normalizeDays(rawDays);
-  // Open tickets only — fetchPortalTicketList already excludes closed ones.
-  const { tickets, unavailableReason } = await fetchPortalTicketList(session, days);
-
-  const buildHref = (overrideDays: number) => {
-    const params = new URLSearchParams({ days: String(overrideDays) });
-    if (preview) params.set("preview", preview);
-    return `/portal/tickets?${params.toString()}`;
-  };
+  const filters = readPortalFilters("tickets", params);
+  const { rows, totalBeforeFilter, unavailableReason, facets } = await fetchTicketsSection(
+    session,
+    filters
+  );
+  const days = normalizeLookbackDays(filters.days);
 
   return (
     <div className="space-y-6">
       <PortalPageHeader
         companyName={session.client.clientName}
-        title="Tickets"
-        subtitle="Open support tickets for your account, with billable time logged against each."
+        title="Open Tickets"
+        subtitle="Support tickets still being worked, with the updates and time logged against each."
         isPreview={session.isPreview}
       />
 
-      <div className="flex items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-        <span className="text-slate-500">Lookback:</span>
-        {DAY_OPTIONS.map((d) => (
-          <Link
-            key={d}
-            href={buildHref(d)}
-            className={`rounded-md px-3 py-1.5 font-medium ${
-              days === d
-                ? "bg-brand text-white"
-                : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            {d}d
-          </Link>
-        ))}
-      </div>
-
       {unavailableReason ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm text-slate-500">{unavailableReason}</p>
-        </div>
+        <PortalUnavailable>{unavailableReason}</PortalUnavailable>
       ) : (
-        <PortalCard title={`${tickets.length} open ticket${tickets.length === 1 ? "" : "s"}`}>
-          <PortalTicketsTable tickets={tickets} />
+        <>
+        {/* Inside the available branch on purpose: the bar carries the
+            download buttons, and offering a CSV of a section that has no
+            data to give lands the client on a bare error response. */}
+        <PortalFilterBar
+          section="tickets"
+          searchPlaceholder="Search tickets…"
+          downloads={{ csv: true, pdf: true }}
+          resultLabel={`${rows.length} of ${totalBeforeFilter} open`}
+          selects={[
+            {
+              key: "days",
+              label: "Opened or active in",
+              options: DAY_OPTIONS.map((d) => ({ value: String(d), label: `Last ${d} days` })),
+            },
+            { key: "status", label: "Status", options: facets.status ?? [] },
+            { key: "priority", label: "Priority", options: facets.priority ?? [] },
+          ]}
+        />
+
+        <PortalCard
+          title={`${rows.length} ticket${rows.length === 1 ? "" : "s"}`}
+          action={
+            <span className="text-xs text-slate-400">
+              {days === MAX_LOOKBACK_DAYS ? "Last 90 days" : `Last ${days} days`}
+            </span>
+          }
+        >
+          <PortalTicketsTable tickets={rows} />
         </PortalCard>
+        </>
       )}
     </div>
   );

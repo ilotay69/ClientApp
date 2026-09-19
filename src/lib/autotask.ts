@@ -745,6 +745,121 @@ export async function fetchTicketNotes(
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
+/**
+ * Whether a ticket id actually belongs to a given company.
+ *
+ * The portal's ticket expander takes a ticket id from the browser, and a
+ * ticket id is a small integer that anyone can change in a request. Without
+ * this, a signed-in client could read the correspondence on any ticket in
+ * the whole Autotask tenant by guessing numbers. Asking Autotask to match
+ * BOTH id and companyID means a mismatch simply returns nothing, rather
+ * than relying on us to compare two values correctly after the fact.
+ */
+export async function ticketBelongsToCompany(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketId: number,
+  companyId: number
+): Promise<boolean> {
+  const items = await autotaskQuery(creds, zoneUrl, "Tickets", {
+    filter: [
+      { op: "eq", field: "id", value: ticketId },
+      { op: "eq", field: "companyID", value: companyId },
+    ],
+    MaxRecords: 1,
+  });
+  return items.length > 0;
+}
+
+/**
+ * Notes on a ticket that the CUSTOMER is allowed to read.
+ *
+ * Autotask marks this with each note's `publish` picklist, and the labels
+ * are tenant-configurable, so the value is resolved by meaning rather than
+ * by a hardcoded id — the same approach the Quote push already takes for
+ * every other picklist in this file, for the same reason (the numbers are
+ * not stable across tenants and the published documentation for them has
+ * repeatedly been wrong).
+ *
+ * Note which way this fails. If the publish field can't be read, or no
+ * label looks customer-facing, it returns NOTHING rather than everything.
+ * The cost of failing closed is a client portal that shows no ticket
+ * correspondence until someone notices; the cost of failing open is
+ * publishing internal engineer commentary — "client is being difficult",
+ * pricing discussions, credentials — to the customer it is about. Those
+ * are not comparable, so this never falls back to unfiltered notes.
+ *
+ * "All Autotask Users" deliberately does NOT match: Autotask users are our
+ * staff, so that label means internal-to-everyone-here, not public.
+ */
+const CLIENT_VISIBLE_PUBLISH_PATTERN = /client|portal|taskfire|customer|external/i;
+
+export type AutotaskClientTicketNote = AutotaskTicketNote & {
+  /** The publish setting this note was admitted under — surfaced so a
+   * staff previewer can see WHY a note is visible to the client. */
+  publishLabel: string | null;
+};
+
+export async function fetchClientVisibleTicketNotes(
+  creds: AutotaskCredentials,
+  zoneUrl: string,
+  ticketId: number
+): Promise<AutotaskClientTicketNote[]> {
+  const fields = await fetchEntityFields(creds, zoneUrl, "TicketNotes");
+  const publishField = fields.find((f) => f.name === "publish");
+  const labelByValue = new Map<number, string>();
+  for (const v of publishField?.picklistValues ?? []) {
+    if (v.isActive === false) continue;
+    labelByValue.set(Number(v.value), v.label);
+  }
+
+  const visible = new Map<number, string>();
+  for (const [value, label] of labelByValue) {
+    if (CLIENT_VISIBLE_PUBLISH_PATTERN.test(label)) visible.set(value, label);
+  }
+  if (visible.size === 0) return [];
+
+  const items = await autotaskQuery(creds, zoneUrl, "TicketNotes", {
+    filter: [
+      { op: "eq", field: "ticketID", value: ticketId },
+      { op: "in", field: "publish", value: [...visible.keys()] },
+    ],
+    MaxRecords: 100,
+  });
+
+  type RawNote = {
+    id: number;
+    title?: string;
+    description: string;
+    createDateTime: string;
+    creatorResourceID?: number;
+    publish?: number;
+  };
+  // Re-checked here rather than trusting the filter alone: `filter` is
+  // loosely typed (Record<string, unknown>), so a malformed `in` clause
+  // would come back as an unfiltered result set rather than an error, and
+  // that failure would be invisible right up until a client read an
+  // internal note.
+  const raw = (items as RawNote[]).filter((n) => n.publish != null && visible.has(n.publish));
+
+  const resourceNames = await resolveResourceNames(
+    creds,
+    zoneUrl,
+    raw.map((n) => n.creatorResourceID).filter((id): id is number => id != null)
+  );
+
+  return raw
+    .map((n) => ({
+      id: n.id,
+      title: n.title ?? null,
+      description: n.description,
+      createdAt: n.createDateTime,
+      creatorName: n.creatorResourceID != null ? (resourceNames.get(n.creatorResourceID) ?? null) : null,
+      publishLabel: n.publish != null ? (visible.get(n.publish) ?? null) : null,
+    }))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
 export type AutotaskTimeEntry = {
   id: number;
   dateWorked: string;

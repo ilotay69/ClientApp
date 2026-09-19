@@ -479,7 +479,7 @@ export async function buildSecureScoreRollupReport(admin: Supabase): Promise<Rep
 // visibly disagree - e.g. 199/200 rounds to "100%" and must read Good, not
 // Underused just because 199 < 200. A SKU with nothing purchased has
 // nothing to be good/under/over about.
-function licenseUsageStatus(purchased: number, roundedPercentUsed: number): string {
+export function licenseUsageStatus(purchased: number, roundedPercentUsed: number): string {
   if (purchased === 0) return "—";
   if (roundedPercentUsed > 100) return "Overused";
   if (roundedPercentUsed < 100) return "Underused";

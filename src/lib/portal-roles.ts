@@ -8,11 +8,44 @@
 // that depends on 'next/headers'... available in Server Components").
 
 /** Every portal page that can be individually granted/withheld per
- * client-portal sub-role (see client_portal_permissions, 081) — Overview
- * is deliberately not here, it's the one page every portal login can
- * always reach regardless of role, so there's never a zero-page dead end. */
-export const PORTAL_PAGE_KEYS = ["tickets", "contracts", "devices", "security", "licences", "reviews"] as const;
+ * client-portal sub-role (see client_portal_permissions, 081 + 149) —
+ * Overview is deliberately not here, it's the one page every portal login
+ * can always reach regardless of role, so there's never a zero-page dead
+ * end.
+ *
+ * Order is the nav order. Adding a key here is not enough on its own: a
+ * page with no row in client_portal_permissions is treated as NOT granted
+ * (fetchAllowedPortalPages only collects rows where enabled), so every new
+ * key needs a matching seed row. 'reviews' was added to this list once
+ * without one and was invisible to every client until 149 fixed it. */
+export const PORTAL_PAGE_KEYS = [
+  "tickets",
+  "licences",
+  "contracts",
+  "devices",
+  "huntress",
+  "fortigate",
+  "mailbox",
+  "domain",
+  "reviews",
+  "onboarding",
+] as const;
 export type PortalPageKey = (typeof PORTAL_PAGE_KEYS)[number];
+
+/** Shown in the nav, the staff permission matrix, and each page's own
+ * heading — one definition so those three can't drift apart. */
+export const PORTAL_PAGE_LABELS: Record<PortalPageKey, string> = {
+  tickets: "Open Tickets",
+  licences: "Microsoft 365",
+  contracts: "Contract & Time",
+  devices: "Devices",
+  huntress: "Endpoint Protection",
+  fortigate: "FortiGate",
+  mailbox: "Mailbox Usage",
+  domain: "Domain Health",
+  reviews: "Quarterly Reviews",
+  onboarding: "Onboarding / Offboarding",
+};
 
 export type ClientPortalRole = "client_tech" | "client_manager" | "client_owner";
 

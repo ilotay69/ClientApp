@@ -317,64 +317,6 @@ export async function fetchPortalLicences(session: PortalSession): Promise<Porta
 }
 
 // ---------------------------------------------------------------------------
-// Microsoft Secure Score (cached)
-// ---------------------------------------------------------------------------
-
-export type PortalSecureScore = {
-  currentScore: number;
-  maxScore: number;
-  percent: number;
-  lastSyncedAt: string | null;
-  /** Top improvement opportunities, largest deficit first. */
-  gaps: { title: string; category: string | null; deficit: number }[];
-} | null;
-
-export async function fetchPortalSecureScore(
-  session: PortalSession
-): Promise<PortalSecureScore> {
-  if (!session.client.m365TenantId) return null;
-
-  const admin = createAdminClient();
-  const [{ data: score }, { data: gaps }] = await Promise.all([
-    admin
-      .from("m365_secure_score")
-      .select("current_score, max_score, last_synced_at")
-      .eq("client_id", session.client.clientId)
-      .maybeSingle(),
-    admin
-      .from("m365_secure_score_gaps")
-      .select("title, control_name, category, current_score, max_score")
-      .eq("client_id", session.client.clientId),
-  ]);
-
-  type GapRow = {
-    title: string | null;
-    control_name: string;
-    category: string | null;
-    current_score: number | null;
-    max_score: number | null;
-  };
-
-  if (!score || !score.max_score) return null;
-
-  return {
-    currentScore: score.current_score,
-    maxScore: score.max_score,
-    percent: Math.round((score.current_score / score.max_score) * 100),
-    lastSyncedAt: score.last_synced_at ?? null,
-    gaps: ((gaps ?? []) as GapRow[])
-      .map((g: GapRow) => ({
-        title: g.title ?? g.control_name,
-        category: g.category,
-        deficit: (g.max_score ?? 0) - (g.current_score ?? 0),
-      }))
-      .filter((g) => g.deficit > 0)
-      .sort((a, b) => b.deficit - a.deficit)
-      .slice(0, 8),
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Huntress agents (live — nothing is cached in Postgres for this vendor)
 // ---------------------------------------------------------------------------
 

@@ -32,7 +32,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`h-full antialiased ${openSans.variable}`}>
+    <html
+      lang="en"
+      className={`h-full antialiased ${openSans.variable}`}
+      data-env-banner={process.env.NEXT_PUBLIC_ENV_LABEL?.trim() ? "true" : undefined}
+    >
       <body className="min-h-full flex flex-col">
         <EnvBanner />
         {children}

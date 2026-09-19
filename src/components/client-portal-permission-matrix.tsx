@@ -1,18 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CLIENT_PORTAL_ROLE_LABELS, type ClientPortalRole, type PortalPageKey } from "@/lib/portal-roles";
+import {
+  CLIENT_PORTAL_ROLE_LABELS,
+  PORTAL_PAGE_LABELS,
+  type ClientPortalRole,
+  type PortalPageKey,
+} from "@/lib/portal-roles";
 
 const ROLES: ClientPortalRole[] = ["client_tech", "client_manager", "client_owner"];
 
-const PAGE_LABELS: Record<PortalPageKey, string> = {
-  tickets: "Tickets",
-  contracts: "Contracts",
-  devices: "Devices",
-  security: "Security",
-  licences: "Microsoft 365",
-  reviews: "Quarterly Reviews",
-};
 
 /** Same look and pattern as PermissionMatrix (Team -> Roles & permissions),
  * for a different pair of types — client portal sub-roles and portal pages,
@@ -48,7 +45,7 @@ export function ClientPortalPermissionMatrix({
         <tbody className="divide-y divide-slate-100">
           {pages.map((page) => (
             <tr key={page}>
-              <td className="px-5 py-2 text-slate-900">{PAGE_LABELS[page]}</td>
+              <td className="px-5 py-2 text-slate-900">{PORTAL_PAGE_LABELS[page]}</td>
               {ROLES.map((role) => (
                 <td key={role} className="px-5 py-2 text-center">
                   <PageCheckbox
