@@ -123,6 +123,13 @@ export async function recordProposalViewAction(token: string, userAgent: string)
 
 export type AcceptProposalResult = { ok: boolean; message: string };
 
+/** Caps on the three fields an anonymous caller controls the size of.
+ * next.config.ts allows Server Actions a 25MB body, so "the framework will
+ * stop it" is not a bound worth relying on for any of these. */
+const MAX_ACCEPTED_NAME_LENGTH = 200;
+const MAX_EMAIL_LENGTH = 254;
+const MAX_OPTIONAL_ITEM_SELECTIONS = 200;
+
 export async function acceptProposalByTokenAction(
   token: string,
   input: {
@@ -136,6 +143,20 @@ export async function acceptProposalByTokenAction(
   const name = input.acceptedByName?.trim() ?? "";
   const email = input.acceptedByEmail?.trim() ?? "";
   if (!name) return { ok: false, message: "Please enter your name." };
+  // Capped because this is an anonymous endpoint and `name` does not stop
+  // here: it is written to proposals.accepted_by_name, rendered into the
+  // signed PDF, and interpolated into the confirmation email. Rejected
+  // rather than truncated — this is the record a dispute turns on, and
+  // silently storing half of someone's name is worse than asking again.
+  if (name.length > MAX_ACCEPTED_NAME_LENGTH) {
+    return { ok: false, message: "That name is too long. Please use 200 characters or fewer." };
+  }
+  // RFC 5321 caps a path at 256 octets. The regex below happily matches a
+  // megabyte-long address, which would then be handed to Graph as a
+  // recipient.
+  if (email.length > MAX_EMAIL_LENGTH) {
+    return { ok: false, message: "Please enter a valid email address." };
+  }
   // Mandatory, not optional — this is now the only address the client's
   // itemized confirmation email can go to, and nothing here falls back to
   // the original send address any more. Re-validated here regardless of
@@ -251,7 +272,18 @@ export async function acceptProposalByTokenAction(
   // is explicitly set back to false, so a crafted request can't switch on
   // an item belonging to someone else's proposal or silently leave a stale
   // selection behind.
-  const selected = Array.isArray(input.selectedOptionalItemIds) ? input.selectedOptionalItemIds : [];
+  // Filtered and capped before it reaches .in() below. Unbounded, this is a
+  // list of arbitrary strings from an anonymous caller going straight into a
+  // generated SQL IN clause — parameterised, so not injectable, but a
+  // hundred-thousand-element array is still a query we would build and send.
+  // Non-strings are dropped rather than rejected: a malformed entry here is
+  // not worth failing an acceptance over, and anything that isn't one of
+  // this proposal's own optional item ids matches nothing anyway (the
+  // .eq("proposal_id") and .eq("is_optional", true) filters below are what
+  // actually scope this).
+  const selected = (Array.isArray(input.selectedOptionalItemIds) ? input.selectedOptionalItemIds : [])
+    .filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 64)
+    .slice(0, MAX_OPTIONAL_ITEM_SELECTIONS);
   await admin
     .from("proposal_line_items")
     .update({ is_selected: false })
