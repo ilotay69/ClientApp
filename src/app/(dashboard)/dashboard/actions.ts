@@ -11,8 +11,8 @@ import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchUnassignedQueueTickets, buildAutotaskTicketUrl, fetchTicketById } from "@/lib/autotask";
 import { fetchForticloudDeviceInventory, type ForticloudDeviceRow } from "@/lib/forticloud-lookups";
 import { fetchMyOpenAutotaskTickets, type MyOpenTicketsResult } from "@/lib/my-tickets";
-import type { ForticloudCredentials } from "@/lib/forticloud";
 import type { SuggestionStatus, MailConnection } from "@/lib/types";
+import { listForticloudAccounts } from "@/lib/forticloud-settings";
 
 export type MailboxReviewState = { error: string | null; result: MailboxReviewResult | null };
 
@@ -572,15 +572,10 @@ export async function fetchForticloudExpiringDevicesAction(): Promise<
   }
 
   const admin = createAdminClient();
-  const { data } = await admin.from("forticloud_accounts").select("label, api_user, api_password");
-  if (!data || data.length === 0) {
+  const accounts = (await listForticloudAccounts(admin)).map((a) => ({ label: a.label, creds: a.credentials }));
+  if (accounts.length === 0) {
     return { error: "No FortiCloud accounts configured yet — add one under Settings → Integrations." };
   }
-
-  const accounts = data.map((r) => ({
-    label: r.label,
-    creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
-  }));
 
   try {
     const rows = await fetchForticloudDeviceInventory(accounts);

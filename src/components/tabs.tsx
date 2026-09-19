@@ -6,7 +6,10 @@ export function Tabs({
   tabs,
   defaultActive = 0,
   orientation = "horizontal",
+  navigationFooter,
 }: {
+  /** Optional secondary controls beneath a vertical tab list. */
+  navigationFooter?: React.ReactNode;
   tabs: { label: string; content: React.ReactNode }[];
   /** Which tab to start on — pass this from a URL param when a form on
    * one of the tabs does a full GET navigation (e.g. a filter bar), so
@@ -42,6 +45,7 @@ export function Tabs({
               </li>
             ))}
           </ul>
+          {navigationFooter && <div className="mt-4">{navigationFooter}</div>}
         </nav>
         <div className="min-w-0 flex-1 space-y-6">{tabs[active].content}</div>
       </div>

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { recordAuthAttempt } from "@/lib/auth-attempts";
+import { evaluateThrottle, applyThrottle } from "@/lib/auth-throttle";
 
 export type AuthState = { error: string | null };
 
@@ -29,13 +31,49 @@ export async function signIn(
 ): Promise<AuthState> {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const captchaToken = String(formData.get("captchaToken") ?? "");
   // "/" is the role router (src/app/page.tsx) — it sends staff to the
   // dashboard and a client-portal login to the portal, so neither needs to be
   // named here.
   const next = safeNext(String(formData.get("next") ?? "/"));
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  // Evaluated and applied BEFORE the auth call, from the count of prior
+  // failures keyed on the submitted email — so the delay is identical whether
+  // or not the account exists. Computing it after, or only for real accounts,
+  // would make response time an account-existence oracle. Off by default;
+  // dryrun logs what it would do; enforce actually delays. See auth-throttle.
+  const decision = await evaluateThrottle({ surface: "password_signin", subject: email });
+  await applyThrottle(decision, "password_signin");
+
+  // captchaToken is passed straight to Supabase, which verifies it at the
+  // GoTrue layer. That is deliberately where verification happens rather than
+  // here: GoTrue also enforces it on a direct /auth/v1/token call that never
+  // touches this form, which is the attack our own throttle cannot see.
+  // Sending it while the project toggle is off is harmless (ignored); once
+  // the toggle is on, omitting it fails — so it always goes.
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    options: captchaToken ? { captchaToken } : undefined,
+  });
+
+  // Recorded before the redirect below, because redirect() throws.
+  //
+  // Keyed on the SUBMITTED address, never on a resolved user id, and never
+  // conditional on the account existing. Looking the user up first — or
+  // recording only for real accounts — would make this endpoint behave
+  // measurably differently for an address that exists, which is an account
+  // enumeration oracle. Every client here sits at a known company domain,
+  // so firstname@clientdomain.com is a cheap guess.
+  //
+  // Nothing branches on the result yet: this step ships recording ONLY, with
+  // no delay and no blocking, so that a week of real data sets the
+  // thresholds instead of a guess. error.message is still returned
+  // unchanged for the same reason — this deploy must be behaviourally
+  // identical to the one before it, or the baseline it produces is worthless.
+  await recordAuthAttempt({ surface: "password_signin", subject: email, succeeded: !error });
 
   if (error) {
     return { error: error.message };

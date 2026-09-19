@@ -1,0 +1,423 @@
+"use client";
+import { CGSelect } from "../ui/cg-select";
+import { useState } from "react";
+import {
+  TASK_STATUSES,
+  type TodoTask,
+  type TaskDraft,
+  type TodoActions,
+  type TodoPreferences,
+  type TaskStatus,
+} from "@/lib/my-todo-workspace";
+import { Drawer, ErrorNotice, TodoIcon, Loading, useRemote } from "./ui";
+import s from "./workspace.module.css";
+import { StatefulButton, useActionFeedback } from "../ui/stateful-button";
+import { AnimatedTooltip } from "../ui/context-preview";
+
+export function TaskEditor({
+  task,
+  clients,
+  actions,
+  onSaved,
+  onClose,
+  preferences,
+  onWidth,
+  source,
+  initialTitle = "",
+  plannedOn = null,
+  onPlan,
+}: {
+  task: TodoTask | null;
+  clients: { id: string; name: string }[];
+  actions: TodoActions;
+  onSaved: (task: TodoTask) => void;
+  onClose: () => void;
+  preferences: TodoPreferences;
+  onWidth: (width: number) => void;
+  source?: { conversationId: string; messageId: string; subject: string };
+  initialTitle?: string;
+  plannedOn?: string | null;
+  onPlan?: (date: string | null) => Promise<boolean>;
+}) {
+  const initial: TaskDraft = {
+    title: task?.title ?? initialTitle,
+    detail: task?.detail ?? "",
+    priority: task?.priority ?? "low",
+    due_date: task?.due_date ?? null,
+    client_id: task?.client_id ?? null,
+  };
+  const [draft, setDraft] = useState(initial);
+  const [status, setStatus] = useState<TaskStatus>(task?.status ?? "open");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [noteDirty, setNoteDirty] = useState(false);
+  const feedback = useActionFeedback();
+  const dirty =
+    JSON.stringify(initial) !== JSON.stringify(draft) ||
+    (task && status !== task.status);
+  function close() {
+    if (busy) return;
+    if (
+      (dirty || noteDirty) &&
+      !window.confirm("Discard unsaved task changes?")
+    )
+      return;
+    onClose();
+  }
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (
+      noteDirty &&
+      !window.confirm(
+        "Save task details and discard the unsent discussion note?",
+      )
+    )
+      return;
+    await feedback.run(async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = task
+          ? await actions.update(task.id, { ...draft, status }, task.updated_at)
+          : await actions.create(draft, source);
+        if (result.error !== undefined) {
+          setError(result.error);
+          return { ok: false, error: result.error };
+        }
+        onSaved(result.data);
+        return { ok: true };
+      } catch {
+        setError("Couldn't save. Your draft is still here; please try again.");
+        return {
+          ok: false,
+          error: "Couldn't save. Your draft is still here; please try again.",
+        };
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+  return (
+    <Drawer
+      open
+      onClose={close}
+      title={task ? "Task details" : "New private task"}
+      description={
+        task?.is_personal === false
+          ? "Assigned task · changes are visible to your team"
+          : "Only you can see this task"
+      }
+      width={preferences.panelWidth}
+      onWidth={onWidth}
+    >
+      {task && onPlan && (
+        <TaskPlan
+          key={plannedOn ?? "unplanned"}
+          value={plannedOn}
+          save={onPlan}
+        />
+      )}
+      <form onSubmit={save} className={s.editor}>
+        {source && (
+          <div className={s.sourceBox}>
+            <TodoIcon name="inbox" />
+            <div>
+              <strong>From your mailbox</strong>
+              <p>{source.subject}</p>
+              <small>
+                Creates one private task per conversation. No email is sent.
+              </small>
+            </div>
+          </div>
+        )}
+        <label className={s.field}>
+          Task title
+          <input
+            autoFocus
+            required
+            maxLength={240}
+            placeholder="What needs to be done?"
+            value={draft.title}
+            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+          />
+        </label>
+        {task && (
+          <div className={s.field}>
+            Status
+            <CGSelect
+              label="Status"
+              value={status}
+              onChange={(value) => setStatus(value as TaskStatus)}
+              options={Object.entries(TASK_STATUSES).map(([value, label]) => ({
+                value,
+                label,
+              }))}
+            />
+          </div>
+        )}
+        <div className={s.formGrid}>
+          <div className={s.field}>
+            Priority
+            <CGSelect
+              label="Priority"
+              value={draft.priority}
+              onChange={(value) => setDraft({ ...draft, priority: value })}
+              options={[
+                { value: "low", label: "Low", tone: "neutral" },
+                { value: "medium", label: "Medium", tone: "amber" },
+                { value: "high", label: "High", tone: "red" },
+              ]}
+            />
+          </div>
+          <label className={s.field}>
+            Due date
+            <input
+              type="date"
+              aria-label="Due date"
+              value={draft.due_date ?? ""}
+              onInput={(e) =>
+                setDraft({ ...draft, due_date: e.currentTarget.value || null })
+              }
+              onChange={(e) =>
+                setDraft({ ...draft, due_date: e.target.value || null })
+              }
+            />
+            <button
+              className={s.textButton}
+              type="button"
+              onClick={() => setDraft({ ...draft, due_date: null })}
+            >
+              No due date
+            </button>
+          </label>
+        </div>
+        <div className={s.field}>
+          Client <span className={s.muted}>Optional</span>
+          <CGSelect
+            label="Client"
+            searchable
+            value={draft.client_id ?? ""}
+            onChange={(value) =>
+              setDraft({ ...draft, client_id: value || null })
+            }
+            options={[
+              { value: "", label: "No client" },
+              ...clients.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        </div>
+        <label className={s.field}>
+          Details
+          <textarea
+            rows={7}
+            maxLength={10000}
+            placeholder="Details, next steps, or context…"
+            value={draft.detail}
+            onChange={(e) => setDraft({ ...draft, detail: e.target.value })}
+          />
+        </label>
+        {task?.notes && (
+          <div className={s.sourceBox}>
+            <div>
+              <strong>Existing notes</strong>
+              <p className={s.prewrap}>{task.notes}</p>
+            </div>
+          </div>
+        )}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
+        <div className={s.editorFooter}>
+          <button
+            type="button"
+            className={s.button}
+            onClick={close}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+          <StatefulButton
+            type="submit"
+            className={s.primary}
+            status={feedback.status}
+            errorLabel="Retry save"
+          >
+            {task ? "Save changes" : "Create private task"}
+          </StatefulButton>
+        </div>
+      </form>
+      {task && (
+        <TaskDiscussion id={task.id} actions={actions} onDirty={setNoteDirty} />
+      )}
+    </Drawer>
+  );
+}
+
+function TaskPlan({
+  value,
+  save,
+}: {
+  value: string | null;
+  save: (date: string | null) => Promise<boolean>;
+}) {
+  const [date, setDate] = useState(value ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  return (
+    <div className={s.taskPlan}>
+      <label className={s.field}>
+        Personal plan
+        <input
+          type="date"
+          aria-label="Planned for"
+          value={date}
+          onInput={(e) => setDate(e.currentTarget.value)}
+          onChange={(e) => setDate(e.target.value)}
+        />
+        <small>Separate from the deadline. Only visible to you.</small>
+      </label>
+      <StatefulButton
+        className={s.button}
+        status={busy ? "pending" : error ? "error" : "idle"}
+        errorLabel="Retry plan"
+        disabled={busy || date === (value ?? "")}
+        onClick={async () => {
+          setBusy(true);
+          setError(false);
+          const ok = await save(date || null);
+          setBusy(false);
+          if (!ok) setError(true);
+        }}
+      >
+        Save plan
+      </StatefulButton>
+      {value && (
+        <button
+          className={s.textButton}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            const ok = await save(null);
+            if (!ok) {
+              setError(true);
+              setBusy(false);
+            }
+          }}
+        >
+          Remove from plan
+        </button>
+      )}
+      {error && (
+        <ErrorNotice>Couldn’t save the plan. Please try again.</ErrorNotice>
+      )}
+    </div>
+  );
+}
+function TaskDiscussion({
+  id,
+  actions,
+  onDirty,
+}: {
+  id: string;
+  actions: TodoActions;
+  onDirty: (dirty: boolean) => void;
+}) {
+  const remote = useRemote(() => actions.notes(id));
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const feedback = useActionFeedback();
+  return (
+    <section className={s.discussion}>
+      <h3>Discussion</h3>
+      {remote.loading && !remote.data ? (
+        <Loading label="Loading notes" />
+      ) : remote.error || remote.data?.error ? (
+        <ErrorNotice retry={remote.refresh}>
+          {remote.error || remote.data?.error}
+        </ErrorNotice>
+      ) : remote.data?.data?.length ? (
+        remote.data.data.map((note) => (
+          <article key={note.id}>
+            <header>
+              <strong>
+                <AnimatedTooltip
+                  content={`${note.authorName ?? "Staff member"} · Note author`}
+                >
+                  <span
+                    tabIndex={0}
+                    className={s.authorAvatar}
+                    aria-label={`Note author: ${note.authorName ?? "Staff member"}`}
+                  >
+                    {(note.authorName ?? "Staff member")
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join("")}
+                  </span>
+                </AnimatedTooltip>
+                {note.authorName ?? "Staff member"}
+              </strong>
+              <time>{new Date(note.created_at).toLocaleString()}</time>
+            </header>
+            <p className={s.prewrap}>{note.body}</p>
+          </article>
+        ))
+      ) : (
+        <p className={s.muted}>No discussion yet.</p>
+      )}
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await feedback.run(async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              const result = await actions.addNote(id, body);
+              if (result.error !== undefined) {
+                setError(result.error);
+                return { ok: false, error: result.error };
+              } else {
+                setBody("");
+                onDirty(false);
+                await remote.refresh();
+                return { ok: true };
+              }
+            } catch {
+              setError("Couldn't save your note. Your draft is still here.");
+              return {
+                ok: false,
+                error: "Couldn't save your note. Your draft is still here.",
+              };
+            } finally {
+              setBusy(false);
+            }
+          });
+        }}
+      >
+        <label className={s.field}>
+          Add a note
+          <textarea
+            rows={3}
+            maxLength={10000}
+            value={body}
+            onChange={(e) => {
+              setBody(e.target.value);
+              onDirty(!!e.target.value.trim());
+            }}
+            required
+          />
+        </label>
+        <StatefulButton
+          type="submit"
+          className={s.button}
+          status={feedback.status}
+          successLabel="Note added"
+          errorLabel="Retry note"
+          disabled={busy || !body.trim()}
+        >
+          Add note
+        </StatefulButton>
+        {error && <ErrorNotice>{error}</ErrorNotice>}
+      </form>
+    </section>
+  );
+}

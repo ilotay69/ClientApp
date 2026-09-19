@@ -7,7 +7,7 @@ import { getBitdefenderSettings } from "@/lib/bitdefender-settings";
 import { getWizerSettings } from "@/lib/wizer-settings";
 import { getNinjaOneSettings, getValidNinjaOneToken } from "@/lib/ninjaone-settings";
 import { getHuntressSettings } from "@/lib/huntress-settings";
-import type { ForticloudCredentials } from "@/lib/forticloud";
+import { listForticloudAccounts } from "@/lib/forticloud-settings";
 import {
   buildClientRosterReport,
   buildDeviceInventoryReport,
@@ -204,14 +204,10 @@ export async function resolveReportData(key: ReportKey): Promise<ReportData | { 
       }
       case "forticloud": {
         const admin = createAdminClient();
-        const { data: rows } = await admin.from("forticloud_accounts").select("label, api_user, api_password");
-        if (!rows || rows.length === 0) {
+        const accounts = (await listForticloudAccounts(admin)).map((a) => ({ label: a.label, creds: a.credentials }));
+        if (accounts.length === 0) {
           return { error: "No FortiCloud accounts configured yet — add one under Settings → Integrations." };
         }
-        const accounts = rows.map((r: { label: string; api_user: string; api_password: string }) => ({
-          label: r.label,
-          creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
-        }));
         data = await buildForticloudDevicesReport(accounts);
         break;
       }

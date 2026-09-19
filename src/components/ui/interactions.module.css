@@ -1,0 +1,330 @@
+.statefulButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.buttonIcon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+}
+.buttonIcon svg {
+  width: 16px;
+  height: 16px;
+}
+.buttonLabels {
+  display: grid;
+  align-items: center;
+}
+.buttonLabels > span {
+  grid-area: 1 / 1;
+}
+.labelSizer {
+  visibility: hidden;
+  pointer-events: none;
+}
+.buttonLabel {
+  animation: label-in 130ms ease-out;
+}
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 750ms linear infinite;
+}
+.hoverButton {
+  position: relative;
+  isolation: isolate;
+}
+.hoverHighlight {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--ui-hover, #f0f1ed);
+  pointer-events: none;
+}
+.tabStrip {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+.tabStrip > button {
+  position: relative;
+  isolation: isolate;
+  flex-shrink: 0;
+}
+.tabStrip > button[data-selected="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+.tabIndicator {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ui-tab-surface, #fff);
+  box-shadow: 0 1px 3px #20272012;
+  pointer-events: none;
+  z-index: 0;
+}
+.tabLabel {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+:where(.bentoCard) {
+  border: 1px solid #e4e7e2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow:
+    0 2px 3px #20272003,
+    0 8px 24px #20272003;
+  min-width: 0;
+}
+:where(.bentoGrid) {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: #24292338;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+.backdrop[data-starting-style],
+.backdrop[data-ending-style] {
+  opacity: 0;
+}
+.dialog {
+  position: fixed;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  color: #282d29;
+  color-scheme: light;
+  background: #fcfdf9;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  transition:
+    transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 160ms ease;
+}
+.dialog *,
+.preview * {
+  box-sizing: border-box;
+}
+.drawer {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  max-width: 100vw;
+  border-left: 1px solid #e4e7e2;
+  box-shadow: -12px 0 48px #20272018;
+}
+.drawer[data-starting-style],
+.drawer[data-ending-style] {
+  transform: translateX(24px);
+  opacity: 0;
+}
+.modal {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  border: 1px solid #e4e7e2;
+  border-radius: 20px;
+  box-shadow: 0 24px 90px #20272026;
+}
+.modal[data-starting-style],
+.modal[data-ending-style] {
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 8px)) scale(0.985);
+}
+.dialogHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+  border-bottom: 1px solid #e4e7e2;
+  flex-shrink: 0;
+}
+.dialogTitle {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.6px;
+}
+.dialogDescription {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #657066;
+}
+.dialogBody {
+  min-height: 0;
+  padding: 24px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.closeButton {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dfe3dc;
+  border-radius: 9px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  color: #515c52;
+}
+.closeButton svg {
+  width: 18px;
+  height: 18px;
+}
+.closeButton:hover {
+  background: #f0f1ed;
+}
+.dialog :is(button, a, input, select, textarea, [tabindex]):focus-visible,
+.tabStrip > button:focus-visible,
+.hoverButton:focus-visible,
+.preview :is(button, a):focus-visible {
+  outline: 2px solid #de3439;
+  outline-offset: 3px;
+}
+.popoverPositioner {
+  z-index: 100;
+}
+.preview,
+.tooltip {
+  color-scheme: light;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+.preview {
+  width: 300px;
+  max-width: min(var(--available-width), calc(100vw - 24px));
+  max-height: var(--available-height);
+  overflow: auto;
+  border: 1px solid #dfe3dc;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 8px 30px #2027201c;
+  padding: 16px;
+  color: #282d29;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.previewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.previewHeader h2 {
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.previewClose {
+  background: transparent;
+  border: 0;
+  font-size: 21px;
+  line-height: 20px;
+  cursor: pointer;
+  padding: 0 3px;
+  color: #707872;
+}
+.previewDescription {
+  color: #707872;
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+.previewContent {
+  margin-top: 12px;
+}
+.previewContent p {
+  margin: 6px 0;
+}
+.previewContent a {
+  display: inline-block;
+  margin-top: 10px;
+  color: #bb292f;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tooltip {
+  background: #29312b;
+  color: #fff;
+  max-width: min(260px, calc(100vw - 24px));
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  box-shadow: 0 3px 12px #20272016;
+}
+.preview[data-starting-style],
+.preview[data-ending-style],
+.tooltip[data-starting-style],
+.tooltip[data-ending-style] {
+  opacity: 0;
+  transform: translateY(3px);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes label-in {
+  from {
+    opacity: 0.4;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 480px) {
+  .dialogHeader,
+  .dialogBody {
+    padding: 20px;
+  }
+  .modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .statefulButton *,
+  .backdrop,
+  .dialog,
+  .preview,
+  .tooltip,
+  .hoverHighlight,
+  .tabIndicator {
+    animation: none !important;
+    transition: none !important;
+  }
+}

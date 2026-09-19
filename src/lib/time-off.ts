@@ -36,7 +36,7 @@ export type TimeOffRequest = {
  * small enough that eager-loading every note up front (rather than a
  * click-to-expand fetch, like task notes) keeps this simple. */
 export async function fetchTimeOffRequests(
-  opts: { userId?: string; status?: TimeOffStatus; fromDate?: string } = {},
+  opts: { userId?: string; status?: TimeOffStatus; fromDate?: string; strict?: boolean } = {},
   admin: AdminClient = createAdminClient()
 ): Promise<TimeOffRequest[]> {
   let query = admin
@@ -54,17 +54,19 @@ export async function fetchTimeOffRequests(
   // upcoming/current list today.
   if (opts.fromDate) query = query.gte("end_date", opts.fromDate);
 
-  const { data } = await query;
+  const { data, error: requestError } = await query;
+  if (opts.strict && requestError) throw new Error("Could not load leave requests.");
   const requests = data ?? [];
   const ids = requests.map((r: { id: string }) => r.id);
 
-  const { data: noteRows } = ids.length
+  const { data: noteRows, error: noteError } = ids.length
     ? await admin
         .from("time_off_request_notes")
         .select("id, request_id, author_id, body, created_at, profiles:author_id(full_name)")
         .in("request_id", ids)
         .order("created_at", { ascending: true })
-    : { data: [] };
+    : { data: [], error: null };
+  if (opts.strict && noteError) throw new Error("Could not load leave discussion.");
 
   const notesByRequest = new Map<string, TimeOffNote[]>();
   for (const row of noteRows ?? []) {
