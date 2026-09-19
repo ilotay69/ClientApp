@@ -3,6 +3,7 @@
 import { createMutableClient } from "@/lib/supabase/server";
 import { getPortalContext, getPortalIdentity } from "@/lib/portal";
 import { recordAuthAttempt } from "@/lib/auth-attempts";
+import { evaluateThrottle, applyThrottle } from "@/lib/auth-throttle";
 
 export type MfaVerifyResult = { ok: true } | { ok: false; error: string };
 
@@ -82,6 +83,12 @@ export async function verifyMfaCodeAction(input: { code: string }): Promise<MfaV
         : "No authenticator is set up on this account yet.",
     };
   }
+
+  // Same shape as the password path: delay from prior failures before the
+  // verify call. Keyed on the user id — the session already identifies who
+  // this is, so there is nothing to enumerate here.
+  const decision = await evaluateThrottle({ surface: "mfa_verify", subject: identity.userId });
+  await applyThrottle(decision, "mfa_verify");
 
   const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
     factorId: factor.id,

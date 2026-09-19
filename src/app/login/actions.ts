@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { recordAuthAttempt } from "@/lib/auth-attempts";
+import { evaluateThrottle, applyThrottle } from "@/lib/auth-throttle";
 
 export type AuthState = { error: string | null };
 
@@ -36,6 +37,15 @@ export async function signIn(
   const next = safeNext(String(formData.get("next") ?? "/"));
 
   const supabase = await createClient();
+
+  // Evaluated and applied BEFORE the auth call, from the count of prior
+  // failures keyed on the submitted email — so the delay is identical whether
+  // or not the account exists. Computing it after, or only for real accounts,
+  // would make response time an account-existence oracle. Off by default;
+  // dryrun logs what it would do; enforce actually delays. See auth-throttle.
+  const decision = await evaluateThrottle({ surface: "password_signin", subject: email });
+  await applyThrottle(decision, "password_signin");
+
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   // Recorded before the redirect below, because redirect() throws.
