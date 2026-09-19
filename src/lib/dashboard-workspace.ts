@@ -166,6 +166,77 @@ export const ACCENT_COLORS: Record<Accent, string> = {
   blue: "#397b9d",
 };
 export const MAX_WIDGETS = 24;
+export const WIDGET_ROW_HEIGHT = 24;
+export const WIDGET_WIDTHS = [
+  { value: 3, label: "Quarter", detail: "25%" },
+  { value: 4, label: "One third", detail: "33%" },
+  { value: 6, label: "Half", detail: "50%" },
+  { value: 8, label: "Two thirds", detail: "67%" },
+  { value: 9, label: "Three quarters", detail: "75%" },
+  { value: 12, label: "Full width", detail: "100%" },
+] as const;
+export const WIDGET_HEIGHTS = [
+  { value: 6, label: "Short" },
+  { value: 9, label: "Standard" },
+  { value: 12, label: "Tall" },
+  { value: 18, label: "Extra tall" },
+] as const;
+
+export function widgetHeightPixels(
+  height: number,
+  density: Workspace["density"],
+) {
+  return (
+    height * WIDGET_ROW_HEIGHT +
+    (height - 1) * (density === "compact" ? 12 : 20)
+  );
+}
+
+export function widgetWidthLabel(span: number) {
+  return (
+    WIDGET_WIDTHS.find((size) => size.value === span)?.label ??
+    `Custom (${Math.round((span / 12) * 100)}%)`
+  );
+}
+
+/** Size controls update the draft, preserving custom sizes and unrelated cards. */
+export function resizeWorkspaceWidget(
+  workspace: Workspace,
+  id: string,
+  span?: number,
+  height?: number,
+): Workspace {
+  const width = span === undefined ? undefined : clamp(span, 3, 12, 4);
+  const rows = height === undefined ? undefined : clamp(height, 6, 18, 9);
+  return {
+    ...workspace,
+    layouts: {
+      lg: workspace.layouts.lg.map((p) =>
+        p.i === id
+          ? {
+              ...p,
+              w: width ?? p.w,
+              h: rows ?? p.h,
+              x: Math.min(p.x, 12 - (width ?? p.w)),
+            }
+          : p,
+      ),
+      md: workspace.layouts.md.map((p) =>
+        p.i === id
+          ? {
+              ...p,
+              w: width === undefined ? p.w : width > 4 ? 6 : 3,
+              h: rows ?? p.h,
+              x: width !== undefined && width > 4 ? 0 : p.x,
+            }
+          : p,
+      ),
+      sm: workspace.layouts.sm.map((p) =>
+        p.i === id ? { ...p, h: rows ?? p.h } : p,
+      ),
+    },
+  };
+}
 
 export function makeWidget(source: SourceKey, id: string): Widget {
   const def = WIDGET_CATALOG.find((item) => item.key === source)!;
@@ -193,18 +264,19 @@ export function defaultWorkspace(eligible: readonly string[]): Workspace {
     .filter((key) => eligible.includes(key))
     .slice(0, 5)
     .map((key) => makeWidget(key, key));
-  const lg = widgets.map((w, index): Placement =>
-    index === 0
-      ? { i: w.id, x: 0, y: 0, w: 8, h: 9 }
-      : index === 1
-        ? { i: w.id, x: 8, y: 0, w: 4, h: 9 }
-        : {
-            i: w.id,
-            x: ((index - 2) % 3) * 4,
-            y: 9 + Math.floor((index - 2) / 3) * 9,
-            w: 4,
-            h: 9,
-          },
+  const lg = widgets.map(
+    (w, index): Placement =>
+      index === 0
+        ? { i: w.id, x: 0, y: 0, w: 8, h: 9 }
+        : index === 1
+          ? { i: w.id, x: 8, y: 0, w: 4, h: 9 }
+          : {
+              i: w.id,
+              x: ((index - 2) % 3) * 4,
+              y: 9 + Math.floor((index - 2) / 3) * 9,
+              w: 4,
+              h: 9,
+            },
   );
   return {
     version: 1,

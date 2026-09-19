@@ -29,6 +29,8 @@ import {
   ACCENT_COLORS,
   DISPLAY_LABELS,
   MAX_WIDGETS,
+  WIDGET_ROW_HEIGHT,
+  resizeWorkspaceWidget,
   makeWidget,
   defaultWorkspace,
   normalizeWorkspace,
@@ -45,6 +47,7 @@ import {
   DashboardOrb,
 } from "./dashboard-widget-content";
 import styles from "./dashboard-workspace.module.css";
+import { DashboardWidgetSize } from "./dashboard-widget-size";
 
 type Props = {
   initialWorkspace: Workspace;
@@ -250,34 +253,7 @@ export function DashboardWorkspace({
     });
   }
   function sizeWidget(id: string, span?: number, height?: number) {
-    setDraft((current) => ({
-      ...current,
-      layouts: {
-        lg: current.layouts.lg.map((p) =>
-          p.i === id
-            ? {
-                ...p,
-                w: span ?? p.w,
-                h: height ?? p.h,
-                x: Math.min(p.x, 12 - (span ?? p.w)),
-              }
-            : p,
-        ),
-        md: current.layouts.md.map((p) =>
-          p.i === id
-            ? {
-                ...p,
-                w: span ? (span > 4 ? 6 : 3) : p.w,
-                h: height ?? p.h,
-                x: span && span > 4 ? 0 : p.x,
-              }
-            : p,
-        ),
-        sm: current.layouts.sm.map((p) =>
-          p.i === id ? { ...p, h: height ?? p.h } : p,
-        ),
-      },
-    }));
+    setDraft((current) => resizeWorkspaceWidget(current, id, span, height));
   }
   function updateLayouts(layouts: ResponsiveLayouts) {
     if (!editing) return;
@@ -504,7 +480,7 @@ export function DashboardWorkspace({
                 layouts={gridLayouts}
                 breakpoints={{ lg: 1050, md: 640, sm: 0 }}
                 cols={{ lg: 12, md: 6, sm: 1 }}
-                rowHeight={24}
+                rowHeight={WIDGET_ROW_HEIGHT}
                 margin={config.density === "compact" ? [12, 12] : [20, 20]}
                 containerPadding={[0, 0]}
                 dragConfig={{
@@ -717,68 +693,44 @@ export function DashboardWorkspace({
                   ))}
                 </div>
               </fieldset>
-              <div className={styles.fieldPair}>
+              <DashboardWidgetSize
+                key={selection.id}
+                width={
+                  draft.layouts.lg.find((p) => p.i === selection.id)?.w ?? 4
+                }
+                height={
+                  draft.layouts.lg.find((p) => p.i === selection.id)?.h ?? 9
+                }
+                density={draft.density}
+                onChange={(span, height) =>
+                  sizeWidget(selection.id, span, height)
+                }
+              />
+              {selection.display !== "metric" && (
                 <label>
-                  Desktop width
+                  {selection.display === "list"
+                    ? "Items to show"
+                    : "Categories to show"}
                   <select
-                    value={
-                      draft.layouts.lg.find((p) => p.i === selection.id)?.w
-                    }
+                    value={selection.limit}
                     onChange={(e) =>
-                      sizeWidget(selection.id, Number(e.target.value))
+                      updateWidget(selection.id, {
+                        limit: Number(e.target.value),
+                      })
                     }
                   >
-                    {Array.from({ length: 10 }, (_, i) => i + 3).map((n) => (
+                    {Array.from({ length: 18 }, (_, i) => i + 3).map((n) => (
                       <option key={n} value={n}>
-                        {n} of 12 columns
+                        Up to {n}{" "}
+                        {selection.display === "list" ? "items" : "categories"}
                       </option>
                     ))}
                   </select>
+                  <span className={styles.fieldHint}>
+                    Controls the amount of content, not the widget’s size.
+                  </span>
                 </label>
-                <label>
-                  Height
-                  <select
-                    value={
-                      draft.layouts.lg.find((p) => p.i === selection.id)?.h
-                    }
-                    onChange={(e) =>
-                      sizeWidget(
-                        selection.id,
-                        undefined,
-                        Number(e.target.value),
-                      )
-                    }
-                  >
-                    {Array.from({ length: 13 }, (_, i) => i + 6).map((n) => (
-                      <option key={n} value={n}>
-                        {n} rows
-                        {n === 6
-                          ? " · Short"
-                          : n === 9
-                            ? " · Standard"
-                            : n === 12
-                              ? " · Tall"
-                              : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label>
-                Visible rows / chart categories
-                <select
-                  value={selection.limit}
-                  onChange={(e) =>
-                    updateWidget(selection.id, {
-                      limit: Number(e.target.value),
-                    })
-                  }
-                >
-                  {Array.from({ length: 18 }, (_, i) => i + 3).map((n) => (
-                    <option key={n}>{n}</option>
-                  ))}
-                </select>
-              </label>
+              )}
               <fieldset>
                 <legend>Position</legend>
                 <div className={styles.fieldPair}>
@@ -812,6 +764,10 @@ export function DashboardWorkspace({
                   Done
                 </button>
               </div>
+              <p className={styles.fieldHint}>
+                Changes are a preview. Choose Save layout on the dashboard to
+                keep them.
+              </p>
             </div>
           ) : null}
         </WorkspaceDialog>

@@ -6,6 +6,7 @@ The dashboard has an **Old view / New view** switch. Old view retains its origin
 
 - Choose **Customize**, drag a card by its handle, and resize using its bottom-right corner.
 - Open a card's settings to change its title, accent, visualization (list, bars, donut, number), width, height, and visible row/category count. Keyboard users can use Move earlier / Move later and size selectors instead of dragging.
+- Widget size uses visual width presets (quarter through full width), named heights, and a live desktop footprint guide. Fine-tune size exposes keyboard-accessible sliders for all existing grid sizes; opening the editor never rounds saved custom sizes. Heights show actual CSS pixels for the selected density. Items/categories to show is separate from size and hidden for number-only widgets.
 - **Add widget** opens a searchable, permission-filtered library of 15 sources. Add a source more than once for different visualizations, up to 24 widgets.
 - **Save layout** persists the draft. **Cancel** restores the last saved layout. **Reset layout** prepares a recommended layout but does not overwrite anything until saved.
 - Desktop, tablet, and mobile positions are saved independently. Spacing can be comfortable or compact. Intentionally empty boards are supported.

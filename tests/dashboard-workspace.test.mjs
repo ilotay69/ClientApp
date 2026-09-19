@@ -7,6 +7,11 @@ import {
   groupSeries,
   WIDGET_CATALOG,
   MAX_WIDGETS,
+  WIDGET_WIDTHS,
+  WIDGET_HEIGHTS,
+  widgetHeightPixels,
+  widgetWidthLabel,
+  resizeWorkspaceWidget,
 } from "../src/lib/dashboard-workspace.ts";
 
 const eligible = WIDGET_CATALOG.map((item) => item.key);
@@ -112,4 +117,79 @@ test("grouping is accurate for missing labels and prototype-like strings", () =>
     { label: "Unspecified", value: 1 },
     { label: "constructor", value: 1 },
   ]);
+});
+
+test("visual width presets are human-readable and custom sizes stay custom", () => {
+  for (const { value, label } of WIDGET_WIDTHS)
+    assert.equal(widgetWidthLabel(value), label);
+  assert.equal(widgetWidthLabel(5), "Custom (42%)");
+  assert.equal(widgetWidthLabel(11), "Custom (92%)");
+});
+test("height labels include the grid gaps for each density", () => {
+  assert.equal(widgetHeightPixels(6, "comfortable"), 244);
+  assert.equal(widgetHeightPixels(9, "comfortable"), 376);
+  assert.equal(widgetHeightPixels(9, "compact"), 312);
+  assert.equal(widgetHeightPixels(18, "comfortable"), 772);
+});
+test("every width and height preset fits all breakpoints and survives saving", () => {
+  const original = defaultWorkspace(eligible);
+  const id = original.widgets[1].id; // Starts on the right edge of the desktop grid.
+  for (const { value: width } of WIDGET_WIDTHS) {
+    for (const { value: height } of WIDGET_HEIGHTS) {
+      const result = resizeWorkspaceWidget(original, id, width, height);
+      for (const [breakpoint, cols] of [
+        ["lg", 12],
+        ["md", 6],
+        ["sm", 1],
+      ]) {
+        const placement = result.layouts[breakpoint].find((p) => p.i === id);
+        assert.ok(placement.x + placement.w <= cols);
+        assert.equal(placement.h, height);
+        assert.deepEqual(
+          result.layouts[breakpoint].filter((p) => p.i !== id),
+          original.layouts[breakpoint].filter((p) => p.i !== id),
+        );
+      }
+      assert.equal(result.layouts.lg.find((p) => p.i === id).w, width);
+      assert.equal(
+        result.layouts.md.find((p) => p.i === id).w,
+        width > 4 ? 6 : 3,
+      );
+      assert.equal(result.layouts.sm.find((p) => p.i === id).w, 1);
+      assert.deepEqual(
+        normalizeWorkspace(JSON.parse(JSON.stringify(result)), eligible),
+        result,
+      );
+    }
+  }
+  assert.deepEqual(original, defaultWorkspace(eligible)); // Draft operations do not mutate saved state.
+});
+test("fine tuning preserves custom dimensions and independent responsive widths", () => {
+  const original = defaultWorkspace(eligible);
+  const id = original.widgets[0].id;
+  const custom = resizeWorkspaceWidget(original, id, 7, 11);
+  const taller = resizeWorkspaceWidget(custom, id, undefined, 13);
+  assert.equal(taller.layouts.lg[0].w, 7);
+  const wider = resizeWorkspaceWidget(custom, id, 10);
+  assert.equal(wider.layouts.lg[0].h, 11);
+  assert.deepEqual(normalizeWorkspace(custom, eligible), custom);
+  for (const breakpoint of ["lg", "md", "sm"]) {
+    const before = original.layouts[breakpoint][0];
+    const after = resizeWorkspaceWidget(original, id, undefined, 15).layouts[
+      breakpoint
+    ][0];
+    assert.deepEqual(after, { ...before, h: 15 });
+  }
+});
+test("size updates clamp invalid inputs and ignore unknown widget ids", () => {
+  const original = defaultWorkspace(eligible);
+  const result = resizeWorkspaceWidget(
+    original,
+    original.widgets[0].id,
+    30,
+    -1,
+  );
+  assert.equal(result.layouts.lg[0].w, 12);
+  assert.equal(result.layouts.lg[0].h, 6);
+  assert.deepEqual(resizeWorkspaceWidget(original, "missing", 6, 12), original);
 });

@@ -944,6 +944,13 @@ a.row:hover .rowText strong {
 .editor .dialogIntro {
   margin: 0;
 }
+.fieldHint {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: #66716a;
+}
 .editor label {
   display: grid;
   gap: 8px;
