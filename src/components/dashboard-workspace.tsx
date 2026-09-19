@@ -1,0 +1,869 @@
+"use client";
+
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  ResponsiveGridLayout,
+  useContainerWidth,
+  type ResponsiveLayouts,
+} from "react-grid-layout";
+import "react-grid-layout/css/styles.css";
+import {
+  IconRefresh,
+  IconSliders,
+  IconGrid,
+  IconX,
+  IconSearch,
+} from "@/components/icons";
+import {
+  WIDGET_CATALOG,
+  ACCENT_COLORS,
+  DISPLAY_LABELS,
+  MAX_WIDGETS,
+  makeWidget,
+  defaultWorkspace,
+  normalizeWorkspace,
+  type Workspace,
+  type Widget,
+  type WidgetData,
+  type SourceKey,
+  type Display,
+  type Accent,
+} from "@/lib/dashboard-workspace";
+import {
+  WidgetContent,
+  LiveWidgetContent,
+  DashboardOrb,
+} from "./dashboard-widget-content";
+import styles from "./dashboard-workspace.module.css";
+
+type Props = {
+  initialWorkspace: Workspace;
+  eligible: string[];
+  data: WidgetData[];
+  greeting: string;
+  updatedAt: string;
+  stats: {
+    label: string;
+    value: number;
+    href: string;
+    unavailable?: boolean;
+  }[];
+  saveAction: (workspace: Workspace) => Promise<{ error?: string }>;
+  loadError?: string;
+  children: ReactNode;
+};
+
+export function DashboardWorkspace({
+  initialWorkspace,
+  eligible,
+  data,
+  greeting,
+  updatedAt,
+  stats,
+  saveAction,
+  loadError,
+  children,
+}: Props) {
+  const router = useRouter();
+  const [saved, setSaved] = useState(initialWorkspace);
+  const [draft, setDraft] = useState(initialWorkspace);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [dialog, setDialog] = useState<"library" | "reset" | string | null>(
+    null,
+  );
+  const [search, setSearch] = useState("");
+  const [refreshing, refresh] = useTransition();
+  // Measure a persistent element: switching to Old view unmounts the grid.
+  const { width, containerRef, mounted } = useContainerWidth({
+    measureBeforeMount: true,
+  });
+  const config = editing ? draft : saved;
+  const dataByKey = useMemo(
+    () => new Map(data.map((item) => [item.key, item])),
+    [data],
+  );
+  const catalog = WIDGET_CATALOG.filter((item) => eligible.includes(item.key));
+  const selection = config.widgets.find((item) => item.id === dialog);
+  const date = new Intl.DateTimeFormat("en-CA", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "America/Toronto",
+  }).format(new Date(updatedAt));
+  const time = new Intl.DateTimeFormat("en-CA", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Toronto",
+  }).format(new Date(updatedAt));
+  const gridLayouts: ResponsiveLayouts = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(config.layouts).map(([key, placements]) => [
+          key,
+          placements.map((p) => ({
+            ...p,
+            minW: key === "sm" ? 1 : 3,
+            minH: 6,
+            maxH: 18,
+          })),
+        ]),
+      ),
+    [config.layouts],
+  );
+
+  function beginEdit(library = false) {
+    setDraft(saved);
+    setEditing(true);
+    setMessage("");
+    setError("");
+    if (library) setDialog("library");
+  }
+  async function save(next: Workspace) {
+    setSaving(true);
+    setError("");
+    try {
+      const normalized = normalizeWorkspace(next, eligible);
+      const result = await saveAction(normalized);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setSaved(normalized);
+      setDraft(normalized);
+      setEditing(false);
+      setDialog(null);
+      setMessage("Workspace saved");
+    } catch {
+      setError("Couldn’t save your workspace. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function changeView(view: "old" | "new") {
+    const next = { ...saved, view };
+    setSaved(next);
+    setDraft(next);
+    setMessage("");
+    setError("");
+    if (loadError) return;
+    setSaving(true);
+    try {
+      const result = await saveAction(next);
+      if (result.error)
+        setError(
+          "View changed for this visit, but couldn’t be saved. Try again later.",
+        );
+    } catch {
+      setError(
+        "View changed for this visit, but couldn’t be saved. Try again later.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  function addWidget(source: SourceKey) {
+    if (draft.widgets.length >= MAX_WIDGETS) return;
+    const widget = makeWidget(source, crypto.randomUUID());
+    setDraft((current) => ({
+      ...current,
+      widgets: [...current.widgets, widget],
+      layouts: Object.fromEntries(
+        Object.entries(current.layouts).map(([key, placements]) => [
+          key,
+          [
+            ...placements,
+            {
+              i: widget.id,
+              x: 0,
+              y: Math.max(0, ...placements.map((p) => p.y + p.h)),
+              w: key === "sm" ? 1 : key === "md" ? 3 : 4,
+              h: 9,
+            },
+          ],
+        ]),
+      ) as Workspace["layouts"],
+    }));
+    setDialog(widget.id);
+    setMessage(`${widget.title} added`);
+  }
+  function updateWidget(id: string, patch: Partial<Widget>) {
+    setDraft((current) => ({
+      ...current,
+      widgets: current.widgets.map((w) =>
+        w.id === id ? { ...w, ...patch } : w,
+      ),
+    }));
+  }
+  function removeWidget(id: string) {
+    setDraft((current) => ({
+      ...current,
+      widgets: current.widgets.filter((w) => w.id !== id),
+      layouts: Object.fromEntries(
+        Object.entries(current.layouts).map(([key, layout]) => [
+          key,
+          layout.filter((p) => p.i !== id),
+        ]),
+      ) as Workspace["layouts"],
+    }));
+    setDialog(null);
+  }
+  function moveWidget(id: string, direction: -1 | 1) {
+    setDraft((current) => {
+      const index = current.widgets.findIndex((w) => w.id === id);
+      const other = current.widgets[index + direction];
+      if (!other) return current;
+      const widgets = [...current.widgets];
+      [widgets[index], widgets[index + direction]] = [
+        widgets[index + direction],
+        widgets[index],
+      ];
+      const layouts = Object.fromEntries(
+        Object.entries(current.layouts).map(([key, layout]) => {
+          const a = layout.find((p) => p.i === id)!;
+          const b = layout.find((p) => p.i === other.id)!;
+          return [
+            key,
+            layout.map((p) =>
+              p.i === id
+                ? { ...b, i: id }
+                : p.i === other.id
+                  ? { ...a, i: other.id }
+                  : p,
+            ),
+          ];
+        }),
+      ) as Workspace["layouts"];
+      return { ...current, widgets, layouts };
+    });
+  }
+  function sizeWidget(id: string, span?: number, height?: number) {
+    setDraft((current) => ({
+      ...current,
+      layouts: {
+        lg: current.layouts.lg.map((p) =>
+          p.i === id
+            ? {
+                ...p,
+                w: span ?? p.w,
+                h: height ?? p.h,
+                x: Math.min(p.x, 12 - (span ?? p.w)),
+              }
+            : p,
+        ),
+        md: current.layouts.md.map((p) =>
+          p.i === id
+            ? {
+                ...p,
+                w: span ? (span > 4 ? 6 : 3) : p.w,
+                h: height ?? p.h,
+                x: span && span > 4 ? 0 : p.x,
+              }
+            : p,
+        ),
+        sm: current.layouts.sm.map((p) =>
+          p.i === id ? { ...p, h: height ?? p.h } : p,
+        ),
+      },
+    }));
+  }
+  function updateLayouts(layouts: ResponsiveLayouts) {
+    if (!editing) return;
+    setDraft((current) => {
+      const merged = { ...current.layouts, ...layouts };
+      const next = normalizeWorkspace(
+        { ...current, layouts: merged },
+        eligible,
+      );
+      return JSON.stringify(next.layouts) === JSON.stringify(current.layouts)
+        ? current
+        : next;
+    });
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={styles.workspace}
+      data-density={config.density}
+    >
+      <div className={styles.topbar}>
+        <span className={styles.breadcrumb}>
+          Workspace <span>/</span> <strong>Overview</strong>
+        </span>
+        <div
+          className={styles.viewSwitch}
+          role="group"
+          aria-label="Dashboard view"
+        >
+          <button
+            aria-pressed={saved.view === "old"}
+            disabled={editing || saving}
+            onClick={() => changeView("old")}
+          >
+            Old view
+          </button>
+          <button
+            aria-pressed={saved.view === "new"}
+            disabled={editing || saving}
+            onClick={() => changeView("new")}
+          >
+            <IconGrid className={styles.icon} />
+            New view
+          </button>
+        </div>
+      </div>
+      {(error || loadError) && (
+        <div className={styles.error} role="alert">
+          {error || loadError}
+        </div>
+      )}
+      {saved.view === "old" ? (
+        <div className={styles.classic}>{children}</div>
+      ) : (
+        <div className={styles.modern}>
+          <header className={styles.header}>
+            <div>
+              <p className={styles.eyebrow}>YOUR OPERATIONS, AT A GLANCE</p>
+              <h1>
+                {greeting}
+                <span>.</span>
+              </h1>
+              <p className={styles.subtitle}>
+                {date} <span>·</span> A clear view of what matters today.
+              </p>
+            </div>
+            <div className={styles.headerActions}>
+              <button
+                className={styles.iconButton}
+                aria-label="Refresh dashboard data"
+                title="Refresh data"
+                disabled={refreshing || saving || editing}
+                onClick={() => refresh(() => router.refresh())}
+              >
+                <IconRefresh
+                  className={`${styles.icon} ${refreshing ? styles.spinning : ""}`}
+                />
+              </button>
+              {editing ? (
+                <>
+                  <button
+                    className={styles.button}
+                    disabled={saving}
+                    onClick={() => {
+                      setEditing(false);
+                      setDialog(null);
+                      setError("");
+                      setDraft(saved);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={styles.primaryButton}
+                    disabled={saving}
+                    onClick={() => save(draft)}
+                  >
+                    {saving ? "Saving…" : "Save layout"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className={styles.button}
+                    disabled={!!loadError || saving}
+                    onClick={() => beginEdit()}
+                  >
+                    <IconSliders className={styles.icon} />
+                    Customize
+                  </button>
+                  <button
+                    className={styles.primaryButton}
+                    disabled={!!loadError || saving}
+                    onClick={() => beginEdit(true)}
+                  >
+                    <span className={styles.plus}>+</span>Add widget
+                  </button>
+                </>
+              )}
+            </div>
+          </header>
+          <section className={styles.summary} aria-label="Today’s priorities">
+            {stats.map((stat, i) => (
+              <Link href={stat.href} key={stat.label} className={styles.stat}>
+                <span className={styles.statLabel}>
+                  <span
+                    className={styles.statDot}
+                    style={{
+                      background:
+                        i === 0 && stat.value > 0 ? "#e93e3f" : "#969e98",
+                    }}
+                  />
+                  {stat.label}
+                  <span className={styles.statArrow}>↗</span>
+                </span>
+                <strong>
+                  {stat.unavailable ? "—" : stat.value.toLocaleString("en-CA")}
+                </strong>
+                <span className={styles.statCaption}>
+                  {stat.unavailable
+                    ? "Data unavailable · Refresh to retry"
+                    : stat.value === 0
+                      ? "Nothing outstanding"
+                      : "Ready for your attention"}
+                </span>
+              </Link>
+            ))}
+          </section>
+          <div className={styles.boardHeading}>
+            <div>
+              <h2>Your workspace</h2>
+              <span>
+                {config.widgets.length} widgets{" "}
+                <span className={styles.divider}>/</span> Make room for your way
+                of working.
+              </span>
+            </div>
+            <span className={styles.updated} role="status">
+              {refreshing
+                ? "Refreshing data…"
+                : message || `Updated ${time} · Toronto`}
+            </span>
+          </div>
+          {editing && (
+            <div className={styles.editBar}>
+              <span>
+                <strong>Make it yours.</strong> Drag a card by its handle; pull
+                a corner to resize. Changes save when you’re ready.
+              </span>
+              <div>
+                <label>
+                  Spacing{" "}
+                  <select
+                    value={draft.density}
+                    onChange={(e) =>
+                      setDraft((current) => ({
+                        ...current,
+                        density: e.target.value as Workspace["density"],
+                      }))
+                    }
+                  >
+                    <option value="comfortable">Comfortable</option>
+                    <option value="compact">Compact</option>
+                  </select>
+                </label>
+                <button
+                  className={styles.textButton}
+                  onClick={() => setDialog("reset")}
+                >
+                  Reset layout
+                </button>
+                <button
+                  className={styles.smallButton}
+                  disabled={draft.widgets.length >= MAX_WIDGETS}
+                  onClick={() => setDialog("library")}
+                >
+                  + Add widget
+                </button>
+              </div>
+            </div>
+          )}
+          <div className={styles.gridWrap} data-editing={editing}>
+            {!config.widgets.length ? (
+              <div className={styles.emptyBoard}>
+                <IconGrid className={styles.emptyBoardIcon} />
+                <h3>A little space for a fresh perspective.</h3>
+                <p>Add the widgets that help you do your best work.</p>
+                <button
+                  className={styles.primaryButton}
+                  disabled={!!loadError}
+                  onClick={() =>
+                    editing ? setDialog("library") : beginEdit(true)
+                  }
+                >
+                  + Add your first widget
+                </button>
+              </div>
+            ) : !mounted ? (
+              <DashboardOrb label="Preparing your workspace…" />
+            ) : (
+              <ResponsiveGridLayout
+                width={width}
+                layouts={gridLayouts}
+                breakpoints={{ lg: 1050, md: 640, sm: 0 }}
+                cols={{ lg: 12, md: 6, sm: 1 }}
+                rowHeight={24}
+                margin={config.density === "compact" ? [12, 12] : [20, 20]}
+                containerPadding={[0, 0]}
+                dragConfig={{
+                  enabled: editing && !saving,
+                  handle: ".widget-drag-handle",
+                  cancel: "button, input, select, a",
+                }}
+                resizeConfig={{ enabled: editing && !saving, handles: ["se"] }}
+                onLayoutChange={(_layout, layouts) => updateLayouts(layouts)}
+              >
+                {config.widgets.map((widget) => (
+                  <div
+                    key={widget.id}
+                    className={styles.gridItem}
+                    style={
+                      {
+                        "--widget-accent": ACCENT_COLORS[widget.accent],
+                      } as CSSProperties
+                    }
+                  >
+                    <article
+                      className={`${styles.widget} ${widget.display === "metric" ? styles.metricWidget : ""}`}
+                      aria-label={widget.title}
+                    >
+                      <div className={styles.widgetHeader}>
+                        <div className={styles.widgetHeading}>
+                          {editing && (
+                            <span
+                              className={`widget-drag-handle ${styles.dragHandle}`}
+                              aria-hidden="true"
+                              title="Drag to reposition"
+                            >
+                              ⠿
+                            </span>
+                          )}
+                          <span className={styles.widgetDot} />
+                          <h3>{widget.title}</h3>
+                        </div>
+                        {editing ? (
+                          <button
+                            className={styles.widgetSettings}
+                            aria-label={`Configure ${widget.title}`}
+                            onClick={() => setDialog(widget.id)}
+                          >
+                            <IconSliders className={styles.icon} />
+                          </button>
+                        ) : (
+                          <span className={styles.displayTag}>
+                            {DISPLAY_LABELS[widget.display]}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className={styles.widgetBody}
+                        key={`${widget.id}-${updatedAt}`}
+                      >
+                        {dataByKey.has(widget.source) ? (
+                          <WidgetContent
+                            widget={widget}
+                            data={dataByKey.get(widget.source)!}
+                          />
+                        ) : (
+                          <LiveWidgetContent widget={widget} />
+                        )}
+                      </div>
+                    </article>
+                  </div>
+                ))}
+              </ResponsiveGridLayout>
+            )}
+          </div>
+          <footer className={styles.footer}>
+            <span>
+              <span className={styles.footerMark}>CG</span> Designed around your
+              day.
+            </span>
+            <span>
+              CG Technologies <span>·</span> Operations workspace
+            </span>
+          </footer>
+        </div>
+      )}
+      {dialog && (
+        <WorkspaceDialog
+          title={
+            dialog === "library"
+              ? "Build your workspace"
+              : dialog === "reset"
+                ? "Start fresh?"
+                : "Make this widget yours"
+          }
+          onClose={() => setDialog(null)}
+        >
+          {dialog === "library" ? (
+            <>
+              <p className={styles.dialogIntro}>
+                Choose a perspective. Add a second copy to see the same data in
+                a different way.
+              </p>
+              <label className={styles.search}>
+                <IconSearch className={styles.icon} />
+                <input
+                  placeholder="Search widgets…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Search widgets"
+                />
+              </label>
+              <div className={styles.catalog}>
+                {catalog
+                  .filter((item) =>
+                    `${item.title} ${item.description} ${item.group}`
+                      .toLowerCase()
+                      .includes(search.toLowerCase()),
+                  )
+                  .map((item) => (
+                    <button
+                      className={styles.catalogItem}
+                      key={item.key}
+                      disabled={draft.widgets.length >= MAX_WIDGETS}
+                      onClick={() => addWidget(item.key)}
+                    >
+                      <span className={styles.catalogGlyph}>
+                        <IconGrid className={styles.icon} />
+                      </span>
+                      <span>
+                        <small>{item.group}</small>
+                        <strong>{item.title}</strong>
+                        <p>{item.description}</p>
+                      </span>
+                      <span className={styles.plus}>+</span>
+                    </button>
+                  ))}
+                {!catalog.some((item) =>
+                  `${item.title} ${item.description} ${item.group}`
+                    .toLowerCase()
+                    .includes(search.toLowerCase()),
+                ) && <p>No widgets match that search.</p>}
+              </div>
+              <p className={styles.dialogNote}>
+                {draft.widgets.length} of {MAX_WIDGETS} widgets · Only widgets
+                you have permission to use are listed.
+              </p>
+            </>
+          ) : dialog === "reset" ? (
+            <>
+              <p className={styles.dialogIntro}>
+                Restore the recommended widgets, sizes, and positions. You can
+                still cancel editing to recover your saved layout.
+              </p>
+              <button
+                className={styles.primaryButton}
+                onClick={() => {
+                  setDraft(defaultWorkspace(eligible));
+                  setDialog(null);
+                }}
+              >
+                Restore recommended layout
+              </button>
+            </>
+          ) : selection ? (
+            <div className={styles.editor}>
+              <p className={styles.dialogIntro}>
+                {
+                  WIDGET_CATALOG.find((w) => w.key === selection.source)
+                    ?.description
+                }
+              </p>
+              <label>
+                Widget title
+                <input
+                  value={selection.title}
+                  maxLength={60}
+                  onChange={(e) =>
+                    updateWidget(selection.id, { title: e.target.value })
+                  }
+                />
+              </label>
+              <fieldset>
+                <legend>Display as</legend>
+                <div className={styles.displayOptions}>
+                  {Object.entries(DISPLAY_LABELS).map(([key, label]) => (
+                    <button
+                      key={key}
+                      aria-pressed={selection.display === key}
+                      onClick={() =>
+                        updateWidget(selection.id, { display: key as Display })
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>Accent</legend>
+                <div className={styles.swatches}>
+                  {Object.entries(ACCENT_COLORS).map(([key, color]) => (
+                    <button
+                      aria-label={`${key} accent`}
+                      aria-pressed={selection.accent === key}
+                      key={key}
+                      style={{ background: color }}
+                      onClick={() =>
+                        updateWidget(selection.id, { accent: key as Accent })
+                      }
+                    >
+                      {selection.accent === key && "✓"}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <div className={styles.fieldPair}>
+                <label>
+                  Desktop width
+                  <select
+                    value={
+                      draft.layouts.lg.find((p) => p.i === selection.id)?.w
+                    }
+                    onChange={(e) =>
+                      sizeWidget(selection.id, Number(e.target.value))
+                    }
+                  >
+                    {Array.from({ length: 10 }, (_, i) => i + 3).map((n) => (
+                      <option key={n} value={n}>
+                        {n} of 12 columns
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Height
+                  <select
+                    value={
+                      draft.layouts.lg.find((p) => p.i === selection.id)?.h
+                    }
+                    onChange={(e) =>
+                      sizeWidget(
+                        selection.id,
+                        undefined,
+                        Number(e.target.value),
+                      )
+                    }
+                  >
+                    {Array.from({ length: 13 }, (_, i) => i + 6).map((n) => (
+                      <option key={n} value={n}>
+                        {n} rows
+                        {n === 6
+                          ? " · Short"
+                          : n === 9
+                            ? " · Standard"
+                            : n === 12
+                              ? " · Tall"
+                              : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label>
+                Visible rows / chart categories
+                <select
+                  value={selection.limit}
+                  onChange={(e) =>
+                    updateWidget(selection.id, {
+                      limit: Number(e.target.value),
+                    })
+                  }
+                >
+                  {Array.from({ length: 18 }, (_, i) => i + 3).map((n) => (
+                    <option key={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+              <fieldset>
+                <legend>Position</legend>
+                <div className={styles.fieldPair}>
+                  <button
+                    className={styles.button}
+                    disabled={draft.widgets[0]?.id === selection.id}
+                    onClick={() => moveWidget(selection.id, -1)}
+                  >
+                    ← Move earlier
+                  </button>
+                  <button
+                    className={styles.button}
+                    disabled={draft.widgets.at(-1)?.id === selection.id}
+                    onClick={() => moveWidget(selection.id, 1)}
+                  >
+                    Move later →
+                  </button>
+                </div>
+              </fieldset>
+              <div className={styles.editorFooter}>
+                <button
+                  className={styles.dangerButton}
+                  onClick={() => removeWidget(selection.id)}
+                >
+                  Remove widget
+                </button>
+                <button
+                  className={styles.primaryButton}
+                  onClick={() => setDialog(null)}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </WorkspaceDialog>
+      )}
+    </div>
+  );
+}
+
+function WorkspaceDialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current!;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className={styles.dialog}
+      aria-labelledby="workspace-dialog-title"
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className={styles.dialogInner}>
+        <div className={styles.dialogHeader}>
+          <div>
+            <p className={styles.eyebrow}>YOUR WORKSPACE</p>
+            <h2 id="workspace-dialog-title">{title}</h2>
+          </div>
+          <button
+            className={styles.iconButton}
+            aria-label="Close widget panel"
+            onClick={onClose}
+          >
+            <IconX className={styles.icon} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </dialog>
+  );
+}

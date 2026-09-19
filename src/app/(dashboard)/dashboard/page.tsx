@@ -15,6 +15,9 @@ import { Level1QueueWidget } from "@/components/level1-queue-widget";
 import { ForticloudExpiringWidget } from "@/components/forticloud-expiring-widget";
 import { MyTicketsWidget } from "@/components/my-tickets-widget";
 import { DashboardRefreshButton } from "@/components/dashboard-refresh-button";
+import { DashboardWorkspace } from "@/components/dashboard-workspace";
+import { normalizeWorkspace, groupSeries, type WidgetData } from "@/lib/dashboard-workspace";
+import { saveDashboardWorkspace } from "./workspace-actions";
 import {
   IconAlertTriangle,
   IconCheckSquare,
@@ -99,15 +102,15 @@ export default async function DashboardPage() {
   const isApprover = (user?.email ?? "").toLowerCase() === approverEmail.toLowerCase();
 
   const [
-    { data: myTasks },
-    { data: myPersonalTasks },
-    { data: allOpenTasks },
-    { data: dueTouchpoints },
-    { data: activeProjects },
-    { data: myAlerts },
+    { data: myTasks, error: tasksError },
+    { data: myPersonalTasks, error: personalError },
+    { data: allOpenTasks, error: workloadError },
+    { data: dueTouchpoints, error: touchpointsError },
+    { data: activeProjects, error: projectsError },
+    { data: myAlerts, error: alertsError },
     myReviewsCrossClient,
-    { data: openSalesRequests },
-    { data: recruitmentRows },
+    { data: openSalesRequests, error: salesError },
+    { data: recruitmentRows, error: recruitmentError },
   ] = await Promise.all([
     supabase
       .from("tasks")
@@ -145,7 +148,7 @@ export default async function DashboardPage() {
       .eq("recipient_id", user?.id ?? "")
       .is("acknowledged_at", null)
       .order("created_at", { ascending: false }),
-    enabled.has("quarterly_reviews") && user?.id
+    eligibleKeys.has("quarterly_reviews") && user?.id
       ? fetchMyCrossClientReviews(user.id, isApprover)
       : Promise.resolve([]),
     supabase
@@ -226,9 +229,48 @@ export default async function DashboardPage() {
   // only as a React key below, to remount the widgets that fetch their
   // own data client-side on mount rather than receiving it as props, so
   // "Refresh" also gets them to fetch again instead of showing stale rows.
-  const refreshToken = Date.now().toString();
+  const refreshToken = new Date().toISOString();
+  const modernEligible = [...eligibleKeys, "task_schedule"];
+  const { data: workspaceRow, error: workspaceError } = await supabase
+    .from("dashboard_workspaces").select("config").eq("user_id", user?.id ?? "").maybeSingle();
+  const workspace = normalizeWorkspace(workspaceRow?.config, modernEligible);
+  const clientName = (value: unknown) => (value as { name: string } | null)?.name ?? "No client";
+  const dueBucket = (date: string | null) => !date ? "Unscheduled" : date < today ? "Overdue" : date === today ? "Today" : date <= new Date(new Date(today).getTime() + 7 * 86400000).toISOString().slice(0, 10) ? "Next 7 days" : "Later";
+  const taskSeries = groupSeries((myTasks ?? []).map((t) => dueBucket(t.due_date)));
+  const taskRows = (myTasks ?? []).map((t) => ({ id: t.id, title: t.title, detail: clientName(t.clients), badge: t.due_date ? formatDate(t.due_date) : "No date", urgent: isOverdue(t.due_date), href: "/tasks?mine=1" }));
+  const modernData: WidgetData[] = [
+    { key: "task_schedule", value: myTasks?.length ?? 0, unit: "open tasks", href: "/tasks?mine=1", series: ["Overdue", "Today", "Next 7 days", "Later", "Unscheduled"].map((label) => ({ label, value: taskSeries.find((s) => s.label === label)?.value ?? 0 })), rows: taskRows, empty: "Your task outlook is clear." },
+    { key: "my_tasks", value: myTasks?.length ?? 0, unit: "assigned to you", href: "/tasks?mine=1", series: taskSeries, rows: taskRows, empty: "You’re all caught up. No open tasks assigned to you." },
+    { key: "my_personal_tasks", value: myPersonalTasks?.length ?? 0, unit: "personal tasks", href: "/my-todo?tab=tasks", series: groupSeries((myPersonalTasks ?? []).map((t) => dueBucket(t.due_date))), rows: (myPersonalTasks ?? []).map((t) => ({ id: t.id, title: t.title, detail: clientName(t.clients), badge: t.due_date ? formatDate(t.due_date) : "No date", urgent: isOverdue(t.due_date), href: "/my-todo?tab=tasks" })), empty: "A little room to think. Your personal list is clear." },
+    { key: "alerts", value: alertCount, unit: "need attention", href: "/my-todo", series: [{ label: "Unacknowledged", value: alertCount }], rows: (myAlerts ?? []).map((a) => ({ id: a.id, title: a.title, detail: a.detail ?? undefined, href: a.href ?? undefined, urgent: true })), empty: "All clear. No outstanding alerts." },
+    { key: "active_projects", value: activeProjects?.length ?? 0, unit: "open projects", href: "/projects", series: [{ label: "Active", value: projectStatusCounts.active }, { label: "Planning", value: projectStatusCounts.planning }, { label: "On hold", value: projectStatusCounts.on_hold }], rows: (activeProjects ?? []).map((p) => ({ id: p.id, title: p.name, detail: clientName(p.clients), badge: p.status.replaceAll("_", " "), href: `/projects/${p.id}` })), empty: "No projects in progress yet." },
+    { key: "team_workload", value: [...workloadByPerson.values()].reduce((a, b) => a + b, 0), unit: "open team tasks", href: "/tasks?view=all", series: [...workloadByPerson].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value })), rows: [...workloadByPerson].map(([title, n]) => ({ id: title, title, badge: `${n} tasks`, href: "/tasks?view=all" })), empty: "No open work across the team." },
+    ...([{ key: "touchpoints_due", items: overdueTouchpoints }, { key: "touchpoints_upcoming", items: upcomingTouchpoints }] as const).map(({ key, items }) => ({ key, value: items.length, unit: "client follow-ups", href: "/touchpoints", series: groupSeries(items.map((t) => t.contact_method)), rows: items.map((t) => ({ id: t.id, title: clientName(t.clients), detail: t.contact_method ?? "Follow-up", badge: formatDate(t.due_date), urgent: isOverdue(t.due_date), href: `/touchpoints/${t.id}` })), empty: "No follow-ups in this queue." })),
+    { key: "quarterly_reviews", value: myReviews.length, unit: "reviews to progress", href: "/quarterly-reviews", series: groupSeries(myReviews.map((r) => r.status)), rows: myReviews.map((r) => ({ id: r.id, title: r.clientName, detail: r.reviewPeriod, badge: r.status.replaceAll("_", " "), href: `/quarterly-reviews/${r.id}` })), empty: "No reviews need your attention." },
+    { key: "sales_requests", value: openSalesRequests?.length ?? 0, unit: "open sales requests", href: "/sales-requests", series: groupSeries((openSalesRequests ?? []).map((r) => r.stage)), rows: (openSalesRequests ?? []).map((r) => ({ id: r.id, title: r.title, detail: clientName(r.clients), badge: r.stage.replaceAll("_", " "), href: "/sales-requests" })), empty: "No open sales requests." },
+    { key: "recruitment", value: recruitmentRows?.length ?? 0, unit: "candidates across stages", href: "/recruitment", series: RECRUITMENT_STATUS_ORDER.map((s) => ({ label: s.label, value: recruitmentStatusCounts.get(s.value) ?? 0 })), rows: RECRUITMENT_STATUS_ORDER.map((s) => ({ id: s.value, title: s.label, badge: String(recruitmentStatusCounts.get(s.value) ?? 0), href: `/recruitment?status=${s.value}` })), empty: "No candidates yet." },
+  ];
+
+  const sourceErrors = new Map<string, unknown>([
+    ["task_schedule", tasksError], ["my_tasks", tasksError], ["my_personal_tasks", personalError],
+    ["team_workload", workloadError], ["touchpoints_due", touchpointsError], ["touchpoints_upcoming", touchpointsError],
+    ["active_projects", projectsError], ["alerts", alertsError], ["sales_requests", salesError], ["recruitment", recruitmentError],
+  ]);
+  for (const item of modernData) {
+    if (sourceErrors.get(item.key)) item.error = "This data couldn’t be loaded. Please refresh the dashboard.";
+  }
 
   return (
+    <DashboardWorkspace
+      initialWorkspace={workspace}
+      eligible={modernEligible}
+      data={modernData.filter((item) => modernEligible.includes(item.key))}
+      greeting={`${partOfDay}${firstName ? `, ${firstName}` : ""}`}
+      updatedAt={refreshToken}
+      stats={heroStats.map((stat) => ({ ...stat, unavailable: !!(stat.label === "Alerts" ? alertsError : stat.label === "Touchpoints due" ? touchpointsError : tasksError) }))}
+      saveAction={saveDashboardWorkspace}
+      loadError={workspaceError ? "Your saved layout couldn’t be loaded. Refresh before making changes." : undefined}
+    >
     <div className="space-y-4">
       <DashboardHeroCard
         greeting={`${partOfDay}${firstName ? `, ${firstName}` : ""} — here's your day`}
@@ -633,6 +675,7 @@ export default async function DashboardPage() {
         .
       </p>
     </div>
+    </DashboardWorkspace>
   );
 }
 
