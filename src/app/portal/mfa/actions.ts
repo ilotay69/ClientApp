@@ -2,6 +2,7 @@
 
 import { createMutableClient } from "@/lib/supabase/server";
 import { getPortalContext, getPortalIdentity } from "@/lib/portal";
+import { recordAuthAttempt } from "@/lib/auth-attempts";
 
 export type MfaVerifyResult = { ok: true } | { ok: false; error: string };
 
@@ -95,6 +96,14 @@ export async function verifyMfaCodeAction(input: { code: string }): Promise<MfaV
     challengeId: challenge.id,
     code,
   });
+  await recordAuthAttempt({
+    surface: "mfa_verify",
+    // The user id, not an email: by this point the session already
+    // identifies who this is, so there is nothing to enumerate.
+    subject: identity.userId,
+    succeeded: !verifyError,
+  });
+
   if (verifyError) {
     // Generic on purpose. The browser used to surface error.message straight
     // from Supabase; the current wording is harmless, but returning it raw

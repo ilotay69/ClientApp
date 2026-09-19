@@ -1,9 +1,9 @@
 "use server";
 
-import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/server";
+import { clientIp, hashWithSalt } from "@/lib/client-ip";
 import { createAlert } from "@/lib/alerts";
 import { sendPushToUsers } from "@/lib/push-notifications";
 import { computeProposalTotals, formatProposalHeadline, formatMoney } from "@/lib/proposal-totals";
@@ -50,22 +50,23 @@ const BOT_PATTERN =
  * on. */
 const VIEW_DEDUPE_MINUTES = 30;
 
-/** The caller's address, as seen through Railway's proxy. */
-async function clientIp(): Promise<string | null> {
-  const h = await headers();
-  const forwarded = h.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]!.trim();
-  return h.get("x-real-ip");
-}
-
 function hashIp(ip: string | null): string | null {
   if (!ip) return null;
   // Salted so the stored value can't be reversed against the small space of
   // possible IPs by anyone who gets at the table. Never the raw address:
   // this is a prospect's personal data and all we need is to tell two
   // readers apart.
+  //
+  // This salt is deliberately NOT the one auth-attempts.ts uses. Sharing it
+  // would let the two tables be joined on ip_hash, linking a prospect
+  // reading a proposal to a portal sign-in from the same address.
+  //
+  // The fallback chain below is weak — CRON_SECRET, then a literal — and a
+  // hardcoded fallback salt is no salt at all. Left as-is only because
+  // changing it now would break dedupe against every ip_hash already
+  // stored; PROPOSAL_VIEW_IP_SALT is set in every environment that matters.
   const salt = process.env.PROPOSAL_VIEW_IP_SALT ?? process.env.CRON_SECRET ?? "cg-proposals";
-  return createHash("sha256").update(`${salt}:${ip}`).digest("hex");
+  return hashWithSalt(ip, salt);
 }
 
 export async function recordProposalViewAction(token: string, userAgent: string): Promise<void> {
