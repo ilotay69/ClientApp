@@ -1,0 +1,44 @@
+# The only place this project can be typechecked at all: there is no Node
+# toolchain on the machine it is developed from, so `next build` has never
+# run anywhere except Railway — which means every type error has been
+# discovered by a failed production deploy. This runs the same three
+# commands Railway does, on every push and pull request, before merge.
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Kept in step with .nvmrc and package.json's engines field, which
+          # both match the Node that Railway's builder already selects.
+          node-version-file: .nvmrc
+          cache: npm
+
+      # `npm ci` rather than `npm install`, exactly as Railway runs it, so a
+      # dependency added without updating package-lock.json fails here
+      # instead of on a deploy.
+      - run: npm ci
+
+      # Run both, despite the overlap: it is not settled whether Next 16
+      # still runs ESLint during `next build`, and a lint error (an
+      # unescaped apostrophe in JSX, say) has already broken a deploy.
+      - run: npm run lint
+
+      - run: npm run build
+        env:
+          # Build-time only. next build evaluates NEXT_PUBLIC_* at compile
+          # time, so these must exist for the build to complete — they are
+          # deliberately obvious placeholders and reach no real service.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NEXT_PUBLIC_APP_URL: https://ci.invalid
