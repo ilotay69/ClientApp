@@ -2,7 +2,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import { toCsv, csvResponse } from "@/lib/csv";
 import { buildForticloudDevicesReport } from "@/lib/reports";
-import type { ForticloudCredentials } from "@/lib/forticloud";
+import { listForticloudAccounts } from "@/lib/forticloud-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -19,16 +19,12 @@ export async function GET() {
   }
 
   const admin = createAdminClient();
-  const { data: rows } = await admin.from("forticloud_accounts").select("label, api_user, api_password");
-  if (!rows || rows.length === 0) {
+  const accounts = (await listForticloudAccounts(admin)).map((a) => ({ label: a.label, creds: a.credentials }));
+  if (accounts.length === 0) {
     return new Response("No FortiCloud accounts configured yet — add one under Settings → Integrations.", {
       status: 400,
     });
   }
-  const accounts = rows.map((r) => ({
-    label: r.label,
-    creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
-  }));
 
   let headers, csvRows;
   try {

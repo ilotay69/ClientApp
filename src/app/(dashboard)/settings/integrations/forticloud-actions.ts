@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
-import { testForticloudConnection, type ForticloudCredentials } from "@/lib/forticloud";
+import { testForticloudConnection } from "@/lib/forticloud";
+import {
+  listForticloudAccountSummaries,
+  insertForticloudAccount,
+  getForticloudAccount,
+} from "@/lib/forticloud-settings";
 
 export type ForticloudAccountSummary = { id: string; label: string; apiUser: string };
 
@@ -18,8 +23,7 @@ export async function listForticloudAccountsAction(): Promise<
     return { error: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
-  const { data } = await admin.from("forticloud_accounts").select("id, label, api_user").order("label");
-  return { accounts: (data ?? []).map((r) => ({ id: r.id, label: r.label, apiUser: r.api_user })) };
+  return { accounts: await listForticloudAccountSummaries(admin) };
 }
 
 export type FormState = { error: string | null; success: string | null };
@@ -45,13 +49,13 @@ export async function addForticloudAccountAction(
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("forticloud_accounts").insert({
+  const { error } = await insertForticloudAccount(admin, {
     label,
-    api_user: apiUser,
-    api_password: apiPassword,
-    updated_by: user.id,
+    apiUser,
+    apiPassword,
+    updatedBy: user.id,
   });
-  if (error) return { error: error.message, success: null };
+  if (error) return { error, success: null };
 
   revalidatePath("/settings/integrations");
   return { error: null, success: "Account added." };
@@ -72,17 +76,10 @@ export async function testForticloudAccountAction(accountId: string): Promise<{ 
     return { ok: false, message: "You don't have permission to do that." };
   }
   const admin = createAdminClient();
-  const { data: row } = await admin
-    .from("forticloud_accounts")
-    .select("api_user, api_password")
-    .eq("id", accountId)
-    .maybeSingle();
-  if (!row) return { ok: false, message: "Account not found." };
+  const account = await getForticloudAccount(admin, accountId);
+  if (!account) return { ok: false, message: "Account not found." };
 
-  const result = await testForticloudConnection({
-    apiUser: row.api_user,
-    apiPassword: row.api_password,
-  } satisfies ForticloudCredentials);
+  const result = await testForticloudConnection(account.credentials);
   if (!result.ok) return { ok: false, message: result.error ?? "Connection failed." };
   return { ok: true, message: "Connected — credentials are working." };
 }

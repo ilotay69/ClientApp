@@ -16,7 +16,7 @@ import {
 import { getAutotaskSettings } from "@/lib/autotask-settings";
 import { fetchContractUsageForCompany, type ContractTimeEntryRow } from "@/lib/contract-hours";
 import { fetchForticloudDeviceInventory, STATUS_RANK, type ForticloudDeviceRow } from "@/lib/forticloud-lookups";
-import type { ForticloudCredentials } from "@/lib/forticloud";
+import { listForticloudAccounts } from "@/lib/forticloud-settings";
 import type { HuntressAgent } from "@/lib/huntress";
 import { checkDomainHealth, extractDomainFromEmail, type DomainHealthReport } from "@/lib/domain-health";
 import { friendlyM365SkuName } from "@/lib/m365-sku-names";
@@ -362,20 +362,8 @@ export async function fetchFortigateSection(
   // every account is searched, because the description match below is the
   // real boundary either way and a client whose account mapping is simply
   // unset should still see their own kit.
-  let query = admin.from("forticloud_accounts").select("id, label, api_user, api_password");
-  if (session.client.forticloudAccountId) query = query.eq("id", session.client.forticloudAccountId);
-
-  const { data, error } = await query;
-  if (error) {
-    console.error("fetchFortigateSection: account read failed", error);
-    return empty("FortiGate data isn't available right now.");
-  }
-
-  type AccountRow = { id: string; label: string; api_user: string; api_password: string };
-  const accounts = ((data ?? []) as AccountRow[]).map((r) => ({
-    label: r.label,
-    creds: { apiUser: r.api_user, apiPassword: r.api_password } satisfies ForticloudCredentials,
-  }));
+  const forticloudAccounts = await listForticloudAccounts(admin, session.client.forticloudAccountId);
+  const accounts = forticloudAccounts.map((a) => ({ label: a.label, creds: a.credentials }));
   if (accounts.length === 0) return empty("FortiGate reporting isn't set up for your account yet.");
 
   let inventory: ForticloudDeviceRow[];
