@@ -506,13 +506,52 @@ export type PortalDomainHealth = {
  * general-purpose lookup service running from our servers, pointable at
  * anyone. Deriving it means a client can only ever ask about themselves.
  */
+/**
+ * Contact addresses that tell us nothing about the CLIENT's domain.
+ *
+ * Checked because the domain is derived from whatever address happens to
+ * be on the client record, and in production 4 clients have a consumer
+ * mailbox there and 2 have ours. Without this, those six would each open
+ * Domain Health and be shown a confident report on gmail.com — or, worse,
+ * on CG Technologies' own DNS, SPF and registrar details. An honest "we
+ * don't have your domain on file" is the only correct answer when the
+ * address on file isn't the client's own.
+ */
+const NON_CLIENT_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "hotmail.ca",
+  "live.com",
+  "msn.com",
+  "yahoo.com",
+  "yahoo.ca",
+  "aol.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "protonmail.com",
+  "proton.me",
+  "gmx.com",
+  "rogers.com",
+  "sympatico.ca",
+  "bell.net",
+  "shaw.ca",
+  "telus.net",
+  // Ours. A client's record listing their account manager rather than
+  // their own contact must never render as a report on us.
+  "cgtechnologies.com",
+]);
+
 export async function fetchDomainSection(session: PortalSession): Promise<PortalDomainHealth> {
   const domain = extractDomainFromEmail(session.client.primaryContactEmail);
-  if (!domain) {
+  if (!domain || NON_CLIENT_EMAIL_DOMAINS.has(domain.toLowerCase())) {
     return {
       domain: null,
       report: null,
-      unavailableReason: "We don't have a domain on file for your account yet.",
+      unavailableReason:
+        "We don't have your company's own domain on file yet — ask your account manager to add it and this will fill in.",
     };
   }
 
