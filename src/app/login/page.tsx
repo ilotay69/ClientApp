@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useActionState } from "react";
+import { Suspense, useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn, type AuthState } from "./actions";
 import { MicrosoftSignInButton } from "@/components/microsoft-sign-in-button";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
 const initialState: AuthState = { error: null };
 
@@ -21,6 +22,25 @@ function LoginForm() {
   // login to the portal, so this default doesn't have to know which is which.
   const next = searchParams.get("next") ?? "/";
   const [state, formAction, pending] = useActionState(signIn, initialState);
+
+  // The Turnstile token rides along in a hidden field. A token is single-use
+  // and Supabase consumes it on verify, so after every completed submit the
+  // widget is reset for a fresh one — otherwise the next attempt fails on a
+  // stale token and reads as a wrong password. Keyed on a submit COMPLETING
+  // (pending going true→false) rather than on the error text, so two
+  // identical errors in a row still each trigger a fresh token. Adjusted
+  // during render, React's blessed pattern for reacting to changed state,
+  // with a ref guard so it runs once per completion and can't loop.
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [resetSignal, setResetSignal] = useState(0);
+  // Previous pending value held in state (not a ref), the documented pattern
+  // for reacting to a changed value during render. When a submit completes
+  // (pending true→false) the widget is reset for a fresh single-use token.
+  const [prevPending, setPrevPending] = useState(false);
+  if (prevPending !== pending) {
+    setPrevPending(pending);
+    if (!pending) setResetSignal((n) => n + 1);
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
@@ -46,6 +66,7 @@ function LoginForm() {
 
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next} />
+          <input type="hidden" name="captchaToken" value={captchaToken} />
           <div>
             <label className="block text-sm font-medium text-slate-700">
               Email
@@ -68,6 +89,8 @@ function LoginForm() {
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
             />
           </div>
+
+          <TurnstileWidget onToken={(t) => setCaptchaToken(t ?? "")} resetSignal={resetSignal} />
 
           {state.error && (
             <p className="text-sm text-red-600">{state.error}</p>

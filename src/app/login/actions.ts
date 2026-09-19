@@ -31,6 +31,7 @@ export async function signIn(
 ): Promise<AuthState> {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const captchaToken = String(formData.get("captchaToken") ?? "");
   // "/" is the role router (src/app/page.tsx) — it sends staff to the
   // dashboard and a client-portal login to the portal, so neither needs to be
   // named here.
@@ -46,7 +47,17 @@ export async function signIn(
   const decision = await evaluateThrottle({ surface: "password_signin", subject: email });
   await applyThrottle(decision, "password_signin");
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  // captchaToken is passed straight to Supabase, which verifies it at the
+  // GoTrue layer. That is deliberately where verification happens rather than
+  // here: GoTrue also enforces it on a direct /auth/v1/token call that never
+  // touches this form, which is the attack our own throttle cannot see.
+  // Sending it while the project toggle is off is harmless (ignored); once
+  // the toggle is on, omitting it fails — so it always goes.
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    options: captchaToken ? { captchaToken } : undefined,
+  });
 
   // Recorded before the redirect below, because redirect() throws.
   //
