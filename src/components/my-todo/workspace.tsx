@@ -8,7 +8,12 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Reorder, useDragControls, useReducedMotion } from "motion/react";
+import {
+  AnimatePresence,
+  Reorder,
+  useDragControls,
+  useReducedMotion,
+} from "motion/react";
 import {
   DEFAULT_FILTERS,
   TODO_SECTIONS,
@@ -39,6 +44,13 @@ import { AnimatedTabs } from "../ui/animated-tabs";
 import { HoverGroup, HoverButton } from "../ui/hover-surface";
 import { StatefulButton, useActionFeedback } from "../ui/stateful-button";
 import { AnimatedTooltip, TooltipCard } from "../ui/context-preview";
+import { CGSelect } from "../ui/cg-select";
+import { CompletionCheck } from "../ui/completion-check";
+import { SettingSwitch } from "../ui/setting-switch";
+import { AnimatedNumber } from "../ui/animated-number";
+import { StatusMark } from "../ui/status-mark";
+import { SettleRow } from "../ui/settle-row";
+import { NoticeRegion, useNotices } from "../ui/notice-toast";
 
 const LABELS: Record<TodoSection, string> = {
   today: "Today",
@@ -74,34 +86,24 @@ export function TodoWorkspace({
   const [newTask, setNewTask] = useState(false);
   const [quickTitle, setQuickTitle] = useState("");
   const [error, setError] = useState<string | null>(initial.warning);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { manager: notices, notify: setNotice } = useNotices();
   const [busy, setBusy] = useState(false);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const completionLock = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectMode, setSelectMode] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const refreshFeedback = useActionFeedback();
-  const [undo, setUndo] = useState<{
-    task: TodoTask;
-    previous: TodoTask["status"];
-  } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const reduced = useReducedMotion();
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => {
-      setNotice(null);
-      setUndo(null);
-    }, 8000);
-    return () => clearTimeout(timer);
-  }, [notice]);
   useEffect(() => {
     function keys(e: KeyboardEvent) {
       if (
         e.target instanceof HTMLElement &&
         e.target.closest(
-          "input,textarea,select,[contenteditable=true],[role=dialog]",
+          "input,textarea,select,[contenteditable=true],[role=dialog],[role=combobox],[role=listbox]",
         )
       )
         return;
@@ -200,47 +202,60 @@ export function TodoWorkspace({
     });
   }
   async function complete(task: TodoTask) {
-    if (busy) return;
+    if (busy || completionLock.current) return;
+    completionLock.current = true;
     setBusy(true);
+    setCompletingId(task.id);
     setError(null);
     const status = task.status === "done" ? "open" : "done";
-    updateTask({ ...task, status });
     try {
       const result = await actions.update(task.id, { status }, task.updated_at);
       if (result.error !== undefined) {
-        updateTask(task);
         setError(result.error);
       } else {
         updateTask(result.data);
-        setUndo({ task: result.data, previous: task.status });
-        setNotice(status === "done" ? "Task completed" : "Task reopened");
+        setNotice(status === "done" ? "Task completed" : "Task reopened", {
+          id: `completion-${task.id}`,
+          description: task.title,
+          action: {
+            label: "Undo",
+            run: () => undoCompletion(result.data, task.status),
+            error: "Couldn't undo this change. Try again or refresh the task.",
+          },
+        });
       }
     } catch {
-      updateTask(task);
-      setError("Couldn't update this task. The change was undone.");
+      setError("Couldn't update this task. Nothing was changed.");
     } finally {
       setBusy(false);
+      setCompletingId(null);
+      completionLock.current = false;
     }
   }
-  async function undoCompletion() {
-    if (!undo) return;
+  async function undoCompletion(task: TodoTask, previous: TodoTask["status"]) {
+    if (completionLock.current) return false;
+    completionLock.current = true;
     setBusy(true);
     try {
       const result = await actions.update(
-        undo.task.id,
-        { status: undo.previous },
-        undo.task.updated_at,
+        task.id,
+        { status: previous },
+        task.updated_at,
       );
-      if (result.error !== undefined) setError(result.error);
-      else {
+      if (result.error !== undefined) {
+        setError(result.error);
+        return false;
+      } else {
         updateTask(result.data);
-        setUndo(null);
         setNotice("Change undone");
+        return true;
       }
     } catch {
       setError("Couldn't undo the change. Refresh and try again.");
+      return false;
     } finally {
       setBusy(false);
+      completionLock.current = false;
     }
   }
   async function plan(
@@ -363,6 +378,8 @@ export function TodoWorkspace({
         preferences={preferences}
         today={today}
         busy={busy}
+        pending={completingId === task.id}
+        animate={section === "tasks" && filters.layout === "list"}
         planned={itemMap.get(`task:${task.id}`)?.planned_on === today}
         onOpen={() => url({ item: task.id })}
         onComplete={() => complete(task)}
@@ -483,7 +500,9 @@ export function TodoWorkspace({
               <TodoIcon name={tab} />
               {LABELS[tab]}
               {tab === "tasks" && (
-                <span className={s.count}>{openTasks.length}</span>
+                <span className={s.count}>
+                  <AnimatedNumber value={openTasks.length} />
+                </span>
               )}
               {tab === "today" && planned.length > 0 && (
                 <span className={s.count}>{planned.length}</span>
@@ -499,25 +518,7 @@ export function TodoWorkspace({
           Tasks page for the full list.
         </p>
       )}
-      <div role="status" className={notice ? s.toast : s.srOnly}>
-        {notice}
-        {undo && (
-          <button disabled={busy} onClick={undoCompletion}>
-            Undo
-          </button>
-        )}
-        {notice && (
-          <button
-            aria-label="Dismiss notification"
-            onClick={() => {
-              setNotice(null);
-              setUndo(null);
-            }}
-          >
-            ×
-          </button>
-        )}
-      </div>
+      <NoticeRegion manager={notices} />
       {section === "today" && (
         <div className={s.todayGrid}>
           <div className={s.mainColumn}>
@@ -744,68 +745,69 @@ export function TodoWorkspace({
               />
               <kbd>/</kbd>
             </label>
-            <select
-              aria-label="Task ownership"
+            <CGSelect
+              label="Task ownership"
               value={filters.scope}
-              onChange={(e) =>
-                filter({ scope: e.target.value as TaskFilters["scope"] })
+              onChange={(value) =>
+                filter({ scope: value as TaskFilters["scope"] })
               }
-            >
-              <option value="all">Private & assigned</option>
-              <option value="private">Private only</option>
-              <option value="assigned">Assigned to me</option>
-            </select>
-            <select
-              aria-label="Task status"
+              options={[
+                { value: "all", label: "Private & assigned" },
+                { value: "private", label: "Private only" },
+                { value: "assigned", label: "Assigned to me" },
+              ]}
+            />
+            <CGSelect
+              label="Task status"
               value={filters.status}
-              onChange={(e) =>
-                filter({ status: e.target.value as TaskFilters["status"] })
+              onChange={(value) =>
+                filter({ status: value as TaskFilters["status"] })
               }
-            >
-              <option value="active">Active tasks</option>
-              <option value="all">All statuses</option>
-              {Object.entries(TASK_STATUSES).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Client filter"
+              options={[
+                { value: "active", label: "Active tasks" },
+                { value: "all", label: "All statuses" },
+                ...Object.entries(TASK_STATUSES).map(([value, label]) => ({
+                  value,
+                  label,
+                })),
+              ]}
+            />
+            <CGSelect
+              label="Client filter"
+              searchable
               value={filters.client}
-              onChange={(e) => filter({ client: e.target.value })}
-            >
-              <option value="">All clients</option>
-              {initial.clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Priority filter"
+              onChange={(value) => filter({ client: value })}
+              options={[
+                { value: "", label: "All clients" },
+                ...initial.clients.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+            <CGSelect
+              label="Priority filter"
               value={filters.priority}
-              onChange={(e) => filter({ priority: e.target.value })}
-            >
-              <option value="">Any priority</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+              onChange={(value) => filter({ priority: value })}
+              options={[
+                { value: "", label: "Any priority" },
+                { value: "high", label: "High", tone: "red" },
+                { value: "medium", label: "Medium", tone: "amber" },
+                { value: "low", label: "Low", tone: "neutral" },
+              ]}
+            />
           </div>
           <div className={s.listToolbar}>
             <span className={s.muted}>{visible.length} tasks</span>
-            <select
-              aria-label="Group tasks"
+            <CGSelect
+              label="Group tasks"
               value={filters.group}
-              onChange={(e) =>
-                filter({ group: e.target.value as TaskFilters["group"] })
+              onChange={(value) =>
+                filter({ group: value as TaskFilters["group"] })
               }
-            >
-              <option value="due">Group by due date</option>
-              <option value="status">Group by status</option>
-              <option value="client">Group by client</option>
-            </select>
+              options={[
+                { value: "due", label: "Group by due date" },
+                { value: "status", label: "Group by status" },
+                { value: "client", label: "Group by client" },
+              ]}
+            />
             <button
               className={s.textButton}
               onClick={() => {
@@ -922,7 +924,11 @@ export function TodoWorkspace({
                     <h3>{label}</h3>
                     <span>{rows.length}</span>
                   </div>
-                  <div className={s.card}>{rows.map((task) => row(task))}</div>
+                  <div className={s.card}>
+                    <AnimatePresence initial={false}>
+                      {rows.map((task) => row(task))}
+                    </AnimatePresence>
+                  </div>
                 </section>
               ))}
             </div>
@@ -1016,37 +1022,33 @@ export function TodoWorkspace({
         description="Saved to your account"
       >
         <div className={s.editor}>
-          <label className={s.field}>
+          <div className={s.field}>
             Row spacing
-            <select
+            <CGSelect
+              label="Row spacing"
               disabled={savingPrefs}
               value={preferences.density}
-              onChange={(e) =>
-                prefs({ density: e.target.value as TodoPreferences["density"] })
+              onChange={(value) =>
+                prefs({ density: value as TodoPreferences["density"] })
               }
-            >
-              <option value="comfortable">Comfortable</option>
-              <option value="compact">Compact</option>
-            </select>
-          </label>
-          <label className={s.checkLabel}>
-            <input
-              type="checkbox"
-              checked={preferences.showClient}
-              disabled={savingPrefs}
-              onChange={(e) => prefs({ showClient: e.target.checked })}
+              options={[
+                { value: "comfortable", label: "Comfortable" },
+                { value: "compact", label: "Compact" },
+              ]}
             />
-            Show client names
-          </label>
-          <label className={s.checkLabel}>
-            <input
-              type="checkbox"
-              checked={preferences.showPriority}
-              disabled={savingPrefs}
-              onChange={(e) => prefs({ showPriority: e.target.checked })}
-            />
-            Show priority
-          </label>
+          </div>
+          <SettingSwitch
+            label="Show client names"
+            checked={preferences.showClient}
+            disabled={savingPrefs}
+            onChange={(showClient) => prefs({ showClient })}
+          />
+          <SettingSwitch
+            label="Show priority"
+            checked={preferences.showPriority}
+            disabled={savingPrefs}
+            onChange={(showPriority) => prefs({ showPriority })}
+          />
           <p className={s.muted}>
             Drag the left edge of task details to resize the panel. Use the
             arrow keys on the resize handle for keyboard control.
@@ -1054,7 +1056,11 @@ export function TodoWorkspace({
           <p className={s.muted}>
             Shortcuts: / to search tasks. Escape to close a panel.
           </p>
-          {savingPrefs && <span role="status">Saving preferences…</span>}
+          {savingPrefs && (
+            <span role="status">
+              <StatusMark state="running" label="Saving preferences…" />
+            </span>
+          )}
         </div>
       </Drawer>
     </div>
@@ -1066,6 +1072,8 @@ function TaskLine({
   preferences,
   today,
   busy,
+  pending,
+  animate,
   planned,
   onOpen,
   onComplete,
@@ -1079,6 +1087,8 @@ function TaskLine({
   preferences: TodoPreferences;
   today: string;
   busy: boolean;
+  pending: boolean;
+  animate: boolean;
   planned: boolean;
   onOpen: () => void;
   onComplete: () => void;
@@ -1089,7 +1099,11 @@ function TaskLine({
   extra?: ReactNode;
 }) {
   return (
-    <div className={s.taskRow} data-done={task.status === "done"}>
+    <SettleRow
+      className={s.taskRow}
+      data-done={task.status === "done"}
+      enabled={animate}
+    >
       {selectMode && (
         <input
           type="checkbox"
@@ -1098,15 +1112,13 @@ function TaskLine({
           onChange={onSelect}
         />
       )}
-      <button
-        className={s.completeButton}
+      <CompletionCheck
         disabled={busy}
-        aria-label={`${task.status === "done" ? "Reopen" : "Complete"} ${task.title}`}
-        aria-pressed={task.status === "done"}
-        onClick={onComplete}
-      >
-        {task.status === "done" && <TodoIcon name="check" />}
-      </button>
+        pending={pending}
+        label={`${task.status === "done" ? "Reopen" : "Complete"} ${task.title}`}
+        checked={task.status === "done"}
+        onChange={onComplete}
+      />
       <div className={s.taskIdentity}>
         <button className={s.taskTitle} onClick={onOpen}>
           <strong>{task.title}</strong>
@@ -1185,7 +1197,7 @@ function TaskLine({
         </button>
       </AnimatedTooltip>
       {extra}
-    </div>
+    </SettleRow>
   );
 }
 

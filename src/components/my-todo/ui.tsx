@@ -1,5 +1,6 @@
 "use client";
 import { AnimatedDialog } from "../ui/animated-dialog";
+import { StatusMark } from "../ui/status-mark";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import s from "./workspace.module.css";
 
@@ -137,7 +138,7 @@ export function Empty({
 export function Loading({ label = "Loading" }: { label?: string }) {
   return (
     <div className={s.loading} role="status">
-      <span>{label}…</span>
+      <StatusMark state="running" label={`${label}…`} />
       {[0, 1, 2].map((i) => (
         <div className={s.skeleton} key={i} />
       ))}

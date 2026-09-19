@@ -1,4 +1,5 @@
 "use client";
+import { CGSelect } from "../ui/cg-select";
 import { useState } from "react";
 import {
   TASK_STATUSES,
@@ -141,32 +142,33 @@ export function TaskEditor({
           />
         </label>
         {task && (
-          <label className={s.field}>
+          <div className={s.field}>
             Status
-            <select
+            <CGSelect
+              label="Status"
               value={status}
-              onChange={(e) => setStatus(e.target.value as TaskStatus)}
-            >
-              {Object.entries(TASK_STATUSES).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={(value) => setStatus(value as TaskStatus)}
+              options={Object.entries(TASK_STATUSES).map(([value, label]) => ({
+                value,
+                label,
+              }))}
+            />
+          </div>
         )}
         <div className={s.formGrid}>
-          <label className={s.field}>
+          <div className={s.field}>
             Priority
-            <select
+            <CGSelect
+              label="Priority"
               value={draft.priority}
-              onChange={(e) => setDraft({ ...draft, priority: e.target.value })}
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </label>
+              onChange={(value) => setDraft({ ...draft, priority: value })}
+              options={[
+                { value: "low", label: "Low", tone: "neutral" },
+                { value: "medium", label: "Medium", tone: "amber" },
+                { value: "high", label: "High", tone: "red" },
+              ]}
+            />
+          </div>
           <label className={s.field}>
             Due date
             <input
@@ -189,22 +191,21 @@ export function TaskEditor({
             </button>
           </label>
         </div>
-        <label className={s.field}>
+        <div className={s.field}>
           Client <span className={s.muted}>Optional</span>
-          <select
+          <CGSelect
+            label="Client"
+            searchable
             value={draft.client_id ?? ""}
-            onChange={(e) =>
-              setDraft({ ...draft, client_id: e.target.value || null })
+            onChange={(value) =>
+              setDraft({ ...draft, client_id: value || null })
             }
-          >
-            <option value="">No client</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={[
+              { value: "", label: "No client" },
+              ...clients.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        </div>
         <label className={s.field}>
           Details
           <textarea

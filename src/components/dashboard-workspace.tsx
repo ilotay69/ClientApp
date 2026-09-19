@@ -51,6 +51,10 @@ import { HoverGroup, HoverButton } from "./ui/hover-surface";
 import { BentoCard, BentoGrid } from "./ui/bento-card";
 import { StatefulButton } from "./ui/stateful-button";
 import { AnimatedTooltip } from "./ui/context-preview";
+import { CGSelect } from "./ui/cg-select";
+import { StatusMark } from "./ui/status-mark";
+import { NoticeRegion, useNotices } from "./ui/notice-toast";
+import { canAnimateWorkspaceMetric } from "@/lib/workspace-controls";
 
 type Props = {
   initialWorkspace: Workspace;
@@ -86,6 +90,7 @@ export function DashboardWorkspace({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const { manager: notices, notify } = useNotices();
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState<"library" | "reset" | string | null>(
     null,
@@ -151,7 +156,8 @@ export function DashboardWorkspace({
       setDraft(normalized);
       setEditing(false);
       setDialog(null);
-      setMessage("Workspace saved");
+      setMessage("");
+      notify("Workspace saved", { id: "workspace-save" });
     } catch {
       setError("Couldn’t save your workspace. Please try again.");
     } finally {
@@ -311,6 +317,7 @@ export function DashboardWorkspace({
         <div className={styles.classic}>{children}</div>
       ) : (
         <div className={styles.modern}>
+          <NoticeRegion manager={notices} />
           <header className={styles.header}>
             <div>
               <p className={styles.eyebrow}>DASHBOARD</p>
@@ -414,9 +421,14 @@ export function DashboardWorkspace({
               </span>
             </div>
             <span className={styles.updated} role="status">
-              {refreshing
-                ? "Refreshing data…"
-                : message || `Updated ${time} · Toronto`}
+              <StatusMark
+                state={refreshing ? "running" : "idle"}
+                label={
+                  refreshing
+                    ? "Refreshing data…"
+                    : message || `Updated ${time} · Toronto`
+                }
+              />
             </span>
           </div>
           {editing && (
@@ -428,28 +440,32 @@ export function DashboardWorkspace({
               <div>
                 <label>
                   Spacing{" "}
-                  <select
+                  <CGSelect
+                    label="Widget spacing"
+                    disabled={saving}
                     value={draft.density}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       setDraft((current) => ({
                         ...current,
-                        density: e.target.value as Workspace["density"],
+                        density: value as Workspace["density"],
                       }))
                     }
-                  >
-                    <option value="comfortable">Comfortable</option>
-                    <option value="compact">Compact</option>
-                  </select>
+                    options={[
+                      { value: "comfortable", label: "Comfortable" },
+                      { value: "compact", label: "Compact" },
+                    ]}
+                  />
                 </label>
                 <button
                   className={styles.textButton}
                   onClick={() => setDialog("reset")}
+                  disabled={saving}
                 >
                   Reset layout
                 </button>
                 <button
                   className={styles.smallButton}
-                  disabled={draft.widgets.length >= MAX_WIDGETS}
+                  disabled={saving || draft.widgets.length >= MAX_WIDGETS}
                   onClick={() => setDialog("library")}
                 >
                   + Add widget
@@ -465,7 +481,7 @@ export function DashboardWorkspace({
                 <p>Choose the information to show on your dashboard.</p>
                 <button
                   className={styles.primaryButton}
-                  disabled={!!loadError}
+                  disabled={!!loadError || saving}
                   onClick={() =>
                     editing ? setDialog("library") : beginEdit(true)
                   }
@@ -524,6 +540,7 @@ export function DashboardWorkspace({
                           <button
                             className={styles.widgetSettings}
                             aria-label={`Configure ${widget.title}`}
+                            disabled={saving}
                             onClick={() => setDialog(widget.id)}
                           >
                             <IconSliders className={styles.icon} />
@@ -536,7 +553,11 @@ export function DashboardWorkspace({
                       </div>
                       <div
                         className={styles.widgetBody}
-                        key={`${widget.id}-${updatedAt}`}
+                        key={
+                          canAnimateWorkspaceMetric(widget.source)
+                            ? widget.id
+                            : `${widget.id}-${updatedAt}`
+                        }
                       >
                         {dataByKey.has(widget.source) ? (
                           <WidgetContent
@@ -712,21 +733,23 @@ export function DashboardWorkspace({
                   {selection.display === "list"
                     ? "Items to show"
                     : "Categories to show"}
-                  <select
-                    value={selection.limit}
-                    onChange={(e) =>
+                  <CGSelect
+                    label={
+                      selection.display === "list"
+                        ? "Items to show"
+                        : "Categories to show"
+                    }
+                    value={String(selection.limit)}
+                    onChange={(value) =>
                       updateWidget(selection.id, {
-                        limit: Number(e.target.value),
+                        limit: Number(value),
                       })
                     }
-                  >
-                    {Array.from({ length: 18 }, (_, i) => i + 3).map((n) => (
-                      <option key={n} value={n}>
-                        Up to {n}{" "}
-                        {selection.display === "list" ? "items" : "categories"}
-                      </option>
-                    ))}
-                  </select>
+                    options={Array.from({ length: 18 }, (_, i) => ({
+                      value: String(i + 3),
+                      label: `Up to ${i + 3} ${selection.display === "list" ? "items" : "categories"}`,
+                    }))}
+                  />
                   <span className={styles.fieldHint}>
                     Controls the amount of content, not the widget’s size.
                   </span>

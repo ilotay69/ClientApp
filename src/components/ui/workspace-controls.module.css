@@ -1,0 +1,468 @@
+/* CG workspace controls. Deliberately scoped: importing these never restyles legacy UI. */
+.select,
+.popup,
+.toast,
+.numberField,
+.setting,
+.completion,
+.status {
+  --cg-accent: #de3439;
+  --cg-ink: #30372f;
+  --cg-muted: #69756b;
+  --cg-line: #dfe4da;
+  --cg-surface: #fcfdf9;
+  color-scheme: light;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--cg-ink);
+}
+.select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--cg-line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms,
+    background 140ms;
+}
+.select > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select:hover,
+.select[data-popup-open] {
+  border-color: #bbc4b9;
+  background: #f9faf6;
+}
+.chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transition: transform 160ms;
+}
+.select[data-popup-open] .chevron {
+  transform: rotate(180deg);
+}
+.positioner {
+  z-index: 110;
+  outline: none;
+}
+.popup {
+  width: max(var(--anchor-width), 200px);
+  max-width: min(360px, calc(100vw - 24px));
+  border: 1px solid var(--cg-line);
+  border-radius: 13px;
+  padding: 5px;
+  background: var(--cg-surface);
+  box-shadow:
+    0 12px 40px #2832281c,
+    0 2px 6px #2832280a;
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 130ms ease,
+    transform 150ms ease;
+}
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+.options {
+  max-height: min(280px, var(--available-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  outline: none;
+  cursor: default;
+  transition: background 100ms;
+}
+.option[data-highlighted] {
+  background: #edf0e9;
+}
+.option[data-selected] {
+  color: #a92329;
+}
+.option[data-disabled] {
+  opacity: 0.45;
+}
+.optionLabel {
+  flex: 1;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8b968c;
+  flex-shrink: 0;
+}
+.dot[data-tone="red"] {
+  background: #de3439;
+}
+.dot[data-tone="amber"] {
+  background: #b88734;
+}
+.dot[data-tone="green"] {
+  background: #537c67;
+}
+.optionCheck {
+  width: 16px;
+  height: 16px;
+}
+.searchInput {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--cg-line);
+  border-radius: 8px;
+  background: white;
+  color: var(--cg-ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 10px;
+  margin-bottom: 5px;
+}
+.empty {
+  color: var(--cg-muted);
+  font-size: 12px;
+  padding: 16px 10px;
+}
+.empty:empty {
+  display: none;
+}
+.completion {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 5px;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.checkBox {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #b9c2b6;
+  border-radius: 7px;
+  transition:
+    background 150ms,
+    border-color 150ms,
+    transform 180ms;
+}
+.checkBox svg {
+  width: 14px;
+  height: 14px;
+}
+.checkBox path {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  transition: stroke-dashoffset 180ms ease-out;
+}
+.completion[aria-checked="true"] .checkBox {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  color: white;
+}
+.completion[aria-checked="true"] path {
+  stroke-dashoffset: 0;
+}
+.completion:not(:disabled):active .checkBox {
+  transform: scale(0.9);
+}
+.completion:not(:disabled):hover {
+  background: #f1f3ed;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: inherit;
+}
+.statusIcon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+}
+.statusIcon svg {
+  width: 15px;
+  height: 15px;
+}
+.status[data-state="success"] .statusIcon {
+  color: #537c67;
+}
+.status[data-state="error"] .statusIcon {
+  color: #c23138;
+}
+.spinner {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: turn 850ms linear infinite;
+}
+.number {
+  display: inline-grid;
+  font-variant-numeric: tabular-nums;
+}
+.number > span {
+  grid-area: 1 / 1;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 13px;
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  width: 38px;
+  height: 24px;
+  padding: 3px;
+  border: 1px solid #c6cdc1;
+  background: #e6eae1;
+  border-radius: 99px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background 160ms,
+    border-color 160ms;
+}
+.switch > span {
+  width: 16px;
+  height: 16px;
+  border-radius: 99px;
+  background: white;
+  box-shadow: 0 1px 3px #26302226;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.switch[aria-checked="true"] {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+}
+.switch[aria-checked="true"] > span {
+  transform: translateX(14px);
+}
+.select:disabled,
+.completion:disabled,
+.switch:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.numberField {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+}
+.scrubLabel {
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
+}
+.numberField .scrubLabel label {
+  display: inline;
+}
+.scrubLabel span {
+  color: var(--cg-muted);
+  margin-left: 6px;
+}
+.numberGroup {
+  display: flex;
+  border: 1px solid var(--cg-line);
+  background: white;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.numberGroup button {
+  width: 36px;
+  min-height: 38px;
+  flex-shrink: 0;
+  border: 0;
+  background: #f6f8f2;
+  color: var(--cg-ink);
+  cursor: pointer;
+  font-size: 18px;
+}
+.numberGroup button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.numberGroup input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 8px;
+  text-align: center;
+  background: white;
+  color: var(--cg-ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.numberHint {
+  color: var(--cg-muted);
+  font-size: 11px;
+}
+.toastViewport {
+  position: fixed;
+  z-index: 120;
+  right: 24px;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  width: min(380px, calc(100vw - 32px));
+  max-height: 45dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  outline: none;
+  padding: 5px;
+}
+.toast {
+  flex-shrink: 0;
+  padding: 13px 14px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-line);
+  border-radius: 13px;
+  box-shadow: 0 5px 18px #26302215;
+  transform: translateX(var(--toast-swipe-movement-x, 0px));
+  transition:
+    opacity 160ms,
+    transform 160ms;
+}
+.toast[data-starting-style],
+.toast[data-ending-style] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.toast[data-swiping] {
+  transition: none;
+  user-select: none;
+}
+.toast[data-type="error"] {
+  border-color: #ebc9ca;
+}
+.toastContent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toastText {
+  flex: 1;
+  min-width: 0;
+}
+.toastTitle {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.toastDescription {
+  font-size: 11px;
+  color: var(--cg-muted);
+  margin-top: 3px;
+}
+.toastAction,
+.toastClose {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--cg-accent);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.toastAction:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.toastClose {
+  color: var(--cg-muted);
+  font-size: 18px;
+}
+.toastAction:hover,
+.toastClose:hover {
+  background: #f0f2ec;
+}
+.select:focus-visible,
+.completion:focus-visible,
+.switch:focus-visible,
+.searchInput:focus-visible,
+.numberGroup :focus-visible,
+.toast button:focus-visible {
+  outline: 2px solid #de3439;
+  outline-offset: 2px;
+}
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 600px) {
+  .toastViewport {
+    right: 11px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .option {
+    min-height: 44px;
+  }
+  .select {
+    min-height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .select,
+  .chevron,
+  .popup,
+  .option,
+  .checkBox,
+  .checkBox path,
+  .switch,
+  .switch > span,
+  .toast {
+    transition: none;
+  }
+  .spinner {
+    animation: none;
+    border-style: dotted;
+  }
+}

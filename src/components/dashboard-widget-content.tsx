@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ThinkingOrb } from "thinking-orbs";
 import { fetchLiveDashboardWidget } from "@/app/(dashboard)/dashboard/live-widget-action";
 import { acknowledgeDashboardAlert } from "@/app/(dashboard)/dashboard/workspace-actions";
 import type {
@@ -13,34 +12,18 @@ import type {
 import styles from "./dashboard-workspace.module.css";
 import { ExpandableCard } from "./ui/bento-card";
 import { AnimatedTooltip } from "./ui/context-preview";
-
-function subscribeMotion(callback: () => void) {
-  const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
-}
+import { StatusMark } from "./ui/status-mark";
+import { AnimatedNumber } from "./ui/animated-number";
+import { canAnimateWorkspaceMetric } from "@/lib/workspace-controls";
 
 export function DashboardOrb({
   label = "Loading live data…",
 }: {
   label?: string;
 }) {
-  const reduced = useSyncExternalStore(
-    subscribeMotion,
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    () => true,
-  );
   return (
     <div className={styles.loading} role="status">
-      <span aria-hidden="true">
-        <ThinkingOrb
-          state="connecting"
-          size={20}
-          theme="light"
-          paused={reduced}
-        />
-      </span>
-      <span>{label}</span>
+      <StatusMark state="running" label={label} />
     </div>
   );
 }
@@ -120,8 +103,9 @@ export function WidgetContent({
   if (data.error)
     return (
       <div className={styles.connection}>
-        <span className={styles.connectionIcon}>↗</span>
-        <strong>Connection needs attention</strong>
+        <strong>
+          <StatusMark state="error" label="Connection needs attention" />
+        </strong>
         <p>{data.error}</p>
       </div>
     );
@@ -144,7 +128,13 @@ export function WidgetContent({
   return (
     <>
       <div className={styles.widgetValue}>
-        <strong>{number(total)}</strong>
+        <strong>
+          {canAnimateWorkspaceMetric(data.key) ? (
+            <AnimatedNumber value={total} maximumFractionDigits={1} />
+          ) : (
+            number(total)
+          )}
+        </strong>
         <span>{data.unit}</span>
         {(data.rows.length > 0 || data.series.length > 0) && (
           <ExpandableCard
