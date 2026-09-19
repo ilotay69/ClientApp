@@ -70,7 +70,11 @@ export default async function PortalHuntressPage({
 
           <PortalCard title="Protected endpoints">
             {rows.length === 0 ? (
-              <EmptyRow>No endpoints match these filters.</EmptyRow>
+              <EmptyRow>
+                {totalBeforeFilter === 0
+                  ? "No protected endpoints have been reported for your account yet."
+                  : "No endpoints match these filters."}
+              </EmptyRow>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">

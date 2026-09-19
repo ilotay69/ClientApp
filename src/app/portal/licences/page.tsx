@@ -83,7 +83,11 @@ export default async function PortalLicencesPage({
 
           <PortalCard title="By subscription">
             {rows.length === 0 ? (
-              <EmptyRow>No subscriptions match these filters.</EmptyRow>
+              <EmptyRow>
+                {totalBeforeFilter === 0
+                  ? "No licence data has synced for your Microsoft 365 tenant yet."
+                  : "No subscriptions match these filters."}
+              </EmptyRow>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
