@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   PORTAL_FILTER_KEYS,
@@ -81,11 +81,30 @@ export function PortalFilterBar({
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
+  // The debounced search below fires up to 350ms after the keystroke that
+  // scheduled it, by which time the user may have changed a select. Reading
+  // the filter set through a ref at FIRE time rather than closing over it at
+  // SCHEDULE time is what stops the timer from writing back a stale set and
+  // silently undoing that select.
+  const latest = useRef({ filters, preview });
+  // Synced in an effect, not during render — writing a ref while rendering
+  // is not allowed. No dependency array on purpose: this must track EVERY
+  // render, and it is declared above the debounce effect so it has already
+  // run by the time a timer is scheduled.
+  useEffect(() => {
+    latest.current = { filters, preview };
+  });
+
   // Debounced so typing doesn't fire a server round-trip per character.
   useEffect(() => {
     const current = filters.q ?? "";
     if (search === current) return;
-    const timer = setTimeout(() => apply({ q: search || null }), 350);
+    const timer = setTimeout(() => {
+      const { filters: current, preview: currentPreview } = latest.current;
+      const params = portalSearchParams(current, currentPreview, { q: search || null });
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }, 350);
     return () => clearTimeout(timer);
     // apply/filters are recreated each render; the guard above is what
     // actually prevents a loop, not the dependency list.

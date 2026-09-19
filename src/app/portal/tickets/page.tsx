@@ -38,25 +38,29 @@ export default async function PortalTicketsPage({
         isPreview={session.isPreview}
       />
 
-      <PortalFilterBar
-        section="tickets"
-        searchPlaceholder="Search tickets…"
-        downloads={{ csv: true, pdf: true }}
-        resultLabel={`${rows.length} of ${totalBeforeFilter} open`}
-        selects={[
-          {
-            key: "days",
-            label: "Opened or active in",
-            options: DAY_OPTIONS.map((d) => ({ value: String(d), label: `Last ${d} days` })),
-          },
-          { key: "status", label: "Status", options: facets.status ?? [] },
-          { key: "priority", label: "Priority", options: facets.priority ?? [] },
-        ]}
-      />
-
       {unavailableReason ? (
         <PortalUnavailable>{unavailableReason}</PortalUnavailable>
       ) : (
+        <>
+        {/* Inside the available branch on purpose: the bar carries the
+            download buttons, and offering a CSV of a section that has no
+            data to give lands the client on a bare error response. */}
+        <PortalFilterBar
+          section="tickets"
+          searchPlaceholder="Search tickets…"
+          downloads={{ csv: true, pdf: true }}
+          resultLabel={`${rows.length} of ${totalBeforeFilter} open`}
+          selects={[
+            {
+              key: "days",
+              label: "Opened or active in",
+              options: DAY_OPTIONS.map((d) => ({ value: String(d), label: `Last ${d} days` })),
+            },
+            { key: "status", label: "Status", options: facets.status ?? [] },
+            { key: "priority", label: "Priority", options: facets.priority ?? [] },
+          ]}
+        />
+
         <PortalCard
           title={`${rows.length} ticket${rows.length === 1 ? "" : "s"}`}
           action={
@@ -67,6 +71,7 @@ export default async function PortalTicketsPage({
         >
           <PortalTicketsTable tickets={rows} />
         </PortalCard>
+        </>
       )}
     </div>
   );
