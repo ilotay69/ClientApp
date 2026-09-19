@@ -130,7 +130,7 @@ function PortalNavInner({
         </nav>
       )}
 
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-slate-200 bg-white px-4 py-6 md:flex">
+      <aside className="fixed bottom-0 top-[var(--env-banner-height)] left-0 hidden w-60 flex-col border-r border-slate-200 bg-white px-4 py-6 md:flex">
         <div className="px-3">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
             CG Technologies

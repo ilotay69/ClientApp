@@ -403,7 +403,7 @@ export function SidebarNav({
           px-4/py-3 with a 0px inset on any device without a notch, leaving
           the title flush against the edge. max() keeps the normal padding
           as the floor. */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white pb-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
+      <div className="sticky top-[var(--env-banner-height)] z-30 flex items-center justify-between border-b border-slate-200 bg-white pb-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
         <span className="flex items-center gap-1.5 text-sm font-semibold text-charcoal">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/cg-mark.svg" alt="" className="h-5 w-5 shrink-0" />
@@ -421,7 +421,7 @@ export function SidebarNav({
 
       {/* Mobile drawer + backdrop */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-x-0 bottom-0 top-[var(--env-banner-height)] z-40 md:hidden">
           <div
             className="absolute inset-0 bg-charcoal/60"
             onClick={() => setMobileOpen(false)}
@@ -432,7 +432,7 @@ export function SidebarNav({
       )}
 
       {/* Desktop fixed sidebar */}
-      <div className="hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-64">
+      <div className="hidden md:fixed md:bottom-0 md:top-[var(--env-banner-height)] md:left-0 md:z-30 md:flex md:w-64">
         {sidebarContent}
       </div>
     </>

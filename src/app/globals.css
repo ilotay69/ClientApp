@@ -51,6 +51,16 @@
   --text-4xl--line-height: 2.1875rem;
 }
 
+/* Fixed navigation must reserve the same space as the environment strip.
+ * Keep the offset at zero when the label is unset (production). */
+:root {
+  --env-banner-height: 0px;
+}
+
+:root[data-env-banner="true"] {
+  --env-banner-height: 1.5rem;
+}
+
 body {
   background: #ffffff;
   color: var(--color-charcoal);

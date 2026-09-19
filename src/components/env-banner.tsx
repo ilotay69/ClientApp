@@ -18,9 +18,9 @@ export function EnvBanner() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-[100] bg-amber-400 px-3 py-1 text-center text-xs font-bold uppercase tracking-[0.2em] text-amber-950"
+      className="sticky top-0 z-[100] flex h-[var(--env-banner-height)] shrink-0 items-center justify-center bg-amber-400 px-3 text-center text-xs font-bold uppercase tracking-[0.2em] text-amber-950"
     >
-      {label}
+      <span className="truncate">{label}</span>
     </div>
   );
 }
