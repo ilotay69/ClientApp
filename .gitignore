@@ -21,8 +21,15 @@
 /build
 
 # misc
-.DS_Store
+**/.DS_Store
 *.pem
+
+# supabase cli scratch (created by `supabase` commands, never committed)
+supabase/.temp/
+
+# local-only credentials handed to a person, never to git — see
+# .env.example for what each one is
+/staging-credentials.txt
 
 # debug
 npm-debug.log*
