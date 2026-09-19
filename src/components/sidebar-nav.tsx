@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -27,6 +27,7 @@ import {
   IconSliders,
   IconFileText,
   IconNetwork,
+  IconChevronDown,
 } from "@/components/icons";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -41,6 +42,58 @@ type NavItem = {
    * the permission to another role. */
   ownerOnly?: boolean;
 };
+
+function CollapsibleNavSection({
+  label,
+  links,
+  renderLink,
+}: {
+  label: string;
+  links: NavItem[];
+  renderLink: (item: NavItem) => React.ReactNode;
+}) {
+  const contentId = useId();
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+        aria-controls={contentId}
+        className="group flex w-full items-center justify-between gap-2 rounded-md px-3 py-1 text-left text-xs font-semibold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+      >
+        <span>{label}</span>
+        <IconChevronDown
+          className={`h-3.5 w-3.5 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+            isOpen ? "rotate-0" : "-rotate-90"
+          }`}
+        />
+      </button>
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div
+          id={contentId}
+          aria-hidden={!isOpen}
+          inert={!isOpen}
+          className="overflow-hidden"
+        >
+          <div
+            className={`space-y-0.5 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+              isOpen ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"
+            }`}
+          >
+            {links.map(renderLink)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function SidebarNav({
   userLabel,
@@ -296,21 +349,19 @@ export function SidebarNav({
         <div className="space-y-0.5">{MAIN_LINKS.map(renderLink)}</div>
 
         {insightsLinks.length > 0 && (
-          <div>
-            <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
-              Insights &amp; Reports
-            </p>
-            <div className="space-y-0.5">{insightsLinks.map(renderLink)}</div>
-          </div>
+          <CollapsibleNavSection
+            label="Insights & Reports"
+            links={insightsLinks}
+            renderLink={renderLink}
+          />
         )}
 
         {settingsLinks.length > 0 && (
-          <div>
-            <p className="px-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-white/70">
-              Settings &amp; Tools
-            </p>
-            <div className="space-y-0.5">{settingsLinks.map(renderLink)}</div>
-          </div>
+          <CollapsibleNavSection
+            label="Settings & Tools"
+            links={settingsLinks}
+            renderLink={renderLink}
+          />
         )}
       </nav>
 
