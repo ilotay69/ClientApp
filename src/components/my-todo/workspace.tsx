@@ -433,17 +433,6 @@ export function TodoWorkspace({
   }
   return (
     <div className={s.workspace} data-density={preferences.density}>
-      <div className={s.topbar}>
-        <div className={s.breadcrumb}>
-          Workspace <span>/</span>
-          <strong>My To-Do</strong>
-        </div>
-        <TodoViewSwitch
-          view="new"
-          preferences={preferences}
-          save={actions.preferences}
-        />
-      </div>
       <header className={s.header}>
         <div>
           <h1>My To-Do</h1>
@@ -459,6 +448,11 @@ export function TodoWorkspace({
           </p>
         </div>
         <div className={s.actions}>
+          <TodoViewSwitch
+            view="new"
+            preferences={preferences}
+            save={actions.preferences}
+          />
           <AnimatedTooltip content="Change spacing, visible columns, and panel width">
             <button
               className={s.iconButton}

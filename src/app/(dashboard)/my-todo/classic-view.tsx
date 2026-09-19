@@ -131,7 +131,9 @@ const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 
 export default async function ClassicMyTodo({
   searchParams,
+  viewControl,
 }: {
+  viewControl?: React.ReactNode;
   searchParams: Promise<{
     tab?: string;
     client?: string;
@@ -491,6 +493,7 @@ export default async function ClassicMyTodo({
       ]}
       defaultActive={TAB_INDEX[tab ?? ""] ?? 0}
       orientation="vertical"
+      navigationFooter={viewControl}
     />
   );
 }

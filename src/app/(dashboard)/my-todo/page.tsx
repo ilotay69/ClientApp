@@ -44,22 +44,16 @@ export default async function MyTodoPage({
       : preferences.view;
   if (view === "old")
     return (
-      <>
-        <div className={s.workspace}>
-          <div className={s.topbar}>
-            <div className={s.breadcrumb}>
-              Workspace <span>/</span>
-              <strong>My To-Do</strong>
-            </div>
-            <TodoViewSwitch
-              view="old"
-              preferences={preferences}
-              save={actions.saveTodoPreferences}
-            />
-          </div>
-        </div>
-        <ClassicMyTodo searchParams={Promise.resolve(params)} />
-      </>
+      <ClassicMyTodo
+        searchParams={Promise.resolve(params)}
+        viewControl={
+          <TodoViewSwitch
+            view="old"
+            preferences={preferences}
+            save={actions.saveTodoPreferences}
+          />
+        }
+      />
     );
   const result = await actions.loadTodoWorkspace();
   if (result.error !== undefined)

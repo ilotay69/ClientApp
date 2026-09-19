@@ -139,27 +139,11 @@
   outline: 2px solid #e93e3f;
   outline-offset: 4px;
 }
-.topbar {
+.classicViewControls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--line);
-}
-.breadcrumb {
-  color: var(--muted);
-  font-size: 12px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.breadcrumb strong {
-  font-weight: 500;
-  color: var(--ink);
-}
-.breadcrumb > span {
-  color: #bec3bd;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 .viewSwitch {
   display: flex;
@@ -193,16 +177,13 @@
   flex-shrink: 0;
 }
 .modern {
-  padding-top: 32px;
   font-size: 13px;
-}
-.classic {
-  padding-top: 24px;
 }
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 24px;
   margin-bottom: 30px;
 }
@@ -1228,16 +1209,6 @@ a.row:hover .rowText strong {
 @media (max-width: 767px) {
   .workspace {
     padding: 0;
-  }
-  .topbar {
-    padding-bottom: 18px;
-  }
-  .breadcrumb {
-    font-size: 10px;
-    gap: 7px;
-  }
-  .modern {
-    padding-top: 24px;
   }
   .header {
     margin-bottom: 22px;

@@ -278,43 +278,43 @@ export function DashboardWorkspace({
     });
   }
 
+  const viewSwitch = (
+    <AnimatedTabs
+      className={styles.viewSwitch}
+      label="Dashboard view"
+      value={saved.view}
+      disabled={editing || saving}
+      onChange={changeView}
+      items={[
+        { value: "old", label: "Old view" },
+        {
+          value: "new",
+          label: (
+            <>
+              <IconGrid className={styles.icon} />
+              New view
+            </>
+          ),
+        },
+      ]}
+    />
+  );
   return (
     <div
       ref={containerRef}
       className={styles.workspace}
       data-density={config.density}
     >
-      <div className={styles.topbar}>
-        <span className={styles.breadcrumb}>
-          Workspace <span>/</span> <strong>Overview</strong>
-        </span>
-        <AnimatedTabs
-          className={styles.viewSwitch}
-          label="Dashboard view"
-          value={saved.view}
-          disabled={editing || saving}
-          onChange={changeView}
-          items={[
-            { value: "old", label: "Old view" },
-            {
-              value: "new",
-              label: (
-                <>
-                  <IconGrid className={styles.icon} />
-                  New view
-                </>
-              ),
-            },
-          ]}
-        />
-      </div>
       {(error || loadError) && (
         <div className={styles.error} role="alert">
           {error || loadError}
         </div>
       )}
       {saved.view === "old" ? (
-        <div className={styles.classic}>{children}</div>
+        <div className={styles.classic}>
+          <div className={styles.classicViewControls}>{viewSwitch}</div>
+          {children}
+        </div>
       ) : (
         <div className={styles.modern}>
           <NoticeRegion manager={notices} />
@@ -328,6 +328,7 @@ export function DashboardWorkspace({
               <p className={styles.subtitle}>{date}</p>
             </div>
             <div className={styles.headerActions}>
+              {viewSwitch}
               <AnimatedTooltip content="Reload the dashboard and live integrations">
                 <StatefulButton
                   className={styles.button}

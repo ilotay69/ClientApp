@@ -92,28 +92,6 @@
   display: inline-block;
   vertical-align: middle;
 }
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 20px;
-}
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.breadcrumb span {
-  color: #667064;
-}
-.breadcrumb strong {
-  color: var(--ink);
-  font-weight: 500;
-}
 .viewSwitch,
 .segmented {
   display: inline-flex;
@@ -149,7 +127,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin: 30px 0 26px;
+  flex-wrap: wrap;
+  margin: 0 0 26px;
 }
 .header h1 {
   font-size: 34px;
@@ -1822,14 +1801,6 @@
   .workspace {
     padding: 0 0 28px;
   }
-  .topbar {
-    gap: 10px;
-    padding-bottom: 16px;
-  }
-  .breadcrumb {
-    font-size: 10px;
-    gap: 7px;
-  }
   .viewSwitch {
     padding: 3px;
   }
@@ -1839,7 +1810,7 @@
   }
   .header {
     align-items: flex-start;
-    margin: 24px 0 22px;
+    margin: 0 0 22px;
     gap: 12px;
   }
   .header h1 {
@@ -1853,9 +1824,10 @@
     max-width: 190px;
   }
   .header > .actions {
-    gap: 5px;
-    justify-content: flex-end;
-    max-width: 170px;
+    gap: 8px;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: none;
   }
   .header .button {
     display: none;

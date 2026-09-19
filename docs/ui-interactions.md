@@ -90,6 +90,8 @@ The palette is warm white, charcoal and CG red. Highlights animate backgrounds, 
 
 ## Verification
 
+Clients **New view** now reuses this foundation and adds the client-specific compositions documented in [client-workspace.md](./client-workspace.md). Shared additions include `CGBranchedNav`, `CGRecordTable`, `CGActionPopover`, `CGDocumentDropzone`, `CGConfirmDiscard`, and `useBrowserPreference`. Classic Clients and the global sidebar retain their existing appearance.
+
 ```sh
 node --test tests/action-feedback.test.mjs tests/dashboard-workspace.test.mjs tests/my-todo-workspace.test.mjs tests/workspace-controls.test.mjs
 npx eslint src/components/ui src/components/my-todo src/components/dashboard-workspace.tsx src/components/dashboard-widget-content.tsx src/lib/action-feedback.ts
