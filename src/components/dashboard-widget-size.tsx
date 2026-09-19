@@ -10,7 +10,6 @@ import {
 } from "@/lib/dashboard-workspace";
 import styles from "./dashboard-widget-size.module.css";
 import { PrecisionField } from "./ui/precision-field";
-import { CGSelect } from "./ui/cg-select";
 
 export function DashboardWidgetSize({
   width,
@@ -60,45 +59,46 @@ export function DashboardWidgetSize({
           </span>
         </p>
       </div>
-      <div className={styles.selectors}>
-        <div className={styles.selectField}>
-          <span>Width</span>
-          <CGSelect
-            label="Width"
-            value={String(width)}
-            onChange={(value) => onChange(Number(value))}
-            options={[
-              ...(!WIDGET_WIDTHS.some((size) => size.value === width)
-                ? [{ value: String(width), label: widthLabel }]
-                : []),
-              ...WIDGET_WIDTHS.map((size) => ({
-                value: String(size.value),
-                label: `${size.label} · ${size.detail}`,
-              })),
-            ]}
-          />
+      <fieldset className={styles.choices}>
+        <legend>How much of the row?</legend>
+        <div className={styles.widthOptions}>
+          {WIDGET_WIDTHS.map((size) => (
+            <button
+              type="button"
+              key={size.value}
+              aria-pressed={width === size.value}
+              aria-label={`${size.label}, ${size.detail} of dashboard width`}
+              onClick={() => onChange(size.value)}
+            >
+              <span className={styles.widthTrack} aria-hidden="true">
+                <span style={{ width: `${(size.value / 12) * 100}%` }} />
+              </span>
+              <strong>{size.label}</strong>
+              <small>{size.detail}</small>
+            </button>
+          ))}
         </div>
-        <div className={styles.selectField}>
-          <span>Height</span>
-          <CGSelect
-            label="Height"
-            value={String(height)}
-            onChange={(value) => onChange(undefined, Number(value))}
-            options={[
-              ...(!WIDGET_HEIGHTS.some((size) => size.value === height)
-                ? [{ value: String(height), label: `Custom · ${pixels}px` }]
-                : []),
-              ...WIDGET_HEIGHTS.map((size) => ({
-                value: String(size.value),
-                label: `${size.label} · ${widgetHeightPixels(size.value, density)}px`,
-              })),
-            ]}
-          />
+      </fieldset>
+      <fieldset className={styles.choices}>
+        <legend>How tall?</legend>
+        <div className={styles.heightOptions}>
+          {WIDGET_HEIGHTS.map((size) => (
+            <button
+              type="button"
+              key={size.value}
+              aria-pressed={height === size.value}
+              onClick={() => onChange(undefined, size.value)}
+            >
+              <strong>{size.label}</strong>
+              <small>{widgetHeightPixels(size.value, density)}px</small>
+            </button>
+          ))}
         </div>
-      </div>
+      </fieldset>
       <p className={styles.hint}>
-        Desktop proportions, not actual scale. Widgets automatically fill the
-        row on phones.
+        Size guide, not actual scale. On phones, widgets fill the row. Smaller
+        screens use two columns for narrow widgets and full width for wider
+        ones.
       </p>
       <details className={styles.precision}>
         <summary>Fine-tune size</summary>

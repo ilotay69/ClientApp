@@ -16,7 +16,8 @@ import { ForticloudExpiringWidget } from "@/components/forticloud-expiring-widge
 import { MyTicketsWidget } from "@/components/my-tickets-widget";
 import { DashboardRefreshButton } from "@/components/dashboard-refresh-button";
 import { DashboardWorkspace } from "@/components/dashboard-workspace";
-import { normalizeWorkspace, groupSeries, type WidgetData } from "@/lib/dashboard-workspace";
+import { normalizeWorkspace, groupSeries, seriesCategory, type WidgetData } from "@/lib/dashboard-workspace";
+import { readDashboardSnapshot } from "@/lib/dashboard-snapshot";
 import { saveDashboardWorkspace } from "./workspace-actions";
 import {
   IconAlertTriangle,
@@ -112,51 +113,51 @@ export default async function DashboardPage() {
     { data: openSalesRequests, error: salesError },
     { data: recruitmentRows, error: recruitmentError },
   ] = await Promise.all([
-    supabase
+    readDashboardSnapshot((from, to) => supabase
       .from("tasks")
       .select("id, kind, title, due_date, clients(name)")
       .eq("assigned_to", user?.id ?? "")
       .not("status", "in", "(done,dismissed)")
-      .order("due_date", { ascending: true, nullsFirst: false }),
+      .order("due_date", { ascending: true, nullsFirst: false }).order("id").range(from, to)),
     // RLS already scopes this to the current user's own personal tasks
     // (see supabase/023_task_privacy.sql) — same query my-todo's "My
-    // Tasks" tab uses, just capped to 5 for the widget.
-    supabase
+    // Tasks" tab uses; the card limits display, not its drill-down records.
+    readDashboardSnapshot((from, to) => supabase
       .from("tasks")
       .select("id, title, due_date, clients(name)")
       .eq("is_personal", true)
       .neq("status", "done")
-      .order("due_date", { ascending: true, nullsFirst: false }),
-    supabase
+      .order("due_date", { ascending: true, nullsFirst: false }).order("id").range(from, to)),
+    eligibleKeys.has("team_workload") ? readDashboardSnapshot((from, to) => supabase
       .from("tasks")
-      .select("id, assigned_to, profiles:assigned_to(full_name)")
+      .select("id, title, due_date, clients(name), assigned_to, profiles:assigned_to(full_name)")
       .eq("is_personal", false)
-      .not("status", "in", "(done,dismissed)"),
-    supabase
+      .not("status", "in", "(done,dismissed)").order("id").range(from, to)) : Promise.resolve({ data: [], error: null }),
+    readDashboardSnapshot((from, to) => supabase
       .from("touchpoints")
       .select("id, contact_method, due_date, owner_id, clients(name)")
       .is("completed_at", null)
-      .order("due_date", { ascending: true }),
-    supabase
+      .order("due_date", { ascending: true }).order("id").range(from, to)),
+    readDashboardSnapshot((from, to) => supabase
       .from("projects")
       .select("id, name, status, target_end_date, clients(name)")
       .in("status", ["planning", "active", "on_hold"])
-      .order("target_end_date", { ascending: true, nullsFirst: false }),
-    supabase
+      .order("target_end_date", { ascending: true, nullsFirst: false }).order("id").range(from, to)),
+    readDashboardSnapshot((from, to) => supabase
       .from("alerts")
       .select("id, title, detail, href")
       .eq("recipient_id", user?.id ?? "")
       .is("acknowledged_at", null)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false }).order("id").range(from, to)),
     eligibleKeys.has("quarterly_reviews") && user?.id
       ? fetchMyCrossClientReviews(user.id, isApprover)
       : Promise.resolve([]),
-    supabase
+    readDashboardSnapshot((from, to) => supabase
       .from("sales_requests")
       .select("id, title, stage, clients(name)")
       .not("stage", "in", "(delivered,cancelled)")
-      .order("created_at", { ascending: false }),
-    supabase.from("resumes").select("status"),
+      .order("created_at", { ascending: false }).order("id").range(from, to)),
+    eligibleKeys.has("recruitment") ? readDashboardSnapshot((from, to) => supabase.from("resumes").select("id, candidate_name, sender_name, status").order("id").range(from, to)) : Promise.resolve({ data: [], error: null }),
   ]);
 
   const myOpenTouchpoints = (dueTouchpoints ?? []).filter((t) => t.owner_id === user?.id);
@@ -237,18 +238,24 @@ export default async function DashboardPage() {
   const clientName = (value: unknown) => (value as { name: string } | null)?.name ?? "No client";
   const dueBucket = (date: string | null) => !date ? "Unscheduled" : date < today ? "Overdue" : date === today ? "Today" : date <= new Date(new Date(today).getTime() + 7 * 86400000).toISOString().slice(0, 10) ? "Next 7 days" : "Later";
   const taskSeries = groupSeries((myTasks ?? []).map((t) => dueBucket(t.due_date)));
-  const taskRows = (myTasks ?? []).map((t) => ({ id: t.id, title: t.title, detail: clientName(t.clients), badge: t.due_date ? formatDate(t.due_date) : "No date", urgent: isOverdue(t.due_date), href: "/tasks?mine=1" }));
+  const taskRows = (myTasks ?? []).map((t) => ({ category: dueBucket(t.due_date), id: t.id, title: t.title, detail: clientName(t.clients), badge: t.due_date ? formatDate(t.due_date) : "No date", urgent: isOverdue(t.due_date), href: "/tasks?mine=1" }));
+  const workloadGroups = new Map<string, { label: string; value: number }>();
+  for (const task of allOpenTasks ?? []) {
+    const key = task.assigned_to ?? "unassigned";
+    const label = (task.profiles as unknown as { full_name: string } | null)?.full_name ?? (task.assigned_to ? "Unknown" : "Unassigned");
+    workloadGroups.set(key, { label, value: (workloadGroups.get(key)?.value ?? 0) + 1 });
+  }
   const modernData: WidgetData[] = [
     { key: "task_schedule", value: myTasks?.length ?? 0, unit: "open tasks", href: "/tasks?mine=1", series: ["Overdue", "Today", "Next 7 days", "Later", "Unscheduled"].map((label) => ({ label, value: taskSeries.find((s) => s.label === label)?.value ?? 0 })), rows: taskRows, empty: "Your task outlook is clear." },
     { key: "my_tasks", value: myTasks?.length ?? 0, unit: "assigned to you", href: "/tasks?mine=1", series: taskSeries, rows: taskRows, empty: "You’re all caught up. No open tasks assigned to you." },
-    { key: "my_personal_tasks", value: myPersonalTasks?.length ?? 0, unit: "personal tasks", href: "/my-todo?tab=tasks", series: groupSeries((myPersonalTasks ?? []).map((t) => dueBucket(t.due_date))), rows: (myPersonalTasks ?? []).map((t) => ({ id: t.id, title: t.title, detail: clientName(t.clients), badge: t.due_date ? formatDate(t.due_date) : "No date", urgent: isOverdue(t.due_date), href: "/my-todo?tab=tasks" })), empty: "A little room to think. Your personal list is clear." },
-    { key: "alerts", value: alertCount, unit: "need attention", href: "/my-todo", series: [{ label: "Unacknowledged", value: alertCount }], rows: (myAlerts ?? []).map((a) => ({ id: a.id, title: a.title, detail: a.detail ?? undefined, href: a.href ?? undefined, urgent: true })), empty: "All clear. No outstanding alerts." },
-    { key: "active_projects", value: activeProjects?.length ?? 0, unit: "open projects", href: "/projects", series: [{ label: "Active", value: projectStatusCounts.active }, { label: "Planning", value: projectStatusCounts.planning }, { label: "On hold", value: projectStatusCounts.on_hold }], rows: (activeProjects ?? []).map((p) => ({ id: p.id, title: p.name, detail: clientName(p.clients), badge: p.status.replaceAll("_", " "), href: `/projects/${p.id}` })), empty: "No projects in progress yet." },
-    { key: "team_workload", value: [...workloadByPerson.values()].reduce((a, b) => a + b, 0), unit: "open team tasks", href: "/tasks?view=all", series: [...workloadByPerson].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value })), rows: [...workloadByPerson].map(([title, n]) => ({ id: title, title, badge: `${n} tasks`, href: "/tasks?view=all" })), empty: "No open work across the team." },
-    ...([{ key: "touchpoints_due", items: overdueTouchpoints }, { key: "touchpoints_upcoming", items: upcomingTouchpoints }] as const).map(({ key, items }) => ({ key, value: items.length, unit: "client follow-ups", href: "/touchpoints", series: groupSeries(items.map((t) => t.contact_method)), rows: items.map((t) => ({ id: t.id, title: clientName(t.clients), detail: t.contact_method ?? "Follow-up", badge: formatDate(t.due_date), urgent: isOverdue(t.due_date), href: `/touchpoints/${t.id}` })), empty: "No follow-ups in this queue." })),
-    { key: "quarterly_reviews", value: myReviews.length, unit: "reviews to progress", href: "/quarterly-reviews", series: groupSeries(myReviews.map((r) => r.status)), rows: myReviews.map((r) => ({ id: r.id, title: r.clientName, detail: r.reviewPeriod, badge: r.status.replaceAll("_", " "), href: `/quarterly-reviews/${r.id}` })), empty: "No reviews need your attention." },
-    { key: "sales_requests", value: openSalesRequests?.length ?? 0, unit: "open sales requests", href: "/sales-requests", series: groupSeries((openSalesRequests ?? []).map((r) => r.stage)), rows: (openSalesRequests ?? []).map((r) => ({ id: r.id, title: r.title, detail: clientName(r.clients), badge: r.stage.replaceAll("_", " "), href: "/sales-requests" })), empty: "No open sales requests." },
-    { key: "recruitment", value: recruitmentRows?.length ?? 0, unit: "candidates across stages", href: "/recruitment", series: RECRUITMENT_STATUS_ORDER.map((s) => ({ label: s.label, value: recruitmentStatusCounts.get(s.value) ?? 0 })), rows: RECRUITMENT_STATUS_ORDER.map((s) => ({ id: s.value, title: s.label, badge: String(recruitmentStatusCounts.get(s.value) ?? 0), href: `/recruitment?status=${s.value}` })), empty: "No candidates yet." },
+    { key: "my_personal_tasks", value: myPersonalTasks?.length ?? 0, unit: "personal tasks", href: "/my-todo?tab=tasks", series: groupSeries((myPersonalTasks ?? []).map((t) => dueBucket(t.due_date))), rows: (myPersonalTasks ?? []).map((t) => ({ category: dueBucket(t.due_date), id: t.id, title: t.title, detail: clientName(t.clients), badge: t.due_date ? formatDate(t.due_date) : "No date", urgent: isOverdue(t.due_date), href: "/my-todo?tab=tasks" })), empty: "A little room to think. Your personal list is clear." },
+    { key: "alerts", value: alertCount, unit: "need attention", href: "/my-todo", series: [{ label: "Unacknowledged", value: alertCount }], rows: (myAlerts ?? []).map((a) => ({ category: "Unacknowledged", id: a.id, title: a.title, detail: a.detail ?? undefined, href: a.href ?? undefined, urgent: true })), empty: "All clear. No outstanding alerts." },
+    { key: "active_projects", value: activeProjects?.length ?? 0, unit: "open projects", href: "/projects", series: [{ key: "active", label: "Active", value: projectStatusCounts.active }, { key: "planning", label: "Planning", value: projectStatusCounts.planning }, { key: "on_hold", label: "On hold", value: projectStatusCounts.on_hold }], rows: (activeProjects ?? []).map((p) => ({ category: p.status, id: p.id, title: p.name, detail: clientName(p.clients), badge: p.status.replaceAll("_", " "), href: `/projects/${p.id}` })), empty: "No projects in progress yet." },
+    { key: "team_workload", value: [...workloadByPerson.values()].reduce((a, b) => a + b, 0), unit: "open team tasks", href: "/tasks?view=all", series: [...workloadGroups].map(([key, point]) => ({ key, ...point })).sort((a, b) => b.value - a.value), rows: [...workloadGroups].map(([id, point]) => ({ id, category: id, title: point.label, badge: `${point.value} tasks`, href: "/tasks?view=all" })), records: (allOpenTasks ?? []).map((t) => ({ id: t.id, category: t.assigned_to ?? "unassigned", title: t.title, detail: `${workloadGroups.get(t.assigned_to ?? "unassigned")?.label} · ${clientName(t.clients)}`, badge: t.due_date ? formatDate(t.due_date) : "No date", urgent: isOverdue(t.due_date), href: "/tasks?view=all" })), empty: "No open work across the team." },
+    ...([{ key: "touchpoints_due", items: overdueTouchpoints }, { key: "touchpoints_upcoming", items: upcomingTouchpoints }] as const).map(({ key, items }) => ({ key, value: items.length, unit: "client follow-ups", href: "/touchpoints", series: groupSeries(items.map((t) => t.contact_method)), rows: items.map((t) => ({ category: seriesCategory(t.contact_method), id: t.id, title: clientName(t.clients), detail: t.contact_method ?? "Follow-up", badge: formatDate(t.due_date), urgent: isOverdue(t.due_date), href: `/touchpoints/${t.id}` })), empty: "No follow-ups in this queue." })),
+    { key: "quarterly_reviews", value: myReviews.length, unit: "reviews to progress", href: "/quarterly-reviews", series: groupSeries(myReviews.map((r) => r.status)), rows: myReviews.map((r) => ({ category: seriesCategory(r.status), id: r.id, title: r.clientName, detail: r.reviewPeriod, badge: r.status.replaceAll("_", " "), href: `/quarterly-reviews/${r.id}` })), empty: "No reviews need your attention." },
+    { key: "sales_requests", value: openSalesRequests?.length ?? 0, unit: "open sales requests", href: "/sales-requests", series: groupSeries((openSalesRequests ?? []).map((r) => r.stage)), rows: (openSalesRequests ?? []).map((r) => ({ category: seriesCategory(r.stage), id: r.id, title: r.title, detail: clientName(r.clients), badge: r.stage.replaceAll("_", " "), href: "/sales-requests" })), empty: "No open sales requests." },
+    { key: "recruitment", value: recruitmentRows?.length ?? 0, unit: "candidates across stages", href: "/recruitment", series: RECRUITMENT_STATUS_ORDER.map((s) => ({ key: s.value, label: s.label, value: recruitmentStatusCounts.get(s.value) ?? 0 })), rows: RECRUITMENT_STATUS_ORDER.map((s) => ({ id: s.value, category: s.value, title: s.label, badge: String(recruitmentStatusCounts.get(s.value) ?? 0), href: `/recruitment?status=${s.value}` })), records: (recruitmentRows ?? []).map((r) => ({ id: r.id, category: r.status, title: r.candidate_name ?? r.sender_name ?? "Unnamed candidate", badge: RECRUITMENT_STATUS_ORDER.find((s) => s.value === r.status)?.label ?? r.status, href: `/recruitment?status=${r.status}` })), empty: "No candidates yet." },
   ];
 
   const sourceErrors = new Map<string, unknown>([

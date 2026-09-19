@@ -134,7 +134,7 @@ export type Workspace = {
   widgets: Widget[];
   layouts: Record<"lg" | "md" | "sm", Placement[]>;
 };
-export type SeriesPoint = { label: string; value: number };
+export type SeriesPoint = { label: string; value: number; key?: string };
 export type WidgetRowData = {
   id: string;
   title: string;
@@ -142,6 +142,8 @@ export type WidgetRowData = {
   badge?: string;
   href?: string;
   urgent?: boolean;
+  /** Exact series key, independent of the human-readable badge. */
+  category?: string;
 };
 export type WidgetData = {
   key: SourceKey;
@@ -150,6 +152,9 @@ export type WidgetData = {
   href?: string;
   series: SeriesPoint[];
   rows: WidgetRowData[];
+  /** Optional underlying records when the card itself displays grouped summaries. */
+  records?: WidgetRowData[];
+  recordsLabel?: string;
   empty: string;
   error?: string;
 };
@@ -264,19 +269,18 @@ export function defaultWorkspace(eligible: readonly string[]): Workspace {
     .filter((key) => eligible.includes(key))
     .slice(0, 5)
     .map((key) => makeWidget(key, key));
-  const lg = widgets.map(
-    (w, index): Placement =>
-      index === 0
-        ? { i: w.id, x: 0, y: 0, w: 8, h: 9 }
-        : index === 1
-          ? { i: w.id, x: 8, y: 0, w: 4, h: 9 }
-          : {
-              i: w.id,
-              x: ((index - 2) % 3) * 4,
-              y: 9 + Math.floor((index - 2) / 3) * 9,
-              w: 4,
-              h: 9,
-            },
+  const lg = widgets.map((w, index): Placement =>
+    index === 0
+      ? { i: w.id, x: 0, y: 0, w: 8, h: 9 }
+      : index === 1
+        ? { i: w.id, x: 8, y: 0, w: 4, h: 9 }
+        : {
+            i: w.id,
+            x: ((index - 2) % 3) * 4,
+            y: 9 + Math.floor((index - 2) / 3) * 9,
+            w: 4,
+            h: 9,
+          },
   );
   return {
     version: 1,
@@ -389,8 +393,48 @@ export function groupSeries(
 ): SeriesPoint[] {
   const totals = new Map<string, number>();
   for (const value of values) {
-    const label = value?.replaceAll("_", " ") || "Unspecified";
+    const label = seriesCategory(value);
     totals.set(label, (totals.get(label) ?? 0) + 1);
   }
   return [...totals].map(([label, value]) => ({ label, value }));
+}
+
+export function seriesCategory(value: string | null | undefined): string {
+  return value?.replaceAll("_", " ") || "Unspecified";
+}
+
+export type DrilldownSeries = SeriesPoint & { categories: string[] };
+
+/** Retain exact membership when several chart buckets are collapsed into Other. */
+export function compactWidgetSeries(
+  series: SeriesPoint[],
+  limit: number,
+): DrilldownSeries[] {
+  const points = series.map((point) => ({
+    ...point,
+    categories: [point.key ?? point.label],
+  }));
+  const count = Math.max(1, Math.floor(limit));
+  if (points.length <= count) return points;
+  const rest = points.slice(count - 1);
+  return [
+    ...points.slice(0, count - 1),
+    {
+      label: "Other",
+      value: rest.reduce((sum, point) => sum + point.value, 0),
+      categories: rest.flatMap((point) => point.categories),
+    },
+  ];
+}
+
+/** Null means View all. An empty selection must never accidentally return all rows. */
+export function filterWidgetRecords(
+  rows: WidgetRowData[],
+  categories: string[] | null,
+): WidgetRowData[] {
+  if (categories === null) return rows;
+  const selected = new Set(categories);
+  return rows.filter(
+    (row) => row.category !== undefined && selected.has(row.category),
+  );
 }

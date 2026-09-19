@@ -33,13 +33,14 @@ test("all widget accents survive serialization independently of display and layo
     }
   }
 });
-test("editor preview is read-only and its size guide inherits the selected accent", () => {
-  const content = readFileSync(
-    new URL("../src/components/dashboard-widget-content.tsx", import.meta.url),
+test("restored editor keeps the visual size presets and selected accent", () => {
+  const editor = readFileSync(
+    new URL("../src/components/dashboard-workspace.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(content, /data.key === "alerts" && !preview/);
-  assert.match(content, /const rowHref = preview \? undefined/);
+  assert.match(editor, /<DashboardWidgetSize/);
+  assert.doesNotMatch(editor, /DashboardWidgetEditor/);
+  assert.match(editor, /"--widget-accent": ACCENT_COLORS\[selection.accent\]/);
   const size = readFileSync(
     new URL(
       "../src/components/dashboard-widget-size.module.css",
@@ -47,15 +48,7 @@ test("editor preview is read-only and its size guide inherits the selected accen
     ),
     "utf8",
   );
-  assert.match(size, /background: var\(--widget-accent, #e93e3f\)/);
-  const editor = readFileSync(
-    new URL("../src/components/dashboard-widget-editor.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.doesNotMatch(
-    editor,
-    /LiveWidgetContent|fetchLiveDashboardWidget|acknowledgeDashboardAlert/,
-  );
+  assert.ok(size.includes("background: var(--widget-accent, #e93e3f)"));
 });
 test("recommended layout fits every breakpoint and is stable after normalization", () => {
   const config = defaultWorkspace(eligible);

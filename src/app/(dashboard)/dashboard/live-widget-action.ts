@@ -8,6 +8,7 @@ import {
 import { fetchResourceHoursAction } from "../hours/actions";
 import {
   groupSeries,
+  seriesCategory,
   type SourceKey,
   type WidgetData,
 } from "@/lib/dashboard-workspace";
@@ -44,6 +45,7 @@ export async function fetchLiveDashboardWidget(
       href: "/my-todo?tab=tickets",
       series: groupSeries(result.tickets.map((t) => t.priority)),
       rows: result.tickets.map((t) => ({
+        category: seriesCategory(t.priority),
         id: String(t.id),
         title: t.title,
         detail: [t.ticketNumber, t.clientName].filter(Boolean).join(" · "),
@@ -62,6 +64,7 @@ export async function fetchLiveDashboardWidget(
       series: groupSeries(result.rows.map((r) => r.priority)),
       rows: result.rows.map((r) => ({
         id: String(r.id),
+        category: seriesCategory(r.priority),
         title: r.title,
         detail: `${r.ticketNumber ?? "Ticket"} · ${r.clientName}`,
         badge: r.priority ?? undefined,
@@ -79,6 +82,7 @@ export async function fetchLiveDashboardWidget(
       series: groupSeries(result.rows.map((r) => r.supportStatus)),
       rows: result.rows.map((r) => ({
         id: `${r.accountLabel}-${r.serialNumber}`,
+        category: seriesCategory(r.supportStatus),
         title: r.productModel,
         detail: `${r.accountLabel} · ${r.serialNumber}`,
         badge: r.supportEndDate?.slice(0, 10) ?? r.supportStatus,
@@ -94,10 +98,16 @@ export async function fetchLiveDashboardWidget(
       ...base,
       value: rows.reduce((sum, r) => sum + r.thisMonth, 0),
       unit: "hours this month",
+      recordsLabel: "resource summaries",
       href: "/dashboard/resource-hours",
-      series: rows.map((r) => ({ label: r.resourceName, value: r.thisMonth })),
+      series: rows.map((r) => ({
+        key: r.resourceId ?? r.resourceName,
+        label: r.resourceName,
+        value: r.thisMonth,
+      })),
       rows: rows.map((r) => ({
         id: r.resourceId ?? r.resourceName,
+        category: r.resourceId ?? r.resourceName,
         title: r.resourceName,
         detail: `Today ${r.today.toFixed(1)}h · Yesterday ${r.yesterday.toFixed(1)}h`,
         badge: `${r.thisMonth.toFixed(1)}h`,
