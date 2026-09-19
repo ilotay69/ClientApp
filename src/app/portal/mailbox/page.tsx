@@ -68,7 +68,11 @@ export default async function PortalMailboxPage({
 
           <PortalCard title="By mailbox">
             {rows.length === 0 ? (
-              <EmptyRow>No mailboxes match these filters.</EmptyRow>
+              <EmptyRow>
+                {totalBeforeFilter === 0
+                  ? "No mailbox usage has synced for your Microsoft 365 tenant yet."
+                  : "No mailboxes match these filters."}
+              </EmptyRow>
             ) : (
               <div className="space-y-5 px-5 py-4">
                 {rows.map((m) => (

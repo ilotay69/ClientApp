@@ -103,7 +103,11 @@ export default async function PortalDevicesPage({
 
           <PortalCard title="All devices">
             {rows.length === 0 ? (
-              <EmptyRow>No devices match these filters.</EmptyRow>
+              <EmptyRow>
+                {totalBeforeFilter === 0
+                  ? "No devices have synced for your account yet."
+                  : "No devices match these filters."}
+              </EmptyRow>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">

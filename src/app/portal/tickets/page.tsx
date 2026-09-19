@@ -3,7 +3,7 @@ import { requirePortalSession } from "@/lib/portal";
 import { readPortalFilters } from "@/lib/portal-filters";
 import { fetchTicketsSection, normalizeLookbackDays } from "@/lib/portal-sections";
 import { MAX_LOOKBACK_DAYS } from "@/lib/portal-data";
-import { PortalPageHeader, PortalCard } from "@/components/portal-ui";
+import { PortalPageHeader, PortalCard, EmptyRow } from "@/components/portal-ui";
 import { PortalFilterBar } from "@/components/portal-filter-bar";
 import { PortalTicketsTable } from "@/components/portal-tickets-table";
 import { PortalUnavailable } from "@/components/portal-unavailable";
@@ -69,7 +69,14 @@ export default async function PortalTicketsPage({
             </span>
           }
         >
-          <PortalTicketsTable tickets={rows} />
+          {totalBeforeFilter === 0 ? (
+            <EmptyRow>
+              No open tickets in the last {days} days — nothing is outstanding with our service
+              desk.
+            </EmptyRow>
+          ) : (
+            <PortalTicketsTable tickets={rows} />
+          )}
         </PortalCard>
         </>
       )}

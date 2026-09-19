@@ -77,7 +77,11 @@ export default async function PortalFortigatePage({
 
           <PortalCard title="Hardware">
             {rows.length === 0 ? (
-              <EmptyRow>No FortiGate devices match these filters.</EmptyRow>
+              <EmptyRow>
+                {totalBeforeFilter === 0
+                  ? "No FortiGate hardware is registered against your account."
+                  : "No FortiGate devices match these filters."}
+              </EmptyRow>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
